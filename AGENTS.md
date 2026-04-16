@@ -29,6 +29,16 @@ Local Postgres (Docker Compose):
 - Prefer small, focused changes; keep migrations/patches readable.
 - Do not commit secrets (`.env`, credentials, connection strings).
 
+## GitFlow workflow (team rule)
+
+- Do not work directly on `main` or `develop`. Create a GitFlow branch first:
+  - `feature/*` from `develop`
+  - `release/*` from `develop`
+  - `hotfix/*` from `main`
+- Do not push automatically. Push only when explicitly requested.
+- Do not commit changes until the fix has been verified (checks and/or visual verification).
+- When closing a GitFlow branch, delete it locally and on the remote (branch hygiene).
+
 ## Skill selection (required)
 
 Before deep work on Azure, Foundry, messaging, or Cursor meta-tasks, read **`docs/ai/SKILLS.md`** and treat only checked skills as in-scope unless the user explicitly overrides.
