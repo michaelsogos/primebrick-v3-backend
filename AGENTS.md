@@ -28,6 +28,7 @@ Local Postgres (Docker Compose):
 
 - Prefer small, focused changes; keep migrations/patches readable.
 - Do not commit secrets (`.env`, credentials, connection strings).
+- **Documentation language:** All `*.md` files in this repository must use **English** for team-facing prose.
 
 ## GitFlow workflow (team rule)
 
