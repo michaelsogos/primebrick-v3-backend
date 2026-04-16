@@ -10,6 +10,55 @@ import { CustomerEntity, type CustomerStatus } from "./customer_entity.js";
 import type { CustomerCreateBody, CustomerListQuery } from "./dto.js";
 import { CUSTOMER_SEARCHABLE_KEYS } from "./list-config.js";
 
+function buildIlikeNeedleFromSearch(raw: string): {
+  needle: string;
+  trueChars: number;
+  /** True if the user wrote at least one `\*` or `\?` (SQL % / _). */
+  hasEscapedWildcard: boolean;
+} {
+  // Semantics:
+  // - '*' and '?' are treated as literals.
+  // - '\*' means "any chars" (LIKE '%') — includes **zero** characters (same as SQL %).
+  // - '\?' means "single char" (LIKE '_')
+  // - '\X' for any other X: literal backslash + X (handled on next loop iteration for X).
+  //
+  // Patterns are used with ILIKE … ESCAPE '#' (see query-builder): literal % _ # are written as #% #_ ##.
+  //
+  // trueChars: counts letters etc.; '\*' / '\?' pairs add 0 to trueChars.
+  // Min-length: trueChars >= 3, OR (hasEscapedWildcard && trueChars >= 1) so e.g. `ma\*` runs.
+
+  let out = "";
+  let trueChars = 0;
+  let hasEscapedWildcard = false;
+
+  const s = raw;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]!;
+
+    if (ch === "\\") {
+      const next = s[i + 1];
+      if (next === "*" || next === "?") {
+        out += next === "*" ? "%" : "_";
+        hasEscapedWildcard = true;
+        i++; // consume next
+        continue;
+      }
+      out += "\\";
+      trueChars++;
+      continue;
+    }
+
+    if (ch === "%") out += "#%";
+    else if (ch === "_") out += "#_";
+    else if (ch === "#") out += "##";
+    else out += ch;
+
+    trueChars++;
+  }
+
+  return { needle: `%${out}%`, trueChars, hasEscapedWildcard };
+}
+
 export type CustomerDetailRow = {
   uuid: string;
   code: string;
@@ -193,26 +242,32 @@ export class CustomersDal {
 
     if (q.search && q.search.trim()) {
       const raw = q.search.trim();
-      const needle = `%${raw}%`;
-      const looksLikeUuid =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
+      const { needle, trueChars, hasEscapedWildcard } = buildIlikeNeedleFromSearch(raw);
+      const canSearch = trueChars >= 3 || (hasEscapedWildcard && trueChars >= 1);
+      if (!canSearch) {
+        // Too short and no meaningful wildcard; do not return the unfiltered list.
+        filters.push(Filter.raw("1", "=", "0"));
+      } else {
+        const looksLikeUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
 
-      const fields = (q.search_in?.length ? q.search_in : CUSTOMER_SEARCHABLE_KEYS) as string[];
-      const allowed = new Set([...CUSTOMER_SEARCHABLE_KEYS, "uuid"]);
-      const ors = fields
-        .filter((f) => allowed.has(f))
-        .flatMap((f) => {
-          if (f === "uuid") {
-            // uuid is not part of the default search scope; if explicitly requested:
-            // - exact uuid → "="
-            // - partial → CAST(uuid AS text) ILIKE (handled in query builder)
-            return looksLikeUuid
-              ? [Filter.fieldValue(field(CustomerEntity, "uuid"), "=", raw, "OR")]
-              : [Filter.fieldValue(field(CustomerEntity, "uuid"), "ILIKE", needle, "OR")];
-          }
-          return [Filter.fieldValue(field(CustomerEntity, f as any), "ILIKE", needle, "OR")];
-        });
-      if (ors.length) filters.push(Filter.group(ors, "OR"));
+        const fields = (q.search_in?.length ? q.search_in : CUSTOMER_SEARCHABLE_KEYS) as string[];
+        const allowed = new Set([...CUSTOMER_SEARCHABLE_KEYS, "uuid"]);
+        const ors = fields
+          .filter((f) => allowed.has(f))
+          .flatMap((f) => {
+            if (f === "uuid") {
+              // uuid is not part of the default search scope; if explicitly requested:
+              // - exact uuid → "="
+              // - partial → CAST(uuid AS text) ILIKE (handled in query builder)
+              return looksLikeUuid
+                ? [Filter.fieldValue(field(CustomerEntity, "uuid"), "=", raw, "OR")]
+                : [Filter.fieldValue(field(CustomerEntity, "uuid"), "ILIKE", needle, "OR")];
+            }
+            return [Filter.fieldValue(field(CustomerEntity, f as any), "ILIKE", needle, "OR")];
+          });
+        if (ors.length) filters.push(Filter.group(ors, "OR"));
+      }
     }
 
     const sort_key = (q.sort_key ?? "updated_at") as keyof CustomerDetailRow & string;

@@ -109,6 +109,10 @@ function renderFilterExpr(w: ParamWriter, f: FilterExpr): string {
         if (f.right === false) return `${left} ${f.op} FALSE`;
         throw new Error(`IS/IS NOT only supports null/boolean (got ${typeof f.right})`);
       }
+      // LIKE/ILIKE: use '#' as escape char (see customers search needle builder). Avoids '\' parsing quirks across PG versions.
+      if (f.op === "ILIKE" || f.op === "LIKE") {
+        return `${left} ${f.op} ${w.add(f.right)} ESCAPE '#'`;
+      }
       return `${left} ${f.op} ${w.add(f.right)}`;
     }
     case "field_field": {
