@@ -1,0 +1,15 @@
+---
+description: Primebrick backend — context and safety rules
+alwaysApply: true
+---
+
+# Primebrick backend
+
+- **Purpose:** Modular management system (CRM, Accounting, Warehouse, custom modules).
+- **Stack:** Express + TypeScript. The UI lives in a separate frontend repo.
+- **Before cloud/Foundry/messaging work:** Read `docs/ai/SKILLS.md` and treat only **[x]** skills as in-scope unless the user names another skill or path explicitly.
+- **Onboarding:** Read local `AGENTS.md` for commands and conventions.
+
+## Schema diff safety
+
+If `db-meta/diff-entities-vs-database.json` includes `renameHeuristicUserReviewRequired: true`, stop and **ask the user** before applying `likelyRenames` / `ALTER … RENAME COLUMN` from that file.

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Optional: git config core.hooksPath .githooks
+# After merge/pull: refresh schema meta JSON if DATABASE_URL is available (.env or env).
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT" || exit 0
+pnpm run db:meta:compare || true

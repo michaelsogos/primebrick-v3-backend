@@ -1,0 +1,15 @@
+# OpenAPI: date/time serialization
+
+When an entity field is a logical date/time type (DateTime/Date/Time), the API still transports it as **string**.
+The OpenAPI schema MUST make that explicit:
+
+- **DateTime (instant)**: `type: "string"`, `format: "date-time"`, include a description that it is RFC3339/ISO-8601 with timezone (`Z` or `+/-HH:MM`), plus examples.
+- **Date-only**: `type: "string"`, `format: "date"`, include examples (`YYYY-MM-DD`).
+- **Time-only**: `type: "string"`, `format: "time"`, include examples (`HH:mm:ss` or `HH:mm:ss.SSS`).
+
+Prefer adding:
+- `description` clarifying logical type (DateTime/Date/Time) and expected serialization format.
+- `examples` with UTC (`...Z`) and explicit offset (`...+02:00`) for `date-time`.
+
+Keep OpenAPI aligned when changing entity date/time fields or their DB pgType (`date`, `time`, `timestamptz`).
+

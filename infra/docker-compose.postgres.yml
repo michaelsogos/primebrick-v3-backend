@@ -1,0 +1,53 @@
+# Local PostgreSQL 18 — Docker Desktop (Windows) or Docker Engine (WSL2).
+#
+# If you see "dockerDesktopLinuxEngine" / "Impossibile trovare il file":
+#   start Docker Desktop and wait until it is fully running, then retry.
+#   Or run this compose from a WSL shell if Docker is only installed there.
+#
+# From backend repo root:
+#   docker compose -f infra/docker-compose.postgres.yml up -d
+# Stop:
+#   docker compose -f infra/docker-compose.postgres.yml down
+#
+# Persistence: data lives in Docker named volume "primebrick_pg18_data" (see below).
+#   Survives: container stop/start, compose down (without -v), PC reboot.
+#   Wiped by:  compose down -v, docker volume rm primebrick_pg18_data, Docker reset
+#             "Remove all data", or pruning volumes intentionally.
+#
+# PG 18+ image: mount must be /var/lib/postgresql (not …/data). If you first ran
+# an older compose that used …/data, remove the volume once then recreate:
+#   docker compose -f infra/docker-compose.postgres.yml down -v
+#   docker compose -f infra/docker-compose.postgres.yml up -d
+#
+# DBeaver "Connection refused" on localhost:5432:
+#   1) docker ps -a  → STATUS must be "Up". If Exited: docker logs primebrick-postgres-18
+#   2) docker port primebrick-postgres-18  → must list 127.0.0.1:…->5432/tcp
+#   3) Another app may own 5432 on Windows (local PostgreSQL). Stop it or set PG_HOST_PORT=5433
+#      in .env (repo root or this folder), recreate: compose down && compose up -d
+#   4) In DBeaver use host 127.0.0.1 (not "localhost").
+
+services:
+  postgres:
+    image: postgres:18-bookworm
+    container_name: primebrick-postgres-18
+    environment:
+      POSTGRES_USER: primebrick
+      POSTGRES_PASSWORD: primebrick_dev
+      POSTGRES_DB: primebrick
+    ports:
+      # Bind only on loopback; avoids some IPv6/localhost quirks on Windows.
+      # Override port: create .env with PG_HOST_PORT=5433 (if 5432 is already taken).
+      - "127.0.0.1:${PG_HOST_PORT:-5432}:5432"
+    volumes:
+      # PG 18+ requires this path so data lives in a versioned subdir (see postgres Docker README).
+      - primebrick_pg18_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U primebrick -d primebrick"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  primebrick_pg18_data:
+    # Fixed name so the volume is easy to spot and is not tied to the compose project prefix.
+    name: primebrick_pg18_data

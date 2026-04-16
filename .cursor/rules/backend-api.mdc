@@ -1,0 +1,12 @@
+---
+description: Express API — modules and JSON conventions
+globs: src/**/*,scripts/**/*
+alwaysApply: false
+---
+
+# Backend (Express)
+
+- **Entry:** `src/index.ts`. Prefer small routers per domain under `src/` as the API grows.
+- **CORS:** Enabled for local dev; tighten for production when you deploy.
+- **JSON:** Use consistent field naming with the frontend (`camelCase` unless you standardize on something else).
+

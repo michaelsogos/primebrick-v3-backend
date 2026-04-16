@@ -1,0 +1,14 @@
+# Entities: nullability alignment
+
+- Default assumption in schema-meta + DAL: **columns are NULLable** unless explicitly constrained.
+- Use `@Column({ nullable: false })` to force `NOT NULL`.
+
+## Keep TS types aligned with `@Column`
+
+- If a property is **required** in TypeScript (`prop: T`), then it **should** be `@Column({ nullable: false })` unless it's PK/Unique (which are implicitly NOT NULL).
+- If a property is **optional** (`prop?: T`) or explicitly nullable (`prop: T | null`), then it **must not** be `@Column({ nullable: false })`.
+
+## Why
+
+TypeScript optionality (`?`) and unions (`| null`) are not reliably discoverable at runtime, so alignment is a convention enforced by code review + tooling.
+
