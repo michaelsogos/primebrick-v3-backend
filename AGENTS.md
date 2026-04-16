@@ -40,3 +40,5 @@ Before deep work on Azure, Foundry, messaging, or Cursor meta-tasks, read **`doc
 | `docs/ai/README.md` | Index of AI/agent docs |
 | `docs/ai/SKILLS.md` | Editable skill checklist and paths |
 | `docs/ai/WORKFLOWS.md` | Suggested workflows |
+\n- GitFlow test change
+\n## v0.1.0\n- First release (GitFlow dry run)\n
