@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "version:auto": "node scripts/version-sync.mjs",
+    "prebuild": "node scripts/version-sync.mjs",
     "build": "tsc",
     "prestart": "pnpm run build",
     "start": "node dist/index.js",
