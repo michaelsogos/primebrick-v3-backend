@@ -18,6 +18,20 @@ alwaysApply: true
 
 - Before the first modification, if not already on a GitFlow branch, ask the user to choose `feature`, `release`, or `hotfix` and confirm the exact branch name.
 - After completing a set of requested changes, always ask whether to **close the branch** (merge per GitFlow + tag if release/hotfix) or **continue working** on it.
+- Do **not** push to remote automatically. Only push when the user explicitly asks.
+- Do **not** commit changes until they have been verified to work (checks and/or visual verification).
+
+## Closing branches (GitFlow hygiene)
+
+When the user chooses to **close** a branch:
+
+- Merge to the appropriate base branch (GitFlow), using `--no-ff`.
+- For `release/*` and `hotfix/*`, create the tag derived from the branch name.
+- After the merge, **delete the feature/release/hotfix branch** locally and on the remote.
+
+## Communication style for git operations
+
+- Keep git-operation updates extremely short (e.g. “Sto eseguendo un pull”, “Sto creando la branch”, “Sto facendo merge”). Avoid long explanations unless the user asks.
 
 ## Versioning rules (SemVer, major stays 0)
 
