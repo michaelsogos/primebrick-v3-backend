@@ -2,6 +2,12 @@
 
 This repository contains the **Primebrick API** (Node + Express + TypeScript) and its DB patch tooling.
 
+## Multi-repo layout (this repository is standalone)
+
+- This **backend** tree is its **own Git repository**, independent from the **frontend** repo and from any **workspace/meta** repo that may sit beside it in a local folder layout.
+- **Commits, branches, pushes, and releases** apply to **this repo only** (`git` commands run from the backend root unless the user specifies otherwise).
+- When the user asks to **release everything** / **all repos**, they mean **backend + frontend + workspace meta** as separate operations: complete the GitFlow steps **in each** repository that had changes (verify, commit, push, then merge/tag per team rules). Do not imply a single monorepo push covers the others.
+
 ## Commands
 
 Install dependencies:
@@ -12,6 +18,19 @@ Run API:
 
 - Dev: `pnpm run dev`
 - Build: `pnpm run build`
+
+### Dev auto-reload (HMR-like)
+
+Backend dev mode uses **`tsx watch`** (`pnpm run dev`), which automatically restarts the API on file changes.
+
+**Important:** do not start a second backend instance on the same port (default `3001`) or you will hit `EADDRINUSE`.
+When the user already has the backend running, test changes by calling the existing server on `http://localhost:3001`
+(e.g. via HTTP requests), rather than spawning another dev server.
+
+### Cleanup after agent-started servers
+
+- If you **started** `pnpm run dev` (or equivalent) **only to test or verify**, **stop that process when finished** (e.g. terminate the `tsx watch` subtree you spawned) so port `3001` is not left bound by an agent-only run.
+- **Do not** kill the user’s long-running dev server in **their** terminal. If ownership is unclear, **ask** or stop only the process tree clearly tied to the agent’s test session.
 
 Database patch tooling:
 
@@ -29,6 +48,7 @@ Local Postgres (Docker Compose):
 - Prefer small, focused changes; keep migrations/patches readable.
 - Do not commit secrets (`.env`, credentials, connection strings).
 - **Documentation language:** All `*.md` files in this repository must use **English** for team-facing prose.
+- **API errors (impact levels):** Follow `.cursor/rules/error-impact-levels.mdc` — errors should return a stable `error` code and an `impact` level for consistent frontend rendering.
 
 ## GitFlow workflow (team rule)
 
