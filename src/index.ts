@@ -1,5 +1,5 @@
 import cors from "cors";
-import express from "express";
+import express, { type Response } from "express";
 import { customersRouter } from "./modules/customers/router.js";
 import { openApiRouter } from "./openapi/router.js";
 import { errorHandler } from "./http/error-handler.js";
@@ -59,13 +59,19 @@ async function healthPayload(): Promise<HealthPayload> {
   };
 }
 
+/** 200 when DB is up; 503 when the API process is up but Postgres is not (same JSON body). */
+async function sendHealth(res: Response) {
+  const payload = await healthPayload();
+  res.status(payload.db.ok ? 200 : 503).json(payload);
+}
+
 app.get("/health", async (_req, res) => {
-  res.status(200).json(await healthPayload());
+  await sendHealth(res);
 });
 
 // Same payload under API prefix so the frontend dev proxy can reach it.
 app.get("/api/v1/health", async (_req, res) => {
-  res.status(200).json(await healthPayload());
+  await sendHealth(res);
 });
 
 app.get("/api/v1/modules", (_req, res) => {
