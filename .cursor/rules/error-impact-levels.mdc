@@ -1,0 +1,34 @@
+---
+description: Backend error responses — include impact level for frontend mapping
+alwaysApply: true
+---
+
+# Backend error impact levels (Primebrick)
+
+## Rule
+
+All API error responses that are intended for frontend consumption should include:
+
+- `error`: stable machine-readable code (e.g. `DB_UNAVAILABLE`)
+- `impact`: one of `CRITICAL | HIGH | MEDIUM | LOW`
+
+Prefer enum-like SCREAMING_SNAKE_CASE codes, for example:
+
+- `LIST_FAILED`
+- `DATABASE_UNAVAILABLE`
+
+Impact expresses **user/business impact** (not engineering priority). The frontend uses it to render
+consistent colors/icons in the error panel.
+
+## Expected semantics
+
+- `CRITICAL`: server/db unavailable, core flows blocked
+- `HIGH`: unexpected internal errors, critical endpoints failing
+- `MEDIUM`: validation-style errors (when shown to the user as non-blocking)
+- `LOW`: optional features / best-effort endpoints
+
+## Notes
+
+- Prefer stable `error` codes over free-text messages.
+- Keep the process alive: errors should be handled via middleware (no crashes on async rejections).
+
