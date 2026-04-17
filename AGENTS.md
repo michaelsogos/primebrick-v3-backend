@@ -57,6 +57,7 @@ Local Postgres (Docker Compose):
 
 ## GitFlow workflow (team rule)
 
+- **Zero tolerance:** do **not** keep working (edits/commits) on **`develop` or `main`**. Do **not** push commits that were created on `develop`—merge a **`fix/*`** / **`feature/*`** branch into `develop` first. *"Push and close"* does **not** mean commit on `develop`. Only an **explicit** *"commit on `develop`"* overrides—see **`.cursor/rules/gitflow-guard.mdc`** (*Zero tolerance*).
 - **Never commit** application or config changes on `main` or `develop`. If you are on `develop` or `main`, **create a branch first** (`git checkout -b feature/...` or `fix/...` from updated `develop`), then edit and commit. No “small fix” exception unless the user explicitly allows direct commits to `develop`.
 - **Before the first patch/write in this repo:** run `git branch --show-current`; if `develop` or `main`, **`git checkout -b fix/<slug>`** first—see workspace **`.cursor/rules/gitflow-guard.mdc`** (*Mandatory order*).
 - Allowed branch types:
