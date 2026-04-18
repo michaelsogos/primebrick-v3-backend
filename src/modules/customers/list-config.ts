@@ -12,6 +12,13 @@ export type CustomerListColumn = {
   badge?: {
     values: Record<string, { labelKey: string; color: string }>;
   };
+  /**
+   * FE-only: `datetime` columns may show a header toggle between browser-local formatting
+   * and formatting in the IANA zone from `recordIanaField` on each row.
+   */
+  datetimeIanaToggle?: {
+    recordIanaField: string;
+  };
 };
 
 export const CUSTOMER_DEFAULT_SORT = { key: "updated_at", dir: "desc" as const };
@@ -43,6 +50,15 @@ export const CUSTOMER_LIST_COLUMNS: CustomerListColumn[] = [
       },
     },
   },
+  {
+    key: "onboarding_at",
+    labelKey: "entities.customer.fields.onboarding_at",
+    type: "datetime",
+    sortable: true,
+    searchable: false,
+    defaultVisible: true,
+    datetimeIanaToggle: { recordIanaField: "onboarding_time_zone" },
+  },
 
   // Extra DTO-exposed fields (hidden by default)
   { key: "uuid", labelKey: "entities.customer.fields.uuid", type: "text", sortable: true, defaultVisible: false },
@@ -52,6 +68,14 @@ export const CUSTOMER_LIST_COLUMNS: CustomerListColumn[] = [
   { key: "local_state", labelKey: "entities.customer.fields.local_state", type: "text", sortable: true, defaultVisible: false },
   { key: "local_country", labelKey: "entities.customer.fields.local_country", type: "text", sortable: true, defaultVisible: false },
   { key: "local_zip", labelKey: "entities.customer.fields.local_zip", type: "text", sortable: false, defaultVisible: false },
+  {
+    key: "onboarding_time_zone",
+    labelKey: "entities.customer.fields.onboarding_time_zone",
+    type: "text",
+    sortable: true,
+    searchable: false,
+    defaultVisible: false,
+  },
   { key: "created_at", labelKey: "entities.customer.fields.created_at", type: "datetime", sortable: true, searchable: false, defaultVisible: false },
   { key: "updated_at", labelKey: "entities.customer.fields.updated_at", type: "datetime", sortable: true, searchable: false, defaultVisible: false },
   { key: "created_by", labelKey: "entities.customer.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },

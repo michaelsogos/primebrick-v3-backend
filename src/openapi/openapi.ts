@@ -107,6 +107,18 @@ export const openapi = {
           local_state: { type: "string" },
           local_country: { type: "string" },
           local_zip: { type: "string" },
+          onboarding_at: {
+            type: "string",
+            format: "date-time",
+            description:
+              "Onboarding instant (UTC in DB). Send ISO-8601; pair with onboarding_time_zone for display in that IANA zone.",
+          },
+          onboarding_time_zone: {
+            type: "string",
+            maxLength: 100,
+            description: "IANA time zone id (e.g. Europe/Rome). Required if onboarding_at is set.",
+            examples: ["Europe/Rome", "America/New_York"],
+          },
         },
       },
       CustomerCreateResponse: {
@@ -134,6 +146,19 @@ export const openapi = {
           local_state: { type: "string" },
           local_country: { type: "string" },
           local_zip: { type: "string" },
+          onboarding_at: {
+            type: "string",
+            format: "date-time",
+            description:
+              "Onboarding instant (stored as UTC / timestamptz). Use onboarding_time_zone with Intl in the UI for local wall time (incl. DST).",
+            examples: ["2026-04-16T12:01:44.606Z"],
+          },
+          onboarding_time_zone: {
+            type: "string",
+            maxLength: 100,
+            description: "IANA zone captured when onboarding was recorded.",
+            examples: ["Europe/Rome"],
+          },
           created_at: {
             type: "string",
             format: "date-time",

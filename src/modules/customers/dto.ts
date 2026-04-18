@@ -22,21 +22,59 @@ export const CustomerListQuerySchema = z.object({
 
 export type CustomerListQuery = z.infer<typeof CustomerListQuerySchema>;
 
-export const CustomerCreateBodySchema = z.object({
-  code: z.string().min(1).max(20),
-  first_name: z.string().min(1).optional(),
-  last_name: z.string().min(1).optional(),
-  company_name: z.string().min(1).optional(),
-  email: z.string().email().max(320).optional(),
-  phone: z.string().min(1).max(64).optional(),
-  status: CustomerStatusSchema.default("ACTIVE"),
-  status_reason: z.string().min(1).optional(),
-  local_address: z.string().min(1).optional(),
-  local_city: z.string().min(1).optional(),
-  local_state: z.string().min(1).optional(),
-  local_country: z.string().min(1).optional(),
-  local_zip: z.string().min(1).optional(),
-});
+export const CustomerCreateBodySchema = z
+  .object({
+    code: z.string().min(1).max(20),
+    first_name: z.string().min(1).optional(),
+    last_name: z.string().min(1).optional(),
+    company_name: z.string().min(1).optional(),
+    email: z.string().email().max(320).optional(),
+    phone: z.string().min(1).max(64).optional(),
+    status: CustomerStatusSchema.default("ACTIVE"),
+    status_reason: z.string().min(1).optional(),
+    local_address: z.string().min(1).optional(),
+    local_city: z.string().min(1).optional(),
+    local_state: z.string().min(1).optional(),
+    local_country: z.string().min(1).optional(),
+    local_zip: z.string().min(1).optional(),
+    onboarding_at: z.preprocess(
+      (v) => (v === "" || v === null ? undefined : v),
+      z.coerce.date().optional()
+    ),
+    onboarding_time_zone: z.preprocess(
+      (v) => {
+        if (v === "" || v === null || v === undefined) return undefined;
+        return typeof v === "string" ? v.trim() : v;
+      },
+      z.string().min(2).max(100).optional()
+    ),
+  })
+  .superRefine((val, ctx) => {
+    if (val.onboarding_at !== undefined && Number.isNaN(val.onboarding_at.getTime())) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Invalid onboarding_at",
+        path: ["onboarding_at"],
+      });
+      return;
+    }
+    const hasAt = val.onboarding_at !== undefined;
+    const hasTz = val.onboarding_time_zone !== undefined;
+    if (hasAt === hasTz) return;
+    if (hasAt && !hasTz) {
+      ctx.addIssue({
+        code: "custom",
+        message: "onboarding_time_zone is required when onboarding_at is set",
+        path: ["onboarding_time_zone"],
+      });
+    } else {
+      ctx.addIssue({
+        code: "custom",
+        message: "onboarding_at is required when onboarding_time_zone is set",
+        path: ["onboarding_at"],
+      });
+    }
+  });
 
 export type CustomerCreateBody = z.infer<typeof CustomerCreateBodySchema>;
 
