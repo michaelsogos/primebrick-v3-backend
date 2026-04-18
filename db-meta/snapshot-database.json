@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-04-18T16:58:28.521Z",
+  "generatedAt": "2026-04-18T16:58:44.512Z",
   "source": "database",
   "tables": {
     "public.customers": {
