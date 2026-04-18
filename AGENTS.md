@@ -45,7 +45,7 @@ If `db-meta/diff-entities-vs-database.json` has `renameHeuristicUserReviewRequir
 
 ## GitFlow
 
-Follow **`.cursor/rules/gitflow-guard.mdc`**: never commit on `develop`/`main`; use `feature/*`; merge before push; push only when asked; verify before commit; when closing a branch, delete it locally and on the remote.
+Follow **`.cursor/rules/gitflow-guard.mdc`**: never commit on `develop`/`main`; use `feature/*`; merge before push; push only when asked; verify before commit; when closing a branch, delete it locally and on the remote. **Before closing a feature** (merge, delete branch), **ask the user** — including when you created the branch automatically.
 
 **New task / nuovo task:** When the user starts a new task (e.g. *“Iniziamo un nuovo task”*, *let’s start a new task*), infer `feature/<slug>` from context and create that branch from `develop` before edits — see **workspace root `AGENTS.md` → New task workflow**.
 
