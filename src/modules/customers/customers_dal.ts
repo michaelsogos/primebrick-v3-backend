@@ -74,6 +74,8 @@ export type CustomerDetailRow = {
   local_state?: string;
   local_country?: string;
   local_zip?: string;
+  onboarding_at?: Date;
+  onboarding_time_zone?: string;
   created_at: Date;
   created_by: string;
   updated_at: Date;
@@ -83,10 +85,14 @@ export type CustomerDetailRow = {
   deleted_by?: string;
 };
 
-export type CustomerDetailDto = Omit<CustomerDetailRow, "created_at" | "updated_at" | "deleted_at"> & {
+export type CustomerDetailDto = Omit<
+  CustomerDetailRow,
+  "created_at" | "updated_at" | "deleted_at" | "onboarding_at"
+> & {
   created_at: string;
   updated_at: string;
   deleted_at?: string;
+  onboarding_at?: string;
 };
 
 function projectAllExceptId(): FieldProjector[] {
@@ -105,6 +111,8 @@ function projectAllExceptId(): FieldProjector[] {
     "local_state",
     "local_country",
     "local_zip",
+    "onboarding_at",
+    "onboarding_time_zone",
     "created_at",
     "created_by",
     "updated_at",
@@ -228,6 +236,7 @@ export class CustomersDal {
       created_at: entityDateToApiIso(r.created_at),
       updated_at: entityDateToApiIso(r.updated_at),
       deleted_at: r.deleted_at ? entityDateToApiIso(r.deleted_at) : undefined,
+      onboarding_at: r.onboarding_at ? entityDateToApiIso(r.onboarding_at) : undefined,
     };
   }
 
@@ -317,6 +326,8 @@ export class CustomersDal {
         local_state: body.local_state,
         local_country: body.local_country,
         local_zip: body.local_zip,
+        onboarding_at: body.onboarding_at,
+        onboarding_time_zone: body.onboarding_time_zone,
         created_by: "system",
         updated_by: "system",
         version: 1,
