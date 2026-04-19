@@ -14,8 +14,6 @@ dist
 .env
 .env.*
 
-# Generated schema meta outputs (gitignored)
-/db-meta/
 
 # Editor directories and files
 .vscode/*

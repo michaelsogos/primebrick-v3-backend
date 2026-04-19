@@ -50,6 +50,16 @@ export class CustomerEntity implements IAuditableEntity, IExposableEntity {
 
   local_zip?: string;
 
+  /**
+   * Customer onboarding instant, stored as `timestamptz` (UTC in PostgreSQL).
+   * Pair with {@link onboarding_time_zone} so the UI can format in the creator IANA zone (incl. DST).
+   */
+  onboarding_at?: Date;
+
+  /** IANA time zone id (e.g. `Europe/Rome`) captured when onboarding was recorded. */
+  @Column({ length: 100 })
+  onboarding_time_zone?: string;
+
   created_at: Date;
 
   created_by: string;
