@@ -1,6 +1,25 @@
 #!/bin/sh
-# Optional: git config core.hooksPath .githooks
-# After merge/pull: refresh schema meta JSON if DATABASE_URL is available (.env or env).
-ROOT="$(git rev-parse --show-toplevel)"
+set -e
+
+# Apply pending SQL migrations from db-meta/patches (see scripts/database-patch-apply.ts).
+# Do NOT run db:meta:compare here — that generates snapshots/patches when @Entity models change.
+
+if [ "${PB_SKIP_POST_MERGE_DB_MIGRATE:-}" = "1" ]; then
+  echo "post-merge: PB_SKIP_POST_MERGE_DB_MIGRATE=1 — skipping db:migrate"
+  exit 0
+fi
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 cd "$ROOT" || exit 0
-pnpm run db:meta:compare || true
+
+if [ ! -f package.json ] || ! grep -q '"db:migrate"' package.json 2>/dev/null; then
+  exit 0
+fi
+
+if [ -z "$DATABASE_URL" ] && [ ! -f .env ]; then
+  echo "post-merge: DATABASE_URL not set and no .env — skipping db:migrate"
+  exit 0
+fi
+
+echo "post-merge: applying database patches (pnpm run db:migrate)…"
+pnpm run db:migrate
