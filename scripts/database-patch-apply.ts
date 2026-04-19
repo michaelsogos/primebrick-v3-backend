@@ -3,13 +3,16 @@
  *
  * Strategy:
  * - Use DATABASE_URL (or backend/.env) for connection.
- * - Read db-meta/patches files sorted by filename (timestamp prefix).
- * - Read last applied patch_id from the database patch registry table (max).
- * - Only consider files strictly after that patch_id.
- * - For each candidate file:
- *   - Compute SHA256 of body.
- *   - If content_sha256 already recorded in registry, skip.
- *   - Otherwise, BEGIN; apply SQL; INSERT into registry; COMMIT.
+ * - Read db-meta/patches files sorted by filename (UTC timestamp prefix in patch_id).
+ * - For each file in order, consult public.primebrick_database_patch (patch_id + content_sha256):
+ *   - If this patch_id is already recorded with the same SHA → skip (already applied).
+ *   - If this patch_id exists with a different SHA → fail (immutable patch changed).
+ *   - If this patch_id is missing but the same body SHA exists under another patch_id → register
+ *     this patch_id with the same SHA without re-executing SQL (idempotent duplicate body).
+ *   - Otherwise → BEGIN; apply SQL; INSERT registry row; COMMIT.
+ *
+ * This does not rely on max(patch_id) alone, so a gap (e.g. older patch never registered)
+ * is still applied when encountered in sorted order.
  */
 
 import { readFileSync, readdirSync } from "node:fs";
@@ -55,45 +58,66 @@ if (!url) {
   process.exit(1);
 }
 
+function listPatchFilenamesSorted(): string[] {
+  let files: string[] = [];
+  try {
+    files = readdirSync(patchesDir).filter((f) => f.endsWith(".sql"));
+  } catch {
+    return [];
+  }
+  return files.sort();
+}
+
 const pool = new Pool({ connectionString: url, max: 1 });
 
 try {
-  // Ensure registry table exists
   await pool.query(PATCH_REGISTRY_DDL);
 
-  // Find last applied patch_id
-  const lastR = await pool.query<{ patch_id: string | null }>(
-    `SELECT max(patch_id) AS patch_id FROM ${PATCH_REGISTRY_FQNAME}`
-  );
-  const lastPatchId = lastR.rows[0]?.patch_id ?? null;
-
-  const files = readdirSync(patchesDir)
-    .filter((f) => f.endsWith(".sql"))
-    .sort(); // lexicographic: timestamp prefix gives chronological order
-
-  const candidates = lastPatchId
-    ? files.filter((f) => patchIdFromFilename(f) > lastPatchId)
-    : files;
-
-  if (candidates.length === 0) {
-    console.log("No new database patches to apply.");
+  const files = listPatchFilenamesSorted();
+  if (files.length === 0) {
+    console.log("No database patch files in db-meta/patches.");
     process.exit(0);
   }
 
-  console.log(`Found ${candidates.length} patch(es) to apply.`);
+  let appliedOrRegistered = 0;
 
-  for (const filename of candidates) {
+  for (const filename of files) {
     const patchPath = join(patchesDir, filename);
     const raw = readFileSync(patchPath, "utf8");
     const sha = sha256Hex(raw);
     const patchId = patchIdFromFilename(filename);
 
-    const existing = await pool.query(
-      `SELECT 1 FROM ${PATCH_REGISTRY_FQNAME} WHERE content_sha256 = $1 LIMIT 1`,
+    const byId = await pool.query<{ content_sha256: string }>(
+      `SELECT content_sha256 FROM ${PATCH_REGISTRY_FQNAME} WHERE patch_id = $1`,
+      [patchId]
+    );
+
+    if ((byId.rowCount ?? 0) > 0) {
+      const recorded = byId.rows[0]!.content_sha256;
+      if (recorded === sha) {
+        console.log(`Skipping already applied patch: ${filename}`);
+        continue;
+      }
+      console.error(
+        `Patch ${filename} (${patchId}) exists in registry with a different content_sha256 — refusing to run.`
+      );
+      process.exit(1);
+    }
+
+    const bySha = await pool.query<{ patch_id: string }>(
+      `SELECT patch_id FROM ${PATCH_REGISTRY_FQNAME} WHERE content_sha256 = $1 LIMIT 1`,
       [sha]
     );
-    if ((existing.rowCount ?? 0) > 0) {
-      console.log(`Skipping already-recorded patch body: ${filename}`);
+    if ((bySha.rowCount ?? 0) > 0) {
+      const other = bySha.rows[0]!.patch_id;
+      await pool.query(
+        `INSERT INTO ${PATCH_REGISTRY_FQNAME} (patch_id, content_sha256) VALUES ($1, $2)`,
+        [patchId, sha]
+      );
+      console.log(
+        `Registered ${filename} (same body as ${other}) — no SQL re-execution.`
+      );
+      appliedOrRegistered++;
       continue;
     }
 
@@ -102,10 +126,11 @@ try {
       await pool.query("BEGIN");
       await pool.query(raw);
       await pool.query(
-        `INSERT INTO ${PATCH_REGISTRY_FQNAME} (patch_id, content_sha256) VALUES ($1, $2) ON CONFLICT (patch_id) DO NOTHING`,
+        `INSERT INTO ${PATCH_REGISTRY_FQNAME} (patch_id, content_sha256) VALUES ($1, $2)`,
         [patchId, sha]
       );
       await pool.query("COMMIT");
+      appliedOrRegistered++;
     } catch (e) {
       await pool.query("ROLLBACK");
       console.error(`Failed to apply patch ${filename}:`, e);
@@ -113,8 +138,11 @@ try {
     }
   }
 
-  console.log("All pending database patches applied.");
+  if (appliedOrRegistered === 0) {
+    console.log("No new database patches to apply (all already recorded).");
+  } else {
+    console.log(`Database patches finished (${appliedOrRegistered} applied or registered).`);
+  }
 } finally {
   await pool.end();
 }
-
