@@ -1,6 +1,9 @@
 /**
  * Builds canonical JSON snapshots: from @Entity registry vs local PostgreSQL,
- * then writes diff (entity intent vs database target). Run after git pull if desired.
+ * then writes diff (entity intent vs database target).
+ *
+ * Run this when you change @Entity models / schema intent — not from git post-merge.
+ * After pulling, apply pending SQL with `pnpm run db:migrate` (see `.githooks/post-merge`).
  *
  * DATABASE_URL or backend/.env line DATABASE_URL=...
  *
