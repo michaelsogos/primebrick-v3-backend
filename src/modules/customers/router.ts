@@ -6,7 +6,7 @@ import { asyncHandler } from "../../http/async-handler.js";
 import { isDatabaseUnavailableError } from "../../http/api-errors.js";
 import { CustomerCreateBodySchema, CustomerListQuerySchema, UuidParamSchema } from "./dto.js";
 import { z } from "zod";
-import { CUSTOMER_DEFAULT_SORT, CUSTOMER_LIST_COLUMNS } from "./list-config.js";
+import { CUSTOMER_AUDITING_COLUMNS, CUSTOMER_DATA_COLUMNS, CUSTOMER_DEFAULT_SORT, CUSTOMER_STICKY_COLUMNS } from "./list-config.js";
 
 export function customersRouter() {
   const router = Router();
@@ -29,7 +29,9 @@ export function customersRouter() {
         searchPlaceholderKey: "entities.list.searchPlaceholder",
         defaultPageSize: 25,
         pageSizeOptions: [10, 25, 50, 100],
-        columns: CUSTOMER_LIST_COLUMNS,
+        stickyColumns: CUSTOMER_STICKY_COLUMNS,
+        columns: CUSTOMER_DATA_COLUMNS,
+        auditingColumns: CUSTOMER_AUDITING_COLUMNS,
         defaultSort,
         filters: [
           { key: "status", labelKey: "entities.customer.fields.status", type: "enum", options: ["ACTIVE", "INACTIVE"] },
