@@ -237,7 +237,33 @@ export const openapi = {
                   dir: { type: "string", enum: ["asc", "desc"] },
                 },
               },
+              stickyColumns: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["key", "labelKey", "type"],
+                  properties: {
+                    key: { type: "string" },
+                    labelKey: { type: "string" },
+                    type: { type: "string" },
+                    sortable: { type: "boolean" },
+                  },
+                },
+              },
               columns: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["key", "labelKey", "type"],
+                  properties: {
+                    key: { type: "string" },
+                    labelKey: { type: "string" },
+                    type: { type: "string" },
+                    sortable: { type: "boolean" },
+                  },
+                },
+              },
+              auditingColumns: {
                 type: "array",
                 items: {
                   type: "object",
