@@ -3,6 +3,8 @@ export type CustomerListColumn = {
   labelKey: string;
   type: "text" | "badge" | "datetime";
   sortable: boolean;
+  /** FE-only: pinned (sticky) columns shown as a dedicated group and rendered first. */
+  sticky?: boolean;
   /** If false, column is excluded from "search in fields" dropdown and backend default search scope. */
   searchable?: boolean;
   /** If false, user cannot hide it in the UI column picker. */
@@ -30,7 +32,7 @@ export const CUSTOMER_DEFAULT_SORT = { key: "updated_at", dir: "desc" as const }
  * - Which fields are sortable/searchable
  */
 export const CUSTOMER_LIST_COLUMNS: CustomerListColumn[] = [
-  { key: "code", labelKey: "entities.customer.fields.code", type: "text", sortable: true, hideable: false },
+  { key: "code", labelKey: "entities.customer.fields.code", type: "text", sortable: true, hideable: false, sticky: true },
   { key: "first_name", labelKey: "entities.customer.fields.first_name", type: "text", sortable: true },
   { key: "last_name", labelKey: "entities.customer.fields.last_name", type: "text", sortable: true },
   { key: "company_name", labelKey: "entities.customer.fields.company_name", type: "text", sortable: true },
@@ -61,7 +63,7 @@ export const CUSTOMER_LIST_COLUMNS: CustomerListColumn[] = [
   },
 
   // Extra DTO-exposed fields (hidden by default)
-  { key: "uuid", labelKey: "entities.customer.fields.uuid", type: "text", sortable: true, defaultVisible: false },
+  { key: "uuid", labelKey: "entities.customer.fields.uuid", type: "text", sortable: true, defaultVisible: false, sticky: true },
   { key: "status_reason", labelKey: "entities.customer.fields.status_reason", type: "text", sortable: false, defaultVisible: false },
   { key: "local_address", labelKey: "entities.customer.fields.local_address", type: "text", sortable: false, defaultVisible: false },
   { key: "local_city", labelKey: "entities.customer.fields.local_city", type: "text", sortable: true, defaultVisible: false },
@@ -87,4 +89,39 @@ export const CUSTOMER_LIST_COLUMNS: CustomerListColumn[] = [
 
 export const CUSTOMER_SEARCHABLE_KEYS = CUSTOMER_LIST_COLUMNS.filter((c) => c.searchable !== false).map((c) => c.key);
 export const CUSTOMER_SORT_KEYS = CUSTOMER_LIST_COLUMNS.filter((c) => c.sortable).map((c) => c.key);
+
+export const CUSTOMER_AUDITING_COLUMN_KEYS = [
+  "created_at",
+  "created_by",
+  "updated_at",
+  "updated_by",
+  "deleted_at",
+  "deleted_by",
+  "version",
+] as const;
+
+const auditingKeySet = new Set<string>(CUSTOMER_AUDITING_COLUMN_KEYS);
+
+export const CUSTOMER_AUDITING_COLUMNS: CustomerListColumn[] = CUSTOMER_AUDITING_COLUMN_KEYS
+  .map((k) => CUSTOMER_LIST_COLUMNS.find((c) => c.key === k))
+  .filter((c): c is CustomerListColumn => !!c);
+
+export const CUSTOMER_STICKY_COLUMNS: CustomerListColumn[] = (() => {
+  const cols = CUSTOMER_LIST_COLUMNS.filter((c) => c.sticky);
+  const byKey = new Map(cols.map((c) => [c.key, c] as const));
+  const out: CustomerListColumn[] = [];
+  const uuid = byKey.get("uuid");
+  const code = byKey.get("code");
+  if (uuid) out.push(uuid);
+  if (code) out.push(code);
+  for (const c of cols) {
+    if (c.key === "uuid" || c.key === "code") continue;
+    out.push(c);
+  }
+  return out;
+})();
+
+export const CUSTOMER_DATA_COLUMNS: CustomerListColumn[] = CUSTOMER_LIST_COLUMNS.filter(
+  (c) => !c.sticky && !auditingKeySet.has(c.key)
+);
 
