@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { CustomerStatus } from "./customer_entity.js";
-import { CUSTOMER_SORT_KEYS } from "./list-config.js";
+import { CUSTOMER_FILTERABLE_KEYS, CUSTOMER_SORT_KEYS } from "./list-config.js";
 
 export const CustomerStatusSchema = z.enum(["ACTIVE", "INACTIVE"]) satisfies z.ZodType<CustomerStatus>;
 
@@ -9,6 +9,45 @@ const csvToStringArray = z
   .string()
   .transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean))
   .pipe(z.array(z.string()));
+
+const allowedOperators = [
+  "=",
+  "!=",
+  "<>",
+  "<",
+  "<=",
+  ">",
+  ">=",
+  "ILIKE",
+  "LIKE",
+  "IN",
+  "NOT IN",
+  "IS",
+  "IS NOT",
+] as const;
+export type SqlOperator = (typeof allowedOperators)[number];
+
+const FilterConditionSchema = z.object({
+  field: z.enum(CUSTOMER_FILTERABLE_KEYS as [string, ...string[]]),
+  op: z.enum(allowedOperators),
+  value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+});
+
+const FilterConnectorSchema = z.enum(["AND", "OR"]);
+
+export const FilterQueryArraySchema = z
+  .array(
+    z.object({
+      field: z.string(),
+      op: z.string(),
+      value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+      connector: FilterConnectorSchema.optional(),
+    })
+  )
+  .optional();
+
+export type FilterCondition = z.infer<typeof FilterConditionSchema>;
+export type FilterConnector = z.infer<typeof FilterConnectorSchema>;
 
 export const CustomerListQuerySchema = z.object({
   search: z.string().optional(),
@@ -18,6 +57,7 @@ export const CustomerListQuerySchema = z.object({
   sort_dir: z.enum(["asc", "desc"]).optional(),
   page: z.coerce.number().int().min(1).optional(),
   page_size: z.coerce.number().int().min(1).max(100).optional(),
+  filters: FilterQueryArraySchema,
 });
 
 export type CustomerListQuery = z.infer<typeof CustomerListQuerySchema>;
