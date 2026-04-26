@@ -31,6 +31,23 @@ export const openapi = {
           { name: "sort_dir", in: "query", schema: { type: "string", enum: ["asc", "desc"] } },
           { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
           { name: "page_size", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
+          {
+            name: "filters",
+            in: "query",
+            schema: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  field: { type: "string" },
+                  op: { type: "string", enum: ["=", "!=", "<>", "<", "<=", ">", ">=", "ILIKE", "LIKE", "IN", "NOT IN", "IS", "IS NOT"] },
+                  value: { oneOf: [{ type: "string" }, { type: "number" }, { type: "boolean" }, { type: "null" }] },
+                  connector: { type: "string", enum: ["AND", "OR"] },
+                },
+              },
+            },
+            description: "Advanced filter conditions array",
+          },
         ],
         responses: {
           "200": {
@@ -220,14 +237,15 @@ export const openapi = {
       },
       EntityMetaResponse: {
         type: "object",
-        required: ["entity", "titleKey", "uid", "list"],
+        required: ["entity", "titleKey", "uid", "defaultView", "list"],
         properties: {
           entity: { type: "string" },
           titleKey: { type: "string" },
           uid: { type: "string", description: "List row unique identifier column key (e.g. uuid)" },
+          defaultView: { type: "string", enum: ["table", "cards", "cards_list"] },
           list: {
             type: "object",
-            required: ["columns"],
+            required: ["columns", "viewVisibility"],
             properties: {
               searchPlaceholderKey: { type: "string" },
               defaultSort: {
@@ -235,19 +253,6 @@ export const openapi = {
                 properties: {
                   key: { type: "string" },
                   dir: { type: "string", enum: ["asc", "desc"] },
-                },
-              },
-              stickyColumns: {
-                type: "array",
-                items: {
-                  type: "object",
-                  required: ["key", "labelKey", "type"],
-                  properties: {
-                    key: { type: "string" },
-                    labelKey: { type: "string" },
-                    type: { type: "string" },
-                    sortable: { type: "boolean" },
-                  },
                 },
               },
               columns: {
@@ -260,6 +265,22 @@ export const openapi = {
                     labelKey: { type: "string" },
                     type: { type: "string" },
                     sortable: { type: "boolean" },
+                    searchable: { type: "boolean" },
+                    hideable: { type: "boolean" },
+                    defaultVisible: { type: "boolean" },
+                    filterable: { type: "boolean" },
+                  },
+                },
+              },
+              stickyColumns: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["key", "labelKey", "type"],
+                  properties: {
+                    key: { type: "string" },
+                    labelKey: { type: "string" },
+                    type: { type: "string" },
                   },
                 },
               },
@@ -272,7 +293,51 @@ export const openapi = {
                     key: { type: "string" },
                     labelKey: { type: "string" },
                     type: { type: "string" },
-                    sortable: { type: "boolean" },
+                  },
+                },
+              },
+              filterFields: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["key", "labelKey", "type"],
+                  properties: {
+                    key: { type: "string" },
+                    labelKey: { type: "string" },
+                    type: { type: "string" },
+                    filterable: { type: "boolean" },
+                  },
+                },
+              },
+              viewVisibility: {
+                type: "object",
+                properties: {
+                  table: {
+                    type: "object",
+                    properties: {
+                      visible: { type: "array", items: { type: "string" } },
+                      hidden: { type: "array", items: { type: "string" } },
+                      notDisplayable: { type: "array", items: { type: "string" } },
+                      notHideable: { type: "array", items: { type: "string" } },
+                    },
+                  },
+                  cards: {
+                    type: "object",
+                    properties: {
+                      visible: { type: "array", items: { type: "string" } },
+                      hidden: { type: "array", items: { type: "string" } },
+                      notDisplayable: { type: "array", items: { type: "string" } },
+                      notHideable: { type: "array", items: { type: "string" } },
+                    },
+                  },
+                  cards_list: {
+                    type: "object",
+                    properties: {
+                      visible: { type: "array", items: { type: "string" } },
+                      hidden: { type: "array", items: { type: "string" } },
+                      notDisplayable: { type: "array", items: { type: "string" } },
+                      notHideable: { type: "array", items: { type: "string" } },
+                    },
                   },
                 },
               },

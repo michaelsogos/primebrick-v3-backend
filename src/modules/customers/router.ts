@@ -4,9 +4,21 @@ import { CustomersDal } from "./customers_dal.js";
 import { validateBody, validateQuery } from "../../http/validation.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { isDatabaseUnavailableError } from "../../http/api-errors.js";
-import { CustomerCreateBodySchema, CustomerListQuerySchema, UuidParamSchema } from "./dto.js";
+import {
+  CustomerCreateBodySchema,
+  CustomerListQuerySchema,
+  UuidParamSchema,
+} from "./dto.js";
 import { z } from "zod";
-import { CUSTOMER_AUDITING_COLUMNS, CUSTOMER_DATA_COLUMNS, CUSTOMER_DEFAULT_SORT, CUSTOMER_STICKY_COLUMNS } from "./list-config.js";
+import {
+  CUSTOMER_AUDITING_COLUMNS,
+  CUSTOMER_DATA_COLUMNS,
+  CUSTOMER_DEFAULT_SORT,
+  CUSTOMER_DEFAULT_VIEW,
+  CUSTOMER_DEFAULT_VIEW_VISIBILITY,
+  CUSTOMER_LIST_COLUMNS,
+  CUSTOMER_STICKY_COLUMNS,
+} from "./list-config.js";
 
 export function customersRouter() {
   const router = Router();
@@ -23,19 +35,18 @@ export function customersRouter() {
     res.json({
       entity: "customer",
       titleKey: "entities.customer.title",
-      /** Column key used to identify a list row in the UI (uuid today; may change). */
       uid: "uuid",
+      defaultView: CUSTOMER_DEFAULT_VIEW,
       list: {
         searchPlaceholderKey: "entities.list.searchPlaceholder",
         defaultPageSize: 25,
         pageSizeOptions: [10, 25, 50, 100],
+        columns: CUSTOMER_LIST_COLUMNS,
         stickyColumns: CUSTOMER_STICKY_COLUMNS,
-        columns: CUSTOMER_DATA_COLUMNS,
         auditingColumns: CUSTOMER_AUDITING_COLUMNS,
         defaultSort,
-        filters: [
-          { key: "status", labelKey: "entities.customer.fields.status", type: "enum", options: ["ACTIVE", "INACTIVE"] },
-        ],
+        viewVisibility: CUSTOMER_DEFAULT_VIEW_VISIBILITY,
+        filterFields: CUSTOMER_LIST_COLUMNS.filter((c) => c.filterable !== false),
       },
     });
   });
@@ -44,7 +55,7 @@ export function customersRouter() {
     "/api/v1/entities/customer/list",
     validateQuery(CustomerListQuerySchema),
     asyncHandler(async (req, res) => {
-      const { search, search_in, status, sort_key, sort_dir, page, page_size } =
+      const { search, search_in, status, sort_key, sort_dir, page, page_size, filters } =
         req.query as unknown as import("./dto.js").CustomerListQuery;
       const eff_sort_key = (sort_key ?? defaultSort.key ?? "uuid") as NonNullable<typeof sort_key> | "uuid";
       const eff_sort_dir =
@@ -71,6 +82,7 @@ export function customersRouter() {
           search,
           search_in: search_in ?? undefined,
           status,
+          filters,
           sort_key: eff_sort_key,
           sort_dir: eff_sort_dir,
           page: page ?? undefined,
