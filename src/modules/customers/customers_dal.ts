@@ -13,20 +13,8 @@ import { CUSTOMER_SEARCHABLE_KEYS } from "./list-config.js";
 function buildIlikeNeedleFromSearch(raw: string): {
   needle: string;
   trueChars: number;
-  /** True if the user wrote at least one `\*` or `\?` (SQL % / _). */
   hasEscapedWildcard: boolean;
 } {
-  // Semantics:
-  // - '*' and '?' are treated as literals.
-  // - '\*' means "any chars" (LIKE '%') — includes **zero** characters (same as SQL %).
-  // - '\?' means "single char" (LIKE '_')
-  // - '\X' for any other X: literal backslash + X (handled on next loop iteration for X).
-  //
-  // Patterns are used with ILIKE … ESCAPE '#' (see query-builder): literal % _ # are written as #% #_ ##.
-  //
-  // trueChars: counts letters etc.; '\*' / '\?' pairs add 0 to trueChars.
-  // Min-length: trueChars >= 3, OR (hasEscapedWildcard && trueChars >= 1) so e.g. `ma\*` runs.
-
   let out = "";
   let trueChars = 0;
   let hasEscapedWildcard = false;
@@ -40,7 +28,7 @@ function buildIlikeNeedleFromSearch(raw: string): {
       if (next === "*" || next === "?") {
         out += next === "*" ? "%" : "_";
         hasEscapedWildcard = true;
-        i++; // consume next
+        i++;
         continue;
       }
       out += "\\";
@@ -57,6 +45,66 @@ function buildIlikeNeedleFromSearch(raw: string): {
   }
 
   return { needle: `%${out}%`, trueChars, hasEscapedWildcard };
+}
+
+type FilterCondition = {
+  field: string;
+  op: string;
+  value: unknown;
+  connector?: "AND" | "OR";
+};
+
+function translateFilterConditions(conditions: FilterCondition[]): ReturnType<typeof Filter.group> | null {
+  if (!conditions || conditions.length === 0) return null;
+
+  const validOps = new Set([
+    "=",
+    "!=",
+    "<>",
+    "<",
+    "<=",
+    ">",
+    ">=",
+    "ILIKE",
+    "LIKE",
+    "IN",
+    "NOT IN",
+    "IS",
+    "IS NOT",
+  ]);
+
+  const allowedFields = new Set(CUSTOMER_SEARCHABLE_KEYS);
+
+  const filterExprs: ReturnType<typeof Filter.fieldValue>[] = [];
+
+  for (const cond of conditions) {
+    if (!validOps.has(cond.op)) continue;
+    if (!allowedFields.has(cond.field)) continue;
+
+    let value: unknown = cond.value;
+
+    if ((cond.op === "ILIKE" || cond.op === "LIKE") && typeof value === "string") {
+      const { needle } = buildIlikeNeedleFromSearch(value);
+      value = needle;
+    }
+
+    filterExprs.push(Filter.fieldValue(
+      field(CustomerEntity, cond.field as any),
+      cond.op as any,
+      value,
+      (cond.connector as any) ?? "AND"
+    ));
+  }
+
+  if (filterExprs.length === 0) return null;
+
+  if (filterExprs.length === 1) {
+    const single = filterExprs[0]!;
+    single.operand = "AND";
+    return Filter.group([single], "AND");
+  }
+
+return Filter.group(filterExprs, "AND");
 }
 
 export type CustomerDetailRow = {
@@ -244,9 +292,9 @@ export class CustomersDal {
     const page = q.page ?? 1;
     const page_size = q.page_size ?? 25;
 
-    const filters = [];
+    const filters: ReturnType<typeof Filter.group>[] = [];
     if (q.status) {
-      filters.push(Filter.fieldValue(field(CustomerEntity, "status"), "=", q.status));
+      filters.push(Filter.group([Filter.fieldValue(field(CustomerEntity, "status"), "=", q.status)], "AND"));
     }
 
     if (q.search && q.search.trim()) {
@@ -254,8 +302,7 @@ export class CustomersDal {
       const { needle, trueChars, hasEscapedWildcard } = buildIlikeNeedleFromSearch(raw);
       const canSearch = trueChars >= 3 || (hasEscapedWildcard && trueChars >= 1);
       if (!canSearch) {
-        // Too short and no meaningful wildcard; do not return the unfiltered list.
-        filters.push(Filter.raw("1", "=", "0"));
+        filters.push(Filter.group([Filter.raw("1", "=", "0")], "AND"));
       } else {
         const looksLikeUuid =
           /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
@@ -266,9 +313,6 @@ export class CustomersDal {
           .filter((f) => allowed.has(f))
           .flatMap((f) => {
             if (f === "uuid") {
-              // uuid is not part of the default search scope; if explicitly requested:
-              // - exact uuid → "="
-              // - partial → CAST(uuid AS text) ILIKE (handled in query builder)
               return looksLikeUuid
                 ? [Filter.fieldValue(field(CustomerEntity, "uuid"), "=", raw, "OR")]
                 : [Filter.fieldValue(field(CustomerEntity, "uuid"), "ILIKE", needle, "OR")];
@@ -276,6 +320,13 @@ export class CustomersDal {
             return [Filter.fieldValue(field(CustomerEntity, f as any), "ILIKE", needle, "OR")];
           });
         if (ors.length) filters.push(Filter.group(ors, "OR"));
+      }
+    }
+
+    if (q.filters && q.filters.length > 0) {
+      const advancedFilter = translateFilterConditions(q.filters as FilterCondition[]);
+      if (advancedFilter) {
+        filters.push(advancedFilter);
       }
     }
 
