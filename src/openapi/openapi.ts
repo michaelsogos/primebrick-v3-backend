@@ -296,19 +296,6 @@ export const openapi = {
                   },
                 },
               },
-              filterFields: {
-                type: "array",
-                items: {
-                  type: "object",
-                  required: ["key", "labelKey", "type"],
-                  properties: {
-                    key: { type: "string" },
-                    labelKey: { type: "string" },
-                    type: { type: "string" },
-                    filterable: { type: "boolean" },
-                  },
-                },
-              },
               viewVisibility: {
                 type: "object",
                 properties: {
