@@ -268,11 +268,123 @@ export class CustomersDal {
       "Vento & Co",
     ];
 
+    const addresses = [
+      "Via Roma 1",
+      "Corso Italia 23",
+      "Via Nazionale 45",
+      "Piazza Duomo 12",
+      "Viale Gramsci 78",
+      "Via Garibaldi 34",
+      "Corso Buenos Aires 56",
+      "Via Torino 89",
+      "Piazza San Marco 3",
+      "Viale Europa 21",
+      "Via Po 67",
+      "Corso Vittorio Emanuele 90",
+      "Via Dante 15",
+      "Piazza Castello 42",
+      "Viale Liguria 33",
+    ];
+
+    const cities = [
+      "Milano",
+      "Roma",
+      "Napoli",
+      "Torino",
+      "Bologna",
+      "Firenze",
+      "Genova",
+      "Venezia",
+      "Palermo",
+      "Bari",
+      "Verona",
+      "Padova",
+      "Trieste",
+      "Brescia",
+      "Prato",
+    ];
+
+    const provinces = [
+      "MI",
+      "RM",
+      "NA",
+      "TO",
+      "BO",
+      "FI",
+      "GE",
+      "VE",
+      "PA",
+      "BA",
+      "VR",
+      "PD",
+      "TS",
+      "BS",
+      "PO",
+    ];
+
+    const countries = [
+      "Italia",
+      "Italia",
+      "Italia",
+      "Italia",
+      "Italia",
+      "Italia",
+      "Italia",
+      "Italia",
+      "Italia",
+      "Italia",
+      "Italia",
+      "Italia",
+      "Italia",
+      "Italia",
+      "Italia",
+    ];
+
+    const zipCodes = [
+      "20100",
+      "00100",
+      "80100",
+      "10100",
+      "40100",
+      "50100",
+      "16100",
+      "30100",
+      "90100",
+      "70100",
+      "37100",
+      "35100",
+      "34100",
+      "25100",
+      "59000",
+    ];
+
     const rows: Array<Partial<Record<keyof CustomerDetailRow & string, unknown>>> = [];
-    for (let i = 1; i <= 137; i++) {
+    for (let i = 1; i <= 138; i++) {
       const status: CustomerStatus = i % 7 === 0 ? "INACTIVE" : "ACTIVE";
-      const isCompany = i % 4 === 0;
+      const isCompany = i === 1 || i % 4 === 0; // Make first row always a company
       const code = `CUST-${String(i).padStart(5, "0")}`;
+      const address = addresses[i % addresses.length]!;
+      const city = cities[i % cities.length]!;
+      const province = provinces[i % provinces.length]!;
+      const country = countries[i % countries.length]!;
+      const zip = zipCodes[i % zipCodes.length]!;
+
+      // Add onboarding data for first 3 records
+      let onboarding_at: Date | undefined;
+      let onboarding_time_zone: string | undefined;
+      if (i === 1) {
+        onboarding_at = new Date();
+        onboarding_at.setUTCHours(15, 0, 0, 0);
+        onboarding_time_zone = "Europe/Rome";
+      } else if (i === 2) {
+        onboarding_at = new Date();
+        onboarding_at.setUTCHours(15, 0, 0, 0);
+        onboarding_time_zone = "America/New_York";
+      } else if (i === 3) {
+        onboarding_at = new Date();
+        onboarding_at.setUTCHours(15, 0, 0, 0);
+        onboarding_time_zone = "Asia/Tokyo";
+      }
 
       if (isCompany) {
         const company = companies[i % companies.length]!;
@@ -281,7 +393,14 @@ export class CustomersDal {
           code,
           company_name: company,
           email,
-          phone: i % 5 === 0 ? `+39 02 00${String(i).padStart(4, "0")}` : undefined,
+          phone: `+39 02 ${String(i).padStart(4, "0")}`,
+          local_address: address,
+          local_city: city,
+          local_state: province,
+          local_country: country,
+          local_zip: zip,
+          onboarding_at,
+          onboarding_time_zone,
           status,
           created_by: "system",
           updated_by: "system",
@@ -290,13 +409,21 @@ export class CustomersDal {
       } else {
         const first_name = firstNames[i % firstNames.length]!;
         const last_name = lastNames[i % lastNames.length]!;
-        const email = i % 6 === 0 ? undefined : `${first_name.toLowerCase()}.${last_name.toLowerCase().replace(/\s+/g, "")}${i}@example.com`;
+        const email = i % 6 === 0 ? null : `${first_name.toLowerCase()}.${last_name.toLowerCase().replace(/\s+/g, "")}${i}@example.com`;
         rows.push({
           code,
           first_name,
           last_name,
+          company_name: null,
           email,
-          phone: i % 4 === 0 ? `+39 3${String(20 + (i % 80)).padStart(2, "0")} ${String(i).padStart(7, "0")}` : undefined,
+          phone: `+39 3${String(20 + (i % 80)).padStart(2, "0")} ${String(i).padStart(7, "0")}`,
+          local_address: address,
+          local_city: city,
+          local_state: province,
+          local_country: country,
+          local_zip: zip,
+          onboarding_at,
+          onboarding_time_zone,
           status,
           created_by: "system",
           updated_by: "system",
