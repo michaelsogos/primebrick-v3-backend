@@ -46,7 +46,6 @@ export function customersRouter() {
         auditingColumns: CUSTOMER_AUDITING_COLUMNS,
         defaultSort,
         viewVisibility: CUSTOMER_DEFAULT_VIEW_VISIBILITY,
-        filterFields: CUSTOMER_LIST_COLUMNS.filter((c) => c.filterable !== false),
       },
     });
   });
