@@ -4,11 +4,11 @@ import type { Pool } from "pg";
 
 import { entityDateToApiIso } from "../../domain/entities/entity-meta.js";
 import { Repository } from "../../db/repository/repository.js";
-import { field, Filter, Sort, type FieldProjector } from "../../db/repository/dsl.js";
+import { field, Filter, Sort, type FieldProjector, type FilterExpr } from "../../db/repository/dsl.js";
 
 import { CustomerEntity, type CustomerStatus } from "./customer_entity.js";
 import type { CustomerCreateBody, CustomerListQuery } from "./dto.js";
-import { CUSTOMER_SEARCHABLE_KEYS } from "./list-config.js";
+import { CUSTOMER_SEARCHABLE_KEYS, CUSTOMER_FILTERABLE_KEYS } from "./list-config.js";
 
 function buildIlikeNeedleFromSearch(raw: string): {
   needle: string;
@@ -54,7 +54,7 @@ type FilterCondition = {
   connector?: "AND" | "OR";
 };
 
-function translateFilterConditions(conditions: FilterCondition[]): ReturnType<typeof Filter.group> | null {
+function translateFilterConditions(conditions: FilterCondition[]): FilterExpr[] | null {
   if (!conditions || conditions.length === 0) return null;
 
   const validOps = new Set([
@@ -73,7 +73,7 @@ function translateFilterConditions(conditions: FilterCondition[]): ReturnType<ty
     "IS NOT",
   ]);
 
-  const allowedFields = new Set(CUSTOMER_SEARCHABLE_KEYS);
+  const allowedFields = new Set(CUSTOMER_FILTERABLE_KEYS);
 
   const filterExprs: ReturnType<typeof Filter.fieldValue>[] = [];
 
@@ -98,13 +98,43 @@ function translateFilterConditions(conditions: FilterCondition[]): ReturnType<ty
 
   if (filterExprs.length === 0) return null;
 
-  if (filterExprs.length === 1) {
-    const single = filterExprs[0]!;
-    single.operand = "AND";
-    return Filter.group([single], "AND");
+  // Group filters by field to handle OR logic for same field
+  // Filters for the same field should be ORed together, then ANDed with other fields
+  const filtersByField = new Map<string, ReturnType<typeof Filter.fieldValue>[]>();
+  for (const expr of filterExprs) {
+    if (expr.kind === "field_value") {
+      const fieldKey = expr.left.key;
+      if (!filtersByField.has(fieldKey)) {
+        filtersByField.set(fieldKey, []);
+      }
+      filtersByField.get(fieldKey)!.push(expr);
+    }
   }
 
-return Filter.group(filterExprs, "AND");
+  // If there are multiple fields, group each field's filters with OR, then AND the groups
+  if (filtersByField.size > 1) {
+    const fieldGroups: FilterExpr[] = [];
+    for (const [fieldKey, fieldFilters] of filtersByField) {
+      if (fieldFilters.length === 1) {
+        fieldGroups.push(fieldFilters[0]!);
+      } else {
+        // Group filters for the same field with OR
+        fieldGroups.push(Filter.group(fieldFilters, "OR"));
+      }
+    }
+    // Group all field groups with AND
+    return [Filter.group(fieldGroups, "AND")];
+  } else if (filtersByField.size === 1) {
+    const [fieldKey] = filtersByField.keys();
+    const fieldFilters = filtersByField.get(fieldKey)!;
+    if (fieldFilters.length > 1) {
+      // Single field with multiple values - group with OR
+      return [Filter.group(fieldFilters, "OR")];
+    }
+    return fieldFilters;
+  }
+
+  return filterExprs;
 }
 
 export type CustomerDetailRow = {
@@ -324,9 +354,9 @@ export class CustomersDal {
     }
 
     if (q.filters && q.filters.length > 0) {
-      const advancedFilter = translateFilterConditions(q.filters as FilterCondition[]);
-      if (advancedFilter) {
-        filters.push(advancedFilter);
+      const advancedFilters = translateFilterConditions(q.filters as FilterCondition[]);
+      if (advancedFilters) {
+        filters.push(...advancedFilters);
       }
     }
 
