@@ -11,4 +11,6 @@ Edit the checkboxes below to tell agents **which skills are in scope** for this 
 | Enabled | Skill | Path |
 |:-------:|-------|------|
 | [x] | Core backend repo (Node + Express + TypeScript) | follow `AGENTS.md` |
-| [x] | PostgreSQL migration draft (AI-assisted SQL, rename rules) | See `AGENTS.md` → Entity ↔ DB compare |
+| [x] | PostgreSQL migration draft (AI-assisted SQL, rename rules) | See `docs/skills/pg-migration-draft.md` |
+| [x] | Detecting port conflicts | See `docs/skills/detecting-port-conflicts.md` |
+| [x] | Monitoring terminal errors | See `docs/skills/monitoring-terminal-errors.md` |
