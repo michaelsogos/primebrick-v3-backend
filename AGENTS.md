@@ -1,14 +1,10 @@
-# Agent instructions — Primebrick backend
+# Primebrick Backend - AI Agent Guide
 
-Short entry point for this repository. Scoped rules: **`.cursor/rules/`** (see **`backend-api.mdc`** for `src/` and scripts).
+## Repository overview
 
-## Repository layout
+Independent Git repository containing the Primebrick API, database, and endpoints.
 
-This **backend** tree is its **own Git repository** (separate from frontend and meta workspace).
-
-### Coordinated release (*rilascia tutto*)
-
-Full GitFlow close for **all three** repos (backend, frontend, meta): see **`.cursor/rules/gitflow-guard.mdc`**. Same SemVer across repos unless the user scopes to one repo.
+**Documentation language:** All `*.md` files must use **English** for team-facing prose.
 
 ## Commands
 
@@ -37,7 +33,7 @@ If **you** started `pnpm run dev` only to verify, **stop it** when done. Do not 
 - Small, focused changes; readable migrations/patches.
 - No secrets in git (`.env`, credentials).
 - **Team-facing `*.md`:** English only.
-- **API errors:** follow **`.cursor/rules/error-impact-levels.mdc`** — stable `error` codes + `impact` for the frontend.
+- **API errors:** Use stable error codes with `impact` field for the frontend.
 
 ### Schema diff safety
 
@@ -58,16 +54,58 @@ git config core.hooksPath .githooks
 
 - **`post-merge`** runs **`pnpm run db:migrate`** only (skips if `DATABASE_URL` is unset and there is no `.env`). Set **`PB_SKIP_POST_MERGE_DB_MIGRATE=1`** to skip. Remove any local hook that runs `db:meta:compare` on merge — that belongs to model-change workflows, not pull/merge.
 
-## GitFlow
+## GitFlow rules
 
-Follow **`.cursor/rules/gitflow-guard.mdc`**: never commit on `develop`/`main`; use `feature/*`; merge before push; push only when asked; verify before commit; when closing a branch, delete it locally and on the remote. **Before closing a feature** (merge, delete branch), **ask the user** — including when you created the branch automatically.
+This repository follows GitFlow. AI agents MUST follow these rules:
 
-**New task / nuovo task:** When the user starts a new task (e.g. *“Iniziamo un nuovo task”*, *let’s start a new task*), infer `feature/<slug>` from context and create that branch from `develop` before edits — see **workspace root `AGENTS.md` → New task workflow**.
+### Branch management
+- **NEVER work directly on `develop` or `main`**
+- Always create feature branches: `git checkout -b feature/<slug>` from updated `develop`
+- Feature branches for all normal work (bugs, features, fixes)
+- Release branches from `develop` for version bumps only
+- Hotfix branches from `main` for production fixes only
 
-## Skills & AI docs
+### When to ask user permission
+- **ASK before creating NEW feature branch** if another feature branch is already open
+- **DO NOT ask permission** to commit changes on existing feature branch
+- **DO NOT ask permission** to close a feature branch (follow proper closing procedure)
 
-| Doc | Purpose |
-|-----|---------|
-| `docs/ai/README.md` | Index |
-| `docs/ai/SKILLS.md` | Skill checklist (read before deep Azure/messaging work) |
-| `docs/ai/WORKFLOWS.md` | Suggested workflows |
+### Branch closing procedure
+When closing ANY branch (`feature/*`, `release/*`, `hotfix/*`):
+1. Merge to appropriate base branch with `--no-ff`
+   - Feature: merge into `develop`
+   - Release/Hotfix: merge into `main`
+2. Push the merged base branch
+3. Delete branch LOCALLY: `git branch -d <branch-name>`
+4. Delete branch on ORIGIN: `git push origin --delete <branch-name>`
+5. For Release/Hotfix: Also merge `main` back to `develop`
+
+### Version tagging
+- NO 'v' prefix for tags (use `0.13.2` not `v0.13.2`)
+- Tag derived from branch name: `release/0.13.2` → tag `0.13.2`
+- Hotfix increments PATCH: `0.13.1` → `hotfix/0.13.2` → tag `0.13.2`
+- Release increments MINOR: `0.13.2` → `release/0.14.0` → tag `0.14.0`
+
+### Common mistakes to avoid
+- Committing directly on `develop` or `main`
+- Creating commits before creating feature branch
+- Forgetting to delete branches (both local and origin)
+- Using 'v' prefix in tags
+- Not pushing merged base branch
+- Leaving feature branches open after merge
+
+### Commit rules
+- NEVER commit automatically - wait for explicit user instruction
+- DO NOT ask user to approve commit messages
+- Write appropriate commit messages directly when instructed
+- DO NOT open editor for commit approval
+
+### New task workflow
+When the user starts a fresh piece of work with phrases such as "Let's start a new task", "Iniziamo un nuovo task", or equivalent:
+1. Infer a branch slug from context — lowercase, kebab-case, ASCII letters/digits/hyphens only
+2. Before the first tracked-file change, ensure a branch `feature/<slug>` exists from up-to-date `develop`
+3. State the slug once (e.g. "Branch: `feature/iana-timezone`") so the user can rename if needed
+
+## Further documentation
+
+See `docs/ai/` for skills selection and suggested workflows.

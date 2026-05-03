@@ -6,20 +6,9 @@ Edit the checkboxes below to tell agents **which skills are in scope** for this 
 
 ---
 
-## Primebrick-specific (repo-local Cursor skills)
+## Primebrick-specific (backend)
 
 | Enabled | Skill | Path |
 |:-------:|-------|------|
 | [x] | Core backend repo (Node + Express + TypeScript) | follow `AGENTS.md` |
-| [x] | PostgreSQL migration draft (AI-assisted SQL, rename rules) | `.cursor/skills/pg-migration-draft/SKILL.md` |
-
----
-
-## Cursor (local tooling)
-
-Keep this list short; enable only what you actively want agents to use.
-
-| Enabled | Skill | Path |
-|:-------:|-------|------|
-| [x] | Monitoring terminal errors | `.cursor/skills/monitoring-terminal-errors/SKILL.md` |
-| [x] | Detecting port conflicts | `.cursor/skills/detecting-port-conflicts/SKILL.md` |
+| [x] | PostgreSQL migration draft (AI-assisted SQL, rename rules) | See `AGENTS.md` → Entity ↔ DB compare |
