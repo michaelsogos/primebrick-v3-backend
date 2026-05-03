@@ -1,12 +1,3 @@
----
-name: pg-migration-draft
-description: >-
-  Produce PostgreSQL migration patches from schema evolution (add/rename/drop),
-  combining pg-diff / pg-diff-api style SOURCE→TARGET automation with optional
-  AI review. Aligns with Primebrick @Entity/@Column entities and node-pg-migrate
-  (or pg-diff) for applying committed SQL.
----
-
 # PostgreSQL migration draft (Primebrick)
 
 ## When to use
@@ -28,7 +19,7 @@ That is real **automation**: the engine reads **catalog metadata** (not just tex
 **Primebrick integration (conceptual):**
 
 1. Developer evolves schema on **`SOURCE`** (DBeaver, SQL, or—later—a small script that applies DDL inferred from `@Entity` / `@Column`).
-2. Run **`pg-diff`** (or call **`pg-diff-api`** from a `pnpm` script) with config pointing **SOURCE** vs **TARGET**.
+2. Run **`pg-diff`** (or call **`pg-diff-api`** from a `pnpm` script) with config pointing **SOURCE** vs **`TARGET`**.
 3. Commit the generated patch (+ review WARN/ERROR comments).
 4. Apply in other envs via **`node-pg-migrate`** or **`pg-diff -mt`**—pick one strategy for CI and stick to it.
 
@@ -37,7 +28,7 @@ That is real **automation**: the engine reads **catalog metadata** (not just tex
 If the user refuses any external package:
 
 - AI may draft SQL **only** when given **both** sides as structured input: e.g. `pg_dump --schema-only` **before** and **after**, or JSON from `information_schema`—not from memory.
-- **Renames** stay **ambiguous** without catalog-level logic; mirror pg-diff’s approach: ask for **SOURCE/TARGET** or two dumps, or accept higher risk.
+- **Renames** stay **ambiguous** without catalog-level logic; mirror pg-diff's approach: ask for **SOURCE/TARGET** or two dumps, or accept higher risk.
 
 ## Inputs to ask for
 
@@ -47,7 +38,7 @@ If the user refuses any external package:
 
 ## Rename & data safety (review rules)
 
-- Prefer **trust the diff engine’s rename detection** when using pg-diff-api; use AI to **explain** the patch and flag anything that still looks like destructive DDL.
+- Prefer **trust the diff engine's rename detection** when using pg-diff-api; use AI to **explain** the patch and flag anything that still looks like destructive DDL.
 - If AI disagrees with the tool, **default to human + second opinion**; do not silently rewrite `RENAME` into `DROP+ADD` without user consent.
 
 ## Mapping to Primebrick entities
@@ -58,11 +49,10 @@ If the user refuses any external package:
 
 ## Output contract
 
-- Patches live under the team’s chosen folder (e.g. `migrations/` for node-pg-migrate, or `sqlscripts/` for pg-diff—**pick one** and document in `AGENTS.md` when introduced).
+- Patches live under the team's chosen folder (e.g. `migrations/` for node-pg-migrate, or `sqlscripts/` for pg-diff—**pick one** and document in `AGENTS.md` when introduced).
 - Always require **review** of generated SQL before merge; treat WARN/ERROR hints from pg-diff as first-class review items.
 
 ## CI/CD
 
 - **CI applies** only committed, reviewed migrations (`npm run migrate` or equivalent).
 - **CI does not** auto-generate patches against production; generation stays dev/PR-local or a gated job with human approval.
-
