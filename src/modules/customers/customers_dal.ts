@@ -391,6 +391,8 @@ export class CustomersDal {
         const email = i % 3 === 0 ? `info${i}@example.com` : `contact${i}@example.com`;
         rows.push({
           code,
+          first_name: null,
+          last_name: null,
           company_name: company,
           email,
           phone: `+39 02 ${String(i).padStart(4, "0")}`,
