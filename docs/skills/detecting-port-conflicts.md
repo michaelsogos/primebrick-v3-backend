@@ -1,9 +1,3 @@
----
-name: detecting-port-conflicts
-description: Detect EADDRINUSE and port conflicts, find what's using the port, and resolve it by killing the process or suggesting an alternative port.
-user-invocable: true
----
-
 # Detecting Port Conflicts
 
 When a dev server fails to start because a port is already in use, diagnose and resolve it.
@@ -73,4 +67,3 @@ Only suggest this if the user confirms — it kills everything.
 - On macOS, ports below 1024 require root
 - Docker containers bind ports that persist even if the container is stopped — check `docker ps`
 - If `lsof` shows nothing, the port may be in TIME_WAIT state — just wait 30 seconds or use a different port
-

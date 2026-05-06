@@ -1,14 +1,18 @@
-# Agent instructions — Primebrick backend
+# AI AGENT INSTRUCTIONS - Primebrick Backend
 
-Short entry point for this repository. Scoped rules: **`.cursor/rules/`** (see **`backend-api.mdc`** for `src/` and scripts).
+## ⚠️ CRITICAL: NEVER COMMIT AUTOMATICALLY
 
-## Repository layout
+**AI agents MUST NEVER commit changes without explicit user instruction.**
 
-This **backend** tree is its **own Git repository** (separate from frontend and meta workspace).
+- **WAIT for the user to explicitly tell you to commit** before running any `git commit` command
+- This applies to ALL situations - no exceptions
+- See [docs/gitflow.md](./docs/gitflow.md) for complete GitFlow rules including commit rules
 
-### Coordinated release (*rilascia tutto*)
+## Repository overview
 
-Full GitFlow close for **all three** repos (backend, frontend, meta): see **`.cursor/rules/gitflow-guard.mdc`**. Same SemVer across repos unless the user scopes to one repo.
+Independent Git repository containing the Primebrick API, database, and endpoints.
+
+**Documentation language:** All `*.md` files must use **English** for team-facing prose.
 
 ## Commands
 
@@ -37,7 +41,7 @@ If **you** started `pnpm run dev` only to verify, **stop it** when done. Do not 
 - Small, focused changes; readable migrations/patches.
 - No secrets in git (`.env`, credentials).
 - **Team-facing `*.md`:** English only.
-- **API errors:** follow **`.cursor/rules/error-impact-levels.mdc`** — stable `error` codes + `impact` for the frontend.
+- **API errors:** Use stable error codes with `impact` field for the frontend.
 
 ### Schema diff safety
 
@@ -58,16 +62,12 @@ git config core.hooksPath .githooks
 
 - **`post-merge`** runs **`pnpm run db:migrate`** only (skips if `DATABASE_URL` is unset and there is no `.env`). Set **`PB_SKIP_POST_MERGE_DB_MIGRATE=1`** to skip. Remove any local hook that runs `db:meta:compare` on merge — that belongs to model-change workflows, not pull/merge.
 
-## GitFlow
+## GitFlow rules
 
-Follow **`.cursor/rules/gitflow-guard.mdc`**: never commit on `develop`/`main`; use `feature/*`; merge before push; push only when asked; verify before commit; when closing a branch, delete it locally and on the remote. **Before closing a feature** (merge, delete branch), **ask the user** — including when you created the branch automatically.
+This repository follows GitFlow. AI agents MUST follow these rules.
 
-**New task / nuovo task:** When the user starts a new task (e.g. *“Iniziamo un nuovo task”*, *let’s start a new task*), infer `feature/<slug>` from context and create that branch from `develop` before edits — see **workspace root `AGENTS.md` → New task workflow**.
+**See [docs/gitflow.md](./docs/gitflow.md) for complete GitFlow rules, branch management, closing procedure, version tagging, and commit rules.**
 
-## Skills & AI docs
+## Further documentation
 
-| Doc | Purpose |
-|-----|---------|
-| `docs/ai/README.md` | Index |
-| `docs/ai/SKILLS.md` | Skill checklist (read before deep Azure/messaging work) |
-| `docs/ai/WORKFLOWS.md` | Suggested workflows |
+See `docs/ai/` for skills selection and suggested workflows.

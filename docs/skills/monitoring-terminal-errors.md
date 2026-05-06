@@ -1,9 +1,3 @@
----
-name: monitoring-terminal-errors
-description: Watch running terminal processes for crashes and stack traces. When an error appears, navigate to the failing file and line, diagnose, and fix it automatically.
-user-invocable: true
----
-
 # Monitoring Terminal Errors
 
 Continuously watch a running process (dev server, test runner, build) for errors and fix them as they appear.
@@ -61,4 +55,3 @@ If the server is still showing errors after the fix, repeat from step 2. Stop wh
 - Check for `exit_code` in the terminal file footer — if present, the process has crashed entirely and needs a restart
 - Some errors cascade — fix the first/root error and the rest often disappear
 - For HMR errors, the fix might just be saving the file again to trigger a rebuild
-

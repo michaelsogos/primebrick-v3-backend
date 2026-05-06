@@ -1,6 +1,6 @@
 {
   "name": "primebrick-api",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
     "start": "node dist/index.js",
     "db:meta:compare": "tsx scripts/database-patch-compare.ts",
     "db:migrate": "tsx scripts/database-patch-apply.ts",
+    "db:truncate:customers": "tsx scripts/truncate-customers.ts",
     "db:seed:customers": "tsx scripts/seed-customers.ts"
   },
   "dependencies": {
