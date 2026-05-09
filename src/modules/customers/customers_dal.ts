@@ -84,16 +84,29 @@ function translateFilterConditions(conditions: FilterCondition[]): FilterExpr[] 
     let value: unknown = cond.value;
 
     if ((cond.op === "ILIKE" || cond.op === "LIKE") && typeof value === "string") {
-      const { needle } = buildIlikeNeedleFromSearch(value);
-      value = needle;
+      // Skip pattern building if value already contains % (from advanced filters)
+      if (!value.includes('%')) {
+        const { needle } = buildIlikeNeedleFromSearch(value);
+        value = needle;
+      }
     }
 
-    filterExprs.push(Filter.fieldValue(
-      field(CustomerEntity, cond.field as any),
-      cond.op as any,
-      value,
-      (cond.connector as any) ?? "AND"
-    ));
+    // For IN and NOT IN operators with array values, use the array directly
+    if ((cond.op === "IN" || cond.op === "NOT IN") && Array.isArray(value)) {
+      filterExprs.push(Filter.fieldValue(
+        field(CustomerEntity, cond.field as any),
+        cond.op as any,
+        value,
+        (cond.connector as any) ?? "AND"
+      ));
+    } else {
+      filterExprs.push(Filter.fieldValue(
+        field(CustomerEntity, cond.field as any),
+        cond.op as any,
+        value,
+        (cond.connector as any) ?? "AND"
+      ));
+    }
   }
 
   if (filterExprs.length === 0) return null;

@@ -30,7 +30,7 @@ export type SqlOperator = (typeof allowedOperators)[number];
 const FilterConditionSchema = z.object({
   field: z.enum(CUSTOMER_FILTERABLE_KEYS as [string, ...string[]]),
   op: z.enum(allowedOperators),
-  value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+  value: z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.union([z.string(), z.number(), z.boolean()]))]),
 });
 
 const FilterConnectorSchema = z.enum(["AND", "OR"]);
@@ -40,7 +40,7 @@ export const FilterQueryArraySchema = z
     z.object({
       field: z.string(),
       op: z.string(),
-      value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+      value: z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.union([z.string(), z.number(), z.boolean()]))]),
       connector: FilterConnectorSchema.optional(),
     })
   )
