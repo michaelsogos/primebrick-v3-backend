@@ -479,9 +479,7 @@ export class CustomersDal {
     }
 
     if (q.filters && q.filters.length > 0) {
-      console.log(`[Backend] q.connector raw: ${JSON.stringify(q.connector)}, q.filters: ${JSON.stringify(q.filters)}`);
       const advancedFilters = translateFilterConditions(q.filters as FilterCondition[], q.connector ?? "AND");
-      console.log(`[Backend] generated filter expr: ${JSON.stringify(advancedFilters)}`);
       if (advancedFilters) {
         filters.push(...advancedFilters);
       }
