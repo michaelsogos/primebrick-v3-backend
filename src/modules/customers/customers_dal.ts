@@ -69,6 +69,7 @@ function translateFilterConditions(conditions: FilterCondition[]): FilterExpr[] 
     "LIKE",
     "IN",
     "NOT IN",
+    "BETWEEN",
     "IS",
     "IS NOT",
   ]);
@@ -99,6 +100,18 @@ function translateFilterConditions(conditions: FilterCondition[]): FilterExpr[] 
         value,
         (cond.connector as any) ?? "AND"
       ));
+    } else if (cond.op === "BETWEEN" && typeof value === "object" && value !== null && "start" in value && "end" in value) {
+      // BETWEEN operator expects an array of two values [start, end]
+      const start = (value as { start: unknown; end: unknown }).start;
+      const end = (value as { start: unknown; end: unknown }).end;
+      if (start !== null && end !== null) {
+        filterExprs.push(Filter.fieldValue(
+          field(CustomerEntity, cond.field as any),
+          cond.op as any,
+          [start, end],
+          (cond.connector as any) ?? "AND"
+        ));
+      }
     } else {
       filterExprs.push(Filter.fieldValue(
         field(CustomerEntity, cond.field as any),
