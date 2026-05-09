@@ -68,7 +68,7 @@ const auditingKeySet = new Set<string>(CUSTOMER_AUDITING_COLUMN_KEYS);
  * - Which fields are sortable/searchable/filterable
  */
 export const CUSTOMER_LIST_COLUMNS: CustomerListColumn[] = [
-  { key: "code", labelKey: "entities.customer.fields.code", type: "text", sortable: true, hideable: false },
+  { key: "code", labelKey: "entities.customer.fields.code", type: "text", sortable: true, hideable: false, filterable: true },
   { key: "first_name", labelKey: "entities.customer.fields.first_name", type: "text", sortable: true, filterable: true },
   { key: "last_name", labelKey: "entities.customer.fields.last_name", type: "text", sortable: true, filterable: true },
   { key: "company_name", labelKey: "entities.customer.fields.company_name", type: "text", sortable: true, filterable: true },
