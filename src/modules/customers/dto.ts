@@ -41,7 +41,6 @@ export const FilterQueryArraySchema = z
       field: z.string(),
       op: z.string(),
       value: z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.union([z.string(), z.number(), z.boolean()]))]),
-      connector: FilterConnectorSchema.optional(),
     })
   )
   .optional();
@@ -58,6 +57,7 @@ export const CustomerListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   page_size: z.coerce.number().int().min(1).max(100).optional(),
   filters: FilterQueryArraySchema,
+  connector: FilterConnectorSchema.optional(),
 });
 
 export type CustomerListQuery = z.infer<typeof CustomerListQuerySchema>;

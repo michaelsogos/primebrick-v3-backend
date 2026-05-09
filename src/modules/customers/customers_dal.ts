@@ -54,7 +54,7 @@ type FilterCondition = {
   connector?: "AND" | "OR";
 };
 
-function translateFilterConditions(conditions: FilterCondition[]): FilterExpr[] | null {
+function translateFilterConditions(conditions: FilterCondition[], connector: "AND" | "OR" = "AND"): FilterExpr[] | null {
   if (!conditions || conditions.length === 0) return null;
 
   const validOps = new Set([
@@ -98,7 +98,7 @@ function translateFilterConditions(conditions: FilterCondition[]): FilterExpr[] 
         field(CustomerEntity, cond.field as any),
         cond.op as any,
         value,
-        (cond.connector as any) ?? "AND"
+        connector
       ));
     } else if (cond.op === "BETWEEN" && typeof value === "object" && value !== null && "start" in value && "end" in value) {
       // BETWEEN operator expects an array of two values [start, end]
@@ -109,7 +109,7 @@ function translateFilterConditions(conditions: FilterCondition[]): FilterExpr[] 
           field(CustomerEntity, cond.field as any),
           cond.op as any,
           [start, end],
-          (cond.connector as any) ?? "AND"
+          connector
         ));
       }
     } else {
@@ -117,50 +117,20 @@ function translateFilterConditions(conditions: FilterCondition[]): FilterExpr[] 
         field(CustomerEntity, cond.field as any),
         cond.op as any,
         value,
-        (cond.connector as any) ?? "AND"
+        connector
       ));
     }
   }
 
   if (filterExprs.length === 0) return null;
 
-  // Group filters by field to handle OR logic for same field
-  // Filters for the same field should be ORed together, then ANDed with other fields
-  const filtersByField = new Map<string, ReturnType<typeof Filter.fieldValue>[]>();
-  for (const expr of filterExprs) {
-    if (expr.kind === "field_value") {
-      const fieldKey = expr.left.key;
-      if (!filtersByField.has(fieldKey)) {
-        filtersByField.set(fieldKey, []);
-      }
-      filtersByField.get(fieldKey)!.push(expr);
-    }
+  // Always wrap in an outer AND group so the connector only applies BETWEEN advanced filters,
+  // and the group itself is ANDed with outer where clauses (deleted_at, search, status).
+  if (filterExprs.length === 1) {
+    return [Filter.group(filterExprs, "AND")];
   }
 
-  // If there are multiple fields, group each field's filters with OR, then AND the groups
-  if (filtersByField.size > 1) {
-    const fieldGroups: FilterExpr[] = [];
-    for (const [fieldKey, fieldFilters] of filtersByField) {
-      if (fieldFilters.length === 1) {
-        fieldGroups.push(fieldFilters[0]!);
-      } else {
-        // Group filters for the same field with OR
-        fieldGroups.push(Filter.group(fieldFilters, "OR"));
-      }
-    }
-    // Group all field groups with AND
-    return [Filter.group(fieldGroups, "AND")];
-  } else if (filtersByField.size === 1) {
-    const [fieldKey] = filtersByField.keys();
-    const fieldFilters = filtersByField.get(fieldKey)!;
-    if (fieldFilters.length > 1) {
-      // Single field with multiple values - group with OR
-      return [Filter.group(fieldFilters, "OR")];
-    }
-    return fieldFilters;
-  }
-
-  return filterExprs;
+  return [Filter.group([Filter.group(filterExprs, connector)], "AND")];
 }
 
 export type CustomerDetailRow = {
@@ -509,7 +479,9 @@ export class CustomersDal {
     }
 
     if (q.filters && q.filters.length > 0) {
-      const advancedFilters = translateFilterConditions(q.filters as FilterCondition[]);
+      console.log(`[Backend] q.connector raw: ${JSON.stringify(q.connector)}, q.filters: ${JSON.stringify(q.filters)}`);
+      const advancedFilters = translateFilterConditions(q.filters as FilterCondition[], q.connector ?? "AND");
+      console.log(`[Backend] generated filter expr: ${JSON.stringify(advancedFilters)}`);
       if (advancedFilters) {
         filters.push(...advancedFilters);
       }
