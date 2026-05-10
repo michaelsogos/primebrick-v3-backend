@@ -140,6 +140,33 @@ export function customersRouter() {
     })
   );
 
+  router.delete(
+    "/api/v1/entities/customer/:uuid",
+    (req, res, next) => {
+      const r = UuidParamSchema.safeParse(req.params);
+      if (!r.success) {
+        res.status(400).json({
+          error: "VALIDATION_ERROR",
+          impact: "MEDIUM",
+          issues: r.error.issues.map((i) => ({
+            path: i.path.join("."),
+            code: i.code,
+            message: i.message,
+          })),
+        });
+        return;
+      }
+      (req as any).params = r.data;
+      next();
+    },
+    asyncHandler(async (req, res) => {
+      const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
+      const deletedBy = (req as any).user?.id || "system";
+      await getDal().deleteCustomer(uuid, deletedBy);
+      res.status(204).send();
+    })
+  );
+
   return router;
 }
 
