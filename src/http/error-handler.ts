@@ -2,6 +2,9 @@ import type { ErrorRequestHandler } from "express";
 import { isDatabaseUnavailableError, type ApiErrorResponse } from "./api-errors.js";
 
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+  // Log all errors to console for debugging
+  console.error("Error:", err);
+
   if (res.headersSent) return;
 
   if (isDatabaseUnavailableError(err)) {

@@ -12,6 +12,7 @@ export type SqlOperator =
   | "LIKE"
   | "IN"
   | "NOT IN"
+  | "BETWEEN"
   | "IS"
   | "IS NOT";
 
