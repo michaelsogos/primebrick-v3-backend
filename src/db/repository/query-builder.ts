@@ -113,6 +113,10 @@ function renderFilterExpr(w: ParamWriter, f: FilterExpr): string {
       if (f.op === "ILIKE" || f.op === "LIKE") {
         return `${left} ${f.op} ${w.add(f.right)} ESCAPE '#'`;
       }
+      // For != and <> operators, include NULL values (NULL is considered "different from" any specific value)
+      if (f.op === "!=" || f.op === "<>") {
+        return `(${left} IS NULL OR ${left} ${f.op} ${w.add(f.right)})`;
+      }
       return `${left} ${f.op} ${w.add(f.right)}`;
     }
     case "field_field": {
