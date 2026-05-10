@@ -72,7 +72,7 @@ export function customersRouter() {
       }
 
       if (process.env.PB_CUSTOMERS_FORCE_ERROR === "1") {
-        res.status(503).json({ error: "LIST_FAILED", impact: "HIGH" });
+        res.status(500).json({ error: "LIST_FAILED", impact: "HIGH" });
         return;
       }
 
@@ -90,11 +90,11 @@ export function customersRouter() {
         });
         res.json(result);
       } catch (e) {
-        // Standard: list/get-paginated failures are 503 (>=501) with a stable code,
+        // Standard: list/get-paginated failures are 500 with a stable code,
         // but when we can specialize (e.g. DB down) we forward the original error
         // so the global handler can emit DATABASE_UNAVAILABLE + CRITICAL.
         if (isDatabaseUnavailableError(e)) throw e;
-        res.status(503).json({ error: "LIST_FAILED", impact: "HIGH" });
+        res.status(500).json({ error: "LIST_FAILED", impact: "HIGH" });
         return;
       }
     })

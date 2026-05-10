@@ -102,6 +102,13 @@ function renderFilterExpr(w: ParamWriter, f: FilterExpr): string {
         const params = arr.map((v) => w.add(v)).join(", ");
         return `${left} ${f.op} (${params})`;
       }
+      if (f.op === "BETWEEN") {
+        const arr = Array.isArray(f.right) ? f.right : [f.right];
+        if (arr.length === 2) {
+          return `${left} BETWEEN ${w.add(arr[0])} AND ${w.add(arr[1])}`;
+        }
+        throw new Error(`BETWEEN operator requires exactly 2 values, got ${arr.length}`);
+      }
       if (f.op === "IS" || f.op === "IS NOT") {
         // Only allow null / true / false as raw-ish right side.
         if (f.right === null) return `${left} ${f.op} NULL`;
@@ -112,6 +119,10 @@ function renderFilterExpr(w: ParamWriter, f: FilterExpr): string {
       // LIKE/ILIKE: use '#' as escape char (see customers search needle builder). Avoids '\' parsing quirks across PG versions.
       if (f.op === "ILIKE" || f.op === "LIKE") {
         return `${left} ${f.op} ${w.add(f.right)} ESCAPE '#'`;
+      }
+      // For != and <> operators, include NULL values (NULL is considered "different from" any specific value)
+      if (f.op === "!=" || f.op === "<>") {
+        return `(${left} IS NULL OR ${left} ${f.op} ${w.add(f.right)})`;
       }
       return `${left} ${f.op} ${w.add(f.right)}`;
     }
