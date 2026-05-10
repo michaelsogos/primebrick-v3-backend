@@ -494,7 +494,11 @@ export class CustomersDal {
       page,
       page_size,
       projectAllExceptId(),
-      { filters: filters as any, sorting }
+      {
+        filters: filters as any,
+        sorting,
+        deletedRecords: q.deleted_records as any
+      }
     );
 
     return {

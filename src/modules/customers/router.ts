@@ -54,7 +54,7 @@ export function customersRouter() {
     "/api/v1/entities/customer/list",
     validateQuery(CustomerListQuerySchema),
     asyncHandler(async (req, res) => {
-      const { search, search_in, status, sort_key, sort_dir, page, page_size, filters, connector } =
+      const { search, search_in, status, sort_key, sort_dir, page, page_size, filters, connector, deleted_records } =
         req.query as unknown as import("./dto.js").CustomerListQuery;
       const eff_sort_key = (sort_key ?? defaultSort.key ?? "uuid") as NonNullable<typeof sort_key> | "uuid";
       const eff_sort_dir =
@@ -87,6 +87,7 @@ export function customersRouter() {
           sort_dir: eff_sort_dir,
           page: page ?? undefined,
           page_size: page_size ?? undefined,
+          deleted_records,
         });
         res.json(result);
       } catch (e) {
