@@ -1,6 +1,7 @@
 import cors from "cors";
 import express, { type Response } from "express";
 import { customersRouter } from "./modules/customers/router.js";
+import { entitiesRouter } from "./modules/entities/router.js";
 import { openApiRouter } from "./openapi/router.js";
 import { errorHandler } from "./http/error-handler.js";
 import { getPool } from "./db/pool.js";
@@ -85,6 +86,7 @@ app.get("/api/v1/modules", (_req, res) => {
 });
 
 app.use(openApiRouter());
+app.use(entitiesRouter());
 app.use(customersRouter());
 
 app.use(errorHandler);
