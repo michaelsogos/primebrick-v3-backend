@@ -494,7 +494,11 @@ export class CustomersDal {
       page,
       page_size,
       projectAllExceptId(),
-      { filters: filters as any, sorting }
+      {
+        filters: filters as any,
+        sorting,
+        deletedRecords: q.deleted_records as any
+      }
     );
 
     return {
@@ -540,6 +544,14 @@ export class CustomersDal {
       },
     ]);
     return { uuid };
+  }
+
+  async deleteCustomer(uuid: string, deletedBy: string): Promise<void> {
+    const deleted_at = new Date();
+    await this.repo.rawSql(
+      `UPDATE customers SET deleted_at = $1, deleted_by = $2, updated_at = $3, updated_by = $4 WHERE uuid = $5`,
+      [deleted_at, deletedBy, deleted_at, deletedBy, uuid]
+    );
   }
 }
 
