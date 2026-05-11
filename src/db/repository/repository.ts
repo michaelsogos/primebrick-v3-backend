@@ -178,7 +178,7 @@ export class Repository {
    * @param entity - Entity class
    * @param uuid - UUID of the record to delete
    * @param deletedBy - User/identifier performing the deletion
-   * @throws Error if entity has no key column or if no rows are affected
+   * @throws Error if entity has no key column, no uuid column, or if no rows are affected
    */
   async delete<TEntity extends object>(
     entity: EntityClass,
@@ -187,11 +187,18 @@ export class Repository {
   ): Promise<void> {
     const meta = getEntityPersistenceMeta(entity);
     const table = getTableName(entity);
-    const pk = Object.values(meta.columns).find((c) => c.isKey);
-    if (!pk) throw new Error(`Entity ${meta.entityClassName} has no @Key() column`);
+    
+    // Find the uuid column (usually named 'uuid' and marked with @Unique())
+    const uuidColumn = Object.entries(meta.columns).find(([name, col]) => 
+      name === 'uuid' || col.isUnique
+    );
+    if (!uuidColumn) throw new Error(`Entity ${meta.entityClassName} has no uuid column`);
+    
+    const uuidColumnName = uuidColumn[0];
+    const uuidColumnMeta = uuidColumn[1];
 
     const deleted_at = new Date();
-    const sql = `UPDATE "${table}" SET deleted_at = $1, deleted_by = $2, updated_at = $3, updated_by = $4 WHERE "${pk.sqlName}" = $5`;
+    const sql = `UPDATE "${table}" SET deleted_at = $1, deleted_by = $2, updated_at = $3, updated_by = $4 WHERE "${uuidColumnMeta.sqlName}" = $5`;
     const result = await this.db.query(sql, [deleted_at, deletedBy, deleted_at, deletedBy, uuid]);
 
     if (result.rowCount === 0) {
