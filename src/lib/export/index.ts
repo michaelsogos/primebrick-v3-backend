@@ -125,14 +125,21 @@ export async function exportDataWithTemplate(
   let dataStartRow = -1;
   const colMapping: Record<number, string> = {};
   const staticRows: Record<number, (string | number | null | undefined)[]> = [];
+  const staticRowStyles: Record<number, Record<number, any>> = {};
 
   // Analyze template structure
   originalSheet.eachRow((row, rowNumber) => {
     let isDataRow = false;
     const rowValues: (string | number | null | undefined)[] = [];
+    const rowStyles: Record<number, any> = {};
 
     row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       const val = cell.value?.toString() || '';
+      
+      // Store cell style from template
+      if (cell.style) {
+        rowStyles[colNumber] = cell.style;
+      }
       
       // 1. Identify vertical loop for data
       if (val.startsWith('{#')) {
@@ -157,6 +164,7 @@ export async function exportDataWithTemplate(
     } else if (dataStartRow === -1) {
       // Store header/logo rows before data
       staticRows[rowNumber] = rowValues;
+      staticRowStyles[rowNumber] = rowStyles;
     }
   });
 
@@ -182,9 +190,27 @@ export async function exportDataWithTemplate(
   // 1. Write static rows and translated headers (common to Excel and CSV)
   for (let i = 1; i < dataStartRow; i++) {
     const rowValues = staticRows[i] || [];
+    const rowStyles = staticRowStyles[i] || {};
     
     // Write to Excel
-    writerSheet.addRow(rowValues).commit();
+    const excelRow = writerSheet.addRow(rowValues);
+    
+    // Apply cell styles from template
+    Object.keys(rowStyles).forEach(colNum => {
+      const colNumber = parseInt(colNum, 10);
+      const cell = excelRow.getCell(colNumber);
+      if (cell && rowStyles[colNumber as keyof typeof rowStyles]) {
+        const style = rowStyles[colNumber as keyof typeof rowStyles];
+        // Apply individual style properties
+        if (style.font) cell.font = { ...style.font };
+        if (style.fill) cell.fill = { ...style.fill };
+        if (style.border) cell.border = { ...style.border };
+        if (style.alignment) cell.alignment = { ...style.alignment };
+        if (style.numFmt) cell.numFmt = style.numFmt;
+      }
+    });
+    
+    excelRow.commit();
     
     // Write to CSV (skip index 0 which ExcelJS uses as empty)
     const cleanCsvRow = rowValues.slice(1);
@@ -329,14 +355,21 @@ export async function exportDataWithTemplateToStream(
   let dataStartRow = -1;
   const colMapping: Record<number, string> = {};
   const staticRows: Record<number, (string | number | null | undefined)[]> = [];
+  const staticRowStyles: Record<number, Record<number, any>> = {};
 
   // Analyze template structure
   originalSheet.eachRow((row, rowNumber) => {
     let isDataRow = false;
     const rowValues: (string | number | null | undefined)[] = [];
+    const rowStyles: Record<number, any> = {};
 
     row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       const val = cell.value?.toString() || '';
+      
+      // Store cell style from template
+      if (cell.style) {
+        rowStyles[colNumber] = cell.style;
+      }
       
       // 1. Identify vertical loop for data
       if (val.startsWith('{#')) {
@@ -361,6 +394,7 @@ export async function exportDataWithTemplateToStream(
     } else if (dataStartRow === -1) {
       // Store header/logo rows before data
       staticRows[rowNumber] = rowValues;
+      staticRowStyles[rowNumber] = rowStyles;
     }
   });
 
@@ -373,27 +407,66 @@ export async function exportDataWithTemplateToStream(
   // ----------------------------------------------------
   
   if (fileType === 'xlsx') {
-    // Excel streaming
-    const excelWriter = new ExcelJS.stream.xlsx.WorkbookWriter({
-      stream: outputStream as any,
-      useStyles: true,
-      useSharedStrings: true
-    });
-    const writerSheet = excelWriter.addWorksheet(targetSheetName);
+    // Load template into regular workbook to preserve styles
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(templatePath);
+    
+    const sheet = workbook.getWorksheet(1);
+    if (!sheet) {
+      throw new Error('Template must have at least one worksheet');
+    }
+    
+    // Use entity.plural as sheet name
+    const targetSheetName = entity.plural
+      .replace(/[\\\/?:\[\]*]/g, '') // Remove invalid Excel characters
+      .substring(0, 31); // Excel max length
+    sheet.name = targetSheetName;
 
-    // Write static rows and translated headers
-    for (let i = 1; i < dataStartRow; i++) {
-      const rowValues = staticRows[i] || [];
-      writerSheet.addRow(rowValues).commit();
+    // Find and replace template tags with data
+    let dataStartRow = -1;
+    const colMapping: Record<number, string> = {};
+
+    sheet.eachRow((row, rowNumber) => {
+      let isDataRow = false;
+      
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        const val = cell.value?.toString() || '';
+        
+        // 1. Identify vertical loop for data
+        if (val.startsWith('{#')) {
+          isDataRow = true;
+          const fieldName = val.replace('{#', '').replace('}', '');
+          colMapping[colNumber] = fieldName;
+          cell.value = ''; // Clear tag
+        } 
+        // 2. Identify scalar translation (e.g., column titles)
+        else if (val.startsWith('{?')) {
+          const translationKey = val.replace('{?', '').replace('}', '');
+          cell.value = resolveTranslation(translationKey, fieldMapping, translations);
+        }
+      });
+
+      if (isDataRow) {
+        dataStartRow = rowNumber;
+      }
+    });
+
+    if (dataStartRow === -1) {
+      throw new Error('Invalid template: no vertical loop tag {#field} found');
     }
 
-    // Loop through data records
+    // Get the template row to copy data row styles from
+    const templateRow = sheet.getRow(dataStartRow);
+
+    // Modify the template row in place for the first record, then add rows for others
+    let firstRecord = true;
+    
     for await (const record of data) {
       const rowData: (string | number | Date | null)[] = [];
       
       Object.keys(colMapping).forEach(colNum => {
         const colNumber = parseInt(colNum, 10);
-        const fieldName = colMapping[colNumber];
+        const fieldName = colMapping[colNumber as keyof typeof colMapping];
         const mappedFieldName = resolveFieldName(fieldName, fieldMapping);
         const fieldMetadata = metadata.fields[mappedFieldName];
         
@@ -409,8 +482,6 @@ export async function exportDataWithTemplateToStream(
                   : undefined;
                 value = applyTimezone(value as Date | string, timezone, defaultTimezone);
               }
-              break;
-            default:
               break;
           }
         }
@@ -418,54 +489,88 @@ export async function exportDataWithTemplateToStream(
         rowData[colNumber] = value !== undefined && value !== null ? value : '';
       });
 
-      const excelRow = writerSheet.addRow(rowData);
-      
-      // Apply number formats to cells
-      Object.keys(colMapping).forEach(colNum => {
-        const colNumber = parseInt(colNum, 10);
-        const fieldName = colMapping[colNumber];
-        const mappedFieldName = resolveFieldName(fieldName, fieldMapping);
-        const fieldMetadata = metadata.fields[mappedFieldName];
+      if (firstRecord) {
+        // Modify the template row in place (preserves its styles)
+        Object.keys(colMapping).forEach(colNum => {
+          const colNumber = parseInt(colNum, 10);
+          templateRow.getCell(colNumber).value = rowData[colNumber];
+        });
+        firstRecord = false;
+      } else {
+        // Insert new row at the correct position and copy styles
+        const newRow = sheet.insertRow(dataStartRow + 1, rowData);
         
-        if (fieldMetadata) {
-          const cell = excelRow.getCell(colNumber);
-          
-          switch (fieldMetadata.type) {
-            case 'date':
-              cell.numFmt = getExcelDatePattern(locale);
-              break;
-            case 'datetime':
-              cell.numFmt = getExcelDateTimePattern(locale);
-              break;
-            case 'number':
-              cell.numFmt = getExcelNumberPattern(typeof fieldMetadata.precision === 'number' ? fieldMetadata.precision : 2);
-              break;
-            case 'currency': {
-              const currencyCode = fieldMetadata.currencyField
-                ? (record[fieldMetadata.currencyField] as string)
-                : 'EUR';
-              cell.numFmt = getExcelCurrencyPattern(locale, currencyCode, typeof fieldMetadata.precision === 'number' ? fieldMetadata.precision : 2);
-              break;
+        // Copy styles from template row using deep clone
+        templateRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          if (cell.style) {
+            const newCell = newRow.getCell(colNumber);
+            if (newCell) {
+              // Deep clone the style object
+              newCell.style = JSON.parse(JSON.stringify(cell.style));
             }
-            case 'percentage':
-              cell.numFmt = getExcelPercentagePattern(typeof fieldMetadata.precision === 'number' ? fieldMetadata.precision : 2);
-              break;
           }
-        }
-      });
-      
-      excelRow.commit();
+        });
+      }
     }
 
-    await excelWriter.commit();
+    // Write to buffer and then to stream
+    const buffer = await workbook.xlsx.writeBuffer();
+    outputStream.write(Buffer.from(buffer));
+    outputStream.end();
   } else {
-    // CSV streaming
+    // CSV export - scan template to get static rows
+    const readerWorkbook = new ExcelJS.Workbook();
+    await readerWorkbook.xlsx.readFile(templatePath);
+    const originalSheet = readerWorkbook.getWorksheet(1);
+    if (!originalSheet) {
+      throw new Error('Template must have at least one worksheet');
+    }
+
+    let dataStartRow = -1;
+    const staticRows: Record<number, (string | number | null | undefined)[]> = [];
+    const colMapping: Record<number, string> = {};
+
+    originalSheet.eachRow((row, rowNumber) => {
+      let isDataRow = false;
+      const rowValues: (string | number | null | undefined)[] = [];
+
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        const val = cell.value?.toString() || '';
+        
+        if (val.startsWith('{#')) {
+          isDataRow = true;
+          const fieldName = val.replace('{#', '').replace('}', '');
+          colMapping[colNumber] = fieldName;
+          rowValues[colNumber] = '';
+        } 
+        else if (val.startsWith('{?')) {
+          const translationKey = val.replace('{?', '').replace('}', '');
+          rowValues[colNumber] = resolveTranslation(translationKey, fieldMapping, translations);
+        } 
+        else {
+          rowValues[colNumber] = cell.value as string | number | null | undefined;
+        }
+      });
+
+      if (isDataRow) {
+        dataStartRow = rowNumber;
+      } else if (dataStartRow === -1) {
+        staticRows[rowNumber] = rowValues;
+      }
+    });
+
+    if (dataStartRow === -1) {
+      throw new Error('Invalid template: no vertical loop tag {#field} found');
+    }
+
+    // Write static rows to CSV
     for (let i = 1; i < dataStartRow; i++) {
       const rowValues = staticRows[i] || [];
       const cleanCsvRow = rowValues.slice(1);
       outputStream.write(convertToCsvRow(cleanCsvRow));
     }
 
+    // Write data rows to CSV
     for await (const record of data) {
       const rowData: (string | number | Date | null)[] = [];
       
@@ -487,8 +592,6 @@ export async function exportDataWithTemplateToStream(
                   : undefined;
                 value = applyTimezone(value as Date | string, timezone, defaultTimezone);
               }
-              break;
-            default:
               break;
           }
         }
