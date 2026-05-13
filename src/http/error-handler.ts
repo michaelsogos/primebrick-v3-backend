@@ -8,14 +8,22 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (res.headersSent) return;
 
   if (isDatabaseUnavailableError(err)) {
-    const payload: ApiErrorResponse = { error: "DATABASE_UNAVAILABLE", impact: "CRITICAL" };
+    const payload = {
+      type: '/errors/database-unavailable',
+      title: 'Database unavailable',
+      status: 503,
+      detail: 'The database is currently unavailable. Please try again later.',
+    };
     // 503 is the standard (>= 501) for downstream unavailability.
     res.status(503).json(payload);
     return;
   }
 
-  // Fallback: keep errors non-fatal and consistent.
-  const payload: ApiErrorResponse = { error: "INTERNAL_ERROR", impact: "HIGH" };
+  const payload = {
+    type: '/errors/internal-error',
+    title: 'Internal server error',
+    status: 500,
+    detail: 'An unexpected error occurred. Please try again later.',
+  };
   res.status(500).json(payload);
 };
-

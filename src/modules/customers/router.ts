@@ -75,7 +75,12 @@ export function customersRouter() {
       }
 
       if (process.env.PB_CUSTOMERS_FORCE_ERROR === "1") {
-        res.status(500).json({ error: "LIST_FAILED", impact: "HIGH" });
+        res.status(500).json({
+          type: '/errors/list-failed',
+          title: 'List failed',
+          status: 500,
+          detail: 'An unexpected error occurred while fetching customer list',
+        });
         return;
       }
 
@@ -98,7 +103,12 @@ export function customersRouter() {
         // but when we can specialize (e.g. DB down) we forward the original error
         // so the global handler can emit DATABASE_UNAVAILABLE + CRITICAL.
         if (isDatabaseUnavailableError(e)) throw e;
-        res.status(500).json({ error: "LIST_FAILED", impact: "HIGH" });
+        res.status(500).json({
+          type: '/errors/list-failed',
+          title: 'List failed',
+          status: 500,
+          detail: 'An unexpected error occurred while fetching customer list',
+        });
         return;
       }
     })
@@ -228,7 +238,14 @@ export function customersRouter() {
 
       } catch (e) {
         if (isDatabaseUnavailableError(e)) throw e;
-        res.status(500).json({ error: "EXPORT_FAILED", impact: "HIGH" });
+        res.status(500).json({
+          type: '/errors/export-failed',
+          title: 'Export failed',
+          status: 500,
+          detail: 'An unexpected error occurred during export',
+          internal_code: 'EXPORT_FAILED',
+          instance: `/api/v1/entities/customer/export`,
+        });
         return;
       }
     })
@@ -250,8 +267,10 @@ export function customersRouter() {
       const r = UuidParamSchema.safeParse(req.params);
       if (!r.success) {
         res.status(400).json({
-          error: "VALIDATION_ERROR",
-          impact: "MEDIUM",
+          type: '/errors/validation-error',
+          title: 'Validation error',
+          status: 400,
+          detail: 'Request validation failed',
           issues: r.error.issues.map((i) => ({
             path: i.path.join("."),
             code: i.code,
@@ -267,7 +286,12 @@ export function customersRouter() {
       const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
       const found = await getDal().getByUuid(uuid);
       if (!found) {
-        res.status(404).json({ error: "NOT_FOUND", impact: "LOW" });
+        res.status(404).json({
+          type: '/errors/not-found',
+          title: 'Customer not found',
+          status: 404,
+          detail: 'The requested customer could not be found',
+        });
         return;
       }
       res.json(found);
@@ -280,8 +304,10 @@ export function customersRouter() {
       const r = UuidParamSchema.safeParse(req.params);
       if (!r.success) {
         res.status(400).json({
-          error: "VALIDATION_ERROR",
-          impact: "MEDIUM",
+          type: '/errors/validation-error',
+          title: 'Validation error',
+          status: 400,
+          detail: 'Request validation failed',
           issues: r.error.issues.map((i) => ({
             path: i.path.join("."),
             code: i.code,
