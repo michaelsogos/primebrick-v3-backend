@@ -80,6 +80,7 @@ export function customersRouter() {
           title: 'List failed',
           status: 500,
           detail: 'An unexpected error occurred while fetching customer list',
+          severity: 'HIGH',
         });
         return;
       }
@@ -108,6 +109,7 @@ export function customersRouter() {
           title: 'List failed',
           status: 500,
           detail: 'An unexpected error occurred while fetching customer list',
+          severity: 'HIGH',
         });
         return;
       }
@@ -245,6 +247,7 @@ export function customersRouter() {
           detail: 'An unexpected error occurred during export',
           internal_code: 'EXPORT_FAILED',
           instance: `/api/v1/entities/customer/export`,
+          severity: 'HIGH',
         });
         return;
       }
@@ -271,6 +274,7 @@ export function customersRouter() {
           title: 'Validation error',
           status: 400,
           detail: 'Request validation failed',
+          severity: 'MEDIUM',
           issues: r.error.issues.map((i) => ({
             path: i.path.join("."),
             code: i.code,
@@ -291,6 +295,7 @@ export function customersRouter() {
           title: 'Customer not found',
           status: 404,
           detail: 'The requested customer could not be found',
+          severity: 'HIGH',
         });
         return;
       }
@@ -308,6 +313,7 @@ export function customersRouter() {
           title: 'Validation error',
           status: 400,
           detail: 'Request validation failed',
+          severity: 'MEDIUM',
           issues: r.error.issues.map((i) => ({
             path: i.path.join("."),
             code: i.code,

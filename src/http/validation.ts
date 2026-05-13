@@ -3,7 +3,11 @@ import { z } from "zod";
 
 function zodErrorToResponse(err: z.ZodError) {
   return {
-    error: "VALIDATION_ERROR",
+    type: '/errors/validation-error',
+    title: 'Validation error',
+    status: 400,
+    detail: 'Request validation failed',
+    severity: 'MEDIUM' as const,
     issues: err.issues.map((i) => ({
       path: i.path.join("."),
       code: i.code,

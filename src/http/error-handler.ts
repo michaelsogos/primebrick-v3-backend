@@ -13,6 +13,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
       title: 'Database unavailable',
       status: 503,
       detail: 'The database is currently unavailable. Please try again later.',
+      severity: 'CRITICAL' as const,
     };
     // 503 is the standard (>= 501) for downstream unavailability.
     res.status(503).json(payload);
@@ -24,6 +25,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     title: 'Internal server error',
     status: 500,
     detail: 'An unexpected error occurred. Please try again later.',
+    severity: 'HIGH' as const,
   };
   res.status(500).json(payload);
 };
