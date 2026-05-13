@@ -460,6 +460,7 @@ export async function exportDataWithTemplateToStream(
 
     // Modify the template row in place for the first record, then add rows for others
     let firstRecord = true;
+    let recordCount = 0;
     
     for await (const record of data) {
       const rowData: (string | number | Date | null)[] = [];
@@ -511,6 +512,7 @@ export async function exportDataWithTemplateToStream(
           }
         });
       }
+      recordCount++;
     }
 
     // Write to buffer and then to stream
