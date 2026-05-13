@@ -458,6 +458,10 @@ export async function exportDataWithTemplateToStream(
     // Get the template row to copy data row styles from
     const templateRow = sheet.getRow(dataStartRow);
 
+    // Check if template has existing table and update its reference
+    const existingTables = sheet.getTables();
+    let existingTable = existingTables.length > 0 ? existingTables[0] : null;
+
     // Modify the template row in place for the first record, then add rows for others
     let firstRecord = true;
     let recordCount = 0;
@@ -513,6 +517,31 @@ export async function exportDataWithTemplateToStream(
         });
       }
       recordCount++;
+    }
+
+    // Update table reference if table exists
+    if (existingTable) {
+      const headerRow = dataStartRow - 1;
+      const lastDataRow = dataStartRow + (recordCount > 0 ? recordCount - 1 : 0);
+      const maxColNumber = Math.max(...Object.keys(colMapping).map(Number));
+      
+      // Convert column number to letter (1 = A, 2 = B, etc.)
+      const columnNumberToLetter = (num: number): string => {
+        let letters = '';
+        while (num > 0) {
+          const remainder = (num - 1) % 26;
+          letters = String.fromCharCode(65 + remainder) + letters;
+          num = Math.floor((num - 1) / 26);
+        }
+        return letters;
+      };
+      
+      const endColumnLetter = columnNumberToLetter(maxColNumber);
+      const tableRef = `A${headerRow}:${endColumnLetter}${lastDataRow}`;
+      
+      console.log('Updating existing table reference to:', tableRef);
+      // Update the table reference directly without calling addTable
+      (existingTable as any).ref = tableRef;
     }
 
     // Write to buffer and then to stream
