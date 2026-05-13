@@ -7,6 +7,7 @@ import { isDatabaseUnavailableError } from "../../http/api-errors.js";
 import {
   CustomerCreateBodySchema,
   CustomerListQuerySchema,
+  CustomerExportQuerySchema,
   UuidParamSchema,
 } from "./dto.js";
 import { z } from "zod";
@@ -19,6 +20,8 @@ import {
   CUSTOMER_LIST_COLUMNS,
   CUSTOMER_STICKY_COLUMNS,
 } from "./list-config.js";
+import { exportDataWithTemplateToStream } from "../../lib/export/index.js";
+import type { ExportConfig } from "../../lib/export/types.js";
 
 export function customersRouter() {
   const router = Router();
@@ -96,6 +99,136 @@ export function customersRouter() {
         // so the global handler can emit DATABASE_UNAVAILABLE + CRITICAL.
         if (isDatabaseUnavailableError(e)) throw e;
         res.status(500).json({ error: "LIST_FAILED", impact: "HIGH" });
+        return;
+      }
+    })
+  );
+
+  router.get(
+    "/api/v1/entities/customer/export",
+    validateQuery(CustomerExportQuerySchema),
+    asyncHandler(async (req, res) => {
+      const { search, search_in, status, sort_key, sort_dir, filters, connector, deleted_records, file_type, locale, timezone } =
+        req.query as unknown as import("./dto.js").CustomerExportQuery;
+      
+      const eff_sort_key = (sort_key ?? defaultSort.key ?? "uuid") as NonNullable<typeof sort_key> | "uuid";
+      const eff_sort_dir =
+        sort_dir === "asc" || sort_dir === "desc"
+          ? sort_dir
+          : sort_key
+            ? "asc"
+            : defaultSort.dir ?? "asc";
+
+      // Set response headers
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `customers-export-${timestamp}.${file_type}`;
+      const contentType = file_type === 'xlsx' 
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : 'text/csv';
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+      try {
+        // Get data stream from DAL
+        const dataStream = getDal().streamAllCustomers({
+          search,
+          search_in: search_in ?? undefined,
+          status,
+          filters,
+          connector,
+          sort_key: eff_sort_key,
+          sort_dir: eff_sort_dir,
+          deleted_records,
+        });
+
+        // Prepare export configuration
+        const config: ExportConfig = {
+          locale: locale || 'en-GB',
+          defaultTimezone: timezone || 'Europe/Rome',
+          entity: {
+            singular: 'Customer',
+            plural: 'Customers'
+          },
+          translations: {
+            'col_uuid': 'UUID',
+            'col_code': 'Code',
+            'col_first_name': 'First Name',
+            'col_last_name': 'Last Name',
+            'col_company_name': 'Company Name',
+            'col_email': 'Email',
+            'col_phone': 'Phone',
+            'col_status': 'Status',
+            'col_status_reason': 'Status Reason',
+            'col_local_address': 'Address',
+            'col_local_city': 'City',
+            'col_local_state': 'State',
+            'col_local_country': 'Country',
+            'col_local_zip': 'ZIP',
+            'col_onboarding_at': 'Onboarding Date',
+            'col_created_at': 'Created At',
+            'col_updated_at': 'Updated At',
+          },
+          fieldMapping: {
+            'uuid': 'uuid',
+            'code': 'code',
+            'first_name': 'first_name',
+            'last_name': 'last_name',
+            'company_name': 'company_name',
+            'email': 'email',
+            'phone': 'phone',
+            'status': 'status',
+            'status_reason': 'status_reason',
+            'local_address': 'local_address',
+            'local_city': 'local_city',
+            'local_state': 'local_state',
+            'local_country': 'local_country',
+            'local_zip': 'local_zip',
+            'onboarding_at': 'onboarding_at',
+            'created_at': 'created_at',
+            'updated_at': 'updated_at',
+          },
+          metadata: {
+            fields: {
+              uuid: { type: 'string' },
+              code: { type: 'string' },
+              first_name: { type: 'string' },
+              last_name: { type: 'string' },
+              company_name: { type: 'string' },
+              email: { type: 'string' },
+              phone: { type: 'string' },
+              status: { type: 'string' },
+              status_reason: { type: 'string' },
+              local_address: { type: 'string' },
+              local_city: { type: 'string' },
+              local_state: { type: 'string' },
+              local_country: { type: 'string' },
+              local_zip: { type: 'string' },
+              onboarding_at: { 
+                type: 'date',
+                timezoneField: 'onboarding_time_zone'
+              },
+              created_at: { type: 'datetime', precision: 'seconds' },
+              updated_at: { type: 'datetime', precision: 'seconds' },
+            }
+          },
+          data: dataStream,
+        };
+
+        // Path to template file (this should be configured properly)
+        const templatePath = './templates/customer_export_template.xlsx';
+        
+        // Stream the export to the response
+        await exportDataWithTemplateToStream(
+          templatePath,
+          res,
+          file_type,
+          config
+        );
+
+      } catch (e) {
+        if (isDatabaseUnavailableError(e)) throw e;
+        res.status(500).json({ error: "EXPORT_FAILED", impact: "HIGH" });
         return;
       }
     })
