@@ -484,13 +484,18 @@ export async function exportDataWithTemplateToStream(
     }
 
     // Build column definitions for table if table exists
+    const originalColumnNames: string[] = [];
     const tableColumns = tableExists ? Object.keys(colMapping)
       .map(colNum => parseInt(colNum, 10))
       .sort((a, b) => a - b)
       .map(colNum => {
         const rawName = sheet.getRow(dataStartRow - 1).getCell(colNum).value?.toString() || `Column${colNum}`;
+        // Store original name before sanitization
+        originalColumnNames.push(rawName);
         // Sanitize column name: replace spaces and invalid characters with underscores
-        const sanitizedName = rawName.replace(/[^a-zA-Z0-9]/g, '_');
+        // const sanitizedName = rawName.replace(/[^a-zA-Z0-9]/g, '_');
+        // Use original name directly (test)
+        const sanitizedName = rawName;
         return {
           name: sanitizedName,
           filterButton: false,
@@ -605,6 +610,13 @@ export async function exportDataWithTemplateToStream(
       
       // Commit to force XML metadata save
       exportTable.commit();
+      
+      // Restore original column names in header cells for display
+      // const headerRowObj = sheet.getRow(headerRow);
+      // originalColumnNames.forEach((originalName, index) => {
+      //   headerRowObj.getCell(index + 1).value = originalName;
+      // });
+      // headerRowObj.commit();
     }
 
     // Write to buffer and then to stream
