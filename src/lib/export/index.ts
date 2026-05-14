@@ -501,10 +501,10 @@ export async function exportDataWithTemplateToStream(
 
     // Stream data and insert rows into worksheet
     let rowCount = dataStartRow; // Start from data row (header is at dataStartRow - 1)
+    let firstRecord = true;
+    let recordCount = 0;
     
     for await (const record of data) {
-      rowCount++;
-      const newRow = sheet.getRow(rowCount);
       const rowData: (string | number | Date | null)[] = [];
       
       // Sort column numbers to ensure correct order
@@ -539,8 +539,18 @@ export async function exportDataWithTemplateToStream(
 
       console.log('[Export] Row data:', rowData);
       
-      // Set row values
-      newRow.values = rowData;
+      let newRow;
+      if (firstRecord) {
+        // Modify the template row in place for the first record
+        newRow = sheet.getRow(dataStartRow);
+        newRow.values = rowData;
+        firstRecord = false;
+      } else {
+        // Insert new row for subsequent records
+        newRow = sheet.addRow(rowData);
+        rowCount++;
+      }
+      recordCount++;
       
       // Copy styles from template row
       const templateRow = sheet.getRow(dataStartRow);
@@ -554,8 +564,11 @@ export async function exportDataWithTemplateToStream(
       });
     }
 
+    // Calculate the actual last data row
+    const actualLastRow = firstRecord ? dataStartRow - 1 : rowCount;
+
     // Create table after data is inserted with correct ref if table existed in template
-    if (tableExists && tableColumns.length > 0 && rowCount > dataStartRow) {
+    if (tableExists && tableColumns.length > 0 && actualLastRow >= dataStartRow) {
       const maxColNumber = Math.max(...Object.keys(colMapping).map(Number));
       
       // Convert column number to letter (1 = A, 2 = B, etc.)
@@ -571,11 +584,11 @@ export async function exportDataWithTemplateToStream(
       
       const endColumnLetter = columnNumberToLetter(maxColNumber);
       const headerRow = dataStartRow - 1;
-      const tableRef = `A${headerRow}:${endColumnLetter}${rowCount}`;
+      const tableRef = `A${headerRow}:${endColumnLetter}${actualLastRow}`;
       console.log('[Export] Creating table with ref:', tableRef);
       
       // Create fake rows array to force ExcelJS to calculate correct table height
-      const fakeRows = Array.from({ length: rowCount - headerRow }, () => []);
+      const fakeRows = Array.from({ length: actualLastRow - headerRow }, () => []);
       
       const exportTable = sheet.addTable({
         name: tableConfig.name || 'ExportTable',
