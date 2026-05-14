@@ -494,7 +494,11 @@ export class CustomersDal {
       page,
       page_size,
       projectAllExceptId(),
-      { filters: filters as any, sorting }
+      {
+        filters: filters as any,
+        sorting,
+        deletedRecords: q.deleted_records as any
+      }
     );
 
     return {
@@ -540,6 +544,72 @@ export class CustomersDal {
       },
     ]);
     return { uuid };
+  }
+
+  async deleteCustomer(uuid: string, deletedBy: string): Promise<void> {
+    const deleted_at = new Date();
+    await this.repo.rawSql(
+      `UPDATE customers SET deleted_at = $1, deleted_by = $2, updated_at = $3, updated_by = $4 WHERE uuid = $5`,
+      [deleted_at, deletedBy, deleted_at, deletedBy, uuid]
+    );
+  }
+
+  async *streamAllCustomers(q: CustomerListQuery): AsyncGenerator<CustomerDetailRow> {
+    const filters: ReturnType<typeof Filter.group>[] = [];
+    if (q.status) {
+      filters.push(Filter.group([Filter.fieldValue(field(CustomerEntity, "status"), "=", q.status)], "AND"));
+    }
+
+    if (q.search && q.search.trim()) {
+      const raw = q.search.trim();
+      const { needle, trueChars, hasEscapedWildcard } = buildIlikeNeedleFromSearch(raw);
+      const canSearch = trueChars >= 3 || (hasEscapedWildcard && trueChars >= 1);
+      if (!canSearch) {
+        filters.push(Filter.group([Filter.raw("1", "=", "0")], "AND"));
+      } else {
+        const looksLikeUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
+
+        const fields = (q.search_in?.length ? q.search_in : CUSTOMER_SEARCHABLE_KEYS) as string[];
+        const allowed = new Set([...CUSTOMER_SEARCHABLE_KEYS, "uuid"]);
+        const ors = fields
+          .filter((f) => allowed.has(f))
+          .flatMap((f) => {
+            if (f === "uuid") {
+              return looksLikeUuid
+                ? [Filter.fieldValue(field(CustomerEntity, "uuid"), "=", raw, "OR")]
+                : [Filter.fieldValue(field(CustomerEntity, "uuid"), "ILIKE", needle, "OR")];
+            }
+            return [Filter.fieldValue(field(CustomerEntity, f as any), "ILIKE", needle, "OR")];
+          });
+        if (ors.length) filters.push(Filter.group(ors, "OR"));
+      }
+    }
+
+    if (q.filters && q.filters.length > 0) {
+      const advancedFilters = translateFilterConditions(q.filters as FilterCondition[], q.connector ?? "AND");
+      if (advancedFilters) {
+        filters.push(...advancedFilters);
+      }
+    }
+
+    const sort_key = (q.sort_key ?? "updated_at") as keyof CustomerDetailRow & string;
+    const sort_dir = (q.sort_dir ?? "desc").toUpperCase() === "ASC" ? "ASC" : "DESC";
+    const sorting = [Sort.by(field(CustomerEntity, sort_key as any), sort_dir as any)];
+
+    const result = await this.repo.findAll<CustomerDetailRow, CustomerDetailRow>(
+      CustomerEntity,
+      projectAllExceptId(),
+      {
+        filters: filters as any,
+        sorting,
+        deletedRecords: q.deleted_records as any
+      }
+    );
+
+    for (const row of result) {
+      yield row;
+    }
   }
 }
 

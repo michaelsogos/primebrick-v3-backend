@@ -79,6 +79,7 @@ export const CustomerListQuerySchema = z.object({
   page_size: z.coerce.number().int().min(1).max(100).optional(),
   filters: FilterQueryArraySchema,
   connector: FilterConnectorSchema.optional(),
+  deleted_records: z.enum(["EXCLUDED", "ONLY", "INCLUDED"]).optional(),
 });
 
 export type CustomerListQuery = z.infer<typeof CustomerListQuerySchema>;
@@ -144,4 +145,12 @@ export const UuidParamSchema = z.object({
 });
 
 export type UuidParam = z.infer<typeof UuidParamSchema>;
+
+export const CustomerExportQuerySchema = CustomerListQuerySchema.extend({
+  file_type: z.enum(["xlsx", "csv"]),
+  locale: z.string().optional(),
+  timezone: z.string().optional(),
+});
+
+export type CustomerExportQuery = z.infer<typeof CustomerExportQuerySchema>;
 
