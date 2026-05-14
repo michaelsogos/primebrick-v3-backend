@@ -1,17 +1,88 @@
+<!-- 1. Questo blocco definisce il formato della carta (A4) per il motore PDF -->
+<style media="print">
+  @page {
+    size: A4;
+    margin: 20mm;
+  }
+</style>
+
+<!-- 2. Questo blocco forza l'iframe a impaginare la tabella A FOGLI SEPARATI sullo schermo -->
+<style media="screen">
+  html {
+    background-color: #e0e0e0;
+    width: 100%;
+    height: auto !important;
+  }
+
+  body {
+    width: 100%;
+    height: auto !important;
+    background-color: #fff;
+    margin: 10px 10px;
+    padding: 10px 10px;
+    font-family: sans-serif;
+  }
+
+  table {
+    margin: 0 auto;
+    border-collapse: collapse;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+
+  thead th {
+    background-color: #2B4C7E; /* Pantone Blue Slate / Steel Blue */
+    color: white;              /* Testo bianco per contrasto */
+    font-weight: 600;
+    font-size: 14px;
+    border: 1px solid #2B4C7E;
+  }
+
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  th, td {
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 13px;
+    color: #333333; /* Grigio scuro per il testo, meno aggressivo del nero */
+  }
+
+  /* Bordo base per le celle del corpo tabella */
+  tbody td {
+    border: 1px solid #E1E6EB; /* Bordo grigio-azzurrato leggero */
+  }
+
+  /* 2. RIGHE ALTERNATE (Pari: Bianco / Dispari: Azzurro Ghiaccio molto tenue) */
+  tbody tr:nth-child(even) {
+    background-color: #FFFFFF;
+  }
+
+  tbody tr:nth-child(odd) {
+    background-color: #F0F4F8; /* Pantone Ice Blue / Cool Gray-Blue */
+  }
+
+
+
+</style>
+
 <table>
   <thead>
     <tr>
-        <th>{?col_uuid}</th>
-        <th>{?col_code}</th>
-        <th>{?col_uuid}</th>
+      <th>{?col_uuid}</th>
+      <th>{?col_code}</th>
+      <th>{?col_uuid}</th>
     </tr>
   </thead>
   <tbody>
     {{#each data}}
     <tr>
-        <td>{#uuid}</td>
-        <td>{#code}</td>
-        <td>{#first_name}</td>
+      <td>{#uuid}</td>
+      <td>{#code}</td>
+      <td>{#first_name}</td>
     </tr>
     {{/each}}
   </tbody>
