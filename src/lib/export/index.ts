@@ -32,11 +32,12 @@ const __dirname = path.dirname(__filename);
  * @returns Template string converted to Handlebars syntax
  */
 function preprocessTemplate(template: string): string {
-  // Convert {#fieldName} to {{fieldName}}
-  let processed = template.replace(/\{#([^}]+)\}/g, '{{$1}}');
+  // Convert {#fieldName} to {{fieldName}} (but not {{#...}} or {{/...}} which is native Handlebars)
+  // Use negative lookbehind to avoid matching inside {{#...}} or {{/...}}
+  let processed = template.replace(/(?<!\{)\{#([^}]+)\}(?!\})/g, '{{$1}}');
   
   // Convert {?translationKey} to {{translationKey}}
-  processed = processed.replace(/\{\?([^}]+)\}/g, '{{$1}}');
+  processed = processed.replace(/(?<!\{)\{\?([^}]+)\}(?!\})/g, '{{$1}}');
   
   return processed;
 }

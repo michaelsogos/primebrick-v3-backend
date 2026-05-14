@@ -139,10 +139,12 @@ export function customersRouter() {
       // Set response headers
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const filename = `customers-export-${timestamp}.${file_type}`;
-      const contentType = file_type === 'xlsx' 
+      const contentType = file_type === 'xlsx'
         ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : file_type === 'html'
+        ? 'text/html'
         : 'text/csv';
-      
+
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
@@ -233,8 +235,10 @@ export function customersRouter() {
         };
 
         // Path to template file (resolved to absolute path)
-        const templatePath = path.join(__dirname, '../../../templates/customer_export_template.xlsx');
-        
+        const templatePath = file_type === 'html'
+          ? path.join(__dirname, '../../../templates/customer_export_template.html')
+          : path.join(__dirname, '../../../templates/customer_export_template.xlsx');
+
         // Stream the export to the response
         await exportDataWithTemplateToStream(
           templatePath,
