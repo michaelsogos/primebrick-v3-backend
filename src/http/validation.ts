@@ -7,7 +7,7 @@ function zodErrorToResponse(err: z.ZodError) {
     title: 'Validation error',
     status: 400,
     detail: 'Request validation failed',
-    severity: 'MEDIUM' as const,
+    severity: 'HIGH' as const,
     issues: err.issues.map((i) => ({
       path: i.path.join("."),
       code: i.code,
