@@ -22,6 +22,11 @@ import {
 } from "./list-config.js";
 import { exportDataWithTemplateToStream } from "../../lib/export/index.js";
 import type { ExportConfig } from "../../lib/export/types.js";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export function customersRouter() {
   const router = Router();
@@ -227,8 +232,8 @@ export function customersRouter() {
           data: dataStream,
         };
 
-        // Path to template file (this should be configured properly)
-        const templatePath = './templates/customer_export_template.xlsx';
+        // Path to template file (resolved to absolute path)
+        const templatePath = path.join(__dirname, '../../../templates/customer_export_template.xlsx');
         
         // Stream the export to the response
         await exportDataWithTemplateToStream(
@@ -239,6 +244,7 @@ export function customersRouter() {
         );
 
       } catch (e) {
+        console.error('[Export] Error:', e);
         if (isDatabaseUnavailableError(e)) throw e;
         res.status(500).json({
           type: '/errors/export-failed',

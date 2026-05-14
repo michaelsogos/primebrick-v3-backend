@@ -422,6 +422,34 @@ export async function exportDataWithTemplateToStream(
       .substring(0, 31); // Excel max length
     sheet.name = targetSheetName;
 
+    // Detect and save table configuration if exists
+    let tableConfig: any = null;
+    let tableExists = false;
+    try {
+      const tables = sheet.getTables();
+      // getTables returns a tuple [Table, void], so we need to handle it
+      const table = Array.isArray(tables) ? tables[0] : tables;
+      if (table && typeof table === 'object' && 'name' in table) {
+        const tableObj = table as any;
+        tableConfig = {
+          name: tableObj.name,
+          displayName: tableObj.displayName,
+          headerRow: tableObj.headerRow,
+          style: tableObj.style,
+          theme: tableObj.theme,
+          showFirstColumn: tableObj.showFirstColumn,
+          showLastColumn: tableObj.showLastColumn,
+          showRowStripes: tableObj.showRowStripes,
+          showColumnStripes: tableObj.showColumnStripes,
+        };
+        tableExists = true;
+        // Remove the table to avoid corruption when inserting rows
+        sheet.removeTable(tableObj.name);
+      }
+    } catch (e) {
+      // No table or error reading table config - continue without table
+    }
+
     // Find and replace template tags with data
     let dataStartRow = -1;
     const colMapping: Record<number, string> = {};
@@ -455,22 +483,36 @@ export async function exportDataWithTemplateToStream(
       throw new Error('Invalid template: no vertical loop tag {#field} found');
     }
 
-    // Get the template row to copy data row styles from
-    const templateRow = sheet.getRow(dataStartRow);
+    // Build column definitions for table if table exists
+    const tableColumns = tableExists ? Object.keys(colMapping)
+      .map(colNum => parseInt(colNum, 10))
+      .sort((a, b) => a - b)
+      .map(colNum => {
+        const rawName = sheet.getRow(dataStartRow - 1).getCell(colNum).value?.toString() || `Column${colNum}`;
+        // Sanitize column name: replace spaces and invalid characters with underscores
+        const sanitizedName = rawName.replace(/[^a-zA-Z0-9]/g, '_');
+        return {
+          name: sanitizedName,
+          filterButton: false,
+        };
+      }) : [];
 
-    // Check if template has existing table and update its reference
-    const existingTables = sheet.getTables();
-    let existingTable = existingTables.length > 0 ? existingTables[0] : null;
+    console.log('[Export] Table columns:', tableColumns.map(c => c.name));
 
-    // Modify the template row in place for the first record, then add rows for others
-    let firstRecord = true;
-    let recordCount = 0;
+    // Stream data and insert rows into worksheet
+    let rowCount = dataStartRow; // Start from data row (header is at dataStartRow - 1)
     
     for await (const record of data) {
+      rowCount++;
+      const newRow = sheet.getRow(rowCount);
       const rowData: (string | number | Date | null)[] = [];
       
-      Object.keys(colMapping).forEach(colNum => {
-        const colNumber = parseInt(colNum, 10);
+      // Sort column numbers to ensure correct order
+      const sortedColNumbers = Object.keys(colMapping)
+        .map(colNum => parseInt(colNum, 10))
+        .sort((a, b) => a - b);
+      
+      sortedColNumbers.forEach((colNumber, index) => {
         const fieldName = colMapping[colNumber as keyof typeof colMapping];
         const mappedFieldName = resolveFieldName(fieldName, fieldMapping);
         const fieldMetadata = metadata.fields[mappedFieldName];
@@ -491,38 +533,29 @@ export async function exportDataWithTemplateToStream(
           }
         }
 
-        rowData[colNumber] = value !== undefined && value !== null ? value : '';
+        // Use 0-based index for rowData array
+        rowData[index] = value !== undefined && value !== null ? value : '';
       });
 
-      if (firstRecord) {
-        // Modify the template row in place (preserves its styles)
-        Object.keys(colMapping).forEach(colNum => {
-          const colNumber = parseInt(colNum, 10);
-          templateRow.getCell(colNumber).value = rowData[colNumber];
-        });
-        firstRecord = false;
-      } else {
-        // Insert new row at the correct position and copy styles
-        const newRow = sheet.insertRow(dataStartRow + 1, rowData);
-        
-        // Copy styles from template row using deep clone
-        templateRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-          if (cell.style) {
-            const newCell = newRow.getCell(colNumber);
-            if (newCell) {
-              // Deep clone the style object
-              newCell.style = JSON.parse(JSON.stringify(cell.style));
-            }
+      console.log('[Export] Row data:', rowData);
+      
+      // Set row values
+      newRow.values = rowData;
+      
+      // Copy styles from template row
+      const templateRow = sheet.getRow(dataStartRow);
+      templateRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        if (cell.style) {
+          const newCell = newRow.getCell(colNumber);
+          if (newCell) {
+            newCell.style = JSON.parse(JSON.stringify(cell.style));
           }
-        });
-      }
-      recordCount++;
+        }
+      });
     }
 
-    // Update table reference if table exists
-    if (existingTable) {
-      const headerRow = dataStartRow - 1;
-      const lastDataRow = dataStartRow + (recordCount > 0 ? recordCount - 1 : 0);
+    // Create table after data is inserted with correct ref if table existed in template
+    if (tableExists && tableColumns.length > 0 && rowCount > dataStartRow) {
       const maxColNumber = Math.max(...Object.keys(colMapping).map(Number));
       
       // Convert column number to letter (1 = A, 2 = B, etc.)
@@ -537,11 +570,28 @@ export async function exportDataWithTemplateToStream(
       };
       
       const endColumnLetter = columnNumberToLetter(maxColNumber);
-      const tableRef = `A${headerRow}:${endColumnLetter}${lastDataRow}`;
+      const headerRow = dataStartRow - 1;
+      const tableRef = `A${headerRow}:${endColumnLetter}${rowCount}`;
+      console.log('[Export] Creating table with ref:', tableRef);
       
-      console.log('Updating existing table reference to:', tableRef);
-      // Update the table reference directly without calling addTable
-      (existingTable as any).ref = tableRef;
+      // Create fake rows array to force ExcelJS to calculate correct table height
+      const fakeRows = Array.from({ length: rowCount - headerRow }, () => []);
+      
+      const exportTable = sheet.addTable({
+        name: tableConfig.name || 'ExportTable',
+        ref: tableRef,
+        headerRow: true,
+        style: {
+          theme: tableConfig.style || 'TableStyleMedium9',
+          showRowStripes: tableConfig.showRowStripes !== false,
+          showColumnStripes: tableConfig.showColumnStripes || false,
+        },
+        columns: tableColumns,
+        rows: fakeRows,
+      });
+      
+      // Commit to force XML metadata save
+      exportTable.commit();
     }
 
     // Write to buffer and then to stream
