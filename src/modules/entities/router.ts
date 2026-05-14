@@ -36,9 +36,11 @@ export function entitiesRouter() {
       const EntityClass = ENTITY_REGISTRY[entity];
       if (!EntityClass) {
         res.status(400).json({
-          error: "INVALID_ENTITY",
-          impact: "MEDIUM",
-          message: `Entity "${entity}" is not supported for bulk operations`,
+          type: '/errors/invalid-entity',
+          title: 'Invalid entity',
+          status: 400,
+          detail: `Entity "${entity}" is not supported for bulk operations`,
+          severity: 'MEDIUM',
         });
         return;
       }
@@ -75,6 +77,7 @@ export function entitiesRouter() {
               detail: 'An unexpected error occurred during bulk delete',
               instance: `/api/v1/entities/${entity}/bulk-delete`,
               internal_code: 'BULK_DELETE_FAILED',
+              severity: 'HIGH',
               error_details: errorMessage
             });
             return;
@@ -91,6 +94,7 @@ export function entitiesRouter() {
           detail: `${results.failed.length} of ${uuids.length} records could not be deleted`,
           instance: `/api/v1/entities/${entity}/bulk-delete`,
           internal_code: 'PARTIAL_FAILURE',
+          severity: 'HIGH',
           results
         });
       } else {

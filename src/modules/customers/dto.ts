@@ -146,3 +146,11 @@ export const UuidParamSchema = z.object({
 
 export type UuidParam = z.infer<typeof UuidParamSchema>;
 
+export const CustomerExportQuerySchema = CustomerListQuerySchema.extend({
+  file_type: z.enum(["xlsx", "csv"]),
+  locale: z.string().optional(),
+  timezone: z.string().optional(),
+});
+
+export type CustomerExportQuery = z.infer<typeof CustomerExportQuerySchema>;
+
