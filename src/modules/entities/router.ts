@@ -78,7 +78,11 @@ export function entitiesRouter() {
               instance: `/api/v1/entities/${entity}/bulk-delete`,
               internal_code: 'BULK_DELETE_FAILED',
               severity: 'HIGH',
-              error_details: errorMessage
+              extra: {
+                issues: {
+                  error_details: errorMessage
+                }
+              }
             });
             return;
           }
@@ -95,7 +99,9 @@ export function entitiesRouter() {
           instance: `/api/v1/entities/${entity}/bulk-delete`,
           internal_code: 'PARTIAL_FAILURE',
           severity: 'HIGH',
-          results
+          extra: {
+            issues: results
+          }
         });
       } else {
         res.status(204).send();
