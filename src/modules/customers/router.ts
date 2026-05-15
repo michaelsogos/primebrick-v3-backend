@@ -9,6 +9,7 @@ import {
   CustomerListQuerySchema,
   CustomerExportQuerySchema,
   UuidParamSchema,
+  CustomerDuplicateBodySchema,
 } from "./dto.js";
 import { z } from "zod";
 import {
@@ -50,6 +51,11 @@ export function customersRouter() {
         defaultPageSize: 25,
         pageSizeOptions: [10, 25, 50, 100],
         columns: CUSTOMER_LIST_COLUMNS,
+        rowActions: {
+          duplicate: true,
+          delete: true,
+          edit: true
+        },
         stickyColumns: CUSTOMER_STICKY_COLUMNS,
         auditingColumns: CUSTOMER_AUDITING_COLUMNS,
         defaultSort,
@@ -271,6 +277,30 @@ export function customersRouter() {
       const body = req.body as unknown as import("./dto.js").CustomerCreateBody;
       const created = await getDal().createCustomer(body);
       res.status(201).json(created);
+    })
+  );
+
+  router.post(
+    "/api/v1/entities/customer/duplicate",
+    validateBody(CustomerDuplicateBodySchema),
+    asyncHandler(async (req, res) => {
+      const body = req.body as unknown as import("./dto.js").CustomerDuplicateBody;
+      const duplicatedBy = (req as any).user?.id || "system";
+      
+      try {
+        const result = await getDal().duplicateCustomers(body.uuids, duplicatedBy);
+        res.status(200).json(result);
+      } catch (e) {
+        if (isDatabaseUnavailableError(e)) throw e;
+        res.status(500).json({
+          type: '/errors/duplicate-failed',
+          title: 'Duplicate failed',
+          status: 500,
+          detail: 'An unexpected error occurred while duplicating customers',
+          severity: 'HIGH',
+        });
+        return;
+      }
     })
   );
 

@@ -554,6 +554,28 @@ export class CustomersDal {
     );
   }
 
+  async duplicateCustomer(uuid: string, duplicatedBy: string): Promise<{ uuid: string }> {
+    const newUuid = await this.repo.clone(CustomerEntity, uuid, duplicatedBy);
+    return { uuid: newUuid };
+  }
+
+  async duplicateCustomers(uuids: string[], duplicatedBy: string): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {
+    const results: string[] = [];
+    const errors: Array<{ uuid: string; error: string }> = [];
+
+    for (const uuid of uuids) {
+      try {
+        const result = await this.duplicateCustomer(uuid, duplicatedBy);
+        results.push(result.uuid);
+      } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+        errors.push({ uuid, error: errorMessage });
+      }
+    }
+
+    return { uuids: results, errors };
+  }
+
   async *streamAllCustomers(q: CustomerListQuery): AsyncGenerator<CustomerDetailRow> {
     const filters: ReturnType<typeof Filter.group>[] = [];
     if (q.status) {
