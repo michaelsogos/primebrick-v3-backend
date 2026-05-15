@@ -111,6 +111,11 @@ export function customersRouter() {
         });
         res.json(result);
       } catch (e) {
+        console.error('[Customer List Error]', {
+          error: e,
+          stack: e instanceof Error ? e.stack : undefined,
+          message: e instanceof Error ? e.message : String(e)
+        });
         // Standard: list/get-paginated failures are 500 with a stable code,
         // but when we can specialize (e.g. DB down) we forward the original error
         // so the global handler can emit DATABASE_UNAVAILABLE + CRITICAL.
@@ -254,7 +259,11 @@ export function customersRouter() {
         );
 
       } catch (e) {
-        console.error('[Export] Error:', e);
+        console.error('[Export Error]', {
+          error: e,
+          stack: e instanceof Error ? e.stack : undefined,
+          message: e instanceof Error ? e.message : String(e)
+        });
         if (isDatabaseUnavailableError(e)) throw e;
         res.status(500).json({
           type: '/errors/export-failed',
@@ -286,11 +295,35 @@ export function customersRouter() {
     asyncHandler(async (req, res) => {
       const body = req.body as unknown as import("./dto.js").CustomerDuplicateBody;
       const duplicatedBy = (req as any).user?.id || "system";
-      
+
       try {
         const result = await getDal().duplicateCustomers(body.uuids, duplicatedBy);
+
+        // If there are any errors, return 500 with RFC7807 format
+        if (result.errors.length > 0) {
+          res.status(500).json({
+            type: '/errors/duplicate-partial-failure',
+            title: 'Record duplication partially failed',
+            status: 500,
+            detail: `${result.errors.length} of ${body.uuids.length} records could not be duplicated`,
+            instance: '/api/v1/entities/customer/duplicate',
+            internal_code: 'DUPLICATE_PARTIAL_FAILURE',
+            duplicateResults: {
+              successful: result.uuids,
+              failed: result.errors
+            }
+          });
+          return;
+        }
+
+        // All succeeded, return 200
         res.status(200).json(result);
       } catch (e) {
+        console.error('[Duplicate Error]', {
+          error: e,
+          stack: e instanceof Error ? e.stack : undefined,
+          message: e instanceof Error ? e.message : String(e)
+        });
         if (isDatabaseUnavailableError(e)) throw e;
         res.status(500).json({
           type: '/errors/duplicate-failed',

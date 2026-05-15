@@ -568,6 +568,12 @@ export class CustomersDal {
         const result = await this.duplicateCustomer(uuid, duplicatedBy);
         results.push(result.uuid);
       } catch (e) {
+        console.error('[Customer Duplicate Error]', {
+          uuid,
+          error: e,
+          stack: e instanceof Error ? e.stack : undefined,
+          message: e instanceof Error ? e.message : String(e)
+        });
         const errorMessage = e instanceof Error ? e.message : 'Unknown error';
         errors.push({ uuid, error: errorMessage });
       }
