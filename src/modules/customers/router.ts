@@ -308,9 +308,11 @@ export function customersRouter() {
             detail: `${result.errors.length} of ${body.uuids.length} records could not be duplicated`,
             instance: '/api/v1/entities/customer/duplicate',
             internal_code: 'DUPLICATE_PARTIAL_FAILURE',
-            duplicateResults: {
-              successful: result.uuids,
-              failed: result.errors
+            extra: {
+              issues: {
+                successful: result.uuids,
+                failed: result.errors
+              }
             }
           });
           return;
