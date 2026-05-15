@@ -2,6 +2,8 @@ export interface ExportFieldMapping {
   [key: string]: string;
 }
 
+export type ExportFileType = 'xlsx' | 'csv' | 'html';
+
 export interface ExportFieldMetadata {
   type: 'string' | 'number' | 'date' | 'datetime' | 'currency' | 'percentage';
   precision?: number | 'seconds';

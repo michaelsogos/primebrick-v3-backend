@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import Handlebars from 'handlebars';
 import type {
   ExportConfig,
   ExportOutputPaths,
@@ -16,10 +17,30 @@ import {
   getExcelCurrencyPattern,
   getExcelPercentagePattern,
   applyTimezone,
+  formatHtmlDate,
+  formatHtmlNumber,
+  formatHtmlCurrency,
+  formatHtmlPercentage,
 } from './helpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Pre-process HTML template to convert our patterns to Handlebars syntax
+ * @param template - HTML template string with {#fieldName} and {?translationKey} patterns
+ * @returns Template string converted to Handlebars syntax
+ */
+function preprocessTemplate(template: string): string {
+  // Convert {#fieldName} to {{fieldName}} (but not {{#...}} or {{/...}} which is native Handlebars)
+  // Use negative lookbehind to avoid matching inside {{#...}} or {{/...}}
+  let processed = template.replace(/(?<!\{)\{#([^}]+)\}(?!\})/g, '{{$1}}');
+  
+  // Convert {?translationKey} to {{translationKey}}
+  processed = processed.replace(/(?<!\{)\{\?([^}]+)\}(?!\})/g, '{{$1}}');
+  
+  return processed;
+}
 
 /**
  * Load translations from i18n file based on locale
@@ -310,16 +331,134 @@ export async function exportDataWithTemplate(
 }
 
 /**
- * Export data to Excel or CSV using template-based approach (streams to HTTP response)
- * @param templatePath - Path to Excel template file
+ * Export data to HTML using template-based approach with Handlebars
+ * @param templatePath - Path to HTML template file
+ * @param outputStream - Output stream for HTML
+ * @param config - Export configuration
+ */
+async function generateHtmlExport(
+  templatePath: string,
+  outputStream: NodeJS.WritableStream,
+  config: ExportConfig
+): Promise<void> {
+  const {
+    locale,
+    defaultTimezone,
+    translations: userTranslations,
+    fieldMapping,
+    metadata,
+    data,
+  } = config;
+
+  // Load base translations from i18n file and merge with user translations
+  const baseTranslations = await loadTranslations(locale);
+  const translations = { ...baseTranslations, ...userTranslations };
+
+  // Read HTML template
+  const templateContent = await fs.promises.readFile(templatePath, 'utf-8');
+
+  // Pre-process template: convert {#} and {?} to Handlebars syntax
+  const processedTemplate = preprocessTemplate(templateContent);
+
+  // Compile Handlebars template
+  const template = Handlebars.compile(processedTemplate);
+
+  // Collect all data records for Handlebars
+  const dataRecords: Record<string, unknown>[] = [];
+  for await (const record of data) {
+    const formattedRecord: Record<string, unknown> = {};
+    
+    // Process each field according to metadata
+    Object.keys(record).forEach(fieldName => {
+      const mappedFieldName = resolveFieldName(fieldName, fieldMapping);
+      const fieldMetadata = metadata.fields[mappedFieldName];
+      
+      let value = record[fieldName];
+      
+      // Apply formatting based on field metadata
+      if (fieldMetadata) {
+        switch (fieldMetadata.type) {
+          case 'date':
+            value = formatHtmlDate(
+              value as Date | string,
+              locale,
+              fieldMetadata.timezoneField ? (record[fieldMetadata.timezoneField] as string) : undefined,
+              defaultTimezone,
+              false
+            );
+            break;
+          case 'datetime':
+            value = formatHtmlDate(
+              value as Date | string,
+              locale,
+              fieldMetadata.timezoneField ? (record[fieldMetadata.timezoneField] as string) : undefined,
+              defaultTimezone,
+              true
+            );
+            break;
+          case 'number':
+            value = formatHtmlNumber(
+              value as number,
+              locale,
+              typeof fieldMetadata.precision === 'number' ? fieldMetadata.precision : 2
+            );
+            break;
+          case 'currency': {
+            const currencyCode = fieldMetadata.currencyField
+              ? (record[fieldMetadata.currencyField] as string)
+              : 'EUR';
+            value = formatHtmlCurrency(
+              value as number,
+              locale,
+              currencyCode,
+              typeof fieldMetadata.precision === 'number' ? fieldMetadata.precision : 2
+            );
+            break;
+          }
+          case 'percentage':
+            value = formatHtmlPercentage(
+              value as number,
+              locale,
+              typeof fieldMetadata.precision === 'number' ? fieldMetadata.precision : 2
+            );
+            break;
+          default:
+            // string or other: keep as is
+            break;
+        }
+      }
+      
+      formattedRecord[mappedFieldName] = value;
+    });
+    
+    dataRecords.push(formattedRecord);
+  }
+
+  // Prepare context for Handlebars
+  const context = {
+    data: dataRecords,
+    ...translations,
+  };
+
+  // Generate HTML
+  const html = template(context);
+
+  // Write to output stream
+  outputStream.write(html);
+  outputStream.end();
+}
+
+/**
+ * Export data to Excel, CSV, or HTML using template-based approach (streams to HTTP response)
+ * @param templatePath - Path to template file (Excel for xlsx/csv, HTML for html)
  * @param outputStream - Output stream for the requested format
- * @param fileType - File type to export ('xlsx' or 'csv')
+ * @param fileType - File type to export ('xlsx', 'csv', or 'html')
  * @param config - Export configuration
  */
 export async function exportDataWithTemplateToStream(
   templatePath: string,
   outputStream: NodeJS.WritableStream,
-  fileType: 'xlsx' | 'csv',
+  fileType: 'xlsx' | 'csv' | 'html',
   config: ExportConfig
 ): Promise<void> {
   const {
@@ -336,8 +475,14 @@ export async function exportDataWithTemplateToStream(
   const baseTranslations = await loadTranslations(locale);
   const translations = { ...baseTranslations, ...userTranslations };
 
+  // Handle HTML export separately
+  if (fileType === 'html') {
+    await generateHtmlExport(templatePath, outputStream, config);
+    return;
+  }
+
   // ----------------------------------------------------
-  // PHASE 1: TEMPLATE SCANNING (Fast read)
+  // PHASE 1: TEMPLATE SCANNING (Fast read) - Excel/CSV only
   // ----------------------------------------------------
   const readerWorkbook = new ExcelJS.Workbook();
   await readerWorkbook.xlsx.readFile(templatePath);

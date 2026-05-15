@@ -110,3 +110,105 @@ export function applyTimezone(dateValue: Date | string, timezone: string | undef
   const formatted = new Intl.DateTimeFormat('en-US', options).format(date);
   return new Date(formatted);
 }
+
+/**
+ * Format date for HTML using Intl
+ * @param dateValue - Date value to format
+ * @param locale - ISO locale string (e.g., 'it-IT', 'en-GB')
+ * @param timezone - Target timezone (IANA format)
+ * @param defaultTimezone - Fallback timezone
+ * @param includeTime - Whether to include time portion
+ * @returns Formatted date string
+ */
+export function formatHtmlDate(
+  dateValue: Date | string | null | undefined,
+  locale: string,
+  timezone: string | undefined,
+  defaultTimezone: string,
+  includeTime: boolean = false
+): string {
+  if (!dateValue) return '';
+  
+  const tz = timezone || defaultTimezone;
+  const date = typeof dateValue === 'string' ? new Date(dateValue) : dateValue;
+  
+  const options: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: tz
+  };
+  
+  if (includeTime) {
+    options.hour = '2-digit';
+    options.minute = '2-digit';
+    options.second = '2-digit';
+  }
+  
+  return new Intl.DateTimeFormat(locale, options).format(date);
+}
+
+/**
+ * Format number for HTML using Intl
+ * @param value - Number value to format
+ * @param locale - ISO locale string
+ * @param precision - Number of decimal places
+ * @returns Formatted number string
+ */
+export function formatHtmlNumber(
+  value: number | null | undefined,
+  locale: string,
+  precision: number = 2
+): string {
+  if (value === null || value === undefined) return '';
+  
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision
+  }).format(value);
+}
+
+/**
+ * Format currency for HTML using Intl
+ * @param value - Number value to format
+ * @param locale - ISO locale string
+ * @param currencyCode - ISO currency code (e.g., 'EUR', 'USD')
+ * @param precision - Number of decimal places
+ * @returns Formatted currency string
+ */
+export function formatHtmlCurrency(
+  value: number | null | undefined,
+  locale: string,
+  currencyCode: string,
+  precision: number = 2
+): string {
+  if (value === null || value === undefined) return '';
+  
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: currencyCode,
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision
+  }).format(value);
+}
+
+/**
+ * Format percentage for HTML using Intl
+ * @param value - Number value to format (0.2 for 20%)
+ * @param locale - ISO locale string
+ * @param precision - Number of decimal places
+ * @returns Formatted percentage string
+ */
+export function formatHtmlPercentage(
+  value: number | null | undefined,
+  locale: string,
+  precision: number = 2
+): string {
+  if (value === null || value === undefined) return '';
+  
+  return new Intl.NumberFormat(locale, {
+    style: 'percent',
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision
+  }).format(value);
+}
