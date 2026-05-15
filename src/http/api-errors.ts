@@ -8,8 +8,19 @@ export type ApiErrorCode =
   | "INTERNAL_ERROR";
 
 export type ApiErrorResponse = {
-  error: ApiErrorCode | (string & {});
-  impact: ImpactLevel;
+  type: string;
+  title: string;
+  status: number;
+  detail: string;
+  instance?: string;
+  internal_code?: string;
+  severity?: string;
+  extra?: {
+    viewer?: string;
+    results?: any;
+    issues?: any;
+    [key: string]: any;
+  };
 };
 
 export function isDatabaseUnavailableError(err: unknown): boolean {
