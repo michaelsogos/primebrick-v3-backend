@@ -8,12 +8,12 @@ import {
 /**
  * Entity metadata via legacy TypeScript decorators (WeakMap "reflection").
  *
- * **Convention:** ogni proprietà “dato” sul `prototype` della classe è una colonna SQL con nome
+ * **Convention:** ogni proprietà "dato" sul `prototype` della classe è una colonna SQL con nome
  * uguale al nome della proprietà (snake_case se la chiami così in TS). **Non serve `@Column()`**
  * salvo per: `sqlName` / `pgType` / `nullable`, o stringa breve per il nome colonna.
  *
  * **`!` in TypeScript:** con `strictPropertyInitialization`, indica che il valore è assegnato
- * prima dell’uso (tipicamente nel `constructor` / `Object.assign`), non al punto di dichiarazione.
+ * prima dell'uso (tipicamente nel `constructor` / `Object.assign`), non al punto di dichiarazione.
  *
  * - `@Entity()` — nome tabella; argomento opzionale se diverso dal nome classe.
  * - `@Key()` — PK (una sola colonna).
@@ -22,6 +22,19 @@ import {
  */
 
 export type EntityClass = abstract new (...args: any[]) => object;
+
+export enum AuditableFieldType {
+  CREATED_AT = "CREATED_AT",
+  CREATED_BY = "CREATED_BY",
+  UPDATED_AT = "UPDATED_AT",
+  UPDATED_BY = "UPDATED_BY",
+  VERSION = "VERSION"
+}
+
+export enum DeletableFieldType {
+  DELETED_AT = "DELETED_AT",
+  DELETED_BY = "DELETED_BY"
+}
 
 type ColumnRegistration = {
   sqlName: string;
@@ -39,6 +52,14 @@ type ColumnRegistration = {
   /** Key generation strategy; default = identity for @Key() */
   keyGenerated?: "identity" | "manual";
   tsDesignTypeCtorName?: string;
+  /** Auditable field metadata */
+  isAuditable?: boolean;
+  auditableType?: AuditableFieldType;
+  /** Deletable field metadata */
+  isDeletable?: boolean;
+  deletableType?: DeletableFieldType;
+  /** Clone field metadata */
+  isClone?: boolean;
 };
 
 export type ColumnOptions = {
@@ -232,6 +253,49 @@ export function Key(opts?: KeyOptions): PropertyDecorator {
   };
 }
 
+/** Marks a field as auditable (created_at, created_by, updated_at, updated_by, version). */
+export function AuditableField(what: AuditableFieldType): PropertyDecorator {
+  return function (target: object, propertyKey: string | symbol) {
+    const ctor = (target as { constructor: Function }).constructor;
+    const col = touchColumn(ctor, propertyKey);
+    col.isAuditable = true;
+    col.auditableType = what;
+    const dt = Reflect.getMetadata("design:type", target, propertyKey);
+    if (dt && typeof (dt as { name?: string }).name === "string") {
+      col.tsDesignTypeCtorName = (dt as Function).name;
+    }
+  };
+}
+
+/** Marks a field as deletable (deleted_at, deleted_by). */
+export function DeletableField(what: DeletableFieldType): PropertyDecorator {
+  return function (target: object, propertyKey: string | symbol) {
+    const ctor = (target as { constructor: Function }).constructor;
+    const col = touchColumn(ctor, propertyKey);
+    col.isDeletable = true;
+    col.deletableType = what;
+    col.nullable = true;
+    const dt = Reflect.getMetadata("design:type", target, propertyKey);
+    if (dt && typeof (dt as { name?: string }).name === "string") {
+      col.tsDesignTypeCtorName = (dt as Function).name;
+    }
+  };
+}
+
+/** Marks a field as clone tracking (cloned_from). Stores UUID of the source record. */
+export function CloneField(): PropertyDecorator {
+  return function (target: object, propertyKey: string | symbol) {
+    const ctor = (target as { constructor: Function }).constructor;
+    const col = touchColumn(ctor, propertyKey);
+    col.isClone = true;
+    col.nullable = true;
+    const dt = Reflect.getMetadata("design:type", target, propertyKey);
+    if (dt && typeof (dt as { name?: string }).name === "string") {
+      col.tsDesignTypeCtorName = (dt as Function).name;
+    }
+  };
+}
+
 export function isEntityClass(value: unknown): value is EntityClass {
   return typeof value === "function" && META.get(value as Function)?.tableName !== undefined;
 }
@@ -315,6 +379,11 @@ export type EntityPersistenceMeta = {
       scale?: number;
       inferredPgType: string;
       usePostgresIdentity: boolean;
+      isAuditable?: boolean;
+      auditableType?: AuditableFieldType;
+      isDeletable?: boolean;
+      deletableType?: DeletableFieldType;
+      isClone?: boolean;
     }
   >;
 };
@@ -378,6 +447,11 @@ export function getEntityPersistenceMeta(ctor: EntityClass, tableSchema = "publi
     if (reg.precision !== undefined) entry.precision = reg.precision;
     if (reg.scale !== undefined) entry.scale = reg.scale;
     if (reg.tsDesignTypeCtorName !== undefined) entry.tsDesignTypeCtorName = reg.tsDesignTypeCtorName;
+    if (reg.isAuditable !== undefined) entry.isAuditable = reg.isAuditable;
+    if (reg.auditableType !== undefined) entry.auditableType = reg.auditableType;
+    if (reg.isDeletable !== undefined) entry.isDeletable = reg.isDeletable;
+    if (reg.deletableType !== undefined) entry.deletableType = reg.deletableType;
+    if (reg.isClone !== undefined) entry.isClone = reg.isClone;
     columns[reg.sqlName] = entry;
   }
   return { entityClassName, tableSchema, tableName, columns };

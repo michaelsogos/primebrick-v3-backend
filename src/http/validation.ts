@@ -10,11 +10,13 @@ function zodErrorToResponse(err: z.ZodError, req: Request) {
     severity: 'HIGH' as const,
     internal_code: 'VALIDATION_ERROR',
     instance: req.path,
-    issues: err.issues.map((i) => ({
-      path: i.path.join("."),
-      code: i.code,
-      message: i.message,
-    })),
+    extra: {
+      issues: err.issues.map((i) => ({
+        path: i.path.join("."),
+        code: i.code,
+        message: i.message,
+      }))
+    }
   };
 }
 

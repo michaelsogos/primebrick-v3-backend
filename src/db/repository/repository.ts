@@ -1,7 +1,17 @@
 import type { Pool, PoolClient } from "pg";
+import { randomUUID } from "node:crypto";
 
 import type { EntityClass } from "../../domain/entities/entity-meta.js";
-import { getColumnName, getEntityPersistenceMeta, getTableName } from "../../domain/entities/entity-meta.js";
+import { 
+  getColumnName, 
+  getEntityPersistenceMeta, 
+  getTableName,
+  syncImplicitEntityColumns
+} from "../../domain/entities/entity-meta.js";
+import { 
+  AuditableFieldType,
+  DeletableFieldType
+} from "../../domain/entities/entity-decorators.js";
 
 import type { FieldProjector, FilterExpr, JoinExpr, SortingExpr } from "./dsl.js";
 import { field, Filter } from "./dsl.js";
@@ -204,6 +214,112 @@ export class Repository {
     if (result.rowCount === 0) {
       throw new Error(`No rows affected when deleting ${table} with UUID ${uuid}`);
     }
+  }
+
+  /**
+   * Clone/duplicate a record by UUID.
+   * Creates a new record identical to the source, excluding:
+   * - Primary keys (auto-generated)
+   * - Unique fields (auto-generated)
+   * - Audit fields (reset to default)
+   * - Delete fields (reset to null)
+   * - Clone fields (set to source UUID)
+   * @param entity - Entity class
+   * @param sourceUuid - UUID of the record to clone
+   * @param clonedBy - User/identifier performing the clone
+   * @returns UUID of the newly created record
+   * @throws Error if entity has no uuid column, source record not found, or clone fails
+   */
+  async clone<TEntity extends object>(
+    entity: EntityClass,
+    sourceUuid: string,
+    clonedBy: string
+  ): Promise<string> {
+    const meta = getEntityPersistenceMeta(entity);
+    const table = getTableName(entity);
+    
+    // Find the uuid column (usually named 'uuid' and marked with @Unique())
+    const uuidColumn = Object.entries(meta.columns).find(([name, col]) => 
+      name === 'uuid' || col.isUnique
+    );
+    if (!uuidColumn) throw new Error(`Entity ${meta.entityClassName} has no uuid column`);
+    
+    const uuidColumnName = uuidColumn[0];
+    const uuidColumnMeta = uuidColumn[1];
+
+    // Fetch the source record
+    const sourceQuery = `SELECT * FROM "${table}" WHERE "${uuidColumnMeta.sqlName}" = $1`;
+    const sourceResult = await this.db.query(sourceQuery, [sourceUuid]);
+    if (sourceResult.rowCount === 0) {
+      throw new Error(`Source record not found with UUID ${sourceUuid}`);
+    }
+    const sourceRecord = sourceResult.rows[0] as Record<string, unknown>;
+
+    // Build the shadow copy excluding fields that should not be copied
+    const clonedRecord: Record<string, unknown> = {};
+    const newUuid = randomUUID();
+    const now = new Date();
+
+    for (const [propKey, colMeta] of Object.entries(meta.columns)) {
+      const sqlName = colMeta.sqlName;
+      
+      // Skip excluded fields
+      if (colMeta.isKey || colMeta.isUnique || colMeta.isClone) {
+        continue;
+      }
+
+      // Handle auditable fields - reset to default
+      if (colMeta.isAuditable) {
+        switch (colMeta.auditableType) {
+          case AuditableFieldType.CREATED_AT:
+          case AuditableFieldType.UPDATED_AT:
+            clonedRecord[sqlName] = now;
+            continue;
+          case AuditableFieldType.CREATED_BY:
+          case AuditableFieldType.UPDATED_BY:
+            clonedRecord[sqlName] = clonedBy;
+            continue;
+          case AuditableFieldType.VERSION:
+            clonedRecord[sqlName] = 1;
+            continue;
+        }
+      }
+
+      // Handle deletable fields - reset to null
+      if (colMeta.isDeletable) {
+        clonedRecord[sqlName] = null;
+        continue;
+      }
+
+      // Copy all other fields from source
+      if (sourceRecord[sqlName] !== undefined) {
+        clonedRecord[sqlName] = sourceRecord[sqlName];
+      }
+    }
+
+    // Set the new UUID
+    clonedRecord[uuidColumnMeta.sqlName] = newUuid;
+
+    // Find the clone field and set it to source UUID
+    const cloneField = Object.entries(meta.columns).find(([_, col]) => col.isClone);
+    if (cloneField) {
+      clonedRecord[cloneField[1].sqlName] = sourceUuid;
+    }
+
+    // Build and execute the INSERT
+    const columns = Object.keys(clonedRecord);
+    const values = Object.values(clonedRecord);
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+    const columnNames = columns.map(c => `"${c}"`).join(', ');
+
+    const insertSql = `INSERT INTO "${table}" (${columnNames}) VALUES (${placeholders}) RETURNING "${uuidColumnMeta.sqlName}"`;
+    const insertResult = await this.db.query(insertSql, values);
+
+    if (insertResult.rowCount === 0) {
+      throw new Error(`Failed to clone record for ${table}`);
+    }
+
+    return insertResult.rows[0][uuidColumnMeta.sqlName] as string;
   }
 }
 

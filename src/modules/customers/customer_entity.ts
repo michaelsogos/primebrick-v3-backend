@@ -1,5 +1,5 @@
 /**
- * Ogni campo “dato” sul prototype è una colonna con lo stesso nome SQL (es. `first_name` → `first_name`).
+ * Ogni campo "dato" sul prototype è una colonna con lo stesso nome SQL (es. `first_name` → `first_name`).
  * Il decoratore `@Column` serve solo per override (`pgType`, `sqlName`, `nullable`).
  *
  * Il suffisso `!` è richiesto da TypeScript (`strictPropertyInitialization`): indica che i valori
@@ -7,12 +7,23 @@
  */
 import type { IAuditableEntity } from "../../domain/entities/iauditable_entity.js";
 import type { IExposableEntity } from "../../domain/entities/iexposable_entity.js";
-import { Column, Entity, Key, Unique } from "../../domain/entities/entity-meta.js";
+import type { IClonableEntity } from "../../domain/entities/iclonable_entity.js";
+import { 
+  Column, 
+  Entity, 
+  Key, 
+  Unique, 
+  AuditableField, 
+  DeletableField, 
+  CloneField,
+  AuditableFieldType,
+  DeletableFieldType
+} from "../../domain/entities/entity-meta.js";
 
 export type CustomerStatus = "ACTIVE" | "INACTIVE";
 
 @Entity("customers")
-export class CustomerEntity implements IAuditableEntity, IExposableEntity {
+export class CustomerEntity implements IAuditableEntity, IExposableEntity, IClonableEntity {
   @Key()
   id: number;
 
@@ -60,17 +71,27 @@ export class CustomerEntity implements IAuditableEntity, IExposableEntity {
   @Column({ length: 100 })
   onboarding_time_zone?: string;
 
+  @AuditableField(AuditableFieldType.CREATED_AT)
   created_at: Date;
 
+  @AuditableField(AuditableFieldType.CREATED_BY)
   created_by: string;
 
+  @AuditableField(AuditableFieldType.UPDATED_AT)
   updated_at: Date;
 
+  @AuditableField(AuditableFieldType.UPDATED_BY)
   updated_by: string;
 
+  @AuditableField(AuditableFieldType.VERSION)
   version: number;
 
+  @DeletableField(DeletableFieldType.DELETED_AT)
   deleted_at?: Date;
 
+  @DeletableField(DeletableFieldType.DELETED_BY)
   deleted_by?: string;
+
+  @CloneField()
+  cloned_from?: string;
 }
