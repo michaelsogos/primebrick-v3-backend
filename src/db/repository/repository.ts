@@ -19,7 +19,7 @@ import { buildSelectQuery } from "./query-builder.js";
 import type { FindByIdOptions, FindOptions, PaginatedEntity } from "./types.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
 import { AuditAction } from "../../lib/audit/audit-types.js";
-import { calculateDelta } from "../../lib/audit/delta-calculator.js";
+import { calculateDelta, calculateDeltaExcludingAudit } from "../../lib/audit/delta-calculator.js";
 import { NotFoundError } from "../../http/api-errors.js";
 
 type Queryable = Pick<Pool, "query"> | Pick<PoolClient, "query">;
@@ -96,8 +96,8 @@ export class Repository {
         const entityId = inserted[pk!.sqlName] as number;
         const entityUuid = inserted.uuid as string;
         
-        // Calculate delta (empty old, full new)
-        const delta = calculateDelta({}, row);
+        // Calculate delta (empty old, full new, excluding audit metadata)
+        const delta = calculateDeltaExcludingAudit({}, row);
 
         // Write audit without await
         this.auditService.writeAudit(
@@ -265,10 +265,10 @@ export class Repository {
       const updated = result.rows[0] as { [key: string]: unknown };
       const entityId = updated[pk!.sqlName] as number;
       const newVersion = updated.version as number;
-      
-      // Calculate delta (only deleted fields and version)
+
+      // Calculate delta (only deleted fields and version, excluding audit metadata)
       const newRecord = { ...oldRecord, deleted_at, deleted_by: deletedBy, updated_at: deleted_at, updated_by: deletedBy, version: newVersion };
-      const delta = calculateDelta(oldRecord, newRecord);
+      const delta = calculateDeltaExcludingAudit(oldRecord, newRecord);
 
       // Write audit without await
       this.auditService.writeAudit(
@@ -336,10 +336,10 @@ export class Repository {
       const updated = result.rows[0] as { [key: string]: unknown };
       const entityId = updated[pk!.sqlName] as number;
       const newVersion = updated.version as number;
-      
-      // Calculate delta (only deleted fields and version)
+
+      // Calculate delta (only deleted fields and version, excluding audit metadata)
       const newRecord = { ...oldRecord, deleted_at: null, deleted_by: null, updated_at, updated_by: restoredBy, version: newVersion };
-      const delta = calculateDelta(oldRecord, newRecord);
+      const delta = calculateDeltaExcludingAudit(oldRecord, newRecord);
 
       // Write audit without await
       this.auditService.writeAudit(
@@ -540,10 +540,10 @@ export class Repository {
       const updated = result.rows[0] as { [key: string]: unknown };
       const entityId = updated[pk!.sqlName] as number;
       const newVersion = updated.version as number;
-      
-      // Calculate delta
+
+      // Calculate delta (excluding audit metadata)
       const newRecord = { ...oldRecord, ...updateRec, updated_at, updated_by: updatedBy, version: newVersion };
-      const delta = calculateDelta(oldRecord, newRecord);
+      const delta = calculateDeltaExcludingAudit(oldRecord, newRecord);
 
       // Write audit without await
       this.auditService.writeAudit(
@@ -610,8 +610,8 @@ export class Repository {
 
     // Write audit record if entity is auditable
     if (isAuditable && this.auditService && oldRecord && entityId) {
-      // Calculate delta (empty new, full old for hard delete)
-      const delta = calculateDelta(oldRecord, {});
+      // Calculate delta (empty new, full old for hard delete, excluding audit metadata)
+      const delta = calculateDeltaExcludingAudit(oldRecord, {});
 
       // Write audit without await
       this.auditService.writeAudit(
