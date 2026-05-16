@@ -434,6 +434,126 @@ export class CustomersDal {
     }
 
     await this.repo.insertMany(CustomerEntity, rows);
+
+    // Generate audit logs for all records
+    await this.seedAuditLogs();
+  }
+
+  private async seedAuditLogs(): Promise<void> {
+    // Fetch all inserted customers to get their IDs and UUIDs
+    const allCustomers = await this.pool.query<{ id: number; uuid: string }>(
+      `SELECT id, uuid FROM public.customers ORDER BY id`
+    );
+
+    const baseTime = new Date();
+    baseTime.setUTCHours(10, 0, 0, 0); // Base time for all operations
+
+    // Generate audit logs for all records
+    for (let i = 0; i < allCustomers.rows.length; i++) {
+      const customer = allCustomers.rows[i]!;
+      const recordNumber = i + 1; // 1-based index
+      const insertTime = new Date(baseTime);
+      insertTime.setMinutes(insertTime.getMinutes() + i); // Stagger insert times
+
+      // INSERT audit log for all records
+      await this.pool.query(
+        `INSERT INTO public.customers_audit 
+         (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [customer.id, customer.uuid, "INSERT", insertTime, "system", 1, {}]
+      );
+
+      // Special handling for first 3 records
+      if (recordNumber === 1) {
+        // Record 1: Simulate restore (INSERT -> SOFT_DELETE -> RESTORE)
+        const deleteTime = new Date(insertTime);
+        deleteTime.setMinutes(deleteTime.getMinutes() + 30);
+
+        const restoreTime = new Date(deleteTime);
+        restoreTime.setMinutes(restoreTime.getMinutes() + 60);
+
+        // SOFT_DELETE audit log
+        await this.pool.query(
+          `INSERT INTO public.customers_audit 
+           (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [customer.id, customer.uuid, "SOFT_DELETE", deleteTime, "system", 2, {}]
+        );
+
+        // RESTORE audit log
+        await this.pool.query(
+          `INSERT INTO public.customers_audit 
+           (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [customer.id, customer.uuid, "RESTORE", restoreTime, "system", 3, {}]
+        );
+
+        // Update customer record to reflect restore state
+        await this.pool.query(
+          `UPDATE public.customers 
+           SET updated_at = $1, updated_by = $2, version = 3, deleted_at = NULL, deleted_by = NULL
+           WHERE id = $3`,
+          [restoreTime, "system", customer.id]
+        );
+      } else if (recordNumber === 2) {
+        // Record 2: Simulate update (INSERT -> UPDATE with random field changes)
+        const updateTime = new Date(insertTime);
+        updateTime.setMinutes(updateTime.getMinutes() + 45);
+
+        // Get current customer data to create delta
+        const currentCustomer = await this.pool.query(
+          `SELECT email, phone, status FROM public.customers WHERE id = $1`,
+          [customer.id]
+        );
+
+        const currentData = currentCustomer.rows[0]!;
+        const newEmail = "updated." + (currentData.email as string);
+        const newPhone = "+39 02 9999";
+        const newStatus: CustomerStatus = currentData.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+
+        const delta = {
+          email: { old: currentData.email, new: newEmail },
+          phone: { old: currentData.phone, new: newPhone },
+          status: { old: currentData.status, new: newStatus }
+        };
+
+        // UPDATE audit log
+        await this.pool.query(
+          `INSERT INTO public.customers_audit 
+           (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [customer.id, customer.uuid, "UPDATE", updateTime, "system", 2, JSON.stringify(delta)]
+        );
+
+        // Update customer record to reflect changes
+        await this.pool.query(
+          `UPDATE public.customers 
+           SET updated_at = $1, updated_by = $2, version = 2, email = $3, phone = $4, status = $5
+           WHERE id = $6`,
+          [updateTime, "system", newEmail, newPhone, newStatus, customer.id]
+        );
+      } else if (recordNumber === 3) {
+        // Record 3: Simulate soft delete (INSERT -> SOFT_DELETE)
+        const deleteTime = new Date(insertTime);
+        deleteTime.setMinutes(deleteTime.getMinutes() + 60);
+
+        // SOFT_DELETE audit log
+        await this.pool.query(
+          `INSERT INTO public.customers_audit 
+           (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [customer.id, customer.uuid, "SOFT_DELETE", deleteTime, "system", 2, {}]
+        );
+
+        // Update customer record to reflect soft delete
+        await this.pool.query(
+          `UPDATE public.customers 
+           SET updated_at = $1, updated_by = $2, version = 2, deleted_at = $3, deleted_by = $4
+           WHERE id = $5`,
+          [deleteTime, "system", deleteTime, "system", customer.id]
+        );
+      }
+    }
   }
 
   private toDto(r: CustomerDetailRow): CustomerDetailDto {
