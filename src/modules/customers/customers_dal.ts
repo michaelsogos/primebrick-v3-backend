@@ -201,9 +201,11 @@ function projectAllExceptId(): FieldProjector[] {
 
 export class CustomersDal {
   private repo: Repository;
+  private pool: Pool;
 
   constructor(pool: Pool, auditService?: AuditService) {
     this.repo = new Repository(pool, auditService);
+    this.pool = pool;
   }
 
   async seedIfEmpty(): Promise<void> {
@@ -666,6 +668,52 @@ export class CustomersDal {
     for (const row of result) {
       yield row;
     }
+  }
+
+  async getCustomerAudit(uuid: string, page: number, limit: number) {
+    const offset = (page - 1) * limit;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM public.customers_audit
+      WHERE entity_uuid = $1
+    `;
+
+    const countResult = await this.pool.query(countQuery, [uuid]);
+    const total = parseInt(countResult.rows[0].total, 10);
+
+    const query = `
+      SELECT
+        id,
+        entity_uuid,
+        action,
+        changed_at,
+        version,
+        delta
+      FROM public.customers_audit
+      WHERE entity_uuid = $1
+      ORDER BY changed_at DESC, id DESC
+      LIMIT $2 OFFSET $3
+    `;
+
+    const result = await this.pool.query(query, [uuid, limit, offset]);
+
+    return {
+      data: result.rows.map((row: any) => ({
+        id: row.id.toString(),
+        entity_uuid: row.entity_uuid,
+        action: row.action,
+        changed_at: entityDateToApiIso(row.changed_at),
+        version: row.version,
+        delta: row.delta,
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        hasMore: offset + limit < total,
+      },
+    };
   }
 }
 

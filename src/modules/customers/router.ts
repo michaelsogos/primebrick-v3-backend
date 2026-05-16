@@ -10,6 +10,7 @@ import {
   CustomerExportQuerySchema,
   UuidParamSchema,
   CustomerDuplicateBodySchema,
+  CustomerAuditQuerySchema,
 } from "./dto.js";
 import { z } from "zod";
 import {
@@ -439,6 +440,55 @@ export function customersRouter() {
       const restoredBy = (req as any).user?.id || "system";
       await getDal().restoreCustomer(uuid, restoredBy);
       res.status(204).send();
+    })
+  );
+
+  router.get(
+    "/api/v1/entities/customer/:uuid/audit",
+    (req, res, next) => {
+      const r = UuidParamSchema.safeParse(req.params);
+      if (!r.success) {
+        res.status(400).json({
+          type: '/errors/validation-error',
+          title: 'Validation error',
+          status: 400,
+          detail: 'Request validation failed',
+          severity: 'MEDIUM',
+          issues: r.error.issues.map((i) => ({
+            path: i.path.join("."),
+            code: i.code,
+            message: i.message,
+          })),
+        });
+        return;
+      }
+      (req as any).params = r.data;
+      next();
+    },
+    validateQuery(CustomerAuditQuerySchema),
+    asyncHandler(async (req, res) => {
+      const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
+      const { page, limit } = req.query as unknown as import("./dto.js").CustomerAuditQuery;
+
+      try {
+        const result = await getDal().getCustomerAudit(uuid, page, limit);
+        res.json(result);
+      } catch (e) {
+        console.error('[Customer Audit Error]', {
+          error: e,
+          stack: e instanceof Error ? e.stack : undefined,
+          message: e instanceof Error ? e.message : String(e)
+        });
+        if (isDatabaseUnavailableError(e)) throw e;
+        res.status(500).json({
+          type: '/errors/audit-failed',
+          title: 'Audit retrieval failed',
+          status: 500,
+          detail: 'An unexpected error occurred while fetching customer audit history',
+          severity: 'HIGH',
+        });
+        return;
+      }
     })
   );
 

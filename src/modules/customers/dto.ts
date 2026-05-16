@@ -177,6 +177,36 @@ export const CustomerUpdateBodySchema = CustomerBaseSchema.partial().superRefine
 
 export type CustomerUpdateBody = z.infer<typeof CustomerUpdateBodySchema>;
 
+export const CustomerAuditQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(50),
+});
+
+export type CustomerAuditQuery = z.infer<typeof CustomerAuditQuerySchema>;
+
+export const CustomerAuditActionSchema = z.enum(['CREATE', 'UPDATE', 'DELETE', 'RESTORE']);
+
+export type CustomerAuditAction = z.infer<typeof CustomerAuditActionSchema>;
+
+export type CustomerAuditEntry = {
+  id: string;
+  entity_uuid: string;
+  action: CustomerAuditAction;
+  changed_at: string;
+  version: number;
+  delta: Record<string, { from: any; to: any }>;
+};
+
+export type CustomerAuditResponse = {
+  data: CustomerAuditEntry[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    hasMore: boolean;
+  };
+};
+
 export const UuidParamSchema = z.object({
   uuid: z.string().uuid(),
 });
