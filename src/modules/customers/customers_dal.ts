@@ -688,6 +688,7 @@ export class CustomersDal {
         entity_uuid,
         action,
         changed_at,
+        changed_by,
         version,
         delta
       FROM public.customers_audit
@@ -704,6 +705,7 @@ export class CustomersDal {
         entity_uuid: row.entity_uuid,
         action: row.action,
         changed_at: entityDateToApiIso(row.changed_at),
+        changed_by: row.changed_by,
         version: row.version,
         delta: row.delta,
       })),

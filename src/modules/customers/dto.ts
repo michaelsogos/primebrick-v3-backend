@@ -193,6 +193,7 @@ export type CustomerAuditEntry = {
   entity_uuid: string;
   action: CustomerAuditAction;
   changed_at: string;
+  changed_by: string;
   version: number;
   delta: Record<string, { from: any; to: any }>;
 };

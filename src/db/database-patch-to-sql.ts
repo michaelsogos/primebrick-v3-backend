@@ -110,6 +110,7 @@ export function buildSqlPatchFromMetaDiff(entitySnap: SchemaSnapshot, diff: Sche
       lines.push(`  "entity_uuid" uuid NOT NULL,`);
       lines.push(`  "action" text NOT NULL,`);
       lines.push(`  "changed_at" timestamptz NOT NULL,`);
+      lines.push(`  "changed_by" text NOT NULL DEFAULT 'system',`);
       lines.push(`  "version" integer NOT NULL,`);
       lines.push(`  "delta" jsonb NOT NULL,`);
       lines.push(`  PRIMARY KEY ("id")`);
