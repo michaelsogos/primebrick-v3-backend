@@ -1,7 +1,25 @@
 {
   "version": 2,
-  "generatedAt": "2026-04-18T22:47:48.081Z",
+  "generatedAt": "2026-05-16T12:49:41.060Z",
   "onlyInEntityTables": [],
   "onlyInDatabaseTables": [],
-  "tables": {}
+  "tables": {
+    "public.customers": {
+      "onlyInEntityColumns": [],
+      "onlyInDatabaseColumns": [],
+      "likelyRenames": [],
+      "typeMismatches": [
+        {
+          "column": "cloned_from",
+          "entityComparable": "text",
+          "databaseComparable": "uuid",
+          "entityType": "text",
+          "databaseType": "uuid",
+          "entityTypname": "text",
+          "databaseTypname": "uuid"
+        }
+      ],
+      "nullabilityMismatches": []
+    }
+  }
 }

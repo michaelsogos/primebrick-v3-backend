@@ -17,12 +17,14 @@ import {
   DeletableField, 
   CloneField,
   AuditableFieldType,
-  DeletableFieldType
+  DeletableFieldType,
+  AuditTrail
 } from "../../domain/entities/entity-meta.js";
 
 export type CustomerStatus = "ACTIVE" | "INACTIVE";
 
 @Entity("customers")
+@AuditTrail()
 export class CustomerEntity implements IAuditableEntity, IExposableEntity, IClonableEntity {
   @Key()
   id: number;

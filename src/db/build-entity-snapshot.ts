@@ -30,6 +30,7 @@ export function buildEntitySnapshot(generatedAt = new Date().toISOString()): Sch
       schema: meta.tableSchema,
       name: meta.tableName,
       entityClassName: meta.entityClassName,
+      isAuditable: meta.isAuditable,
       columns,
     };
   }
