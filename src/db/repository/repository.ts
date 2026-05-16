@@ -197,13 +197,13 @@ export class Repository {
   ): Promise<void> {
     const meta = getEntityPersistenceMeta(entity);
     const table = getTableName(entity);
-    
+
     // Find the uuid column (usually named 'uuid' and marked with @Unique())
-    const uuidColumn = Object.entries(meta.columns).find(([name, col]) => 
+    const uuidColumn = Object.entries(meta.columns).find(([name, col]) =>
       name === 'uuid' || col.isUnique
     );
     if (!uuidColumn) throw new Error(`Entity ${meta.entityClassName} has no uuid column`);
-    
+
     const uuidColumnName = uuidColumn[0];
     const uuidColumnMeta = uuidColumn[1];
 
@@ -213,6 +213,40 @@ export class Repository {
 
     if (result.rowCount === 0) {
       throw new Error(`No rows affected when deleting ${table} with UUID ${uuid}`);
+    }
+  }
+
+  /**
+   * Restore a soft-deleted entity by UUID.
+   * Clears deleted_at and deleted_by, updates updated_at and updated_by.
+   * @param entity - Entity class
+   * @param uuid - UUID of the record to restore
+   * @param restoredBy - User/identifier performing the restoration
+   * @throws Error if entity has no key column, no uuid column, or if no rows are affected
+   */
+  async restore<TEntity extends object>(
+    entity: EntityClass,
+    uuid: string,
+    restoredBy: string
+  ): Promise<void> {
+    const meta = getEntityPersistenceMeta(entity);
+    const table = getTableName(entity);
+
+    // Find the uuid column (usually named 'uuid' and marked with @Unique())
+    const uuidColumn = Object.entries(meta.columns).find(([name, col]) =>
+      name === 'uuid' || col.isUnique
+    );
+    if (!uuidColumn) throw new Error(`Entity ${meta.entityClassName} has no uuid column`);
+
+    const uuidColumnName = uuidColumn[0];
+    const uuidColumnMeta = uuidColumn[1];
+
+    const updated_at = new Date();
+    const sql = `UPDATE "${table}" SET deleted_at = NULL, deleted_by = NULL, updated_at = $1, updated_by = $2 WHERE "${uuidColumnMeta.sqlName}" = $3`;
+    const result = await this.db.query(sql, [updated_at, restoredBy, uuid]);
+
+    if (result.rowCount === 0) {
+      throw new Error(`No rows affected when restoring ${table} with UUID ${uuid}`);
     }
   }
 

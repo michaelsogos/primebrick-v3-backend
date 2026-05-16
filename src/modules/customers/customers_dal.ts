@@ -554,6 +554,37 @@ export class CustomersDal {
     );
   }
 
+  async restoreCustomer(uuid: string, restoredBy: string): Promise<void> {
+    const updated_at = new Date();
+    await this.repo.rawSql(
+      `UPDATE customers SET deleted_at = NULL, deleted_by = NULL, updated_at = $1, updated_by = $2 WHERE uuid = $3`,
+      [updated_at, restoredBy, uuid]
+    );
+  }
+
+  async restoreCustomers(uuids: string[], restoredBy: string): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {
+    const results: string[] = [];
+    const errors: Array<{ uuid: string; error: string }> = [];
+
+    for (const uuid of uuids) {
+      try {
+        await this.restoreCustomer(uuid, restoredBy);
+        results.push(uuid);
+      } catch (e) {
+        console.error('[Customer Restore Error]', {
+          uuid,
+          error: e,
+          stack: e instanceof Error ? e.stack : undefined,
+          message: e instanceof Error ? e.message : String(e)
+        });
+        const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+        errors.push({ uuid, error: errorMessage });
+      }
+    }
+
+    return { uuids: results, errors };
+  }
+
   async duplicateCustomer(uuid: string, duplicatedBy: string): Promise<{ uuid: string }> {
     const newUuid = await this.repo.clone(CustomerEntity, uuid, duplicatedBy);
     return { uuid: newUuid };
