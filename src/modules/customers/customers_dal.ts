@@ -440,9 +440,26 @@ export class CustomersDal {
   }
 
   private async seedAuditLogs(): Promise<void> {
-    // Fetch all inserted customers to get their IDs and UUIDs
-    const allCustomers = await this.pool.query<{ id: number; uuid: string }>(
-      `SELECT id, uuid FROM public.customers ORDER BY id`
+    // Fetch all inserted customers with their full data
+    const allCustomers = await this.pool.query<{
+      id: number;
+      uuid: string;
+      email: string;
+      phone: string;
+      status: string;
+      first_name: string;
+      last_name: string;
+      company_name: string;
+      local_address: string;
+      local_city: string;
+      local_state: string;
+      local_country: string;
+      local_zip: string;
+      status_reason: string;
+    }>(
+      `SELECT id, uuid, email, phone, status, first_name, last_name, company_name,
+              local_address, local_city, local_state, local_country, local_zip, status_reason
+       FROM public.customers ORDER BY id`
     );
 
     const baseTime = new Date();
@@ -455,12 +472,28 @@ export class CustomersDal {
       const insertTime = new Date(baseTime);
       insertTime.setMinutes(insertTime.getMinutes() + i); // Stagger insert times
 
+      // Create delta with all fields for INSERT
+      const insertDelta = {
+        email: { old: null, new: customer.email },
+        phone: { old: null, new: customer.phone },
+        status: { old: null, new: customer.status },
+        first_name: { old: null, new: customer.first_name },
+        last_name: { old: null, new: customer.last_name },
+        company_name: { old: null, new: customer.company_name },
+        local_address: { old: null, new: customer.local_address },
+        local_city: { old: null, new: customer.local_city },
+        local_state: { old: null, new: customer.local_state },
+        local_country: { old: null, new: customer.local_country },
+        local_zip: { old: null, new: customer.local_zip },
+        status_reason: { old: null, new: customer.status_reason }
+      };
+
       // INSERT audit log for all records
       await this.pool.query(
-        `INSERT INTO public.customers_audit 
+        `INSERT INTO public.customers_audit
          (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [customer.id, customer.uuid, "INSERT", insertTime, "system", 1, {}]
+        [customer.id, customer.uuid, "INSERT", insertTime, "system", 1, JSON.stringify(insertDelta)]
       );
 
       // Special handling for first 3 records
