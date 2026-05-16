@@ -505,20 +505,28 @@ export class CustomersDal {
         const restoreTime = new Date(deleteTime);
         restoreTime.setMinutes(restoreTime.getMinutes() + 60);
 
-        // SOFT_DELETE audit log
+        // SOFT_DELETE audit log with delta
+        const deleteDelta = {
+          deleted_at: { old: null, new: deleteTime.toISOString() },
+          deleted_by: { old: null, new: "system" }
+        };
         await this.pool.query(
-          `INSERT INTO public.customers_audit 
+          `INSERT INTO public.customers_audit
            (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [customer.id, customer.uuid, "SOFT_DELETE", deleteTime, "system", 2, {}]
+          [customer.id, customer.uuid, "SOFT_DELETE", deleteTime, "system", 2, JSON.stringify(deleteDelta)]
         );
 
-        // RESTORE audit log
+        // RESTORE audit log with delta
+        const restoreDelta = {
+          deleted_at: { old: deleteTime.toISOString(), new: null },
+          deleted_by: { old: "system", new: null }
+        };
         await this.pool.query(
-          `INSERT INTO public.customers_audit 
+          `INSERT INTO public.customers_audit
            (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [customer.id, customer.uuid, "RESTORE", restoreTime, "system", 3, {}]
+          [customer.id, customer.uuid, "RESTORE", restoreTime, "system", 3, JSON.stringify(restoreDelta)]
         );
 
         // Update customer record to reflect restore state
@@ -570,12 +578,16 @@ export class CustomersDal {
         const deleteTime = new Date(insertTime);
         deleteTime.setMinutes(deleteTime.getMinutes() + 60);
 
-        // SOFT_DELETE audit log
+        // SOFT_DELETE audit log with delta
+        const deleteDelta = {
+          deleted_at: { old: null, new: deleteTime.toISOString() },
+          deleted_by: { old: null, new: "system" }
+        };
         await this.pool.query(
-          `INSERT INTO public.customers_audit 
+          `INSERT INTO public.customers_audit
            (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [customer.id, customer.uuid, "SOFT_DELETE", deleteTime, "system", 2, {}]
+          [customer.id, customer.uuid, "SOFT_DELETE", deleteTime, "system", 2, JSON.stringify(deleteDelta)]
         );
 
         // Update customer record to reflect soft delete
