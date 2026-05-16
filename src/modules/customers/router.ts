@@ -23,6 +23,7 @@ import {
 } from "./list-config.js";
 import { exportDataWithTemplateToStream } from "../../lib/export/index.js";
 import type { ExportConfig } from "../../lib/export/types.js";
+import { AuditService } from "../../lib/audit/audit-service.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -32,9 +33,12 @@ const __dirname = path.dirname(__filename);
 export function customersRouter() {
   const router = Router();
   let dal: CustomersDal | null = null;
+  let auditService: AuditService | null = null;
   const getDal = () => {
     if (dal) return dal;
-    dal = new CustomersDal(getPool());
+    const pool = getPool();
+    auditService = new AuditService(pool);
+    dal = new CustomersDal(pool, auditService);
     return dal;
   };
 

@@ -98,6 +98,33 @@ export function buildSqlPatchFromMetaDiff(entitySnap: SchemaSnapshot, diff: Sche
       }
     }
     if (cols.some((c) => c.isUnique && !c.isPrimaryKey)) lines.push("");
+
+    // Generate audit table if entity is auditable
+    if (t.isAuditable) {
+      const auditTableName = `${t.name}_audit`;
+      const fqAudit = `${quoteIdent(t.schema)}.${quoteIdent(auditTableName)}`;
+      
+      lines.push(`CREATE TABLE IF NOT EXISTS ${fqAudit} (`);
+      lines.push(`  "id" bigint generated always as identity NOT NULL,`);
+      lines.push(`  "entity_id" bigint NOT NULL,`);
+      lines.push(`  "entity_uuid" uuid NOT NULL,`);
+      lines.push(`  "action" text NOT NULL,`);
+      lines.push(`  "changed_at" timestamptz NOT NULL,`);
+      lines.push(`  "version" integer NOT NULL,`);
+      lines.push(`  "delta" jsonb NOT NULL,`);
+      lines.push(`  PRIMARY KEY ("id")`);
+      lines.push(");");
+      lines.push("");
+      
+      // pg_partman setup for monthly partitioning
+      lines.push(`SELECT partman.create_parent('${fqAudit}', 'changed_at', 'native', 'monthly');`);
+      lines.push("");
+      
+      // Indexes
+      lines.push(`CREATE INDEX IF NOT EXISTS ${quoteIdent(`${auditTableName}_entity_uuid_idx`)} ON ${fqAudit} ("entity_uuid");`);
+      lines.push(`CREATE INDEX IF NOT EXISTS ${quoteIdent(`${auditTableName}_action_idx`)} ON ${fqAudit} ("action");`);
+      lines.push("");
+    }
   }
 
   for (const [tableKey, tab] of Object.entries(diff.tables)) {

@@ -10,6 +10,7 @@ export {
   AuditableField,
   DeletableField,
   CloneField,
+  AuditTrail,
   AuditableFieldType,
   DeletableFieldType,
   isEntityClass,

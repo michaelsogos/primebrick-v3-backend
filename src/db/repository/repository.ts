@@ -17,11 +17,14 @@ import type { FieldProjector, FilterExpr, JoinExpr, SortingExpr } from "./dsl.js
 import { field, Filter } from "./dsl.js";
 import { buildSelectQuery } from "./query-builder.js";
 import type { FindByIdOptions, FindOptions, PaginatedEntity } from "./types.js";
+import type { AuditService } from "../../lib/audit/audit-service.js";
+import { AuditAction } from "../../lib/audit/audit-types.js";
+import { calculateDelta } from "../../lib/audit/delta-calculator.js";
 
 type Queryable = Pick<Pool, "query"> | Pick<PoolClient, "query">;
 
 export class Repository {
-  constructor(private readonly db: Queryable) {}
+  constructor(private readonly db: Queryable, private readonly auditService?: AuditService) {}
 
   async rawSql<TResult = unknown>(text: string, values?: unknown[]): Promise<TResult[]> {
     const r = await this.db.query(text, values ?? []);
@@ -46,6 +49,7 @@ export class Repository {
     const meta = getEntityPersistenceMeta(entity);
     const table = getTableName(entity);
     const pk = Object.values(meta.columns).find((c) => c.isKey);
+    const isAuditable = meta.isAuditable;
 
     const first = rows[0] as Record<string, unknown>;
     let keys = Object.keys(first).filter((k) => first[k] !== undefined);
@@ -79,8 +83,33 @@ export class Repository {
       }
       tuples.push(`(${params.join(", ")})`);
     }
-    const sql = `INSERT INTO "${table}" (${colsSql}) VALUES ${tuples.join(", ")}`;
-    await this.db.query(sql, values);
+    const sql = `INSERT INTO "${table}" (${colsSql}) VALUES ${tuples.join(", ")} RETURNING "${pk?.sqlName}", uuid`;
+    const result = await this.db.query(sql, values);
+
+    // Write audit records if entity is auditable
+    if (isAuditable && this.auditService) {
+      const insertedRows = result.rows as Array<{ [key: string]: unknown }>;
+      for (let i = 0; i < insertedRows.length; i++) {
+        const inserted = insertedRows[i];
+        const row = rows[i] as Record<string, unknown>;
+        const entityId = inserted[pk!.sqlName] as number;
+        const entityUuid = inserted.uuid as string;
+        
+        // Calculate delta (empty old, full new)
+        const delta = calculateDelta({}, row);
+
+        // Write audit without await
+        this.auditService.writeAudit(
+          entity,
+          entityId,
+          entityUuid,
+          AuditAction.INSERT,
+          new Date(),
+          1, // version starts at 1
+          delta
+        ).catch((err) => console.error('[Audit Error]', err));
+      }
+    }
   }
 
   async findById<TEntity extends object, TResult = TEntity>(
@@ -197,6 +226,7 @@ export class Repository {
   ): Promise<void> {
     const meta = getEntityPersistenceMeta(entity);
     const table = getTableName(entity);
+    const isAuditable = meta.isAuditable;
 
     // Find the uuid column (usually named 'uuid' and marked with @Unique())
     const uuidColumn = Object.entries(meta.columns).find(([name, col]) =>
@@ -206,13 +236,47 @@ export class Repository {
 
     const uuidColumnName = uuidColumn[0];
     const uuidColumnMeta = uuidColumn[1];
+    const pk = Object.values(meta.columns).find((c) => c.isKey);
 
     const deleted_at = new Date();
-    const sql = `UPDATE "${table}" SET deleted_at = $1, deleted_by = $2, updated_at = $3, updated_by = $4 WHERE "${uuidColumnMeta.sqlName}" = $5`;
+    
+    // Fetch old record for audit if auditable
+    let oldRecord: Record<string, unknown> | null = null;
+    if (isAuditable && this.auditService) {
+      const oldQuery = `SELECT * FROM "${table}" WHERE "${uuidColumnMeta.sqlName}" = $1`;
+      const oldResult = await this.db.query(oldQuery, [uuid]);
+      if (oldResult.rowCount && oldResult.rowCount > 0) {
+        oldRecord = oldResult.rows[0] as Record<string, unknown>;
+      }
+    }
+
+    const sql = `UPDATE "${table}" SET deleted_at = $1, deleted_by = $2, updated_at = $3, updated_by = $4, version = version + 1 WHERE "${uuidColumnMeta.sqlName}" = $5 RETURNING "${pk?.sqlName}", version`;
     const result = await this.db.query(sql, [deleted_at, deletedBy, deleted_at, deletedBy, uuid]);
 
     if (result.rowCount === 0) {
       throw new Error(`No rows affected when deleting ${table} with UUID ${uuid}`);
+    }
+
+    // Write audit record if entity is auditable
+    if (isAuditable && this.auditService && oldRecord) {
+      const updated = result.rows[0] as { [key: string]: unknown };
+      const entityId = updated[pk!.sqlName] as number;
+      const newVersion = updated.version as number;
+      
+      // Calculate delta (only deleted fields and version)
+      const newRecord = { ...oldRecord, deleted_at, deleted_by: deletedBy, updated_at: deleted_at, updated_by: deletedBy, version: newVersion };
+      const delta = calculateDelta(oldRecord, newRecord);
+
+      // Write audit without await
+      this.auditService.writeAudit(
+        entity,
+        entityId,
+        uuid,
+        AuditAction.SOFT_DELETE,
+        deleted_at,
+        newVersion,
+        delta
+      ).catch((err) => console.error('[Audit Error]', err));
     }
   }
 
@@ -231,6 +295,7 @@ export class Repository {
   ): Promise<void> {
     const meta = getEntityPersistenceMeta(entity);
     const table = getTableName(entity);
+    const isAuditable = meta.isAuditable;
 
     // Find the uuid column (usually named 'uuid' and marked with @Unique())
     const uuidColumn = Object.entries(meta.columns).find(([name, col]) =>
@@ -240,13 +305,47 @@ export class Repository {
 
     const uuidColumnName = uuidColumn[0];
     const uuidColumnMeta = uuidColumn[1];
+    const pk = Object.values(meta.columns).find((c) => c.isKey);
 
     const updated_at = new Date();
-    const sql = `UPDATE "${table}" SET deleted_at = NULL, deleted_by = NULL, updated_at = $1, updated_by = $2 WHERE "${uuidColumnMeta.sqlName}" = $3`;
+    
+    // Fetch old record for audit if auditable
+    let oldRecord: Record<string, unknown> | null = null;
+    if (isAuditable && this.auditService) {
+      const oldQuery = `SELECT * FROM "${table}" WHERE "${uuidColumnMeta.sqlName}" = $1`;
+      const oldResult = await this.db.query(oldQuery, [uuid]);
+      if (oldResult.rowCount && oldResult.rowCount > 0) {
+        oldRecord = oldResult.rows[0] as Record<string, unknown>;
+      }
+    }
+
+    const sql = `UPDATE "${table}" SET deleted_at = NULL, deleted_by = NULL, updated_at = $1, updated_by = $2, version = version + 1 WHERE "${uuidColumnMeta.sqlName}" = $3 RETURNING "${pk?.sqlName}", version`;
     const result = await this.db.query(sql, [updated_at, restoredBy, uuid]);
 
     if (result.rowCount === 0) {
       throw new Error(`No rows affected when restoring ${table} with UUID ${uuid}`);
+    }
+
+    // Write audit record if entity is auditable
+    if (isAuditable && this.auditService && oldRecord) {
+      const updated = result.rows[0] as { [key: string]: unknown };
+      const entityId = updated[pk!.sqlName] as number;
+      const newVersion = updated.version as number;
+      
+      // Calculate delta (only deleted fields and version)
+      const newRecord = { ...oldRecord, deleted_at: null, deleted_by: null, updated_at, updated_by: restoredBy, version: newVersion };
+      const delta = calculateDelta(oldRecord, newRecord);
+
+      // Write audit without await
+      this.auditService.writeAudit(
+        entity,
+        entityId,
+        uuid,
+        AuditAction.RESTORE,
+        updated_at,
+        newVersion,
+        delta
+      ).catch((err) => console.error('[Audit Error]', err));
     }
   }
 
@@ -354,6 +453,166 @@ export class Repository {
     }
 
     return insertResult.rows[0][uuidColumnMeta.sqlName] as string;
+  }
+
+  /**
+   * Update a single entity by UUID.
+   * Updates provided fields and increments version.
+   * @param entity - Entity class
+   * @param uuid - UUID of the record to update
+   * @param updates - Partial record with fields to update
+   * @param updatedBy - User/identifier performing the update
+   * @throws Error if entity has no key column, no uuid column, or if no rows are affected
+   */
+  async update<TEntity extends object>(
+    entity: EntityClass,
+    uuid: string,
+    updates: Partial<Record<keyof TEntity & string, unknown>>,
+    updatedBy: string
+  ): Promise<void> {
+    const meta = getEntityPersistenceMeta(entity);
+    const table = getTableName(entity);
+    const isAuditable = meta.isAuditable;
+
+    // Find the uuid column (usually named 'uuid' and marked with @Unique())
+    const uuidColumn = Object.entries(meta.columns).find(([name, col]) =>
+      name === 'uuid' || col.isUnique
+    );
+    if (!uuidColumn) throw new Error(`Entity ${meta.entityClassName} has no uuid column`);
+
+    const uuidColumnMeta = uuidColumn[1];
+    const pk = Object.values(meta.columns).find((c) => c.isKey);
+
+    const updated_at = new Date();
+    
+    // Fetch old record for audit if auditable
+    let oldRecord: Record<string, unknown> | null = null;
+    if (isAuditable && this.auditService) {
+      const oldQuery = `SELECT * FROM "${table}" WHERE "${uuidColumnMeta.sqlName}" = $1`;
+      const oldResult = await this.db.query(oldQuery, [uuid]);
+      if (oldResult.rowCount && oldResult.rowCount > 0) {
+        oldRecord = oldResult.rows[0] as Record<string, unknown>;
+      }
+    }
+
+    // Build SET clause
+    const updateRec = updates as Record<string, unknown>;
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    
+    // Add updated_at and updated_by
+    setClauses.push(`updated_at = $${values.length + 1}`);
+    values.push(updated_at);
+    setClauses.push(`updated_by = $${values.length + 1}`);
+    values.push(updatedBy);
+    setClauses.push(`version = version + 1`);
+
+    // Add user-provided updates
+    for (const [key, value] of Object.entries(updateRec)) {
+      if (value === undefined) continue;
+      const sqlName = getColumnName(entity, key);
+      if (!meta.columns[sqlName]) {
+        throw new Error(`update: unknown column/property ${key}`);
+      }
+      setClauses.push(`"${sqlName}" = $${values.length + 1}`);
+      values.push(value);
+    }
+
+    const sql = `UPDATE "${table}" SET ${setClauses.join(", ")} WHERE "${uuidColumnMeta.sqlName}" = $${values.length + 1} RETURNING "${pk?.sqlName}", version`;
+    values.push(uuid);
+    const result = await this.db.query(sql, values);
+
+    if (result.rowCount === 0) {
+      throw new Error(`No rows affected when updating ${table} with UUID ${uuid}`);
+    }
+
+    // Write audit record if entity is auditable
+    if (isAuditable && this.auditService && oldRecord) {
+      const updated = result.rows[0] as { [key: string]: unknown };
+      const entityId = updated[pk!.sqlName] as number;
+      const newVersion = updated.version as number;
+      
+      // Calculate delta
+      const newRecord = { ...oldRecord, ...updateRec, updated_at, updated_by: updatedBy, version: newVersion };
+      const delta = calculateDelta(oldRecord, newRecord);
+
+      // Write audit without await
+      this.auditService.writeAudit(
+        entity,
+        entityId,
+        uuid,
+        AuditAction.UPDATE,
+        updated_at,
+        newVersion,
+        delta
+      ).catch((err) => console.error('[Audit Error]', err));
+    }
+  }
+
+  /**
+   * Hard delete (physical delete) a single entity by UUID.
+   * Permanently removes the record from the database.
+   * @param entity - Entity class
+   * @param uuid - UUID of the record to delete
+   * @param deletedBy - User/identifier performing the deletion
+   * @throws Error if entity has no key column, no uuid column, or if no rows are affected
+   */
+  async hardDelete<TEntity extends object>(
+    entity: EntityClass,
+    uuid: string,
+    deletedBy: string
+  ): Promise<void> {
+    const meta = getEntityPersistenceMeta(entity);
+    const table = getTableName(entity);
+    const isAuditable = meta.isAuditable;
+
+    // Find the uuid column (usually named 'uuid' and marked with @Unique())
+    const uuidColumn = Object.entries(meta.columns).find(([name, col]) =>
+      name === 'uuid' || col.isUnique
+    );
+    if (!uuidColumn) throw new Error(`Entity ${meta.entityClassName} has no uuid column`);
+
+    const uuidColumnMeta = uuidColumn[1];
+    const pk = Object.values(meta.columns).find((c) => c.isKey);
+
+    const deleted_at = new Date();
+    
+    // Fetch old record for audit if auditable
+    let oldRecord: Record<string, unknown> | null = null;
+    let entityId: number | null = null;
+    if (isAuditable && this.auditService) {
+      const oldQuery = `SELECT * FROM "${table}" WHERE "${uuidColumnMeta.sqlName}" = $1`;
+      const oldResult = await this.db.query(oldQuery, [uuid]);
+      if (oldResult.rowCount && oldResult.rowCount > 0) {
+        oldRecord = oldResult.rows[0] as Record<string, unknown>;
+        entityId = oldRecord[pk!.sqlName] as number;
+      }
+    }
+
+    // Perform hard delete
+    const sql = `DELETE FROM "${table}" WHERE "${uuidColumnMeta.sqlName}" = $1`;
+    const result = await this.db.query(sql, [uuid]);
+
+    if (result.rowCount === 0) {
+      throw new Error(`No rows affected when hard deleting ${table} with UUID ${uuid}`);
+    }
+
+    // Write audit record if entity is auditable
+    if (isAuditable && this.auditService && oldRecord && entityId) {
+      // Calculate delta (empty new, full old for hard delete)
+      const delta = calculateDelta(oldRecord, {});
+
+      // Write audit without await
+      this.auditService.writeAudit(
+        entity,
+        entityId,
+        uuid,
+        AuditAction.HARD_DELETE,
+        deleted_at,
+        (oldRecord.version as number) + 1,
+        delta
+      ).catch((err) => console.error('[Audit Error]', err));
+    }
   }
 }
 

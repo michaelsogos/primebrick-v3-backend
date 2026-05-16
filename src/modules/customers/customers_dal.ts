@@ -7,8 +7,9 @@ import { Repository } from "../../db/repository/repository.js";
 import { field, Filter, Sort, type FieldProjector, type FilterExpr } from "../../db/repository/dsl.js";
 
 import { CustomerEntity, type CustomerStatus } from "./customer_entity.js";
-import type { CustomerCreateBody, CustomerListQuery } from "./dto.js";
+import type { CustomerCreateBody, CustomerUpdateBody, CustomerListQuery } from "./dto.js";
 import { CUSTOMER_SEARCHABLE_KEYS, CUSTOMER_FILTERABLE_KEYS } from "./list-config.js";
+import type { AuditService } from "../../lib/audit/audit-service.js";
 
 function buildIlikeNeedleFromSearch(raw: string): {
   needle: string;
@@ -201,8 +202,8 @@ function projectAllExceptId(): FieldProjector[] {
 export class CustomersDal {
   private repo: Repository;
 
-  constructor(pool: Pool) {
-    this.repo = new Repository(pool);
+  constructor(pool: Pool, auditService?: AuditService) {
+    this.repo = new Repository(pool, auditService);
   }
 
   async seedIfEmpty(): Promise<void> {
@@ -546,20 +547,16 @@ export class CustomersDal {
     return { uuid };
   }
 
+  async updateCustomer(uuid: string, body: CustomerUpdateBody, updatedBy: string): Promise<void> {
+    await this.repo.update(CustomerEntity, uuid, body, updatedBy);
+  }
+
   async deleteCustomer(uuid: string, deletedBy: string): Promise<void> {
-    const deleted_at = new Date();
-    await this.repo.rawSql(
-      `UPDATE customers SET deleted_at = $1, deleted_by = $2, updated_at = $3, updated_by = $4 WHERE uuid = $5`,
-      [deleted_at, deletedBy, deleted_at, deletedBy, uuid]
-    );
+    await this.repo.delete(CustomerEntity, uuid, deletedBy);
   }
 
   async restoreCustomer(uuid: string, restoredBy: string): Promise<void> {
-    const updated_at = new Date();
-    await this.repo.rawSql(
-      `UPDATE customers SET deleted_at = NULL, deleted_by = NULL, updated_at = $1, updated_by = $2 WHERE uuid = $3`,
-      [updated_at, restoredBy, uuid]
-    );
+    await this.repo.restore(CustomerEntity, uuid, restoredBy);
   }
 
   async restoreCustomers(uuids: string[], restoredBy: string): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {

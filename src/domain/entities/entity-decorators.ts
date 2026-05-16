@@ -84,6 +84,8 @@ type ClassEntityMeta = {
   columns: Map<PropertyKey, ColumnRegistration>;
   /** `@IsNotColumn()` — excluded from persistence meta & future DAL builders */
   notColumnKeys: Set<PropertyKey>;
+  /** `@AuditTrail()` — entity has audit trail table */
+  isAuditable?: boolean;
 };
 
 const META = new WeakMap<Function, ClassEntityMeta>();
@@ -296,6 +298,15 @@ export function CloneField(): PropertyDecorator {
   };
 }
 
+/** Marks an entity as having an audit trail table. Generates {table}_audit table with pg_partman partitioning. */
+export function AuditTrail(): ClassDecorator {
+  return function <T extends Function>(target: T): T {
+    const m = ensureMeta(target);
+    m.isAuditable = true;
+    return target;
+  };
+}
+
 export function isEntityClass(value: unknown): value is EntityClass {
   return typeof value === "function" && META.get(value as Function)?.tableName !== undefined;
 }
@@ -363,6 +374,8 @@ export type EntityPersistenceMeta = {
   entityClassName: string;
   tableSchema: string;
   tableName: string;
+  /** `@AuditTrail()` — entity has audit trail table */
+  isAuditable?: boolean;
   columns: Record<
     string,
     {
@@ -454,5 +467,12 @@ export function getEntityPersistenceMeta(ctor: EntityClass, tableSchema = "publi
     if (reg.isClone !== undefined) entry.isClone = reg.isClone;
     columns[reg.sqlName] = entry;
   }
-  return { entityClassName, tableSchema, tableName, columns };
+  const classMeta = META.get(fn);
+  return { 
+    entityClassName, 
+    tableSchema, 
+    tableName, 
+    isAuditable: classMeta?.isAuditable,
+    columns 
+  };
 }

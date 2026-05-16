@@ -140,6 +140,10 @@ export const CustomerCreateBodySchema = z
 
 export type CustomerCreateBody = z.infer<typeof CustomerCreateBodySchema>;
 
+export const CustomerUpdateBodySchema = CustomerCreateBodySchema.partial();
+
+export type CustomerUpdateBody = z.infer<typeof CustomerUpdateBodySchema>;
+
 export const UuidParamSchema = z.object({
   uuid: z.string().uuid(),
 });
