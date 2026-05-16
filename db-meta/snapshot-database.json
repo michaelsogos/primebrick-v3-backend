@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-04-18T22:47:48.056Z",
+  "generatedAt": "2026-05-16T12:49:41.011Z",
   "source": "database",
   "tables": {
     "public.customers": {
@@ -315,6 +315,19 @@
           "typeOid": 1184,
           "typcategory": "D",
           "formatType": "timestamp with time zone",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "cloned_from": {
+          "name": "cloned_from",
+          "ordinalPosition": 25,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": true,

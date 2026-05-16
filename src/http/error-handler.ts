@@ -1,5 +1,5 @@
 import type { ErrorRequestHandler } from "express";
-import { isDatabaseUnavailableError, type ApiErrorResponse } from "./api-errors.js";
+import { isDatabaseUnavailableError, isApiError, type ApiErrorResponse } from "./api-errors.js";
 
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   // Log all errors to console with full details including stack trace
@@ -11,6 +11,13 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   });
 
   if (res.headersSent) return;
+
+  // Handle ApiError instances (RFC 7807 compliant)
+  if (isApiError(err)) {
+    const payload = err.toResponse();
+    res.status(err.status).json(payload);
+    return;
+  }
 
   if (isDatabaseUnavailableError(err)) {
     const payload = {

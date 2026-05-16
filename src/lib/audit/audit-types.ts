@@ -1,0 +1,7 @@
+export enum AuditAction {
+  INSERT = "INSERT",
+  UPDATE = "UPDATE",
+  SOFT_DELETE = "SOFT_DELETE",
+  HARD_DELETE = "HARD_DELETE",
+  RESTORE = "RESTORE"
+}

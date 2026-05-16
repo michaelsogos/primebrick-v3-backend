@@ -36,6 +36,8 @@ export type SchemaTableMeta = {
   schema: string;
   name: string;
   entityClassName?: string;
+  /** Entity: @AuditTrail() decorator present */
+  isAuditable?: boolean;
   columns: Record<string, SchemaColumnMeta>;
 };
 

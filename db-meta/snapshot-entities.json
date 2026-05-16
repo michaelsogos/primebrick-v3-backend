@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-04-18T22:47:48.054Z",
+  "generatedAt": "2026-05-16T12:49:41.010Z",
   "source": "entities",
   "tables": {
     "public.customers": {
@@ -8,6 +8,7 @@
       "schema": "public",
       "name": "customers",
       "entityClassName": "CustomerEntity",
+      "isAuditable": true,
       "columns": {
         "id": {
           "name": "id",
@@ -87,119 +88,9 @@
           "propertyKey": "onboarding_time_zone",
           "isNullable": true
         },
-        "first_name": {
-          "name": "first_name",
-          "ordinalPosition": 8,
-          "dataType": "text",
-          "typname": "text",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "first_name",
-          "isNullable": true
-        },
-        "last_name": {
-          "name": "last_name",
-          "ordinalPosition": 9,
-          "dataType": "text",
-          "typname": "text",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "last_name",
-          "isNullable": true
-        },
-        "company_name": {
-          "name": "company_name",
-          "ordinalPosition": 10,
-          "dataType": "text",
-          "typname": "text",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "company_name",
-          "isNullable": true
-        },
-        "status_reason": {
-          "name": "status_reason",
-          "ordinalPosition": 11,
-          "dataType": "text",
-          "typname": "text",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "status_reason",
-          "isNullable": true
-        },
-        "local_address": {
-          "name": "local_address",
-          "ordinalPosition": 12,
-          "dataType": "text",
-          "typname": "text",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "local_address",
-          "isNullable": true
-        },
-        "local_city": {
-          "name": "local_city",
-          "ordinalPosition": 13,
-          "dataType": "text",
-          "typname": "text",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "local_city",
-          "isNullable": true
-        },
-        "local_state": {
-          "name": "local_state",
-          "ordinalPosition": 14,
-          "dataType": "text",
-          "typname": "text",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "local_state",
-          "isNullable": true
-        },
-        "local_country": {
-          "name": "local_country",
-          "ordinalPosition": 15,
-          "dataType": "text",
-          "typname": "text",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "local_country",
-          "isNullable": true
-        },
-        "local_zip": {
-          "name": "local_zip",
-          "ordinalPosition": 16,
-          "dataType": "text",
-          "typname": "text",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "local_zip",
-          "isNullable": true
-        },
-        "onboarding_at": {
-          "name": "onboarding_at",
-          "ordinalPosition": 17,
-          "dataType": "timestamptz",
-          "typname": "timestamptz",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "onboarding_at",
-          "isNullable": true
-        },
         "created_at": {
           "name": "created_at",
-          "ordinalPosition": 18,
+          "ordinalPosition": 8,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -211,7 +102,7 @@
         },
         "created_by": {
           "name": "created_by",
-          "ordinalPosition": 19,
+          "ordinalPosition": 9,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -222,7 +113,7 @@
         },
         "updated_at": {
           "name": "updated_at",
-          "ordinalPosition": 20,
+          "ordinalPosition": 10,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -234,7 +125,7 @@
         },
         "updated_by": {
           "name": "updated_by",
-          "ordinalPosition": 21,
+          "ordinalPosition": 11,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -245,7 +136,7 @@
         },
         "version": {
           "name": "version",
-          "ordinalPosition": 22,
+          "ordinalPosition": 12,
           "dataType": "integer",
           "typname": "integer",
           "isPrimaryKey": false,
@@ -257,7 +148,7 @@
         },
         "deleted_at": {
           "name": "deleted_at",
-          "ordinalPosition": 23,
+          "ordinalPosition": 13,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -268,13 +159,134 @@
         },
         "deleted_by": {
           "name": "deleted_by",
-          "ordinalPosition": 24,
+          "ordinalPosition": 14,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
           "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "deleted_by",
+          "isNullable": true
+        },
+        "cloned_from": {
+          "name": "cloned_from",
+          "ordinalPosition": 15,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "cloned_from",
+          "isNullable": true
+        },
+        "first_name": {
+          "name": "first_name",
+          "ordinalPosition": 16,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "first_name",
+          "isNullable": true
+        },
+        "last_name": {
+          "name": "last_name",
+          "ordinalPosition": 17,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "last_name",
+          "isNullable": true
+        },
+        "company_name": {
+          "name": "company_name",
+          "ordinalPosition": 18,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "company_name",
+          "isNullable": true
+        },
+        "status_reason": {
+          "name": "status_reason",
+          "ordinalPosition": 19,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "status_reason",
+          "isNullable": true
+        },
+        "local_address": {
+          "name": "local_address",
+          "ordinalPosition": 20,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "local_address",
+          "isNullable": true
+        },
+        "local_city": {
+          "name": "local_city",
+          "ordinalPosition": 21,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "local_city",
+          "isNullable": true
+        },
+        "local_state": {
+          "name": "local_state",
+          "ordinalPosition": 22,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "local_state",
+          "isNullable": true
+        },
+        "local_country": {
+          "name": "local_country",
+          "ordinalPosition": 23,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "local_country",
+          "isNullable": true
+        },
+        "local_zip": {
+          "name": "local_zip",
+          "ordinalPosition": 24,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "local_zip",
+          "isNullable": true
+        },
+        "onboarding_at": {
+          "name": "onboarding_at",
+          "ordinalPosition": 25,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "onboarding_at",
           "isNullable": true
         }
       }
