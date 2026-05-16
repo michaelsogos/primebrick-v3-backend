@@ -19,7 +19,7 @@ import { buildSelectQuery } from "./query-builder.js";
 import type { FindByIdOptions, FindOptions, PaginatedEntity } from "./types.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
 import { AuditAction } from "../../lib/audit/audit-types.js";
-import { calculateDelta } from "../../lib/audit/delta-calculator.js";
+import { calculateDelta, calculateDeltaWithForcedFields } from "../../lib/audit/delta-calculator.js";
 import { NotFoundError } from "../../http/api-errors.js";
 
 type Queryable = Pick<Pool, "query"> | Pick<PoolClient, "query">;
@@ -266,9 +266,10 @@ export class Repository {
       const entityId = updated[pk!.sqlName] as number;
       const newVersion = updated.version as number;
       
-      // Calculate delta (only deleted fields and version)
+      // Calculate delta; force include updated_at/updated_by so the audit trail
+      // always carries the actor and timestamp even when unchanged across operations.
       const newRecord = { ...oldRecord, deleted_at, deleted_by: deletedBy, updated_at: deleted_at, updated_by: deletedBy, version: newVersion };
-      const delta = calculateDelta(oldRecord, newRecord);
+      const delta = calculateDeltaWithForcedFields(oldRecord, newRecord, ['updated_at', 'updated_by']);
 
       // Write audit without await
       this.auditService.writeAudit(
@@ -337,9 +338,10 @@ export class Repository {
       const entityId = updated[pk!.sqlName] as number;
       const newVersion = updated.version as number;
       
-      // Calculate delta (only deleted fields and version)
+      // Calculate delta; force include updated_at/updated_by so the audit trail
+      // always carries the actor and timestamp even when unchanged across operations.
       const newRecord = { ...oldRecord, deleted_at: null, deleted_by: null, updated_at, updated_by: restoredBy, version: newVersion };
-      const delta = calculateDelta(oldRecord, newRecord);
+      const delta = calculateDeltaWithForcedFields(oldRecord, newRecord, ['updated_at', 'updated_by']);
 
       // Write audit without await
       this.auditService.writeAudit(
@@ -541,9 +543,10 @@ export class Repository {
       const entityId = updated[pk!.sqlName] as number;
       const newVersion = updated.version as number;
       
-      // Calculate delta
+      // Calculate delta; force include updated_at/updated_by so the audit trail
+      // always carries the actor and timestamp even when unchanged across operations.
       const newRecord = { ...oldRecord, ...updateRec, updated_at, updated_by: updatedBy, version: newVersion };
-      const delta = calculateDelta(oldRecord, newRecord);
+      const delta = calculateDeltaWithForcedFields(oldRecord, newRecord, ['updated_at', 'updated_by']);
 
       // Write audit without await
       this.auditService.writeAudit(
