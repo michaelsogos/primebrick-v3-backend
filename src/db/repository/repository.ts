@@ -2,13 +2,13 @@ import type { Pool, PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 
 import type { EntityClass } from "../../domain/entities/entity-meta.js";
-import { 
-  getColumnName, 
-  getEntityPersistenceMeta, 
+import {
+  getColumnName,
+  getEntityPersistenceMeta,
   getTableName,
   syncImplicitEntityColumns
 } from "../../domain/entities/entity-meta.js";
-import { 
+import {
   AuditableFieldType,
   DeletableFieldType
 } from "../../domain/entities/entity-decorators.js";
@@ -20,6 +20,7 @@ import type { FindByIdOptions, FindOptions, PaginatedEntity } from "./types.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
 import { AuditAction } from "../../lib/audit/audit-types.js";
 import { calculateDelta } from "../../lib/audit/delta-calculator.js";
+import { NotFoundError } from "../../http/api-errors.js";
 
 type Queryable = Pick<Pool, "query"> | Pick<PoolClient, "query">;
 
@@ -254,7 +255,9 @@ export class Repository {
     const result = await this.db.query(sql, [deleted_at, deletedBy, deleted_at, deletedBy, uuid]);
 
     if (result.rowCount === 0) {
-      throw new Error(`No rows affected when deleting ${table} with UUID ${uuid}`);
+      throw new NotFoundError(`No ${table} found with UUID ${uuid}`, {
+        instance: `/api/v1/entities/${table}/${uuid}`,
+      });
     }
 
     // Write audit record if entity is auditable
@@ -323,7 +326,9 @@ export class Repository {
     const result = await this.db.query(sql, [updated_at, restoredBy, uuid]);
 
     if (result.rowCount === 0) {
-      throw new Error(`No rows affected when restoring ${table} with UUID ${uuid}`);
+      throw new NotFoundError(`No ${table} found with UUID ${uuid}`, {
+        instance: `/api/v1/entities/${table}/${uuid}/restore`,
+      });
     }
 
     // Write audit record if entity is auditable
@@ -384,7 +389,9 @@ export class Repository {
     const sourceQuery = `SELECT * FROM "${table}" WHERE "${uuidColumnMeta.sqlName}" = $1`;
     const sourceResult = await this.db.query(sourceQuery, [sourceUuid]);
     if (sourceResult.rowCount === 0) {
-      throw new Error(`Source record not found with UUID ${sourceUuid}`);
+      throw new NotFoundError(`Source record not found with UUID ${sourceUuid}`, {
+        instance: `/api/v1/entities/${table}/${sourceUuid}/clone`,
+      });
     }
     const sourceRecord = sourceResult.rows[0] as Record<string, unknown>;
 
@@ -523,7 +530,9 @@ export class Repository {
     const result = await this.db.query(sql, values);
 
     if (result.rowCount === 0) {
-      throw new Error(`No rows affected when updating ${table} with UUID ${uuid}`);
+      throw new NotFoundError(`No ${table} found with UUID ${uuid}`, {
+        instance: `/api/v1/entities/${table}/${uuid}`,
+      });
     }
 
     // Write audit record if entity is auditable
@@ -594,7 +603,9 @@ export class Repository {
     const result = await this.db.query(sql, [uuid]);
 
     if (result.rowCount === 0) {
-      throw new Error(`No rows affected when hard deleting ${table} with UUID ${uuid}`);
+      throw new NotFoundError(`No ${table} found with UUID ${uuid}`, {
+        instance: `/api/v1/entities/${table}/${uuid}`,
+      });
     }
 
     // Write audit record if entity is auditable
