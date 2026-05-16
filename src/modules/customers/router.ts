@@ -408,6 +408,36 @@ export function customersRouter() {
     })
   );
 
+  router.post(
+    "/api/v1/entities/customer/:uuid/restore",
+    (req, res, next) => {
+      const r = UuidParamSchema.safeParse(req.params);
+      if (!r.success) {
+        res.status(400).json({
+          type: '/errors/validation-error',
+          title: 'Validation error',
+          status: 400,
+          detail: 'Request validation failed',
+          severity: 'MEDIUM',
+          issues: r.error.issues.map((i) => ({
+            path: i.path.join("."),
+            code: i.code,
+            message: i.message,
+          })),
+        });
+        return;
+      }
+      (req as any).params = r.data;
+      next();
+    },
+    asyncHandler(async (req, res) => {
+      const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
+      const restoredBy = (req as any).user?.id || "system";
+      await getDal().restoreCustomer(uuid, restoredBy);
+      res.status(204).send();
+    })
+  );
+
   return router;
 }
 
