@@ -10,7 +10,6 @@ import { CustomerEntity, type CustomerStatus } from "./customer_entity.js";
 import type { CustomerCreateBody, CustomerUpdateBody, CustomerListQuery } from "./dto.js";
 import { CUSTOMER_SEARCHABLE_KEYS, CUSTOMER_FILTERABLE_KEYS } from "./list-config.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
-import { calculateDeltaExcludingAudit } from "../../lib/audit/delta-calculator.js";
 
 function buildIlikeNeedleFromSearch(raw: string): {
   needle: string;
@@ -473,21 +472,21 @@ export class CustomersDal {
       const insertTime = new Date(baseTime);
       insertTime.setMinutes(insertTime.getMinutes() + i); // Stagger insert times
 
-      // Create delta with all fields for INSERT (excluding audit metadata)
-      const insertDelta = calculateDeltaExcludingAudit({}, {
-        email: customer.email,
-        phone: customer.phone,
-        status: customer.status,
-        first_name: customer.first_name,
-        last_name: customer.last_name,
-        company_name: customer.company_name,
-        local_address: customer.local_address,
-        local_city: customer.local_city,
-        local_state: customer.local_state,
-        local_country: customer.local_country,
-        local_zip: customer.local_zip,
-        status_reason: customer.status_reason
-      });
+      // Create delta with all fields for INSERT
+      const insertDelta = {
+        email: { old: null, new: customer.email },
+        phone: { old: null, new: customer.phone },
+        status: { old: null, new: customer.status },
+        first_name: { old: null, new: customer.first_name },
+        last_name: { old: null, new: customer.last_name },
+        company_name: { old: null, new: customer.company_name },
+        local_address: { old: null, new: customer.local_address },
+        local_city: { old: null, new: customer.local_city },
+        local_state: { old: null, new: customer.local_state },
+        local_country: { old: null, new: customer.local_country },
+        local_zip: { old: null, new: customer.local_zip },
+        status_reason: { old: null, new: customer.status_reason }
+      };
 
       // INSERT audit log for all records
       await this.pool.query(
@@ -506,11 +505,11 @@ export class CustomersDal {
         const restoreTime = new Date(deleteTime);
         restoreTime.setMinutes(restoreTime.getMinutes() + 60);
 
-        // SOFT_DELETE audit log with delta (excluding audit metadata)
-        const deleteDelta = calculateDeltaExcludingAudit(
-          {},
-          { deleted_at: deleteTime.toISOString(), deleted_by: "system" }
-        );
+        // SOFT_DELETE audit log with delta
+        const deleteDelta = {
+          deleted_at: { old: null, new: deleteTime.toISOString() },
+          deleted_by: { old: null, new: "system" }
+        };
         await this.pool.query(
           `INSERT INTO public.customers_audit
            (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
@@ -518,11 +517,11 @@ export class CustomersDal {
           [customer.id, customer.uuid, "SOFT_DELETE", deleteTime, "system", 2, JSON.stringify(deleteDelta)]
         );
 
-        // RESTORE audit log with delta (excluding audit metadata)
-        const restoreDelta = calculateDeltaExcludingAudit(
-          { deleted_at: deleteTime.toISOString(), deleted_by: "system" },
-          { deleted_at: null, deleted_by: null }
-        );
+        // RESTORE audit log with delta
+        const restoreDelta = {
+          deleted_at: { old: deleteTime.toISOString(), new: null },
+          deleted_by: { old: "system", new: null }
+        };
         await this.pool.query(
           `INSERT INTO public.customers_audit
            (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
@@ -553,10 +552,11 @@ export class CustomersDal {
         const newPhone = "+39 02 9999";
         const newStatus: CustomerStatus = currentData.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
 
-        const delta = calculateDeltaExcludingAudit(
-          { email: currentData.email, phone: currentData.phone, status: currentData.status },
-          { email: newEmail, phone: newPhone, status: newStatus }
-        );
+        const delta = {
+          email: { old: currentData.email, new: newEmail },
+          phone: { old: currentData.phone, new: newPhone },
+          status: { old: currentData.status, new: newStatus }
+        };
 
         // UPDATE audit log
         await this.pool.query(
@@ -578,11 +578,11 @@ export class CustomersDal {
         const deleteTime = new Date(insertTime);
         deleteTime.setMinutes(deleteTime.getMinutes() + 60);
 
-        // SOFT_DELETE audit log with delta (excluding audit metadata)
-        const deleteDelta = calculateDeltaExcludingAudit(
-          {},
-          { deleted_at: deleteTime.toISOString(), deleted_by: "system" }
-        );
+        // SOFT_DELETE audit log with delta
+        const deleteDelta = {
+          deleted_at: { old: null, new: deleteTime.toISOString() },
+          deleted_by: { old: null, new: "system" }
+        };
         await this.pool.query(
           `INSERT INTO public.customers_audit
            (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
