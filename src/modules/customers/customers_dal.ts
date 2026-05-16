@@ -505,10 +505,12 @@ export class CustomersDal {
         const restoreTime = new Date(deleteTime);
         restoreTime.setMinutes(restoreTime.getMinutes() + 60);
 
-        // SOFT_DELETE audit log with delta
+        // SOFT_DELETE audit log with delta (include updated_at/updated_by for audit trail)
         const deleteDelta = {
           deleted_at: { old: null, new: deleteTime.toISOString() },
-          deleted_by: { old: null, new: "system" }
+          deleted_by: { old: null, new: "system" },
+          updated_at: { old: insertTime.toISOString(), new: deleteTime.toISOString() },
+          updated_by: { old: "system", new: "system" }
         };
         await this.pool.query(
           `INSERT INTO public.customers_audit
@@ -517,10 +519,12 @@ export class CustomersDal {
           [customer.id, customer.uuid, "SOFT_DELETE", deleteTime, "system", 2, JSON.stringify(deleteDelta)]
         );
 
-        // RESTORE audit log with delta
+        // RESTORE audit log with delta (include updated_at/updated_by for audit trail)
         const restoreDelta = {
           deleted_at: { old: deleteTime.toISOString(), new: null },
-          deleted_by: { old: "system", new: null }
+          deleted_by: { old: "system", new: null },
+          updated_at: { old: deleteTime.toISOString(), new: restoreTime.toISOString() },
+          updated_by: { old: "system", new: "system" }
         };
         await this.pool.query(
           `INSERT INTO public.customers_audit
@@ -555,7 +559,9 @@ export class CustomersDal {
         const delta = {
           email: { old: currentData.email, new: newEmail },
           phone: { old: currentData.phone, new: newPhone },
-          status: { old: currentData.status, new: newStatus }
+          status: { old: currentData.status, new: newStatus },
+          updated_at: { old: insertTime.toISOString(), new: updateTime.toISOString() },
+          updated_by: { old: "system", new: "system" }
         };
 
         // UPDATE audit log
@@ -578,10 +584,12 @@ export class CustomersDal {
         const deleteTime = new Date(insertTime);
         deleteTime.setMinutes(deleteTime.getMinutes() + 60);
 
-        // SOFT_DELETE audit log with delta
+        // SOFT_DELETE audit log with delta (include updated_at/updated_by for audit trail)
         const deleteDelta = {
           deleted_at: { old: null, new: deleteTime.toISOString() },
-          deleted_by: { old: null, new: "system" }
+          deleted_by: { old: null, new: "system" },
+          updated_at: { old: insertTime.toISOString(), new: deleteTime.toISOString() },
+          updated_by: { old: "system", new: "system" }
         };
         await this.pool.query(
           `INSERT INTO public.customers_audit
