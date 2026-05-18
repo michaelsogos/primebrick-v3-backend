@@ -153,10 +153,41 @@ async function createRole(): Promise<void> {
   }
 }
 
+async function createAdminUser(): Promise<void> {
+  console.log(`Creating admin user: ${CASDOOR_ADMIN_USERNAME}`);
+
+  const user = {
+    owner: CASDOOR_ORGANIZATION,
+    name: CASDOOR_ADMIN_USERNAME,
+    displayName: "Primebrick Admin",
+    email: CASDOOR_ADMIN_EMAIL,
+    password: CASDOOR_ADMIN_PASSWORD,
+    isAdmin: true,
+    isGlobalAdmin: false,
+    signupApplication: CASDOOR_CLIENT_ID,
+    createdTime: new Date().toISOString(),
+  };
+
+  console.log("User payload being sent to Casdoor:", JSON.stringify(user, null, 2));
+
+  try {
+    await sdk.addUser(user);
+    console.log(`✓ Admin user created: ${CASDOOR_ADMIN_USERNAME} (${CASDOOR_ADMIN_EMAIL})`);
+  } catch (error) {
+    if ((error as Error).message.includes("already exists")) {
+      console.log(`✓ Admin user already exists: ${CASDOOR_ADMIN_USERNAME}`);
+    } else {
+      console.error("Error creating user:", error);
+      throw error;
+    }
+  }
+}
+
 async function main(): Promise<void> {
   console.log("Setting up Casdoor...");
   console.log(`Endpoint: ${CASDOOR_ENDPOINT}`);
   console.log(`Organization: ${CASDOOR_ORGANIZATION}`);
+  console.log(`Admin user: ${CASDOOR_ADMIN_USERNAME} (${CASDOOR_ADMIN_EMAIL})`);
   console.log("");
 
   try {
@@ -165,21 +196,15 @@ async function main(): Promise<void> {
     await getOrCreateApplication();
     const secret = await getClientSecret();
     await createRole();
+    await createAdminUser();
 
     console.log("");
     console.log("✓ Casdoor setup complete!");
     console.log("");
-    console.log("Created:");
-    console.log(`  Organization: ${CASDOOR_ORGANIZATION}`);
-    console.log(`  Application: ${CASDOOR_CLIENT_ID}`);
-    console.log(`  Role: Administrators`);
-    console.log("");
-    console.log("⚠️  Admin user must be created manually in Casdoor UI:");
-    console.log("  1. Login to Casdoor at http://localhost:8000 with admin/123");
-    console.log(`  2. Go to organization: ${CASDOOR_ORGANIZATION}`);
-    console.log(`  3. Create user: ${CASDOOR_ADMIN_USERNAME} (${CASDOOR_ADMIN_EMAIL})`);
-    console.log(`  4. Set password: ${CASDOOR_ADMIN_PASSWORD}`);
-    console.log("  5. Assign user to Administrators role");
+    console.log("You can now login with:");
+    console.log(`  Username: ${CASDOOR_ADMIN_USERNAME}`);
+    console.log(`  Email: ${CASDOOR_ADMIN_EMAIL}`);
+    console.log(`  Password: ${CASDOOR_ADMIN_PASSWORD}`);
     console.log("");
     console.log("Configure your backend with:");
     console.log(`  OIDC_CLIENT_ID: ${CASDOOR_CLIENT_ID}`);
