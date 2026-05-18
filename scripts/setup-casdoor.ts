@@ -11,6 +11,7 @@
 import "dotenv/config";
 
 interface CasdoorUser {
+  owner: string;
   name: string;
   displayName: string;
   email: string;
@@ -245,6 +246,7 @@ async function createAdminUser(): Promise<void> {
   console.log(`Creating admin user: ${CASDOOR_ADMIN_USERNAME}`);
 
   const user: CasdoorUser = {
+    owner: CASDOOR_ORGANIZATION,
     name: CASDOOR_ADMIN_USERNAME,
     displayName: "Primebrick Admin",
     email: CASDOOR_ADMIN_EMAIL,
