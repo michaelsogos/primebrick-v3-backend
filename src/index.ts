@@ -1,7 +1,6 @@
 import cors from "cors";
 import express, { type Response } from "express";
 import { customersRouter } from "./modules/customers/router.js";
-import { entitiesRouter } from "./modules/entities/router.js";
 import { openApiRouter } from "./openapi/router.js";
 import { errorHandler } from "./http/error-handler.js";
 import { getPool } from "./db/pool.js";
@@ -94,7 +93,6 @@ apiRouter.get("/modules", rbacHandler([Permission.MODULES_LIST]), (_req, res) =>
 });
 
 app.use("/api/v1", apiRouter);
-app.use(entitiesRouter());
 app.use(customersRouter());
 
 app.use(errorHandler);
