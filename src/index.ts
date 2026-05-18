@@ -71,9 +71,25 @@ async function checkIdp(pool?: Pool): Promise<{ ok: boolean; type?: string; vers
       try {
         const dbConfig = await loadAuthConfigFromDb(pool);
         casdoorEndpoint = dbConfig.casdoorEndpoint || casdoorEndpoint;
-        clientId = "cb05577e2097c31af3c7"; // Built-in client ID is constant
         clientSecret = dbConfig.casdoorBuiltinClientSecret || clientSecret;
         orgName = dbConfig.casdoorOrganization || orgName;
+
+        // Retrieve the actual built-in client ID from Casdoor database
+        const casdoorDbUrl = process.env.DATABASE_URL?.replace("dbname=primebrick", "dbname=casdoor") || process.env.DATABASE_URL;
+        const casdoorPool = new Pool({ connectionString: casdoorDbUrl });
+        try {
+          const result = await casdoorPool.query(
+            "SELECT client_id FROM application WHERE name = 'app-built-in' AND owner = 'admin'"
+          );
+          if (result.rows.length > 0) {
+            clientId = result.rows[0].client_id;
+            console.log(`[IDP Health Check] Retrieved live client ID from Casdoor DB: ${clientId}`);
+          }
+        } catch (dbError) {
+          console.warn("[IDP Health Check] Could not retrieve client ID from Casdoor DB, using fallback");
+        } finally {
+          await casdoorPool.end();
+        }
       } catch (error) {
         console.warn("[IDP Health Check] Could not load configuration from database, using fallback:", error);
       }
