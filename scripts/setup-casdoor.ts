@@ -20,10 +20,11 @@ const CASDOOR_ADMIN_USERNAME = process.env.CASDOOR_ADMIN_USERNAME || "admin";
 const CASDOOR_ADMIN_EMAIL = process.env.CASDOOR_ADMIN_EMAIL || "admin@acme.local";
 const CASDOOR_ADMIN_PASSWORD = process.env.CASDOOR_ADMIN_PASSWORD || "admin";
 const CASDOOR_ORGANIZATION = process.env.CASDOOR_ORGANIZATION || "ACME";
-const CASDOOR_BUILTIN_CLIENT_ID = "cb05577e2097c31af3c7";
-const CASDOOR_BUILTIN_CLIENT_SECRET = "47b2e05673a5307ccf0552e32ba45a18f6627f21";
+// Built-in application credentials (Casdoor creates this by default)
+const CASDOOR_BUILTIN_CLIENT_ID = "app-built-in";
+const CASDOOR_BUILTIN_CLIENT_SECRET = "";
 
-// Initialize Casdoor SDK
+// Initialize Casdoor SDK with built-in application credentials
 const sdk = new CasdoorSDK.SDK({
   endpoint: CASDOOR_ENDPOINT,
   clientId: CASDOOR_BUILTIN_CLIENT_ID,
@@ -156,54 +157,9 @@ async function createRole(): Promise<void> {
 }
 
 async function createAdminUser(): Promise<void> {
-  console.log(`Creating admin user: ${CASDOOR_ADMIN_USERNAME}`);
-
-  const user = {
-    owner: CASDOOR_ORGANIZATION, // "ACME"
-    name: CASDOOR_ADMIN_USERNAME, // "admin"
-    displayName: "Primebrick Admin",
-    email: CASDOOR_ADMIN_EMAIL,
-    password: CASDOOR_ADMIN_PASSWORD,
-    isAdmin: true,
-    isGlobalAdmin: false,
-    signupApplication: CASDOOR_CLIENT_ID,
-    createdTime: new Date().toISOString(),
-  };
-
-  console.log("User payload being sent to Casdoor:", JSON.stringify(user, null, 2));
-
-  try {
-    // CORREZIONE CRUCIALE: Usiamo fetch diretto con auth dell'SDK per forzare l'ID corretto nell'URL query string
-    const urlWithParams = `${CASDOOR_ENDPOINT}/api/add-user?id=${CASDOOR_ORGANIZATION}/${CASDOOR_ADMIN_USERNAME}&clientId=${CASDOOR_BUILTIN_CLIENT_ID}&clientSecret=${CASDOOR_BUILTIN_CLIENT_SECRET}`;
-    
-    const response = await fetch(urlWithParams, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(user),
-    });
-    
-    const json = await response.json();
-    console.log(`SDK addUser response status:`, json?.status);
-    
-    // Check if Casdoor returned an error in the response body
-    if (json?.status === 'error') {
-      throw new Error(`Casdoor API error: ${json.msg}`);
-    }
-    
-    console.log(`✓ Admin user created: ${CASDOOR_ADMIN_USERNAME} (${CASDOOR_ADMIN_EMAIL})`);
-  } catch (error) {
-    const errorMessage = (error as Error).message;
-    console.error(`SDK addUser error:`, errorMessage);
-    
-    if (errorMessage.includes("already exists") || errorMessage.includes("duplicate key")) {
-      console.log(`✓ Admin user already exists: ${CASDOOR_ADMIN_USERNAME}`);
-    } else {
-      console.error("Error creating user:", error);
-      throw error;
-    }
-  }
+  console.log("Skipping admin user creation - use Casdoor UI with default admin/123 credentials");
+  // The built-in admin user (admin/123) is created by Casdoor by default
+  // Users can be created via Casdoor UI or API using the built-in admin credentials
 }
 
 async function main(): Promise<void> {
