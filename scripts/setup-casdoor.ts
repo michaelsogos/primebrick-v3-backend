@@ -79,6 +79,8 @@ const CASDOOR_ADMIN_PASSWORD = process.env.CASDOOR_ADMIN_PASSWORD || "admin";
 const CASDOOR_ORGANIZATION = process.env.CASDOOR_ORGANIZATION || "ACME";
 const CASDOOR_INITIAL_ADMIN = "admin";
 const CASDOOR_INITIAL_PASSWORD = "123";
+const CASDOOR_BUILTIN_CLIENT_ID = "cb05577e2097c31af3c7";
+const CASDOOR_BUILTIN_CLIENT_SECRET = "47b2e05673a5307ccf0552e32ba45a18f6627f21";
 
 let clientSecret: string | null = null;
 let jwtToken: string | null = null;
@@ -113,22 +115,23 @@ async function getJwtToken(): Promise<string> {
     return jwtToken;
   }
 
-  // Use Casdoor's /api/login endpoint with admin username/password
-  const url = `${CASDOOR_ENDPOINT}/api/login`;
-  const body = JSON.stringify({
-    application: "app-built-in",
-    organization: "built-in",
+  // Use OAuth password grant with built-in application credentials
+  const url = `${CASDOOR_ENDPOINT}/api/login/oauth/access_token`;
+  const body = new URLSearchParams({
+    grant_type: "password",
+    client_id: CASDOOR_BUILTIN_CLIENT_ID,
+    client_secret: CASDOOR_BUILTIN_CLIENT_SECRET,
     username: CASDOOR_INITIAL_ADMIN,
     password: CASDOOR_INITIAL_PASSWORD,
-    type: "login",
+    scope: "openid profile email",
   });
 
   const response = await fetch(url, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
     },
-    body,
+    body: body.toString(),
   });
 
   if (!response.ok) {
@@ -136,8 +139,8 @@ async function getJwtToken(): Promise<string> {
     throw new Error(`Failed to get JWT token: ${text}`);
   }
 
-  const data = await response.json() as { data: string };
-  jwtToken = data.data;
+  const data = await response.json() as { access_token: string };
+  jwtToken = data.access_token;
   return jwtToken;
 }
 
@@ -211,7 +214,7 @@ async function createOrganization(): Promise<void> {
   };
 
   try {
-    await casdoorRequest("POST", "create-organization", org);
+    await casdoorRequest("POST", "add-organization", org);
     console.log(`✓ Organization created: ${CASDOOR_ORGANIZATION}`);
   } catch (error) {
     if ((error as Error).message.includes("already exists")) {
@@ -270,10 +273,11 @@ async function addUserToRole(): Promise<void> {
   console.log(`Adding user to role: ${CASDOOR_ADMIN_USERNAME} -> Administrators`);
 
   try {
-    await casdoorRequest("POST", "add-user-to-role", {
+    // Update the user directly with the role
+    await casdoorRequest("POST", "update-user", {
       owner: CASDOOR_ORGANIZATION,
-      name: "Administrators",
-      users: [CASDOOR_ADMIN_USERNAME],
+      name: CASDOOR_ADMIN_USERNAME,
+      roles: ["Administrators"],
     });
     console.log(`✓ User added to role: ${CASDOOR_ADMIN_USERNAME} -> Administrators`);
   } catch (error) {
@@ -285,6 +289,19 @@ async function addUserToRole(): Promise<void> {
   }
 }
 
+async function enableGrantTypes(): Promise<void> {
+  console.log("Enabling OAuth grant types on built-in application...");
+
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+  await pool.query(
+    "UPDATE application SET grant_types = '[\"password\", \"authorization_code\", \"client_credentials\"]' WHERE name = 'app-built-in'"
+  );
+  console.log("✓ Grant types enabled on built-in application");
+  await pool.end();
+}
+
 async function main(): Promise<void> {
   console.log("Setting up Casdoor...");
   console.log(`Endpoint: ${CASDOOR_ENDPOINT}`);
@@ -293,6 +310,7 @@ async function main(): Promise<void> {
   console.log("");
 
   try {
+    await enableGrantTypes();
     await createOrganization();
     await getOrCreateApplication();
     const secret = await getClientSecret();
