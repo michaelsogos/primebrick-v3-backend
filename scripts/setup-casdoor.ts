@@ -51,6 +51,7 @@ interface CasdoorRole {
   owner: string;
   name: string;
   users?: string[];
+  isEnabled?: boolean;
   roles?: string[];
   permissions?: string[];
 }
@@ -107,7 +108,11 @@ async function casdoorRequest<T>(
     throw new Error(`Casdoor API error (${response.status}): ${text}`);
   }
 
-  return response.json();
+  const result = await response.json();
+  if (result.status !== "ok") {
+    throw new Error(`Casdoor API error: ${result.msg}`);
+  }
+  return result.data;
 }
 
 async function getJwtToken(): Promise<string> {
@@ -160,7 +165,7 @@ async function getOrCreateApplication(): Promise<string> {
     // Try to get existing application
     const existingApp = await casdoorRequest<CasdoorApplication>(
       "GET",
-      `get-application?owner=${CASDOOR_ORGANIZATION}&name=${CASDOOR_CLIENT_ID}`
+      `get-application?id=${CASDOOR_ORGANIZATION}/${CASDOOR_CLIENT_ID}`
     );
     console.log(`✓ Application exists: ${CASDOOR_CLIENT_ID}`);
     return existingApp.name;
@@ -182,24 +187,31 @@ async function getClientSecret(): Promise<string> {
   }
 
   // Get application details which includes the client secret
-  const app = await casdoorRequest<{ clientSecret?: string }>(
-    "GET",
-    `get-application?owner=${CASDOOR_ORGANIZATION}&name=${CASDOOR_CLIENT_ID}`
-  );
+  try {
+    const app = await casdoorRequest<{ clientSecret?: string }>(
+      "GET",
+      `get-application?owner=${CASDOOR_ORGANIZATION}&name=${CASDOOR_CLIENT_ID}`
+    );
 
-  if (!app.clientSecret) {
-    // Generate a new client secret for the application
-    const secret = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    await casdoorRequest("POST", "update-application", {
-      ...app,
-      clientSecret: secret,
-    });
-    clientSecret = secret;
-    console.log(`✓ Client secret generated for application: ${CASDOOR_CLIENT_ID}`);
-  } else {
-    clientSecret = app.clientSecret;
-    console.log(`✓ Client secret retrieved for application: ${CASDOOR_CLIENT_ID}`);
+    if (app && app.clientSecret) {
+      clientSecret = app.clientSecret;
+      console.log(`✓ Client secret retrieved for application: ${CASDOOR_CLIENT_ID}`);
+    } else {
+      // Generate a new client secret for the application
+      const secret = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      await casdoorRequest("POST", "update-application", {
+        ...app,
+        clientSecret: secret,
+      });
+      clientSecret = secret;
+      console.log(`✓ Client secret generated for application: ${CASDOOR_CLIENT_ID}`);
+    }
+  } catch (error) {
+    // If we can't get the app, generate a placeholder
+    console.log(`⚠️  Could not get client secret, using placeholder`);
+    clientSecret = "SET_MANUALLY_IN_CASDOOR_UI";
   }
+
   return clientSecret;
 }
 
@@ -217,7 +229,7 @@ async function createOrganization(): Promise<void> {
     await casdoorRequest("POST", "add-organization", org);
     console.log(`✓ Organization created: ${CASDOOR_ORGANIZATION}`);
   } catch (error) {
-    if ((error as Error).message.includes("already exists")) {
+    if ((error as Error).message.includes("already exists") || (error as Error).message.includes("duplicate key")) {
       console.log(`✓ Organization already exists: ${CASDOOR_ORGANIZATION}`);
     } else {
       throw error;
@@ -237,7 +249,7 @@ async function createRole(): Promise<void> {
     await casdoorRequest("POST", "add-role", role);
     console.log(`✓ Role created: Administrators`);
   } catch (error) {
-    if ((error as Error).message.includes("already exists")) {
+    if ((error as Error).message.includes("already exists") || (error as Error).message.includes("duplicate key")) {
       console.log(`✓ Role already exists: Administrators`);
     } else {
       throw error;
@@ -255,6 +267,7 @@ async function createAdminUser(): Promise<void> {
     email: CASDOOR_ADMIN_EMAIL,
     password: CASDOOR_ADMIN_PASSWORD,
     isAdmin: true,
+    isGlobalAdmin: false,
   };
 
   try {
@@ -306,7 +319,6 @@ async function main(): Promise<void> {
   console.log("Setting up Casdoor...");
   console.log(`Endpoint: ${CASDOOR_ENDPOINT}`);
   console.log(`Organization: ${CASDOOR_ORGANIZATION}`);
-  console.log(`Admin user: ${CASDOOR_ADMIN_USERNAME} (${CASDOOR_ADMIN_EMAIL})`);
   console.log("");
 
   try {
@@ -315,16 +327,21 @@ async function main(): Promise<void> {
     await getOrCreateApplication();
     const secret = await getClientSecret();
     await createRole();
-    await createAdminUser();
-    await addUserToRole();
 
     console.log("");
     console.log("✓ Casdoor setup complete!");
     console.log("");
-    console.log("You can now login with:");
-    console.log(`  Username: ${CASDOOR_ADMIN_USERNAME}`);
-    console.log(`  Email: ${CASDOOR_ADMIN_EMAIL}`);
-    console.log(`  Password: ${CASDOOR_ADMIN_PASSWORD}`);
+    console.log("Created:");
+    console.log(`  Organization: ${CASDOOR_ORGANIZATION}`);
+    console.log(`  Application: ${CASDOOR_CLIENT_ID}`);
+    console.log(`  Role: Administrators`);
+    console.log("");
+    console.log("⚠️  NOTE: Admin user must be created manually in Casdoor UI:");
+    console.log("  1. Login to Casdoor at http://localhost:8000 with admin/123");
+    console.log(`  2. Go to organization: ${CASDOOR_ORGANIZATION}`);
+    console.log(`  3. Create user: ${CASDOOR_ADMIN_USERNAME} (${CASDOOR_ADMIN_EMAIL})`);
+    console.log(`  4. Set password: ${CASDOOR_ADMIN_PASSWORD}`);
+    console.log("  5. Assign user to Administrators role");
     console.log("");
     console.log("Configure your backend with:");
     console.log(`  OIDC_CLIENT_ID: ${CASDOOR_CLIENT_ID}`);
