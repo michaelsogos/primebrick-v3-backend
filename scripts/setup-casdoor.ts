@@ -74,6 +74,7 @@ interface CasdoorApplication {
 
 const CASDOOR_ENDPOINT = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
 const CASDOOR_CLIENT_ID = process.env.CASDOOR_CLIENT_ID || "primebrick-api";
+const CASDOOR_CLIENT_SECRET = process.env.CASDOOR_CLIENT_SECRET || "47b2e05673a5307ccf0552e32ba45a18f6627f21";
 const CASDOOR_ADMIN_USERNAME = process.env.CASDOOR_ADMIN_USERNAME || "admin";
 const CASDOOR_ADMIN_EMAIL = process.env.CASDOOR_ADMIN_EMAIL || "admin@acme.local";
 const CASDOOR_ADMIN_PASSWORD = process.env.CASDOOR_ADMIN_PASSWORD || "admin";
@@ -86,33 +87,41 @@ const CASDOOR_BUILTIN_CLIENT_SECRET = "47b2e05673a5307ccf0552e32ba45a18f6627f21"
 let clientSecret: string | null = null;
 let jwtToken: string | null = null;
 
-async function casdoorRequest<T>(
-  method: "GET" | "POST" | "PUT" | "DELETE",
-  path: string,
-  data?: unknown
-): Promise<T> {
-  const url = `${CASDOOR_ENDPOINT}/api/${path}`;
-  const headers = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${await getJwtToken()}`,
-  };
+async function casdoorRequest(method: "GET" | "POST", path: string, data?: any): Promise<any> {
+  // Split path to check if there are already query parameters (e.g. add-user?id=ACME/admin)
+  const [basePath, existingQuery] = path.split("?");
+  const searchParams = new URLSearchParams(existingQuery || "");
 
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: data ? JSON.stringify(data) : undefined,
-  });
+  // IMPORTANT: Use built-in credentials for M2M authentication
+  searchParams.set("clientId", CASDOOR_BUILTIN_CLIENT_ID);
+  searchParams.set("clientSecret", CASDOOR_BUILTIN_CLIENT_SECRET);
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Casdoor API error (${response.status}): ${text}`);
+  // Rebuild final URL cleanly and safely
+  const finalUrl = `${CASDOOR_ENDPOINT}/api/${basePath}?${searchParams.toString()}`;
+
+  try {
+    const response = await fetch(finalUrl, {
+      method: method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+
+    const json = await response.json();
+
+    if (json.status === "error") {
+      // Throw real error to catch in main flow
+      console.error(`Casdoor API error: ${json.msg}`);
+      console.error(`Full response:`, JSON.stringify(json, null, 2));
+      throw new Error(`Casdoor API error: ${json.msg}`);
+    }
+
+    console.log(`API Success: ${basePath} - ${json.msg || 'OK'}`);
+    return json.data;
+  } catch (error) {
+    throw error;
   }
-
-  const result = await response.json();
-  if (result.status !== "ok") {
-    throw new Error(`Casdoor API error: ${result.msg}`);
-  }
-  return result.data;
 }
 
 async function getJwtToken(): Promise<string> {
@@ -163,12 +172,12 @@ async function getOrCreateApplication(): Promise<string> {
 
   try {
     // Try to get existing application
-    const existingApp = await casdoorRequest<CasdoorApplication>(
+    const existingApp = await casdoorRequest(
       "GET",
       `get-application?id=${CASDOOR_ORGANIZATION}/${CASDOOR_CLIENT_ID}`
     );
     console.log(`✓ Application exists: ${CASDOOR_CLIENT_ID}`);
-    return existingApp.name;
+    return existingApp.name || CASDOOR_CLIENT_ID;
   } catch (error) {
     // Application doesn't exist, create it
     try {
@@ -188,9 +197,9 @@ async function getClientSecret(): Promise<string> {
 
   // Get application details which includes the client secret
   try {
-    const app = await casdoorRequest<{ clientSecret?: string }>(
+    const app = await casdoorRequest(
       "GET",
-      `get-application?owner=${CASDOOR_ORGANIZATION}&name=${CASDOOR_CLIENT_ID}`
+      `get-application?id=${CASDOOR_ORGANIZATION}/${CASDOOR_CLIENT_ID}`
     );
 
     if (app && app.clientSecret) {
@@ -212,7 +221,7 @@ async function getClientSecret(): Promise<string> {
     clientSecret = "SET_MANUALLY_IN_CASDOOR_UI";
   }
 
-  return clientSecret;
+  return clientSecret as string;
 }
 
 async function createOrganization(): Promise<void> {
@@ -271,9 +280,12 @@ async function createAdminUser(): Promise<void> {
     signupApplication: CASDOOR_CLIENT_ID,
   };
 
+  console.log("User payload being sent to Casdoor:", JSON.stringify(user, null, 2));
+
   try {
     // Pass user ID as query parameter in URL
     const urlWithParams = `add-user?id=${CASDOOR_ORGANIZATION}/${CASDOOR_ADMIN_USERNAME}`;
+    console.log("API URL:", `${CASDOOR_ENDPOINT}/api/${urlWithParams}`);
     await casdoorRequest("POST", urlWithParams, user);
     console.log(`✓ Admin user created: ${CASDOOR_ADMIN_USERNAME} (${CASDOOR_ADMIN_EMAIL})`);
   } catch (error) {
