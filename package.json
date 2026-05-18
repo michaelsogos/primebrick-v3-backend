@@ -17,6 +17,7 @@
     "setup:casdoor": "tsx scripts/setup-casdoor.ts"
   },
   "dependencies": {
+    "casdoor-nodejs-sdk": "^1.34.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "exceljs": "^4.4.0",
