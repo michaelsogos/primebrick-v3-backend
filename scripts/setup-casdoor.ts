@@ -268,10 +268,13 @@ async function createAdminUser(): Promise<void> {
     password: CASDOOR_ADMIN_PASSWORD,
     isAdmin: true,
     isGlobalAdmin: false,
+    signupApplication: CASDOOR_CLIENT_ID,
   };
 
   try {
-    await casdoorRequest("POST", "add-user", user);
+    // Pass user ID as query parameter in URL
+    const urlWithParams = `add-user?id=${CASDOOR_ORGANIZATION}/${CASDOOR_ADMIN_USERNAME}`;
+    await casdoorRequest("POST", urlWithParams, user);
     console.log(`✓ Admin user created: ${CASDOOR_ADMIN_USERNAME} (${CASDOOR_ADMIN_EMAIL})`);
   } catch (error) {
     if ((error as Error).message.includes("already exists")) {
@@ -285,13 +288,17 @@ async function createAdminUser(): Promise<void> {
 async function addUserToRole(): Promise<void> {
   console.log(`Adding user to role: ${CASDOOR_ADMIN_USERNAME} -> Administrators`);
 
+  // In Casdoor roles reference users in format "organization/username"
+  const rolePayload = {
+    owner: CASDOOR_ORGANIZATION,
+    name: "Administrators",
+    users: [`${CASDOOR_ORGANIZATION}/${CASDOOR_ADMIN_USERNAME}`],
+  };
+
   try {
-    // Update the user directly with the role
-    await casdoorRequest("POST", "update-user", {
-      owner: CASDOOR_ORGANIZATION,
-      name: CASDOOR_ADMIN_USERNAME,
-      roles: ["Administrators"],
-    });
+    // Use update-role with role ID as query parameter
+    const urlWithParams = `update-role?id=${CASDOOR_ORGANIZATION}/Administrators`;
+    await casdoorRequest("POST", urlWithParams, rolePayload);
     console.log(`✓ User added to role: ${CASDOOR_ADMIN_USERNAME} -> Administrators`);
   } catch (error) {
     if ((error as Error).message.includes("already exists")) {
@@ -336,7 +343,7 @@ async function main(): Promise<void> {
     console.log(`  Application: ${CASDOOR_CLIENT_ID}`);
     console.log(`  Role: Administrators`);
     console.log("");
-    console.log("⚠️  NOTE: Admin user must be created manually in Casdoor UI:");
+    console.log("⚠️  Admin user must be created manually in Casdoor UI:");
     console.log("  1. Login to Casdoor at http://localhost:8000 with admin/123");
     console.log(`  2. Go to organization: ${CASDOOR_ORGANIZATION}`);
     console.log(`  3. Create user: ${CASDOOR_ADMIN_USERNAME} (${CASDOOR_ADMIN_EMAIL})`);
