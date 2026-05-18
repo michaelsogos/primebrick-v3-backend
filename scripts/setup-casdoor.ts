@@ -54,13 +54,33 @@ interface CasdoorRole {
   permissions?: string[];
 }
 
+interface CasdoorApplication {
+  owner: string;
+  name: string;
+  displayName: string;
+  logo?: string;
+  homepageUrl?: string;
+  description?: string;
+  organization?: string;
+  enablePassword?: boolean;
+  enableSignUp?: boolean;
+  enableCodeSignin?: boolean;
+  enablePhoneSignin?: boolean;
+  enableEmailSignin?: boolean;
+  enableWebAuthn?: boolean;
+}
+
 const CASDOOR_ENDPOINT = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
 const CASDOOR_CLIENT_ID = process.env.CASDOOR_CLIENT_ID || "primebrick-api";
-const CASDOOR_CLIENT_SECRET = process.env.CASDOOR_CLIENT_SECRET || "change-me";
 const CASDOOR_ADMIN_USERNAME = process.env.CASDOOR_ADMIN_USERNAME || "admin";
-const CASDOOR_ADMIN_EMAIL = process.env.CASDOOR_ADMIN_EMAIL || "admin@primebrick.local";
-const CASDOOR_ADMIN_PASSWORD = process.env.CASDOOR_ADMIN_PASSWORD || "Admin123!";
-const CASDOOR_ORGANIZATION = process.env.CASDOOR_ORGANIZATION || "primebrick";
+const CASDOOR_ADMIN_EMAIL = process.env.CASDOOR_ADMIN_EMAIL || "admin@acme.local";
+const CASDOOR_ADMIN_PASSWORD = process.env.CASDOOR_ADMIN_PASSWORD || "admin";
+const CASDOOR_ORGANIZATION = process.env.CASDOOR_ORGANIZATION || "ACME";
+const CASDOOR_INITIAL_ADMIN = "admin";
+const CASDOOR_INITIAL_PASSWORD = "123";
+
+let clientSecret: string | null = null;
+let jwtToken: string | null = null;
 
 async function casdoorRequest<T>(
   method: "GET" | "POST" | "PUT" | "DELETE",
@@ -88,11 +108,18 @@ async function casdoorRequest<T>(
 }
 
 async function getJwtToken(): Promise<string> {
+  if (jwtToken) {
+    return jwtToken;
+  }
+
+  // Use initial admin credentials to get first token
   const url = `${CASDOOR_ENDPOINT}/api/login/oauth/access_token`;
   const body = new URLSearchParams({
-    grant_type: "client_credentials",
+    grant_type: "password",
     client_id: CASDOOR_CLIENT_ID,
-    client_secret: CASDOOR_CLIENT_SECRET,
+    client_secret: CASDOOR_INITIAL_PASSWORD, // Casdoor default
+    username: CASDOOR_INITIAL_ADMIN,
+    password: CASDOOR_INITIAL_PASSWORD,
     scope: "",
   });
 
@@ -110,7 +137,56 @@ async function getJwtToken(): Promise<string> {
   }
 
   const data = await response.json() as { access_token: string };
-  return data.access_token;
+  jwtToken = data.access_token;
+  return jwtToken;
+}
+
+async function getOrCreateApplication(): Promise<string> {
+  console.log(`Getting or creating application: ${CASDOOR_CLIENT_ID}`);
+
+  const app: CasdoorApplication = {
+    owner: CASDOOR_ORGANIZATION,
+    name: CASDOOR_CLIENT_ID,
+    displayName: "Primebrick API",
+    organization: CASDOOR_ORGANIZATION,
+    enablePassword: true,
+    enableSignUp: false,
+  };
+
+  try {
+    // Try to get existing application
+    const existingApp = await casdoorRequest<CasdoorApplication>(
+      "GET",
+      `get-application?owner=${CASDOOR_ORGANIZATION}&name=${CASDOOR_CLIENT_ID}`
+    );
+    console.log(`✓ Application exists: ${CASDOOR_CLIENT_ID}`);
+    return existingApp.name;
+  } catch (error) {
+    // Application doesn't exist, create it
+    try {
+      await casdoorRequest("POST", "add-application", app);
+      console.log(`✓ Application created: ${CASDOOR_CLIENT_ID}`);
+      return CASDOOR_CLIENT_ID;
+    } catch (createError) {
+      throw new Error(`Failed to create application: ${(createError as Error).message}`);
+    }
+  }
+}
+
+async function getClientSecret(): Promise<string> {
+  if (clientSecret) {
+    return clientSecret;
+  }
+
+  // Get application details which includes the client secret
+  const app = await casdoorRequest<{ clientSecret: string }>(
+    "GET",
+    `get-application?owner=${CASDOOR_ORGANIZATION}&name=${CASDOOR_CLIENT_ID}`
+  );
+
+  clientSecret = app.clientSecret;
+  console.log(`✓ Client secret retrieved for application: ${CASDOOR_CLIENT_ID}`);
+  return clientSecret;
 }
 
 async function createOrganization(): Promise<void> {
@@ -119,8 +195,8 @@ async function createOrganization(): Promise<void> {
   const org: CasdoorOrganization = {
     owner: "admin",
     name: CASDOOR_ORGANIZATION,
-    displayName: "Primebrick",
-    websiteUrl: "https://primebrick.io",
+    displayName: CASDOOR_ORGANIZATION,
+    websiteUrl: "https://acme.io",
   };
 
   try {
@@ -206,6 +282,8 @@ async function main(): Promise<void> {
 
   try {
     await createOrganization();
+    await getOrCreateApplication();
+    const secret = await getClientSecret();
     await createRole();
     await createAdminUser();
     await addUserToRole();
@@ -217,6 +295,10 @@ async function main(): Promise<void> {
     console.log(`  Username: ${CASDOOR_ADMIN_USERNAME}`);
     console.log(`  Email: ${CASDOOR_ADMIN_EMAIL}`);
     console.log(`  Password: ${CASDOOR_ADMIN_PASSWORD}`);
+    console.log("");
+    console.log("Configure your backend with:");
+    console.log(`  OIDC_CLIENT_ID: ${CASDOOR_CLIENT_ID}`);
+    console.log(`  OIDC_CLIENT_SECRET: ${secret}`);
   } catch (error) {
     console.error("Error setting up Casdoor:", error);
     process.exit(1);
