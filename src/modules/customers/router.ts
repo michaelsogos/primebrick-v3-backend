@@ -25,6 +25,8 @@ import {
 import { exportDataWithTemplateToStream } from "../../lib/export/index.js";
 import type { ExportConfig } from "../../lib/export/types.js";
 import { AuditService } from "../../lib/audit/audit-service.js";
+import { rbacHandler } from "../auth/rbac.middleware.js";
+import { Permission } from "../auth/permissions.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -45,7 +47,7 @@ export function customersRouter() {
 
   const defaultSort = CUSTOMER_DEFAULT_SORT;
 
-  router.get("/api/v1/entities/customer/meta", (_req, res) => {
+  router.get("/api/v1/entities/customer/meta", rbacHandler([Permission.CUSTOMERS_LIST]), (_req, res) => {
     res.json({
       entity: "customer",
       titleKey: "entities.customer.title",
@@ -71,6 +73,7 @@ export function customersRouter() {
 
   router.get(
     "/api/v1/entities/customer/list",
+    rbacHandler([Permission.CUSTOMERS_LIST]),
     validateQuery(CustomerListQuerySchema),
     asyncHandler(async (req, res) => {
       const { search, search_in, status, sort_key, sort_dir, page, page_size, filters, connector, deleted_records } =
@@ -139,6 +142,7 @@ export function customersRouter() {
 
   router.get(
     "/api/v1/entities/customer/export",
+    rbacHandler([Permission.CUSTOMERS_EXPORT]),
     validateQuery(CustomerExportQuerySchema),
     asyncHandler(async (req, res) => {
       const { search, search_in, status, sort_key, sort_dir, filters, connector, deleted_records, file_type, locale, timezone } =
@@ -286,6 +290,7 @@ export function customersRouter() {
 
   router.post(
     "/api/v1/entities/customer",
+    rbacHandler([Permission.CUSTOMERS_CREATE]),
     validateBody(CustomerCreateBodySchema),
     asyncHandler(async (req, res) => {
       const body = req.body as unknown as import("./dto.js").CustomerCreateBody;
@@ -296,13 +301,13 @@ export function customersRouter() {
 
   router.post(
     "/api/v1/entities/customer/duplicate",
+    rbacHandler([Permission.CUSTOMERS_BULK_DUPLICATE]),
     validateBody(CustomerDuplicateBodySchema),
     asyncHandler(async (req, res) => {
       const body = req.body as unknown as import("./dto.js").CustomerDuplicateBody;
-      const duplicatedBy = (req as any).user?.id || "system";
 
       try {
-        const result = await getDal().duplicateCustomers(body.uuids, duplicatedBy);
+        const result = await getDal().duplicateCustomers(body.uuids);
 
         // If there are any errors, return 500 with RFC7807 format
         if (result.errors.length > 0) {
@@ -346,6 +351,7 @@ export function customersRouter() {
 
   router.get(
     "/api/v1/entities/customer/:uuid",
+    rbacHandler([Permission.CUSTOMERS_READ]),
     (req, res, next) => {
       const r = UuidParamSchema.safeParse(req.params);
       if (!r.success) {
@@ -385,6 +391,7 @@ export function customersRouter() {
 
   router.delete(
     "/api/v1/entities/customer/:uuid",
+    rbacHandler([Permission.CUSTOMERS_DELETE]),
     (req, res, next) => {
       const r = UuidParamSchema.safeParse(req.params);
       if (!r.success) {
@@ -407,14 +414,14 @@ export function customersRouter() {
     },
     asyncHandler(async (req, res) => {
       const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-      const deletedBy = (req as any).user?.id || "system";
-      await getDal().deleteCustomer(uuid, deletedBy);
+      await getDal().deleteCustomer(uuid);
       res.status(204).send();
     })
   );
 
   router.post(
     "/api/v1/entities/customer/:uuid/restore",
+    rbacHandler([Permission.CUSTOMERS_RESTORE]),
     (req, res, next) => {
       const r = UuidParamSchema.safeParse(req.params);
       if (!r.success) {
@@ -437,14 +444,14 @@ export function customersRouter() {
     },
     asyncHandler(async (req, res) => {
       const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-      const restoredBy = (req as any).user?.id || "system";
-      await getDal().restoreCustomer(uuid, restoredBy);
+      await getDal().restoreCustomer(uuid);
       res.status(204).send();
     })
   );
 
   router.get(
     "/api/v1/entities/customer/:uuid/audit",
+    rbacHandler([Permission.CUSTOMERS_AUDIT_READ]),
     (req, res, next) => {
       const r = UuidParamSchema.safeParse(req.params);
       if (!r.success) {

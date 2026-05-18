@@ -6,6 +6,11 @@ import { openApiRouter } from "./openapi/router.js";
 import { errorHandler } from "./http/error-handler.js";
 import { getPool } from "./db/pool.js";
 import { isDatabaseUnavailableError } from "./http/api-errors.js";
+import { authMiddleware } from "./modules/auth/auth.middleware.js";
+import { rbacHandler } from "./modules/auth/rbac.middleware.js";
+import { Permission } from "./modules/auth/permissions.js";
+// Side-effect import: activates `Express.Request.user` type augmentation.
+import "./modules/auth/types.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -75,7 +80,20 @@ app.get("/api/v1/health", async (_req, res) => {
   await sendHealth(res);
 });
 
-app.get("/api/v1/modules", (_req, res) => {
+// All /api/v1/* routes require authentication, EXCEPT the health endpoint
+// (already registered above) and the OpenAPI docs router (mounted before the
+// guard, so the spec stays publicly browsable for clients during integration).
+app.use(openApiRouter());
+
+// From this point on every request must carry valid auth (Bearer token in
+// STANDALONE mode, or X-Gateway-Secret + X-User-* headers in GATEWAY mode).
+app.use("/api/v1", (req, res, next) => {
+  // The /api/v1/health route is registered above and short-circuits before
+  // this guard; if we reach here for any other path the auth middleware runs.
+  return authMiddleware()(req, res, next);
+});
+
+app.get("/api/v1/modules", rbacHandler([Permission.MODULES_LIST]), (_req, res) => {
   res.json({
     modules: [
       { id: "crm", name: "CRM", enabled: true },
@@ -85,7 +103,6 @@ app.get("/api/v1/modules", (_req, res) => {
   });
 });
 
-app.use(openApiRouter());
 app.use(entitiesRouter());
 app.use(customersRouter());
 

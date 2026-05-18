@@ -3,6 +3,9 @@ import { getPool } from "../../db/pool.js";
 import { Repository } from "../../db/repository/repository.js";
 import { validateBody } from "../../http/validation.js";
 import { asyncHandler } from "../../http/async-handler.js";
+import { rbacHandler } from "../auth/rbac.middleware.js";
+import { Permission } from "../auth/permissions.js";
+import { requireActor } from "../auth/session-context.js";
 import { z } from "zod";
 
 // Schema for bulk delete request body
@@ -33,11 +36,12 @@ export function entitiesRouter() {
 
   router.post(
     "/api/v1/entities/:entity/bulk-delete",
+    rbacHandler([Permission.ENTITIES_BULK_DELETE]),
     validateBody(BulkDeleteBodySchema),
     asyncHandler(async (req, res) => {
       const entity = req.params.entity as string;
       const { uuids } = req.body as BulkDeleteBody;
-      const deletedBy = (req as any).user?.id || "system";
+      const deletedBy = requireActor();
 
       // Validate entity name
       const EntityClass = ENTITY_REGISTRY[entity];
@@ -118,11 +122,12 @@ export function entitiesRouter() {
 
   router.post(
     "/api/v1/entities/:entity/bulk-restore",
+    rbacHandler([Permission.ENTITIES_BULK_RESTORE]),
     validateBody(BulkRestoreBodySchema),
     asyncHandler(async (req, res) => {
       const entity = req.params.entity as string;
       const { uuids } = req.body as BulkRestoreBody;
-      const restoredBy = (req as any).user?.id || "system";
+      const restoredBy = requireActor();
 
       // Validate entity name
       const EntityClass = ENTITY_REGISTRY[entity];
