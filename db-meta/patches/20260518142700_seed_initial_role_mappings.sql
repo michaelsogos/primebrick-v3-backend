@@ -2,46 +2,54 @@
 -- generatedAt: 2026-05-18T14:27:00.000Z
 
 -- Administrator role - grants all permissions (super-user)
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_by, updated_by)
-VALUES ('Administrators', '[]'::jsonb, true, 'system', 'system')
+INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by)
+VALUES ('Administrators', '[]'::jsonb, true, '2026-05-18T14:27:00Z', 'system', '2026-05-18T14:27:00Z', 'system')
 ON CONFLICT (idp_role) DO NOTHING;
 
 -- Sales role - can read/create/update customers
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_by, updated_by)
+INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by)
 VALUES ('Sales',
   '["customers:list", "customers:read", "customers:create", "customers:update"]'::jsonb,
   false,
+  '2026-05-18T14:27:00Z',
   'system',
+  '2026-05-18T14:27:00Z',
   'system'
 )
 ON CONFLICT (idp_role) DO NOTHING;
 
 -- Customer Service role - can read/update customers
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_by, updated_by)
+INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by)
 VALUES ('CustomerService',
   '["customers:list", "customers:read", "customers:update"]'::jsonb,
   false,
+  '2026-05-18T14:27:00Z',
   'system',
+  '2026-05-18T14:27:00Z',
   'system'
 )
 ON CONFLICT (idp_role) DO NOTHING;
 
 -- HR role - placeholder for future HR permissions
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_by, updated_by)
+INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by)
 VALUES ('HR',
   '[]'::jsonb,
   false,
+  '2026-05-18T14:27:00Z',
   'system',
+  '2026-05-18T14:27:00Z',
   'system'
 )
 ON CONFLICT (idp_role) DO NOTHING;
 
 -- Ops role - placeholder for future Ops permissions
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_by, updated_by)
+INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by)
 VALUES ('Ops',
   '[]'::jsonb,
   false,
+  '2026-05-18T14:27:00Z',
   'system',
+  '2026-05-18T14:27:00Z',
   'system'
 )
 ON CONFLICT (idp_role) DO NOTHING;

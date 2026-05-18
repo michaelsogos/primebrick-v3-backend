@@ -15,6 +15,7 @@ async function fixRegistry() {
   const patches = [
     "20260516125000_create_public_customers_audit",
     "20260516200000_addcol_public_customers_audit_changed_by",
+    "20260518142700_seed_initial_role_mappings",
   ];
 
   for (const patchId of patches) {
