@@ -1,7 +1,9 @@
 import cors from "cors";
 import express, { type Response } from "express";
 import { customersRouter } from "./modules/customers/router.js";
-import * as CasdoorSDK from "casdoor-nodejs-sdk";
+import { Pool } from "pg";
+import CasdoorSDK from "casdoor-nodejs-sdk";
+import { loadAuthConfigFromDb, type AuthConfigDb } from "./modules/auth/config-repo.js";
 import { openApiRouter } from "./openapi/router.js";
 import { errorHandler } from "./http/error-handler.js";
 import { getPool } from "./db/pool.js";
@@ -57,11 +59,25 @@ async function checkDb(): Promise<{ ok: boolean }> {
   }
 }
 
-async function checkIdp(): Promise<{ ok: boolean; type?: string; version?: string }> {
+async function checkIdp(pool?: Pool): Promise<{ ok: boolean; type?: string; version?: string }> {
   try {
-    const casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
-    const clientId = process.env.CASDOOR_BUILTIN_CLIENT_ID || "cb05577e2097c31af3c7";
-    const clientSecret = process.env.CASDOOR_BUILTIN_CLIENT_SECRET || "47b2e05673a5307ccf0552e32ba45a18f6627f21";
+    // Load configuration from database or fallback to environment variables
+    let casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
+    let clientId = process.env.CASDOOR_BUILTIN_CLIENT_ID || "cb05577e2097c31af3c7";
+    let clientSecret = process.env.CASDOOR_BUILTIN_CLIENT_SECRET || "47b2e05673a5307ccf0552e32ba45a18f6627f21";
+    let orgName = "admin";
+
+    if (pool) {
+      try {
+        const dbConfig = await loadAuthConfigFromDb(pool);
+        casdoorEndpoint = dbConfig.casdoorEndpoint || casdoorEndpoint;
+        clientId = "cb05577e2097c31af3c7"; // Built-in client ID is constant
+        clientSecret = dbConfig.casdoorBuiltinClientSecret || clientSecret;
+        orgName = dbConfig.casdoorOrganization || orgName;
+      } catch (error) {
+        console.warn("[IDP Health Check] Could not load configuration from database, using fallback:", error);
+      }
+    }
     
     console.log(`[IDP Health Check] Checking Casdoor at: ${casdoorEndpoint}`);
     console.log(`[IDP Health Check] Using SDK with clientId: ${clientId}`);
@@ -72,7 +88,7 @@ async function checkIdp(): Promise<{ ok: boolean; type?: string; version?: strin
       clientId: clientId,
       clientSecret: clientSecret,
       certificate: "",
-      orgName: "admin",
+      orgName: orgName,
     });
     
     // Call the correct version endpoint from Casdoor docs with authentication
@@ -112,13 +128,14 @@ async function checkIdp(): Promise<{ ok: boolean; type?: string; version?: strin
 }
 
 async function healthPayload(): Promise<HealthPayload> {
+  const pool = getPool();
   return {
     ok: true,
     service: "primebrick-api",
     version: BACKEND_VERSION,
     modules: INSTALLED_MODULES,
     db: await checkDb(),
-    idp: await checkIdp(),
+    idp: await checkIdp(pool),
   };
 }
 

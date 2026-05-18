@@ -11,6 +11,8 @@
 
 import "dotenv/config";
 import * as CasdoorSDK from "casdoor-nodejs-sdk";
+import { Pool } from "pg";
+import { updateAuthConfig } from "../src/modules/auth/config-repo";
 
 const CASDOOR_ENDPOINT = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
 const CASDOOR_CLIENT_ID = process.env.CASDOOR_CLIENT_ID || "primebrick-api";
@@ -211,6 +213,8 @@ async function main(): Promise<void> {
   console.log(`Admin user: ${CASDOOR_ADMIN_USERNAME} (${CASDOOR_ADMIN_EMAIL})`);
   console.log("");
 
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
   try {
     await enableGrantTypes();
     await createOrganization();
@@ -218,6 +222,16 @@ async function main(): Promise<void> {
     const secret = await getClientSecret();
     await createRole();
     await createAdminUser();
+
+    // Save secrets to database
+    console.log("");
+    console.log("Saving configuration to database...");
+    await updateAuthConfig(pool, "oidc_client_secret", secret, "setup-casdoor");
+    await updateAuthConfig(pool, "casdoor_admin_password", CASDOOR_ADMIN_PASSWORD, "setup-casdoor");
+    await updateAuthConfig(pool, "casdoor_builtin_client_secret", CASDOOR_BUILTIN_CLIENT_SECRET, "setup-casdoor");
+    console.log("✓ Configuration saved to database");
+
+    await pool.end();
 
     console.log("");
     console.log("✓ Casdoor setup complete!");
@@ -227,11 +241,12 @@ async function main(): Promise<void> {
     console.log(`  Email: ${CASDOOR_ADMIN_EMAIL}`);
     console.log(`  Password: ${CASDOOR_ADMIN_PASSWORD}`);
     console.log("");
-    console.log("Configure your backend with:");
+    console.log("Configuration saved to database:");
     console.log(`  OIDC_CLIENT_ID: ${CASDOOR_CLIENT_ID}`);
     console.log(`  OIDC_CLIENT_SECRET: ${secret}`);
   } catch (error) {
     console.error("Error setting up Casdoor:", error);
+    await pool.end();
     process.exit(1);
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Auth configuration loaded once at boot from environment variables.
+ * Auth configuration loaded once at boot from environment variables and database.
  *
  * Two operating modes are supported, mutually exclusive:
  *
@@ -19,6 +19,9 @@
  * `"system"` as the actor; this is a fallback restricted to non-HTTP code paths.
  */
 
+import { Pool } from "pg";
+import { loadAuthConfigFromDb, type AuthConfigDb } from "./config-repo.js";
+
 export type AuthMode = "STANDALONE" | "GATEWAY";
 
 export interface OidcConfig {
@@ -30,6 +33,8 @@ export interface OidcConfig {
   clientSecret: string;
   /** Expected `aud` claim. Optional — when set, tokens with mismatched audience are rejected. */
   audience?: string;
+  /** IDP type (casdoor, keycloak, auth0, etc.). Default: casdoor */
+  issuerType: string;
 }
 
 export interface GatewayConfig {
@@ -83,7 +88,7 @@ function requireEnv(name: string): string {
 
 let cached: AuthConfig | null = null;
 
-export function getAuthConfig(): AuthConfig {
+export async function getAuthConfig(pool?: Pool): Promise<AuthConfig> {
   if (cached) return cached;
 
   const rawMode = (process.env.AUTH_MODE ?? "STANDALONE").toUpperCase();
@@ -92,13 +97,30 @@ export function getAuthConfig(): AuthConfig {
   }
   const mode = rawMode as AuthMode;
 
+  // Load configuration from database if pool is provided
+  let dbConfig: AuthConfigDb | null = null;
+  if (pool) {
+    try {
+      dbConfig = await loadAuthConfigFromDb(pool);
+    } catch (error) {
+      console.warn("[auth] Could not load configuration from database, falling back to environment variables:", error);
+    }
+  }
+
   // STANDALONE requires real OIDC config; GATEWAY still allows OIDC config to be
   // present (useful for occasional offline tooling), but does not require it.
   const oidc: OidcConfig = {
-    issuerUrl: mode === "STANDALONE" ? requireEnv("OIDC_ISSUER_URL") : (process.env.OIDC_ISSUER_URL ?? ""),
-    clientId: mode === "STANDALONE" ? requireEnv("OIDC_CLIENT_ID") : (process.env.OIDC_CLIENT_ID ?? ""),
-    clientSecret: mode === "STANDALONE" ? requireEnv("OIDC_CLIENT_SECRET") : (process.env.OIDC_CLIENT_SECRET ?? ""),
+    issuerUrl: mode === "STANDALONE"
+      ? (dbConfig?.oidcIssuerUrl ?? process.env.OIDC_ISSUER_URL ?? "")
+      : (dbConfig?.oidcIssuerUrl ?? process.env.OIDC_ISSUER_URL ?? ""),
+    clientId: mode === "STANDALONE"
+      ? (dbConfig?.casdoorClientId ?? process.env.OIDC_CLIENT_ID ?? "")
+      : (dbConfig?.casdoorClientId ?? process.env.OIDC_CLIENT_ID ?? ""),
+    clientSecret: mode === "STANDALONE"
+      ? (dbConfig?.oidcClientSecret ?? process.env.OIDC_CLIENT_SECRET ?? "")
+      : (dbConfig?.oidcClientSecret ?? process.env.OIDC_CLIENT_SECRET ?? ""),
     audience: process.env.OIDC_AUDIENCE,
+    issuerType: dbConfig?.oidcIssuerType ?? process.env.OIDC_ISSUER_TYPE ?? "casdoor",
   };
 
   const secret = mode === "GATEWAY" ? requireEnv("GATEWAY_SECRET") : (process.env.GATEWAY_SECRET ?? "");

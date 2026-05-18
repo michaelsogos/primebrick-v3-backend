@@ -71,11 +71,12 @@ export function clearRoleMappingCache(): void {
 export function authMiddleware(): RequestHandler {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {
-      const cfg = getAuthConfig();
+      const pool = getPool();
+      const cfg = await getAuthConfig(pool);
       const user: AuthUser =
         cfg.mode === "GATEWAY"
-          ? await fromGateway(req)
-          : await fromStandalone(req);
+          ? await fromGateway(req, cfg)
+          : await fromStandalone(req, cfg);
       req.user = user;
       // Mirror the user into AsyncLocalStorage so DAL / services downstream
       // can call `requireActor()` without receiving the actor through every
@@ -92,7 +93,7 @@ export function authMiddleware(): RequestHandler {
   };
 }
 
-async function fromStandalone(req: Request): Promise<AuthUser> {
+async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAuthConfig>>): Promise<AuthUser> {
   const header = req.headers["authorization"];
   if (!header || typeof header !== "string" || !header.toLowerCase().startsWith("bearer ")) {
     throw new UnauthorizedError("Missing or malformed Authorization header", {
@@ -116,7 +117,6 @@ async function fromStandalone(req: Request): Promise<AuthUser> {
     });
   }
 
-  const cfg = getAuthConfig();
   const normalized = normalizeIdpToken(claims, cfg.rolesPath);
   const internalUuid = await resolveInternalUuid({
     idp_code: normalized.idp_code,
@@ -131,8 +131,7 @@ async function fromStandalone(req: Request): Promise<AuthUser> {
   return buildAuthUser(internalUuid, normalized, permissions);
 }
 
-async function fromGateway(req: Request): Promise<AuthUser> {
-  const cfg = getAuthConfig();
+async function fromGateway(req: Request, cfg: Awaited<ReturnType<typeof getAuthConfig>>): Promise<AuthUser> {
   const { secret, secretHeaderName, headers } = cfg.gateway;
 
   // Anti-spoofing: the gateway and only the gateway knows this value.
