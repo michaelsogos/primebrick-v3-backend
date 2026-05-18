@@ -189,6 +189,7 @@ async function main(): Promise<void> {
   try {
     await updateAuthConfig(pool, "oidc_client_secret", generatedSecret, "setup-casdoor");
     await updateAuthConfig(pool, "casdoor_admin_password", CASDOOR_ADMIN_PASSWORD, "setup-casdoor");
+    await updateAuthConfig(pool, "casdoor_builtin_client_id", liveClientId, "setup-casdoor");
     await updateAuthConfig(pool, "casdoor_builtin_client_secret", liveClientSecret, "setup-casdoor");
     console.log("  ↳ ✅ Configurazione salvata in tabella con successo.");
   } catch (dbErr: any) {

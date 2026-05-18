@@ -10,6 +10,7 @@ export interface AuthConfigDb {
   oidcIssuerType: string;
   oidcClientSecret?: string;
   casdoorAdminPassword?: string;
+  casdoorBuiltinClientId?: string;
   casdoorBuiltinClientSecret?: string;
 }
 
@@ -38,6 +39,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
     oidcIssuerType: settings.oidc_issuer_type || "casdoor",
     oidcClientSecret: settings.oidc_client_secret,
     casdoorAdminPassword: settings.casdoor_admin_password,
+    casdoorBuiltinClientId: settings.casdoor_builtin_client_id,
     casdoorBuiltinClientSecret: settings.casdoor_builtin_client_secret,
   };
 }
