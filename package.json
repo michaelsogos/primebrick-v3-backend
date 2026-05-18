@@ -13,7 +13,8 @@
     "db:meta:compare": "tsx scripts/database-patch-compare.ts",
     "db:migrate": "tsx scripts/database-patch-apply.ts",
     "db:truncate:customers": "tsx scripts/truncate-customers.ts",
-    "db:seed:customers": "tsx scripts/seed-customers.ts"
+    "db:seed:customers": "tsx scripts/seed-customers.ts",
+    "setup:casdoor": "tsx scripts/setup-casdoor.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
