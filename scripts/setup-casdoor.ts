@@ -34,33 +34,6 @@ const sdk = new CasdoorSDK.SDK({
 
 let clientSecret: string | null = null;
 
-async function getBuiltInCredentials(): Promise<{ clientId: string; clientSecret: string }> {
-  try {
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const result = await pool.query(
-      "SELECT name, client_secret FROM application WHERE name = 'app-built-in' AND owner = 'admin'"
-    );
-    await pool.end();
-
-    if (result.rows.length > 0 && result.rows[0].client_secret) {
-      console.log(`✓ Retrieved built-in application credentials from database`);
-      return {
-        clientId: result.rows[0].name,
-        clientSecret: result.rows[0].client_secret,
-      };
-    }
-  } catch (error) {
-    console.log(`⚠️  Could not get built-in credentials from database`);
-  }
-
-  // Fallback to hardcoded values
-  console.log(`⚠️  Using hardcoded built-in credentials`);
-  return {
-    clientId: CASDOOR_BUILTIN_CLIENT_ID,
-    clientSecret: CASDOOR_BUILTIN_CLIENT_SECRET,
-  };
-}
-
 async function enableGrantTypes(): Promise<void> {
   console.log("Enabling OAuth grant types on built-in application...");
 
@@ -140,9 +113,10 @@ async function getClientSecret(): Promise<string> {
     return clientSecret;
   }
 
-  // Get client secret from database after application creation
+  // Get client secret from Casdoor database directly
   try {
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const casdoorDbUrl = process.env.DATABASE_URL?.replace("dbname=primebrick", "dbname=casdoor") || process.env.DATABASE_URL;
+    const pool = new Pool({ connectionString: casdoorDbUrl });
     const result = await pool.query(
       "SELECT client_secret FROM application WHERE name = $1 AND owner = $2",
       [CASDOOR_CLIENT_ID, CASDOOR_ORGANIZATION]
@@ -209,7 +183,6 @@ async function createAdminUser(): Promise<void> {
   console.log("User payload being sent to Casdoor:", JSON.stringify(user, null, 2));
 
   try {
-    // Use SDK to add user with built-in credentials
     await sdk.addUser(user);
     console.log(`✓ Admin user created: ${CASDOOR_ADMIN_USERNAME} (${CASDOOR_ADMIN_EMAIL})`);
   } catch (error) {
