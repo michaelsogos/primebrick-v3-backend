@@ -48,7 +48,7 @@ export class RoleMappingRepo {
   async getAllPermissions(): Promise<string[]> {
     // Collect all unique permissions from all role mappings
     const rows = await this.repo.rawSql<{ permission: string }>(
-      `SELECT DISTINCT unnest(permissions) as permission FROM role_mappings WHERE permissions IS NOT NULL`
+      `SELECT DISTINCT jsonb_array_elements_text(permissions) as permission FROM role_mappings WHERE permissions IS NOT NULL`
     );
 
     return rows.map((r) => r.permission);

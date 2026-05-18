@@ -1,6 +1,7 @@
 import cors from "cors";
 import express, { type Response } from "express";
 import { customersRouter } from "./modules/customers/router.js";
+import * as CasdoorSDK from "casdoor-nodejs-sdk";
 import { openApiRouter } from "./openapi/router.js";
 import { errorHandler } from "./http/error-handler.js";
 import { getPool } from "./db/pool.js";
@@ -28,6 +29,7 @@ type HealthPayload = {
   version: string;
   modules: HealthModule[];
   db: { ok: boolean };
+  idp: { ok: boolean; type?: string; version?: string };
 };
 
 function readBackendVersion(): string {
@@ -55,6 +57,60 @@ async function checkDb(): Promise<{ ok: boolean }> {
   }
 }
 
+async function checkIdp(): Promise<{ ok: boolean; type?: string; version?: string }> {
+  try {
+    const casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
+    const clientId = process.env.CASDOOR_BUILTIN_CLIENT_ID || "cb05577e2097c31af3c7";
+    const clientSecret = process.env.CASDOOR_BUILTIN_CLIENT_SECRET || "47b2e05673a5307ccf0552e32ba45a18f6627f21";
+    
+    console.log(`[IDP Health Check] Checking Casdoor at: ${casdoorEndpoint}`);
+    console.log(`[IDP Health Check] Using SDK with clientId: ${clientId}`);
+    
+    // Initialize Casdoor SDK
+    const sdk = new CasdoorSDK.SDK({
+      endpoint: casdoorEndpoint,
+      clientId: clientId,
+      clientSecret: clientSecret,
+      certificate: "",
+      orgName: "admin",
+    });
+    
+    // Call the correct version endpoint from Casdoor docs with authentication
+    const url = new URL(`${casdoorEndpoint}/api/get-version-info`);
+    url.searchParams.set("clientId", clientId);
+    url.searchParams.set("clientSecret", clientSecret);
+    
+    const versionResponse = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log(`[IDP Health Check] Version endpoint status: ${versionResponse.status} ${versionResponse.statusText}`);
+
+    if (!versionResponse.ok) {
+      console.error(`[IDP Health Check] Version endpoint returned non-OK status: ${versionResponse.status}`);
+      return { ok: false };
+    }
+
+    const versionData = await versionResponse.json() as { status?: string; msg?: string; data?: { version?: string; commitId?: string; commitOffset?: number } };
+    console.log(`[IDP Health Check] Version data:`, JSON.stringify(versionData, null, 2));
+    
+    const result = {
+      ok: true,
+      type: "Casdoor",
+      version: versionData.data?.version || "unknown",
+    };
+    console.log(`[IDP Health Check] Result:`, result);
+    
+    return result;
+  } catch (e) {
+    console.error(`[IDP Health Check] Error:`, (e as Error).message);
+    return { ok: false };
+  }
+}
+
 async function healthPayload(): Promise<HealthPayload> {
   return {
     ok: true,
@@ -62,17 +118,19 @@ async function healthPayload(): Promise<HealthPayload> {
     version: BACKEND_VERSION,
     modules: INSTALLED_MODULES,
     db: await checkDb(),
+    idp: await checkIdp(),
   };
 }
 
-/** 200 when DB is up; 503 when the API process is up but Postgres is not (same JSON body). */
+/** 200 when DB and IDP are up; 503 when the API process is up but Postgres or IDP is not (same JSON body). */
 async function sendHealth(res: Response) {
   const payload = await healthPayload();
-  res.status(payload.db.ok ? 200 : 503).json(payload);
+  const isHealthy = payload.db.ok && payload.idp.ok;
+  res.status(isHealthy ? 200 : 503).json(payload);
 }
 
-// Public health endpoint with Permission.PUBLIC
-app.get("/api/v1/health", rbacHandler([Permission.PUBLIC]), async (_req, res) => {
+// Public health endpoint - no authentication required
+app.get("/api/v1/health", async (_req, res) => {
   await sendHealth(res);
 });
 
