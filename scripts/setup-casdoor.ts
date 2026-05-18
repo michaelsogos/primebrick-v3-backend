@@ -1,10 +1,10 @@
 /**
  * Setup Casdoor organization and admin user.
- * 
+ *
  * This script initializes Casdoor with:
  * 1. An organization (default: "primebrick")
  * 2. An admin user with the "Administrators" role
- * 
+ *
  * Run after Casdoor is ready: pnpm run setup:casdoor
  */
 
@@ -112,23 +112,22 @@ async function getJwtToken(): Promise<string> {
     return jwtToken;
   }
 
-  // Use initial admin credentials to get first token
-  const url = `${CASDOOR_ENDPOINT}/api/login/oauth/access_token`;
-  const body = new URLSearchParams({
-    grant_type: "password",
-    client_id: CASDOOR_CLIENT_ID,
-    client_secret: CASDOOR_INITIAL_PASSWORD, // Casdoor default
+  // Use Casdoor's /api/login endpoint with admin username/password
+  const url = `${CASDOOR_ENDPOINT}/api/login`;
+  const body = JSON.stringify({
+    application: "app-built-in",
+    organization: "built-in",
     username: CASDOOR_INITIAL_ADMIN,
     password: CASDOOR_INITIAL_PASSWORD,
-    scope: "",
+    type: "login",
   });
 
   const response = await fetch(url, {
     method: "POST",
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Type": "application/json",
     },
-    body: body.toString(),
+    body,
   });
 
   if (!response.ok) {
@@ -136,8 +135,8 @@ async function getJwtToken(): Promise<string> {
     throw new Error(`Failed to get JWT token: ${text}`);
   }
 
-  const data = await response.json() as { access_token: string };
-  jwtToken = data.access_token;
+  const data = await response.json() as { data: string };
+  jwtToken = data.data;
   return jwtToken;
 }
 
@@ -179,13 +178,24 @@ async function getClientSecret(): Promise<string> {
   }
 
   // Get application details which includes the client secret
-  const app = await casdoorRequest<{ clientSecret: string }>(
+  const app = await casdoorRequest<{ clientSecret?: string }>(
     "GET",
     `get-application?owner=${CASDOOR_ORGANIZATION}&name=${CASDOOR_CLIENT_ID}`
   );
 
-  clientSecret = app.clientSecret;
-  console.log(`✓ Client secret retrieved for application: ${CASDOOR_CLIENT_ID}`);
+  if (!app.clientSecret) {
+    // Generate a new client secret for the application
+    const secret = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    await casdoorRequest("POST", "update-application", {
+      ...app,
+      clientSecret: secret,
+    });
+    clientSecret = secret;
+    console.log(`✓ Client secret generated for application: ${CASDOOR_CLIENT_ID}`);
+  } else {
+    clientSecret = app.clientSecret;
+    console.log(`✓ Client secret retrieved for application: ${CASDOOR_CLIENT_ID}`);
+  }
   return clientSecret;
 }
 
