@@ -109,26 +109,46 @@ even under high concurrency.
 
 ## Wiring an endpoint
 
+All API routes must use `makeProtectedRouter()` which enforces a **declare-first** secure-by-default policy: any route without an `rbacHandler` permission declaration automatically returns 403 with `ROUTE_PERMISSION_NOT_DECLARED`.
+
 ```ts
+import { makeProtectedRouter } from "../../http/protected-router.js";
 import { rbacHandler } from "../auth/rbac.middleware.js";
 import { Permission } from "../auth/permissions.js";
 
+const router = makeProtectedRouter();
+
+// Public endpoint (no JWT required, but gateway-secret still verified in GATEWAY mode)
+router.get("/api/v1/health", rbacHandler([Permission.PUBLIC]), asyncHandler(async (_req, res) => {
+  res.json({ ok: true });
+}));
+
+// Authenticated endpoint (any valid token passes, regardless of roles)
+router.get("/api/v1/user/profile", rbacHandler([Permission.AUTHENTICATED_USER]), asyncHandler(async (req, res) => {
+  res.json({ id: req.user!.id, email: req.user!.email });
+}));
+
+// Role-based endpoint (default OR semantics: user needs AT LEAST ONE of the listed permissions)
+router.get("/api/v1/entities/customer/list", rbacHandler([Permission.CUSTOMERS_LIST]), asyncHandler(async (req, res) => {
+  const result = await getDal().listCustomers(req.query);
+  res.json(result);
+}));
+
+// AND semantics: user must hold ALL of the listed permissions
+router.get("/api/v1/admin/reports", rbacHandler.all([Permission.CUSTOMERS_LIST, Permission.AUDIT_READ]), asyncHandler(async (req, res) => {
+  const report = await getDal().generateAuditReport();
+  res.json(report);
+}));
+
+// DELETE endpoint (no `req.user!.id` plumbing: the DAL pulls the actor from
+// AsyncLocalStorage internally via `requireActor()`)
 router.delete(
   "/api/v1/entities/customer/:uuid",
-  rbacHandler([Permission.CUSTOMERS_DELETE]), // AND of all listed permissions
+  rbacHandler([Permission.CUSTOMERS_DELETE]),
   asyncHandler(async (req, res) => {
-    // No `req.user!.id` plumbing: the DAL pulls the actor from
-    // AsyncLocalStorage internally via `requireActor()`.
     await getDal().deleteCustomer(req.params.uuid);
     res.status(204).send();
   })
-);
-
-// Logical OR — any of the listed permissions is sufficient:
-router.get(
-  "/api/v1/some-resource",
-  rbacHandler.any([Permission.CUSTOMERS_READ, Permission.CUSTOMERS_LIST]),
-  ...
 );
 ```
 

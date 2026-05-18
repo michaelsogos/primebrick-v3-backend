@@ -1,11 +1,13 @@
-import { Router } from "express";
 import { getPool } from "../../db/pool.js";
 import { CustomersDal } from "./customers_dal.js";
 import { validateBody, validateQuery } from "../../http/validation.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { isDatabaseUnavailableError } from "../../http/api-errors.js";
+import { makeProtectedRouter } from "../../http/protected-router.js";
+import { runBulkAction, sendBulkOutcome } from "../../lib/bulk/bulk-action-runner.js";
 import {
   CustomerCreateBodySchema,
+  CustomerUpdateBodySchema,
   CustomerListQuerySchema,
   CustomerExportQuerySchema,
   UuidParamSchema,
@@ -34,7 +36,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export function customersRouter() {
-  const router = Router();
+  const router = makeProtectedRouter();
   let dal: CustomersDal | null = null;
   let auditService: AuditService | null = null;
   const getDal = () => {
@@ -47,7 +49,12 @@ export function customersRouter() {
 
   const defaultSort = CUSTOMER_DEFAULT_SORT;
 
-  router.get("/api/v1/entities/customer/meta", rbacHandler([Permission.CUSTOMERS_LIST]), (_req, res) => {
+  // /meta is metadata about the entity surface (column list, default sort, ...);
+  // anyone allowed to either list OR read individual records may consume it.
+  router.get(
+    "/api/v1/entities/customer/meta",
+    rbacHandler([Permission.CUSTOMERS_LIST, Permission.CUSTOMERS_READ]),
+    (_req, res) => {
     res.json({
       entity: "customer",
       titleKey: "entities.customer.title",
@@ -69,7 +76,8 @@ export function customersRouter() {
         viewVisibility: CUSTOMER_DEFAULT_VIEW_VISIBILITY,
       },
     });
-  });
+    }
+  );
 
   router.get(
     "/api/v1/entities/customer/list",
@@ -389,6 +397,37 @@ export function customersRouter() {
     })
   );
 
+  router.put(
+    "/api/v1/entities/customer/:uuid",
+    rbacHandler([Permission.CUSTOMERS_UPDATE]),
+    (req, res, next) => {
+      const r = UuidParamSchema.safeParse(req.params);
+      if (!r.success) {
+        res.status(400).json({
+          type: '/errors/validation-error',
+          title: 'Validation error',
+          status: 400,
+          detail: 'Request validation failed',
+          severity: 'MEDIUM',
+          issues: r.error.issues.map((i) => ({
+            path: i.path.join("."),
+            code: i.code,
+            message: i.message,
+          })),
+        });
+        return;
+      }
+      (req as any).params = r.data;
+      next();
+    },
+    asyncHandler(async (req, res) => {
+      const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
+      const body = req.body as unknown as import("./dto.js").CustomerUpdateBody;
+      await getDal().updateCustomer(uuid, body);
+      res.status(204).send();
+    })
+  );
+
   router.delete(
     "/api/v1/entities/customer/:uuid",
     rbacHandler([Permission.CUSTOMERS_DELETE]),
@@ -446,6 +485,48 @@ export function customersRouter() {
       const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
       await getDal().restoreCustomer(uuid);
       res.status(204).send();
+    })
+  );
+
+  // Bulk delete endpoint using shared helper
+  const BulkDeleteBodySchema = z.object({
+    uuids: z.array(z.string().uuid()).min(1).max(100),
+  });
+  router.post(
+    "/api/v1/entities/customer/bulk-delete",
+    rbacHandler([Permission.CUSTOMERS_BULK_DELETE]),
+    validateBody(BulkDeleteBodySchema),
+    asyncHandler(async (req, res) => {
+      const { uuids } = req.body as { uuids: string[] };
+      const outcome = await runBulkAction({
+        kind: "delete",
+        uuids,
+        instance: req.originalUrl,
+        entityLabel: "customer",
+        run: (uuid) => getDal().deleteCustomer(uuid),
+      });
+      sendBulkOutcome(res, outcome);
+    })
+  );
+
+  // Bulk restore endpoint using shared helper
+  const BulkRestoreBodySchema = z.object({
+    uuids: z.array(z.string().uuid()).min(1).max(100),
+  });
+  router.post(
+    "/api/v1/entities/customer/bulk-restore",
+    rbacHandler([Permission.CUSTOMERS_BULK_RESTORE]),
+    validateBody(BulkRestoreBodySchema),
+    asyncHandler(async (req, res) => {
+      const { uuids } = req.body as { uuids: string[] };
+      const outcome = await runBulkAction({
+        kind: "restore",
+        uuids,
+        instance: req.originalUrl,
+        entityLabel: "customer",
+        run: (uuid) => getDal().restoreCustomer(uuid),
+      });
+      sendBulkOutcome(res, outcome);
     })
   );
 

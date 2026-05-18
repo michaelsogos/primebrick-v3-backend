@@ -97,11 +97,11 @@ async function fromStandalone(req: Request): Promise<AuthUser> {
 
 async function fromGateway(req: Request): Promise<AuthUser> {
   const cfg = getAuthConfig();
-  const { secret, headers } = cfg.gateway;
+  const { secret, secretHeaderName, headers } = cfg.gateway;
 
   // Anti-spoofing: the gateway and only the gateway knows this value.
   // Without it, the API MUST NOT trust any X-User-* header.
-  const provided = req.headers["x-gateway-secret"];
+  const provided = req.headers[secretHeaderName];
   if (typeof provided !== "string" || provided !== secret) {
     throw new UnauthorizedError("Gateway authentication failed", {
       internal_code: "AUTH_GATEWAY_SECRET_INVALID",

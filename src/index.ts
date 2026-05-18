@@ -6,7 +6,7 @@ import { openApiRouter } from "./openapi/router.js";
 import { errorHandler } from "./http/error-handler.js";
 import { getPool } from "./db/pool.js";
 import { isDatabaseUnavailableError } from "./http/api-errors.js";
-import { authMiddleware } from "./modules/auth/auth.middleware.js";
+import { makeProtectedRouter } from "./http/protected-router.js";
 import { rbacHandler } from "./modules/auth/rbac.middleware.js";
 import { Permission } from "./modules/auth/permissions.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
@@ -71,12 +71,8 @@ async function sendHealth(res: Response) {
   res.status(payload.db.ok ? 200 : 503).json(payload);
 }
 
-app.get("/health", async (_req, res) => {
-  await sendHealth(res);
-});
-
-// Same payload under API prefix so the frontend dev proxy can reach it.
-app.get("/api/v1/health", async (_req, res) => {
+// Public health endpoint with Permission.PUBLIC
+app.get("/api/v1/health", rbacHandler([Permission.PUBLIC]), async (_req, res) => {
   await sendHealth(res);
 });
 
@@ -85,15 +81,9 @@ app.get("/api/v1/health", async (_req, res) => {
 // guard, so the spec stays publicly browsable for clients during integration).
 app.use(openApiRouter());
 
-// From this point on every request must carry valid auth (Bearer token in
-// STANDALONE mode, or X-Gateway-Secret + X-User-* headers in GATEWAY mode).
-app.use("/api/v1", (req, res, next) => {
-  // The /api/v1/health route is registered above and short-circuits before
-  // this guard; if we reach here for any other path the auth middleware runs.
-  return authMiddleware()(req, res, next);
-});
-
-app.get("/api/v1/modules", rbacHandler([Permission.MODULES_LIST]), (_req, res) => {
+// Use makeProtectedRouter for /modules endpoint
+const apiRouter = makeProtectedRouter();
+apiRouter.get("/modules", rbacHandler([Permission.MODULES_LIST]), (_req, res) => {
   res.json({
     modules: [
       { id: "crm", name: "CRM", enabled: true },
@@ -103,6 +93,7 @@ app.get("/api/v1/modules", rbacHandler([Permission.MODULES_LIST]), (_req, res) =
   });
 });
 
+app.use("/api/v1", apiRouter);
 app.use(entitiesRouter());
 app.use(customersRouter());
 

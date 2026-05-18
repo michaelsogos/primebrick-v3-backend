@@ -33,8 +33,22 @@ export interface OidcConfig {
 }
 
 export interface GatewayConfig {
-  /** Shared secret that the gateway MUST send via `X-Gateway-Secret`. Anti-spoofing. */
+  /**
+   * Shared secret the gateway MUST send to authenticate ITSELF (anti-spoofing).
+   * Required in GATEWAY mode for every authenticated route.
+   */
   secret: string;
+  /** HTTP header that carries the gateway secret. Default `x-gateway-secret`. */
+  secretHeaderName: string;
+  /**
+   * Optional separate secret used for `Permission.PUBLIC` routes. Lets ops
+   * issue a less-privileged token to the gateway specifically for
+   * unauthenticated traffic, or rotate it independently. When unset, falls
+   * back to `secret`.
+   */
+  publicSecret: string;
+  /** Header that carries the public-route gateway secret. Default = `secretHeaderName`. */
+  publicSecretHeaderName: string;
   /** Header names from which user identity is read. Configurable so we can adapt to different gateways. */
   headers: {
     userId: string;     // default: x-user-id
@@ -87,8 +101,17 @@ export function getAuthConfig(): AuthConfig {
     audience: process.env.OIDC_AUDIENCE,
   };
 
+  const secret = mode === "GATEWAY" ? requireEnv("GATEWAY_SECRET") : (process.env.GATEWAY_SECRET ?? "");
+  const secretHeaderName = (process.env.GATEWAY_SECRET_HEADER ?? "x-gateway-secret").toLowerCase();
   const gateway: GatewayConfig = {
-    secret: mode === "GATEWAY" ? requireEnv("GATEWAY_SECRET") : (process.env.GATEWAY_SECRET ?? ""),
+    secret,
+    secretHeaderName,
+    // Public-route secret defaults to the main one. Ops can override either
+    // value or header name to use a separate credential for anonymous traffic.
+    publicSecret: process.env.GATEWAY_PUBLIC_SECRET ?? secret,
+    publicSecretHeaderName: (
+      process.env.GATEWAY_PUBLIC_SECRET_HEADER ?? secretHeaderName
+    ).toLowerCase(),
     headers: {
       userId: (process.env.GATEWAY_HEADER_USER_ID ?? "x-user-id").toLowerCase(),
       email: (process.env.GATEWAY_HEADER_EMAIL ?? "x-user-email").toLowerCase(),
