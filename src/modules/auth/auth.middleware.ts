@@ -96,7 +96,7 @@ export function authMiddleware(): RequestHandler {
 async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAuthConfig>>): Promise<AuthUser> {
   const header = req.headers["authorization"];
   if (!header || typeof header !== "string" || !header.toLowerCase().startsWith("bearer ")) {
-    throw new UnauthorizedError("Missing or malformed Authorization header", {
+    throw new UnauthorizedError("Authentication required - please provide a valid token", {
       internal_code: "AUTH_BEARER_MISSING",
     });
   }
