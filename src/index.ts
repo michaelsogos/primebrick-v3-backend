@@ -8,6 +8,7 @@ import { isDatabaseUnavailableError } from "./http/api-errors.js";
 import { makeProtectedRouter } from "./http/protected-router.js";
 import { rbacHandler } from "./modules/auth/rbac.middleware.js";
 import { Permission } from "./modules/auth/permissions.js";
+import { loadRoleMappings } from "./modules/auth/auth.middleware.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
 import "./modules/auth/types.js";
 import { readFileSync } from "node:fs";
@@ -96,6 +97,9 @@ app.use("/api/v1", apiRouter);
 app.use(customersRouter());
 
 app.use(errorHandler);
+
+// Load role mappings from database at startup
+await loadRoleMappings();
 
 app.listen(port, () => {
   console.log(`API listening on http://localhost:${port}`);

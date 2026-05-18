@@ -159,12 +159,20 @@ middleware guarantees presence and throws `UnauthorizedError` otherwise.
 ## Adding a permission / role
 
 1. Append the permission to the `Permission` constant in `permissions.ts`.
-2. Map it to the relevant role(s) in `ROLE_PERMISSIONS_MAP`.
-3. Reference it from the route handler via `rbacHandler([Permission.X])`.
+2. Map it to the relevant role(s) in the `role_mappings` table via the frontend role-permission management UI (or direct SQL).
+   - Example SQL: `INSERT INTO public.role_mappings (idp_role, permissions, is_admin) VALUES ('Administrators', ARRAY['customers:list', 'customers:read', ...], true);`
+3. The auth middleware loads role mappings at startup and caches them for the lifetime of the process.
+   - To reload mappings without restarting, call `clearRoleMappingCache()` then `loadRoleMappings()`.
+
+**Role mapping design:**
+- `idp_role`: The exact role name as emitted by the IDP in the JWT (case-sensitive, from `AUTH_ROLES_PATH`)
+- `permissions`: JSON array of permission strings
+- `is_admin`: When `true`, this role grants ALL permissions (super-user wildcard)
+- Roles are flexible and can match any organizational structure (Sales, HR, Ops, etc.) or entity-specific groups
 
 Unknown roles in user tokens are kept on `req.user.roles` (so the application
 can read them for display) but grant no permissions unless registered in
-`ROLE_PERMISSIONS_MAP`.
+the `role_mappings` table.
 
 ## Security notes
 

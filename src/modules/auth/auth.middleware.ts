@@ -20,18 +20,49 @@
  * Both paths converge on the same `AuthUser` shape and the same internal-UUID
  * resolution, so downstream code (RBAC checks, DAL, audit columns) is mode-agnostic.
  *
+ * Role-to-permission mapping is loaded from the `role_mappings` table at startup
+ * and cached. The middleware expands the user's IDP roles into a set of
+ * permissions using this cached mapping. Roles marked with `is_admin=true` grant
+ * ALL permissions (super-user wildcard).
+ *
  * Errors thrown here are RFC 7807 `UnauthorizedError` instances; the global
  * error handler serializes them.
  */
 
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { UnauthorizedError } from "../../http/api-errors.js";
+import { getPool } from "../../db/pool.js";
 import { getAuthConfig } from "./config.js";
 import { verifyAccessToken } from "./oidc-client.js";
 import { buildAuthUser, normalizeIdpToken, coerceRoles } from "./token-normalizer.js";
 import { resolveInternalUuid } from "./user-profile-repo.js";
 import { runWithSession, type Session } from "./session-context.js";
 import type { AuthUser } from "./types.js";
+import { RoleMappingRepo } from "./role-mapping-repo.js";
+import { expandPermissions, Permission } from "./permissions.js";
+
+// Cached role mappings loaded at startup
+let roleMappingCache: Map<string, { permissions: string[]; is_admin: boolean }> | null = null;
+let allPermissionsCache: string[] | null = null;
+
+/**
+ * Load role mappings from the database and cache them.
+ * This should be called at application startup.
+ */
+export async function loadRoleMappings(): Promise<void> {
+  const pool = getPool();
+  const repo = new RoleMappingRepo(pool);
+  roleMappingCache = await repo.loadAllMappings();
+  allPermissionsCache = await repo.getAllPermissions();
+}
+
+/**
+ * Clear the role mapping cache (useful for testing or hot-reload).
+ */
+export function clearRoleMappingCache(): void {
+  roleMappingCache = null;
+  allPermissionsCache = null;
+}
 
 /**
  * Build the route-attachable middleware. We use a factory so the caller can
@@ -92,7 +123,12 @@ async function fromStandalone(req: Request): Promise<AuthUser> {
     email: normalized.email,
     display_name: normalized.name,
   });
-  return buildAuthUser(internalUuid, normalized);
+  const permissions = await expandPermissions(
+    normalized.roles,
+    () => Promise.resolve(allPermissionsCache || Object.values(Permission)),
+    (role) => Promise.resolve(roleMappingCache?.get(role) || null)
+  );
+  return buildAuthUser(internalUuid, normalized, permissions);
 }
 
 async function fromGateway(req: Request): Promise<AuthUser> {
@@ -130,12 +166,17 @@ async function fromGateway(req: Request): Promise<AuthUser> {
     email,
     display_name: name,
   });
+  const permissions = await expandPermissions(
+    roles,
+    () => Promise.resolve(allPermissionsCache || Object.values(Permission)),
+    (role) => Promise.resolve(roleMappingCache?.get(role) || null)
+  );
   return buildAuthUser(internalUuid, {
     idp_code: idpCode,
     email,
     name,
     roles,
-  });
+  }, permissions);
 }
 
 function readHeaderString(req: Request, name: string): string | null {

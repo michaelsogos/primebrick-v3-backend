@@ -5,19 +5,22 @@
  *   - Each HTTP action declares the EXACT permission(s) it requires
  *     (e.g. `customers:list`, `customers:delete`). The endpoint, not the role,
  *     determines what is needed.
- *   - Roles are defined globally and mapped N:N to permissions via
- *     `ROLE_PERMISSIONS_MAP`. The auth middleware expands a user's roles into
- *     a flat `Set<Permission>` once per request.
+ *   - Role → Permission mappings are stored in the `role_mappings` table (database).
+ *     The auth middleware loads these mappings at startup and expands a user's
+ *     roles into a flat `Set<Permission>` once per request.
  *   - The RBAC middleware evaluates the array with **OR** semantics by default
  *     (any-of). Use `rbacHandler.all([...])` for AND semantics.
+ *   - Roles marked with `is_admin=true` in the database grant ALL permissions
+ *     (super-user wildcard).
  *
  * Adding a permission:
- *   1. Append it to the `Permission` union below.
- *   2. Map it to the relevant role(s) in `ROLE_PERMISSIONS_MAP`.
+ *   1. Append it to the `Permission` constant below.
+ *   2. Map it to the relevant role(s) in the `role_mappings` table via the
+ *      frontend role-permission management UI (or direct SQL).
  *   3. Reference it from the route via `rbacHandler([Permission.CUSTOMERS_DELETE])`.
  *
  * Two pseudo-permissions exist as sentinels handled directly by the middleware
- * (they are NOT included in `ROLE_PERMISSIONS_MAP`):
+ * (they are NOT stored in `role_mappings`):
  *
  *   - `Permission.PUBLIC`             → endpoint reachable without a JWT.
  *                                       In GATEWAY mode the gateway-secret
@@ -63,71 +66,35 @@ export function isPermissionSentinel(p: string): boolean {
 export type Permission = (typeof Permission)[keyof typeof Permission];
 
 /**
- * Built-in roles. The strings MUST match what the IDP emits in the JWT
- * (after applying `AUTH_ROLES_PATH`) or what the gateway forwards in
- * `X-User-Roles`. Casing matters.
- */
-export const Role = {
-  ADMINISTRATORS: "Administrators",
-  CUSTOMERS_MANAGER: "CustomersManager",
-  CUSTOMERS_READER: "CustomersReader",
-} as const;
-
-export type Role = (typeof Role)[keyof typeof Role];
-
-/**
- * Role → Permission(s) mapping. Order is irrelevant; duplicates are deduplicated
- * at expansion time.
- *
- * NOTE: Unknown roles in the user token are kept in `req.user.roles` (so the
- * application can read them for display) but they grant no permissions unless
- * registered here.
- */
-export const ROLE_PERMISSIONS_MAP: Readonly<Record<string, readonly Permission[]>> = {
-  [Role.ADMINISTRATORS]: [
-    Permission.CUSTOMERS_LIST,
-    Permission.CUSTOMERS_READ,
-    Permission.CUSTOMERS_CREATE,
-    Permission.CUSTOMERS_UPDATE,
-    Permission.CUSTOMERS_DELETE,
-    Permission.CUSTOMERS_BULK_DELETE,
-    Permission.CUSTOMERS_RESTORE,
-    Permission.CUSTOMERS_BULK_RESTORE,
-    Permission.CUSTOMERS_BULK_DUPLICATE,
-    Permission.CUSTOMERS_EXPORT,
-    Permission.CUSTOMERS_AUDIT_READ,
-  ],
-  [Role.CUSTOMERS_MANAGER]: [
-    Permission.CUSTOMERS_LIST,
-    Permission.CUSTOMERS_READ,
-    Permission.CUSTOMERS_CREATE,
-    Permission.CUSTOMERS_UPDATE,
-    Permission.CUSTOMERS_DELETE,
-    Permission.CUSTOMERS_BULK_DELETE,
-    Permission.CUSTOMERS_RESTORE,
-    Permission.CUSTOMERS_BULK_RESTORE,
-    Permission.CUSTOMERS_BULK_DUPLICATE,
-    Permission.CUSTOMERS_EXPORT,
-    Permission.CUSTOMERS_AUDIT_READ,
-  ],
-  [Role.CUSTOMERS_READER]: [
-    Permission.CUSTOMERS_LIST,
-    Permission.CUSTOMERS_READ,
-    Permission.CUSTOMERS_EXPORT,
-    Permission.CUSTOMERS_AUDIT_READ,
-  ],
-};
-
-/**
  * Expand a list of role names into the union of their granted permissions.
- * Unknown roles are silently ignored (they grant nothing).
+ * This function queries the `role_mappings` table to resolve roles to permissions.
+ * Roles marked with `is_admin=true` grant ALL permissions.
+ *
+ * @param roles - Role names from the IDP (as extracted from JWT via AUTH_ROLES_PATH)
+ * @param getAllPermissionsFn - Function that returns all known permissions in the system
+ * @param getRoleMappingFn - Function that returns the mapping for a specific role
+ * @returns Set of granted permissions
  */
-export function expandPermissions(roles: readonly string[]): Set<string> {
+export async function expandPermissions(
+  roles: readonly string[],
+  getAllPermissionsFn: () => Promise<string[]>,
+  getRoleMappingFn: (role: string) => Promise<{ permissions: string[]; is_admin: boolean } | null>
+): Promise<Set<string>> {
   const out = new Set<string>();
+
   for (const r of roles) {
-    const perms = ROLE_PERMISSIONS_MAP[r];
-    if (!perms) continue;
-    for (const p of perms) out.add(p);
+    const mapping = await getRoleMappingFn(r);
+    if (!mapping) continue;
+
+    // If role is admin, grant ALL permissions
+    if (mapping.is_admin) {
+      const allPerms = await getAllPermissionsFn();
+      for (const p of allPerms) out.add(p);
+    } else {
+      // Grant the specific permissions for this role
+      for (const p of mapping.permissions) out.add(p);
+    }
   }
+
   return out;
 }

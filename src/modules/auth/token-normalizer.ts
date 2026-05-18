@@ -13,7 +13,6 @@
  */
 
 import type { AuthUser } from "./types.js";
-import { expandPermissions } from "./permissions.js";
 
 /** Minimal shape of a decoded JWT payload (claims map). */
 export type JwtClaims = Record<string, unknown>;
@@ -94,15 +93,17 @@ export function normalizeIdpToken(
 }
 
 /**
- * Combine a normalized IDP user with the internal Primebrick UUID and
- * compute the effective permission set for the request.
+ * Combine a normalized IDP user with the internal Primebrick UUID.
+ * Permissions are NOT computed here - they are computed separately using
+ * the database-driven role mapping.
  *
  * Note: `id` here is the **internal** UUID from `user_profiles.uuid`, NEVER
  * the IDP `sub`. The mapping is performed by `user-profile-repo.ts`.
  */
 export function buildAuthUser(
   internalUuid: string,
-  normalized: NormalizedIdpUser
+  normalized: NormalizedIdpUser,
+  permissions: Set<string>
 ): AuthUser {
   return {
     id: internalUuid,
@@ -110,6 +111,6 @@ export function buildAuthUser(
     email: normalized.email,
     name: normalized.name,
     roles: normalized.roles,
-    permissions: expandPermissions(normalized.roles),
+    permissions,
   };
 }

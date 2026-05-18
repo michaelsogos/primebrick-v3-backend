@@ -1,7 +1,10 @@
 {
   "version": 2,
-  "generatedAt": "2026-05-16T12:49:41.060Z",
-  "onlyInEntityTables": [],
+  "generatedAt": "2026-05-18T13:07:27.317Z",
+  "onlyInEntityTables": [
+    "public.user_profiles",
+    "public.role_mappings"
+  ],
   "onlyInDatabaseTables": [],
   "tables": {
     "public.customers": {
