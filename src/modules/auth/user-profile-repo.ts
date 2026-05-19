@@ -15,6 +15,9 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { getPool } from "../../db/pool.js";
+import { AuditService } from "../../lib/audit/audit-service.js";
+import { AuditAction } from "../../lib/audit/audit-types.js";
+import { UserProfileEntity } from "./user_profile_entity.js";
 
 interface CacheEntry {
   uuid: string;
@@ -81,7 +84,7 @@ export async function resolveInternalUuid(
   // first auth bootstraps their own profile, hence `created_by = uuid`.
   const newUuid = randomUUID();
   const now = new Date();
-  const ins = await pool.query<{ uuid: string }>(
+  const ins = await pool.query<{ uuid: string; id: number }>(
     `insert into public.user_profiles
        (uuid, idp_code, email, display_name,
         created_at, created_by, updated_at, updated_by, version)
@@ -92,7 +95,7 @@ export async function resolveInternalUuid(
            updated_at = excluded.updated_at,
            updated_by = excluded.updated_by,
            version = public.user_profiles.version + 1
-     returning uuid`,
+     returning uuid, id`,
     [
       newUuid,
       input.idp_code,
@@ -104,7 +107,36 @@ export async function resolveInternalUuid(
       newUuid,
     ]
   );
-  const uuid = ins.rows[0]?.uuid ?? newUuid;
+  const row = ins.rows[0];
+  const uuid = row?.uuid ?? newUuid;
+  const entityId = row?.id;
+
+  // Write audit record for initial insert
+  if (entityId) {
+    const auditService = new AuditService(pool);
+    const delta: Record<string, { old: unknown; new: unknown }> = {
+      uuid: { old: null, new: newUuid },
+      idp_code: { old: null, new: input.idp_code },
+      email: { old: null, new: input.email },
+      display_name: { old: null, new: input.display_name },
+      created_at: { old: null, new: now },
+      created_by: { old: null, new: newUuid },
+      updated_at: { old: null, new: now },
+      updated_by: { old: null, new: newUuid },
+      version: { old: null, new: 1 },
+    };
+    await auditService.writeAudit(
+      UserProfileEntity,
+      entityId,
+      newUuid,
+      AuditAction.INSERT,
+      now,
+      1,
+      delta,
+      newUuid
+    ).catch((err) => console.error('[Audit Error]', err));
+  }
+
   cacheSet(input.idp_code, uuid);
   return uuid;
 }

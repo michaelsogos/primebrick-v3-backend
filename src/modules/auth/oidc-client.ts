@@ -43,11 +43,11 @@ let runtimePromise: Promise<OidcRuntime> | null = null;
  * `jose.createRemoteJWKSet` itself caches keys with HTTP cache semantics, so
  * we don't need to do anything else.
  */
-async function getRuntime(): Promise<OidcRuntime> {
+async function getRuntime(pool?: import("pg").Pool): Promise<OidcRuntime> {
   if (runtimePromise) return runtimePromise;
 
   runtimePromise = (async (): Promise<OidcRuntime> => {
-    const cfg = getAuthConfig().oidc;
+    const cfg = (await getAuthConfig(pool)).oidc;
     if (!cfg.issuerUrl) {
       throw new Error("[auth] OIDC_ISSUER_URL is required to verify access tokens");
     }
@@ -89,10 +89,12 @@ export interface VerifiedToken {
  *   - `aud` matches `OIDC_AUDIENCE` if configured (otherwise ignored)
  *
  * Throws on any failure. Callers should catch and translate to 401.
+ *
+ * @param pool Optional database pool to load OIDC configuration from database
  */
-export async function verifyAccessToken(token: string): Promise<VerifiedToken> {
-  const { discovery, jwks } = await getRuntime();
-  const cfg: OidcConfig = getAuthConfig().oidc;
+export async function verifyAccessToken(token: string, pool?: import("pg").Pool): Promise<VerifiedToken> {
+  const { discovery, jwks } = await getRuntime(pool);
+  const cfg: OidcConfig = (await getAuthConfig(pool)).oidc;
 
   const verifyOpts: JWTVerifyOptions = {
     issuer: discovery.issuer,

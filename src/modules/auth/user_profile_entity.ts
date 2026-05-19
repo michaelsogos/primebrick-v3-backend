@@ -27,6 +27,8 @@ import {
   Unique,
   AuditableField,
   AuditableFieldType,
+  DeletableField,
+  DeletableFieldType,
   AuditTrail,
 } from "../../domain/entities/entity-meta.js";
 
@@ -67,4 +69,10 @@ export class UserProfileEntity implements IAuditableEntity {
 
   @AuditableField(AuditableFieldType.VERSION)
   version: number;
+
+  @DeletableField(DeletableFieldType.DELETED_AT)
+  deleted_at?: Date;
+
+  @DeletableField(DeletableFieldType.DELETED_BY)
+  deleted_by?: string;
 }

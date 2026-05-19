@@ -61,6 +61,7 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { ForbiddenError, UnauthorizedError } from "../../http/api-errors.js";
 import { getAuthConfig } from "./config.js";
+import { getPool } from "../../db/pool.js";
 import { authMiddleware } from "./auth.middleware.js";
 import { Permission, isPermissionSentinel } from "./permissions.js";
 
@@ -113,7 +114,7 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const cfg = getAuthConfig();
+      const cfg = await getAuthConfig(getPool());
 
       // --- Step 1: gateway-secret check (ALWAYS in GATEWAY mode) ----------
       if (cfg.mode === "GATEWAY") {

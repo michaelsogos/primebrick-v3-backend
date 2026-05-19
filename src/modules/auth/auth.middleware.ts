@@ -76,7 +76,7 @@ export function authMiddleware(): RequestHandler {
       const user: AuthUser =
         cfg.mode === "GATEWAY"
           ? await fromGateway(req, cfg)
-          : await fromStandalone(req, cfg);
+          : await fromStandalone(req, cfg, pool);
       req.user = user;
       // Mirror the user into AsyncLocalStorage so DAL / services downstream
       // can call `requireActor()` without receiving the actor through every
@@ -93,7 +93,7 @@ export function authMiddleware(): RequestHandler {
   };
 }
 
-async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAuthConfig>>): Promise<AuthUser> {
+async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAuthConfig>>, pool: import("pg").Pool): Promise<AuthUser> {
   let token = "";
 
   // 1. TENTATIVO A: Estrazione dall'header Authorization (Standard per integrazioni esterne)
@@ -116,7 +116,7 @@ async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAu
 
   let claims;
   try {
-    const verified = await verifyAccessToken(token);
+    const verified = await verifyAccessToken(token, pool);
     claims = verified.payload;
   } catch (e) {
     // Don't leak crypto / JWKS internals — log server-side, return generic 401.
