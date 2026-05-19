@@ -1,11 +1,13 @@
-import { Router } from "express";
 import { getPool } from "../../db/pool.js";
 import { CustomersDal } from "./customers_dal.js";
 import { validateBody, validateQuery } from "../../http/validation.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { isDatabaseUnavailableError } from "../../http/api-errors.js";
+import { makeProtectedRouter } from "../../http/protected-router.js";
+import { runBulkAction, sendBulkOutcome } from "../../lib/bulk/bulk-action-runner.js";
 import {
   CustomerCreateBodySchema,
+  CustomerUpdateBodySchema,
   CustomerListQuerySchema,
   CustomerExportQuerySchema,
   UuidParamSchema,
@@ -25,6 +27,8 @@ import {
 import { exportDataWithTemplateToStream } from "../../lib/export/index.js";
 import type { ExportConfig } from "../../lib/export/types.js";
 import { AuditService } from "../../lib/audit/audit-service.js";
+import { rbacHandler } from "../auth/rbac.middleware.js";
+import { Permission } from "../auth/permissions.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -32,7 +36,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export function customersRouter() {
-  const router = Router();
+  const router = makeProtectedRouter();
   let dal: CustomersDal | null = null;
   let auditService: AuditService | null = null;
   const getDal = () => {
@@ -45,7 +49,12 @@ export function customersRouter() {
 
   const defaultSort = CUSTOMER_DEFAULT_SORT;
 
-  router.get("/api/v1/entities/customer/meta", (_req, res) => {
+  // /meta is metadata about the entity surface (column list, default sort, ...);
+  // anyone allowed to either list OR read individual records may consume it.
+  router.get(
+    "/api/v1/entities/customer/meta",
+    rbacHandler([Permission.CUSTOMERS_READ_ALL, Permission.CUSTOMERS_READ_SINGLE]),
+    (_req, res) => {
     res.json({
       entity: "customer",
       titleKey: "entities.customer.title",
@@ -67,10 +76,12 @@ export function customersRouter() {
         viewVisibility: CUSTOMER_DEFAULT_VIEW_VISIBILITY,
       },
     });
-  });
+    }
+  );
 
   router.get(
     "/api/v1/entities/customer/list",
+    rbacHandler([Permission.CUSTOMERS_READ_ALL]),
     validateQuery(CustomerListQuerySchema),
     asyncHandler(async (req, res) => {
       const { search, search_in, status, sort_key, sort_dir, page, page_size, filters, connector, deleted_records } =
@@ -139,6 +150,7 @@ export function customersRouter() {
 
   router.get(
     "/api/v1/entities/customer/export",
+    rbacHandler([Permission.CUSTOMERS_EXPORT]),
     validateQuery(CustomerExportQuerySchema),
     asyncHandler(async (req, res) => {
       const { search, search_in, status, sort_key, sort_dir, filters, connector, deleted_records, file_type, locale, timezone } =
@@ -286,6 +298,7 @@ export function customersRouter() {
 
   router.post(
     "/api/v1/entities/customer",
+    rbacHandler([Permission.CUSTOMERS_CREATE_SINGLE]),
     validateBody(CustomerCreateBodySchema),
     asyncHandler(async (req, res) => {
       const body = req.body as unknown as import("./dto.js").CustomerCreateBody;
@@ -296,13 +309,13 @@ export function customersRouter() {
 
   router.post(
     "/api/v1/entities/customer/duplicate",
+    rbacHandler([Permission.CUSTOMERS_DUPLICATE_BULK]),
     validateBody(CustomerDuplicateBodySchema),
     asyncHandler(async (req, res) => {
       const body = req.body as unknown as import("./dto.js").CustomerDuplicateBody;
-      const duplicatedBy = (req as any).user?.id || "system";
 
       try {
-        const result = await getDal().duplicateCustomers(body.uuids, duplicatedBy);
+        const result = await getDal().duplicateCustomers(body.uuids);
 
         // If there are any errors, return 500 with RFC7807 format
         if (result.errors.length > 0) {
@@ -346,6 +359,7 @@ export function customersRouter() {
 
   router.get(
     "/api/v1/entities/customer/:uuid",
+    rbacHandler([Permission.CUSTOMERS_READ_SINGLE]),
     (req, res, next) => {
       const r = UuidParamSchema.safeParse(req.params);
       if (!r.success) {
@@ -383,8 +397,9 @@ export function customersRouter() {
     })
   );
 
-  router.delete(
+  router.put(
     "/api/v1/entities/customer/:uuid",
+    rbacHandler([Permission.CUSTOMERS_UPDATE_SINGLE]),
     (req, res, next) => {
       const r = UuidParamSchema.safeParse(req.params);
       if (!r.success) {
@@ -407,14 +422,45 @@ export function customersRouter() {
     },
     asyncHandler(async (req, res) => {
       const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-      const deletedBy = (req as any).user?.id || "system";
-      await getDal().deleteCustomer(uuid, deletedBy);
+      const body = req.body as unknown as import("./dto.js").CustomerUpdateBody;
+      await getDal().updateCustomer(uuid, body);
+      res.status(204).send();
+    })
+  );
+
+  router.delete(
+    "/api/v1/entities/customer/:uuid",
+    rbacHandler([Permission.CUSTOMERS_DELETE_SINGLE]),
+    (req, res, next) => {
+      const r = UuidParamSchema.safeParse(req.params);
+      if (!r.success) {
+        res.status(400).json({
+          type: '/errors/validation-error',
+          title: 'Validation error',
+          status: 400,
+          detail: 'Request validation failed',
+          severity: 'MEDIUM',
+          issues: r.error.issues.map((i) => ({
+            path: i.path.join("."),
+            code: i.code,
+            message: i.message,
+          })),
+        });
+        return;
+      }
+      (req as any).params = r.data;
+      next();
+    },
+    asyncHandler(async (req, res) => {
+      const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
+      await getDal().deleteCustomer(uuid);
       res.status(204).send();
     })
   );
 
   router.post(
     "/api/v1/entities/customer/:uuid/restore",
+    rbacHandler([Permission.CUSTOMERS_RESTORE_SINGLE]),
     (req, res, next) => {
       const r = UuidParamSchema.safeParse(req.params);
       if (!r.success) {
@@ -437,14 +483,56 @@ export function customersRouter() {
     },
     asyncHandler(async (req, res) => {
       const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-      const restoredBy = (req as any).user?.id || "system";
-      await getDal().restoreCustomer(uuid, restoredBy);
+      await getDal().restoreCustomer(uuid);
       res.status(204).send();
+    })
+  );
+
+  // Bulk delete endpoint using shared helper
+  const BulkDeleteBodySchema = z.object({
+    uuids: z.array(z.string().uuid()).min(1).max(100),
+  });
+  router.post(
+    "/api/v1/entities/customer/bulk-delete",
+    rbacHandler([Permission.CUSTOMERS_DELETE_BULK]),
+    validateBody(BulkDeleteBodySchema),
+    asyncHandler(async (req, res) => {
+      const { uuids } = req.body as { uuids: string[] };
+      const outcome = await runBulkAction({
+        kind: "delete",
+        uuids,
+        instance: req.originalUrl,
+        entityLabel: "customer",
+        run: (uuid) => getDal().deleteCustomer(uuid),
+      });
+      sendBulkOutcome(res, outcome);
+    })
+  );
+
+  // Bulk restore endpoint using shared helper
+  const BulkRestoreBodySchema = z.object({
+    uuids: z.array(z.string().uuid()).min(1).max(100),
+  });
+  router.post(
+    "/api/v1/entities/customer/bulk-restore",
+    rbacHandler([Permission.CUSTOMERS_RESTORE_BULK]),
+    validateBody(BulkRestoreBodySchema),
+    asyncHandler(async (req, res) => {
+      const { uuids } = req.body as { uuids: string[] };
+      const outcome = await runBulkAction({
+        kind: "restore",
+        uuids,
+        instance: req.originalUrl,
+        entityLabel: "customer",
+        run: (uuid) => getDal().restoreCustomer(uuid),
+      });
+      sendBulkOutcome(res, outcome);
     })
   );
 
   router.get(
     "/api/v1/entities/customer/:uuid/audit",
+    rbacHandler([Permission.CUSTOMERS_READ_AUDIT]),
     (req, res, next) => {
       const r = UuidParamSchema.safeParse(req.params);
       if (!r.success) {

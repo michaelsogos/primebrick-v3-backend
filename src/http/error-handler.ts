@@ -1,7 +1,7 @@
 import type { ErrorRequestHandler } from "express";
 import { isDatabaseUnavailableError, isApiError, type ApiErrorResponse } from "./api-errors.js";
 
-export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   // Log all errors to console with full details including stack trace
   console.error("[Backend Error]", {
     message: err.message,
@@ -11,6 +11,8 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   });
 
   if (res.headersSent) return;
+
+  const instance = req.originalUrl || req.url;
 
   // Handle ApiError instances (RFC 7807 compliant)
   if (isApiError(err)) {
@@ -25,6 +27,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
       title: 'Database unavailable',
       status: 503,
       detail: 'The database is currently unavailable. Please try again later.',
+      instance,
       severity: 'CRITICAL' as const,
     };
     // 503 is the standard (>= 501) for downstream unavailability.
@@ -37,6 +40,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     title: 'Internal server error',
     status: 500,
     detail: 'An unexpected error occurred. Please try again later.',
+    instance,
     severity: 'HIGH' as const,
   };
   res.status(500).json(payload);

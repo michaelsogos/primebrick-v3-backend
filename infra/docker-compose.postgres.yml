@@ -57,7 +57,36 @@ services:
       timeout: 5s
       retries: 5
 
+  casdoor:
+    image: casbin/casdoor:latest
+    container_name: primebrick-casdoor
+    environment:
+      driverName: postgres
+      # Indichiamo a Casdoor il DB target 'casdoor'
+      dataSourceName: "user=primebrick password=primebrick_dev host=postgres port=5432 sslmode=disable dbname=casdoor"
+      runmode: dev
+      httpport: "8000"
+    ports:
+      - "127.0.0.1:${CASDOOR_HOST_PORT:-8000}:8000"
+    volumes:
+      # Named volume for Casdoor static data (uploaded files, configs).
+      # Survives container restarts.
+      - primebrick_casdoor_data:/data
+    # Casdoor will create the database automatically if it doesn't exist
+    entrypoint: /bin/sh -c "./server --createDatabase=true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/.well-known/openid-configuration || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   primebrick_pg18_data:
     # Fixed name so the volume is easy to spot and is not tied to the compose project prefix.
     name: primebrick_pg18_data
+  primebrick_casdoor_data:
+    # Named volume for Casdoor persistence across container restarts.
+    name: primebrick_casdoor_data

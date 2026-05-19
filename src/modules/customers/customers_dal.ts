@@ -10,6 +10,7 @@ import { CustomerEntity, type CustomerStatus } from "./customer_entity.js";
 import type { CustomerCreateBody, CustomerUpdateBody, CustomerListQuery } from "./dto.js";
 import { CUSTOMER_SEARCHABLE_KEYS, CUSTOMER_FILTERABLE_KEYS } from "./list-config.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
+import { requireActor } from "../auth/session-context.js";
 
 function buildIlikeNeedleFromSearch(raw: string): {
   needle: string;
@@ -696,6 +697,7 @@ export class CustomersDal {
 
   async createCustomer(body: CustomerCreateBody): Promise<{ uuid: string }> {
     const uuid = randomUUID();
+    const actor = requireActor();
     await this.repo.insertMany(CustomerEntity, [
       {
         uuid,
@@ -714,33 +716,33 @@ export class CustomersDal {
         local_zip: body.local_zip,
         onboarding_at: body.onboarding_at,
         onboarding_time_zone: body.onboarding_time_zone,
-        created_by: "system",
-        updated_by: "system",
+        created_by: actor,
+        updated_by: actor,
         version: 1,
       },
     ]);
     return { uuid };
   }
 
-  async updateCustomer(uuid: string, body: CustomerUpdateBody, updatedBy: string): Promise<void> {
-    await this.repo.update(CustomerEntity, uuid, body, updatedBy);
+  async updateCustomer(uuid: string, body: CustomerUpdateBody): Promise<void> {
+    await this.repo.update(CustomerEntity, uuid, body, requireActor());
   }
 
-  async deleteCustomer(uuid: string, deletedBy: string): Promise<void> {
-    await this.repo.delete(CustomerEntity, uuid, deletedBy);
+  async deleteCustomer(uuid: string): Promise<void> {
+    await this.repo.delete(CustomerEntity, uuid, requireActor());
   }
 
-  async restoreCustomer(uuid: string, restoredBy: string): Promise<void> {
-    await this.repo.restore(CustomerEntity, uuid, restoredBy);
+  async restoreCustomer(uuid: string): Promise<void> {
+    await this.repo.restore(CustomerEntity, uuid, requireActor());
   }
 
-  async restoreCustomers(uuids: string[], restoredBy: string): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {
+  async restoreCustomers(uuids: string[]): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {
     const results: string[] = [];
     const errors: Array<{ uuid: string; error: string }> = [];
 
     for (const uuid of uuids) {
       try {
-        await this.restoreCustomer(uuid, restoredBy);
+        await this.restoreCustomer(uuid);
         results.push(uuid);
       } catch (e) {
         console.error('[Customer Restore Error]', {
@@ -757,18 +759,18 @@ export class CustomersDal {
     return { uuids: results, errors };
   }
 
-  async duplicateCustomer(uuid: string, duplicatedBy: string): Promise<{ uuid: string }> {
-    const newUuid = await this.repo.clone(CustomerEntity, uuid, duplicatedBy);
+  async duplicateCustomer(uuid: string): Promise<{ uuid: string }> {
+    const newUuid = await this.repo.clone(CustomerEntity, uuid, requireActor());
     return { uuid: newUuid };
   }
 
-  async duplicateCustomers(uuids: string[], duplicatedBy: string): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {
+  async duplicateCustomers(uuids: string[]): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {
     const results: string[] = [];
     const errors: Array<{ uuid: string; error: string }> = [];
 
     for (const uuid of uuids) {
       try {
-        const result = await this.duplicateCustomer(uuid, duplicatedBy);
+        const result = await this.duplicateCustomer(uuid);
         results.push(result.uuid);
       } catch (e) {
         console.error('[Customer Duplicate Error]', {
