@@ -46,7 +46,7 @@ export function authRouter() {
       let casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
       let clientId = process.env.OIDC_CLIENT_ID || "";
       let clientSecret = process.env.OIDC_CLIENT_SECRET || "";
-      let orgName = "admin";
+      let orgName = "acme"; // Default to snake_case lower case
 
       try {
         const pool = getPool();
@@ -117,6 +117,20 @@ export function authRouter() {
             const errorJson = JSON.parse(errorText);
             errorDetail = errorJson.error_description || errorJson.error || errorDetail;
             errorCode = errorJson.error || errorCode;
+
+            // Check if it's an account locked error (too many failed attempts)
+            if (errorJson.error === "invalid_grant" && errorJson.error_description) {
+              const desc = errorJson.error_description;
+              if (desc.includes("too many times")) {
+                const minutesMatch = desc.match(/wait for (\d+) minutes/);
+                const minutes = minutesMatch ? parseInt(minutesMatch[1]) : 0;
+
+                errorCode = "account_locked";
+                errorDetail = `Account locked due to too many failed attempts. Wait ${minutes} minutes.`;
+
+                console.log(`[Auth Login] Account locked detected. Wait time: ${minutes} minutes`);
+              }
+            }
           } catch {
             errorDetail = errorText || errorDetail;
           }
@@ -184,15 +198,21 @@ export function authRouter() {
         const claims = JSON.parse(rawPayload);
 
         // Return only user profile data to frontend
+        const roles = (claims.roles || []).filter((role: any) => role.isEnabled !== false).map((role: any) => ({
+          name: role.name,
+          displayName: role.displayName,
+          owner: role.owner
+        }));
+
         res.json({
           success: true,
           user: {
             username: claims.name || claims.username || claims.preferred_username,
-            roles: claims.roles || [],
-            avatar: claims.avatar,
+            displayName: claims.displayName || claims.name || claims.username || claims.preferred_username,
             email: claims.email,
             organization: claims.organization,
-            expiresAt: claims.exp * 1000
+            expiresAt: claims.exp * 1000,
+            roles
           }
         });
       } catch (e) {
@@ -236,7 +256,7 @@ export function authRouter() {
       let casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
       let clientId = process.env.OIDC_CLIENT_ID || "";
       let clientSecret = process.env.OIDC_CLIENT_SECRET || "";
-      let orgName = "admin";
+      let orgName = "acme"; // Default to snake_case lower case
 
       try {
         const pool = getPool();
@@ -344,15 +364,21 @@ export function authRouter() {
         const claims = JSON.parse(rawPayload);
 
         // Return only user profile data to frontend
+        const roles = (claims.roles || []).filter((role: any) => role.isEnabled !== false).map((role: any) => ({
+          name: role.name,
+          displayName: role.displayName,
+          owner: role.owner
+        }));
+
         res.json({
           success: true,
           user: {
             username: claims.name || claims.username || claims.preferred_username,
-            roles: claims.roles || [],
-            avatar: claims.avatar,
+            displayName: claims.displayName || claims.name || claims.username || claims.preferred_username,
             email: claims.email,
             organization: claims.organization,
-            expiresAt: claims.exp * 1000
+            expiresAt: claims.exp * 1000,
+            roles
           }
         });
       } catch (e) {

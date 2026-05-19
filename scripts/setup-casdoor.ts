@@ -3,12 +3,22 @@ import axios from "axios";
 import { Pool } from "pg";
 import crypto from "crypto";
 
+// Helper function to convert string to snake_case lower case
+function toSnakeCaseLower(str: string): string {
+  return str.toLowerCase().replace(/[^a-z0-9]/g, '_');
+}
+
 const CASDOOR_ENDPOINT = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
 const CASDOOR_CLIENT_ID = process.env.CASDOOR_CLIENT_ID || "primebrick-api";
 const CASDOOR_ADMIN_USERNAME = process.env.CASDOOR_ADMIN_USERNAME || "admin";
 const CASDOOR_ADMIN_EMAIL = process.env.CASDOOR_ADMIN_EMAIL || "admin@acme.local";
 const CASDOOR_ADMIN_PASSWORD = process.env.CASDOOR_ADMIN_PASSWORD || "admin";
 const CASDOOR_ORGANIZATION = process.env.CASDOOR_ORGANIZATION || "ACME";
+
+// Convert names to snake_case lower case (Casdoor uses NAME as ID)
+const ORG_NAME = toSnakeCaseLower(CASDOOR_ORGANIZATION);
+const ROLE_NAME = "administrators"; // Hardcoded as per requirement
+const USER_NAME = toSnakeCaseLower(CASDOOR_ADMIN_USERNAME);
 
 const BASE_DATABASE_URL = process.env.DATABASE_URL || "postgres://primebrick:primebrick_dev@127.0.0.1:5432/primebrick";
 const CASDOOR_DATABASE_URL = BASE_DATABASE_URL.endsWith("/primebrick") 
@@ -58,11 +68,11 @@ async function main(): Promise<void> {
         : crypto.randomBytes(24).toString("hex");
       
       await casdoorPool.query(
-        `UPDATE application 
+        `UPDATE application
          SET grant_types = '["password", "authorization_code", "client_credentials"]',
-             client_id = $1, client_secret = $2, expire_in_hours = 1, refresh_expire_in_hours = 24
+             client_id = $1, client_secret = $2, expire_in_hours = 1, refresh_expire_in_hours = 24, organization = $4
          WHERE name = $3 AND owner = 'admin'`,
-        [pbClientId, pbClientSecret, CASDOOR_CLIENT_ID]
+        [pbClientId, pbClientSecret, CASDOOR_CLIENT_ID, ORG_NAME]
       );
       console.log("  ↳ ✅ Applicazione primebrick-api aggiornata (Token: 1h, Refresh: 24h).");
     } else {
@@ -71,7 +81,7 @@ async function main(): Promise<void> {
       await casdoorPool.query(
         `INSERT INTO application (owner, name, created_time, display_name, logo, homepage_url, description, organization, cert, enable_password, enable_sign_up, client_id, client_secret, redirect_uris, token_format, expire_in_hours, refresh_expire_in_hours, grant_types)
          VALUES ('admin', $1, NOW()::text, 'Primebrick API', '', '', '', $2, '', true, false, $3, $4, '["http://localhost:3000/callback"]', 'JWT', 1, 24, '["password", "authorization_code", "client_credentials"]')`,
-        [CASDOOR_CLIENT_ID, CASDOOR_ORGANIZATION, pbClientId, pbClientSecret]
+        [CASDOOR_CLIENT_ID, ORG_NAME, pbClientId, pbClientSecret]
       );
       console.log("  ↳ ✅ Applicazione primebrick-api creata da zero via SQL.");
     }
@@ -101,23 +111,23 @@ async function main(): Promise<void> {
 
   // 3. CREAZIONE ORGANIZZAZIONE
   console.log("\n📡 [API] Sincronizzazione Organizzazione...");
-  const resOrg = await http.post(`/add-organization?id=admin/${CASDOOR_ORGANIZATION}`, {
-    owner: "admin", name: CASDOOR_ORGANIZATION, displayName: CASDOOR_ORGANIZATION, websiteUrl: "https://acme.io", passwordType: "plain"
+  const resOrg = await http.post(`/add-organization?id=admin/${ORG_NAME}`, {
+    owner: "admin", name: ORG_NAME, displayName: CASDOOR_ORGANIZATION, websiteUrl: "https://acme.io", passwordType: "plain"
   });
   handleResponse(resOrg, "Crea Organizzazione");
 
   // 4. CREAZIONE RUOLO ADMINISTRATORS
-  console.log("\n� [API] Sincronizzazione Ruolo...");
-  const resRole = await http.post(`/add-role?id=${CASDOOR_ORGANIZATION}/Administrators`, {
-    owner: CASDOOR_ORGANIZATION, name: "Administrators", displayName: "Administrators", description: "Administrators role"
+  console.log("\n📡 [API] Sincronizzazione Ruolo...");
+  const resRole = await http.post(`/add-role?id=${ORG_NAME}/${ROLE_NAME}`, {
+    owner: ORG_NAME, name: ROLE_NAME, displayName: "Administrators", description: "Administrators role"
   });
   handleResponse(resRole, "Crea Ruolo");
 
   // 5. CREAZIONE UTENTE ADMIN
   console.log("\n📡 [API] Sincronizzazione Utente...");
-  const resUser = await http.post(`/add-user?id=${CASDOOR_ORGANIZATION}/${CASDOOR_ADMIN_USERNAME}`, {
-    owner: CASDOOR_ORGANIZATION, name: CASDOOR_ADMIN_USERNAME, displayName: "Primebrick Admin",
-    email: CASDOOR_ADMIN_EMAIL, password: CASDOOR_ADMIN_PASSWORD, isAdmin: true, isGlobalAdmin: false, signupApplication: CASDOOR_CLIENT_ID
+  const resUser = await http.post(`/add-user?id=${ORG_NAME}/${USER_NAME}`, {
+    owner: ORG_NAME, name: USER_NAME, displayName: "Primebrick Admin",
+    email: CASDOOR_ADMIN_EMAIL, password: CASDOOR_ADMIN_PASSWORD, isAdmin: false, isGlobalAdmin: false, signupApplication: CASDOOR_CLIENT_ID
   });
   handleResponse(resUser, "Crea Utente Admin");
 
@@ -125,20 +135,26 @@ async function main(): Promise<void> {
   console.log("\n🔗 [DB CASDOOR] Associazione Utente -> Ruolo...");
   const linkPool = new Pool({ connectionString: CASDOOR_DATABASE_URL });
   try {
-    const roleKey = `${CASDOOR_ORGANIZATION}/Administrators`;
-    const userKey = `${CASDOOR_ORGANIZATION}/${CASDOOR_ADMIN_USERNAME}`;
-    
+    const roleKey = `${ORG_NAME}/${ROLE_NAME}`;
+    const userKey = `${ORG_NAME}/${USER_NAME}`;
+
     // Verifichiamo se il link esiste già modificando la colonna users (formato array stringhe o testo nel DB)
-    const roleRes = await linkPool.query("SELECT users FROM role WHERE name='Administrators' AND owner=$1", [CASDOOR_ORGANIZATION]);
+    const roleRes = await linkPool.query("SELECT users FROM role WHERE name=$1 AND owner=$2", [ROLE_NAME, ORG_NAME]);
     if (roleRes.rows.length > 0) {
       let currentUsers: string[] = [];
       try {
-        currentUsers = typeof roleRes.rows[0].users === 'string' ? JSON.parse(roleRes.rows[0].users) : roleRes.rows[0].users || [];
+        const usersValue = roleRes.rows[0].users;
+        if (usersValue) {
+          const parsed = typeof usersValue === 'string' ? JSON.parse(usersValue) : usersValue;
+          if (Array.isArray(parsed)) {
+            currentUsers = parsed;
+          }
+        }
       } catch { currentUsers = []; }
-      
+
       if (!currentUsers.includes(userKey)) {
         currentUsers.push(userKey);
-        await linkPool.query("UPDATE role SET users = $1 WHERE name='Administrators' AND owner=$2", [JSON.stringify(currentUsers), CASDOOR_ORGANIZATION]);
+        await linkPool.query("UPDATE role SET users = $1 WHERE name=$2 AND owner=$3", [JSON.stringify(currentUsers), ROLE_NAME, ORG_NAME]);
       }
     }
     console.log("  ↳ ✅ Associazione completata in sicurezza.");
@@ -158,6 +174,7 @@ async function main(): Promise<void> {
     await updateAuthConfig(pbPool, "casdoor_admin_password", CASDOOR_ADMIN_PASSWORD, "setup-casdoor");
     await updateAuthConfig(pbPool, "casdoor_builtin_client_id", liveClientId, "setup-casdoor");
     await updateAuthConfig(pbPool, "casdoor_builtin_client_secret", liveClientSecret, "setup-casdoor");
+    await updateAuthConfig(pbPool, "casdoor_organization", ORG_NAME, "setup-casdoor");
     console.log("  ↳ ✅ Chiavi consolidate sul database Primebrick.");
   } catch (dbErr: any) {
     console.error("❌ Errore salvataggio DB Core:", dbErr.message);
