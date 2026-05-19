@@ -182,7 +182,7 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
               ? realPerms.filter((p) => !userPerms.has(p))
               : realPerms; // for OR, none was found
           next(
-            new ForbiddenError("Insufficient permissions to perform this action", {
+            new UnauthorizedError("Insufficient permissions to perform this action", {
               internal_code: "RBAC_PERMISSION_DENIED",
               extra: {
                 issues: [
