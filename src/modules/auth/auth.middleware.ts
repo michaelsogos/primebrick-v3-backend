@@ -43,17 +43,15 @@ import { expandPermissions, Permission } from "./permissions.js";
 
 // Cached role mappings loaded at startup
 let roleMappingCache: Map<string, { permissions: string[]; is_admin: boolean }> | null = null;
-let allPermissionsCache: string[] | null = null;
 
 /**
- * Load role mappings from the database and cache them.
+ * Load role mappings into memory at startup.
  * This should be called at application startup.
  */
 export async function loadRoleMappings(): Promise<void> {
   const pool = getPool();
   const repo = new RoleMappingRepo(pool);
   roleMappingCache = await repo.loadAllMappings();
-  allPermissionsCache = await repo.getAllPermissions();
 }
 
 /**
@@ -61,7 +59,6 @@ export async function loadRoleMappings(): Promise<void> {
  */
 export function clearRoleMappingCache(): void {
   roleMappingCache = null;
-  allPermissionsCache = null;
 }
 
 /**
@@ -132,12 +129,11 @@ async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAu
     email: normalized.email,
     display_name: normalized.name,
   });
-  const permissions = await expandPermissions(
+  const { patterns, isAdmin } = await expandPermissions(
     normalized.roles,
-    () => Promise.resolve(allPermissionsCache || Object.values(Permission)),
     (role) => Promise.resolve(roleMappingCache?.get(role) || null)
   );
-  return buildAuthUser(internalUuid, normalized, permissions);
+  return buildAuthUser(internalUuid, normalized, new Set(patterns), isAdmin);
 }
 
 async function fromGateway(req: Request, cfg: Awaited<ReturnType<typeof getAuthConfig>>): Promise<AuthUser> {
@@ -174,9 +170,8 @@ async function fromGateway(req: Request, cfg: Awaited<ReturnType<typeof getAuthC
     email,
     display_name: name,
   });
-  const permissions = await expandPermissions(
+  const { patterns, isAdmin } = await expandPermissions(
     roles,
-    () => Promise.resolve(allPermissionsCache || Object.values(Permission)),
     (role) => Promise.resolve(roleMappingCache?.get(role) || null)
   );
   return buildAuthUser(internalUuid, {
@@ -184,7 +179,7 @@ async function fromGateway(req: Request, cfg: Awaited<ReturnType<typeof getAuthC
     email,
     name,
     roles,
-  }, permissions);
+  }, new Set(patterns), isAdmin);
 }
 
 function readHeaderString(req: Request, name: string): string | null {

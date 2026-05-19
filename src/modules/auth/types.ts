@@ -23,6 +23,8 @@ export type AuthUser = {
   roles: string[];
   /** Flattened set of permissions granted by `roles`. */
   permissions: Set<string>;
+  /** If true, user bypasses all permission checks (admin role). */
+  isAdmin: boolean;
 };
 
 /**

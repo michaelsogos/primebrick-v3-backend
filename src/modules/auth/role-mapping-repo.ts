@@ -12,7 +12,7 @@ interface RoleMappingRow {
  * Repository for loading role-to-permission mappings from the database.
  *
  * This is the single source of truth for role permissions. The auth middleware
- * uses this to expand a user's IDP roles into a set of granted permissions.
+ * uses this to expand a user's IDP roles into a set of granted permission patterns.
  */
 export class RoleMappingRepo {
   private repo: Repository;
@@ -39,19 +39,6 @@ export class RoleMappingRepo {
     }
 
     return map;
-  }
-
-  /**
-   * Get all known permissions in the system.
-   * This is useful for the frontend role-permission mapping UI.
-   */
-  async getAllPermissions(): Promise<string[]> {
-    // Collect all unique permissions from all role mappings
-    const rows = await this.repo.rawSql<{ permission: string }>(
-      `SELECT DISTINCT jsonb_array_elements_text(permissions) as permission FROM role_mappings WHERE permissions IS NOT NULL`
-    );
-
-    return rows.map((r) => r.permission);
   }
 
   /**

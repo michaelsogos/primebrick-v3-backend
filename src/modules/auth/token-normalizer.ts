@@ -103,7 +103,8 @@ export function normalizeIdpToken(
 export function buildAuthUser(
   internalUuid: string,
   normalized: NormalizedIdpUser,
-  permissions: Set<string>
+  permissions: Set<string>,
+  isAdmin: boolean
 ): AuthUser {
   return {
     id: internalUuid,
@@ -112,5 +113,6 @@ export function buildAuthUser(
     name: normalized.name,
     roles: normalized.roles,
     permissions,
+    isAdmin,
   };
 }

@@ -45,7 +45,7 @@
  *   // OR is the default; explicit AND:
  *   router.get(
  *     "/api/v1/...",
- *     rbacHandler.all([Permission.CUSTOMERS_LIST, Permission.MODULES_ADMIN]),
+ *     rbacHandler.all([Permission.CUSTOMERS_READ_ALL, Permission.MODULES_ADMIN]),
  *     ...
  *   );
  *
@@ -63,7 +63,7 @@ import { ForbiddenError, UnauthorizedError } from "../../http/api-errors.js";
 import { getAuthConfig } from "./config.js";
 import { getPool } from "../../db/pool.js";
 import { authMiddleware } from "./auth.middleware.js";
-import { Permission, isPermissionSentinel } from "./permissions.js";
+import { Permission, isPermissionSentinel, isPermissionGranted } from "./permissions.js";
 
 /** Internal marker injected on every handler returned by `rbacHandler(...)`. */
 export const PERMISSION_DECLARED = Symbol.for("primebrick.rbac.permissionDeclared");
@@ -168,18 +168,24 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
           return;
         }
 
+        // Admin bypass: if user is admin, skip all permission checks
+        if (req.user.isAdmin) {
+          next();
+          return;
+        }
+
         const userPerms = req.user.permissions;
         let passes: boolean;
         if (mode === "all") {
-          passes = realPerms.every((p) => userPerms.has(p));
+          passes = realPerms.every((p) => isPermissionGranted(userPerms, p));
         } else {
-          passes = realPerms.some((p) => userPerms.has(p));
+          passes = realPerms.some((p) => isPermissionGranted(userPerms, p));
         }
 
         if (!passes) {
           const missing =
             mode === "all"
-              ? realPerms.filter((p) => !userPerms.has(p))
+              ? realPerms.filter((p) => !isPermissionGranted(userPerms, p))
               : realPerms; // for OR, none was found
           next(
             new UnauthorizedError("Insufficient permissions to perform this action", {

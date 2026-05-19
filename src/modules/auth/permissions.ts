@@ -39,20 +39,29 @@ export const Permission = {
   AUTHENTICATED_USER: "_authenticated_user",
 
   // --- System / cross-module ---
-  MODULES_LIST: "modules:list",
+  MODULES_READ_ALL: "modules.read.all",
 
   // --- Customers module ---
-  CUSTOMERS_LIST: "customers:list",
-  CUSTOMERS_READ: "customers:read",
-  CUSTOMERS_CREATE: "customers:create",
-  CUSTOMERS_UPDATE: "customers:update",
-  CUSTOMERS_DELETE: "customers:delete",
-  CUSTOMERS_BULK_DELETE: "customers:bulk-delete",
-  CUSTOMERS_RESTORE: "customers:restore",
-  CUSTOMERS_BULK_RESTORE: "customers:bulk-restore",
-  CUSTOMERS_BULK_DUPLICATE: "customers:bulk-duplicate",
-  CUSTOMERS_EXPORT: "customers:export",
-  CUSTOMERS_AUDIT_READ: "customers:audit:read",
+  CUSTOMERS_READ_ALL: "customers.read.all",
+
+  CUSTOMERS_READ_SINGLE: "customers.read.single",
+  CUSTOMERS_READ_AUDIT: "customers.read.audit",
+
+  CUSTOMERS_CREATE_SINGLE: "customers.create.single",
+  CUSTOMERS_CREATE_BULK: "customers.create.bulk",
+
+  CUSTOMERS_UPDATE_SINGLE: "customers.update.single",
+  CUSTOMERS_UPDATE_BULK: "customers.update.bulk",
+
+  CUSTOMERS_DELETE_SINGLE: "customers.delete.single",
+  CUSTOMERS_DELETE_BULK: "customers.delete.bulk",
+
+  CUSTOMERS_RESTORE_SINGLE: "customers.restore.single",
+  CUSTOMERS_RESTORE_BULK: "customers.restore.bulk",
+
+  CUSTOMERS_DUPLICATE_BULK: "customers.duplicate.bulk",
+
+  CUSTOMERS_EXPORT: "customers.export",
 } as const;
 
 /**
@@ -66,35 +75,82 @@ export function isPermissionSentinel(p: string): boolean {
 export type Permission = (typeof Permission)[keyof typeof Permission];
 
 /**
- * Expand a list of role names into the union of their granted permissions.
+ * Convert a wildcard pattern to a regex for matching.
+ * Supports * wildcard only (no ? or character classes for simplicity).
+ * Example: "customers.read.*" → /^customers\.read\..*$/
+ */
+function wildcardToRegex(pattern: string): RegExp {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+  const wildcardPattern = escaped.replace(/\*/g, '.*');
+  return new RegExp(`^${wildcardPattern}$`);
+}
+
+/**
+ * Check if a permission string matches a pattern (supports * wildcard).
+ * @param pattern - Pattern with optional * wildcard (e.g., "customers.read.*")
+ * @param permission - Permission string to match (e.g., "customers.read.single")
+ * @returns true if permission matches pattern
+ */
+export function matchesWildcard(pattern: string, permission: string): boolean {
+  if (!pattern.includes('*')) {
+    // No wildcard - exact match
+    return pattern === permission;
+  }
+  const regex = wildcardToRegex(pattern);
+  return regex.test(permission);
+}
+
+/**
+ * Check if a permission is granted given a set of user permissions.
+ * Supports wildcard patterns in user permissions.
+ * @param userPermissions - Set of permissions granted to user (may contain wildcards)
+ * @param requiredPermission - Permission required by the endpoint
+ * @returns true if permission is granted
+ */
+export function isPermissionGranted(userPermissions: Set<string>, requiredPermission: string): boolean {
+  // Check exact match first (fast path)
+  if (userPermissions.has(requiredPermission)) {
+    return true;
+  }
+
+  // Check wildcard patterns
+  for (const userPerm of userPermissions) {
+    if (userPerm.includes('*') && matchesWildcard(userPerm, requiredPermission)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Expand a list of role names into patterns and admin status.
  * This function queries the `role_mappings` table to resolve roles to permissions.
- * Roles marked with `is_admin=true` grant ALL permissions.
+ * Roles marked with `is_admin=true` bypass all permission checks.
  *
  * @param roles - Role names from the IDP (as extracted from JWT via AUTH_ROLES_PATH)
- * @param getAllPermissionsFn - Function that returns all known permissions in the system
  * @param getRoleMappingFn - Function that returns the mapping for a specific role
- * @returns Set of granted permissions
+ * @returns Object with patterns array and isAdmin flag
  */
 export async function expandPermissions(
   roles: readonly string[],
-  getAllPermissionsFn: () => Promise<string[]>,
   getRoleMappingFn: (role: string) => Promise<{ permissions: string[]; is_admin: boolean } | null>
-): Promise<Set<string>> {
-  const out = new Set<string>();
+): Promise<{ patterns: string[]; isAdmin: boolean }> {
+  const patterns = new Set<string>();
+  let isAdmin = false;
 
   for (const r of roles) {
     const mapping = await getRoleMappingFn(r);
     if (!mapping) continue;
 
-    // If role is admin, grant ALL permissions
+    // If any role is admin, set isAdmin flag
     if (mapping.is_admin) {
-      const allPerms = await getAllPermissionsFn();
-      for (const p of allPerms) out.add(p);
-    } else {
-      // Grant the specific permissions for this role
-      for (const p of mapping.permissions) out.add(p);
+      isAdmin = true;
     }
+
+    // Add all patterns from this role (ignored if isAdmin=true, but we collect them anyway)
+    for (const p of mapping.permissions) patterns.add(p);
   }
 
-  return out;
+  return { patterns: Array.from(patterns), isAdmin };
 }
