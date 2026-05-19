@@ -5,7 +5,9 @@ export type ApiErrorCode =
   | "LIST_FAILED"
   | "VALIDATION_ERROR"
   | "NOT_FOUND"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN";
 
 export type ApiErrorResponse = {
   type: string;
@@ -35,6 +37,7 @@ export class ApiError extends Error {
   public readonly instance?: string;
   public readonly internal_code?: string;
   public readonly severity?: ImpactLevel;
+  public readonly extra?: ApiErrorResponse["extra"];
 
   constructor(
     type: string,
@@ -45,6 +48,7 @@ export class ApiError extends Error {
       instance?: string;
       internal_code?: string;
       severity?: ImpactLevel;
+      extra?: ApiErrorResponse["extra"];
     }
   ) {
     super(detail);
@@ -56,6 +60,7 @@ export class ApiError extends Error {
     this.instance = options?.instance;
     this.internal_code = options?.internal_code;
     this.severity = options?.severity || "HIGH";
+    this.extra = options?.extra;
   }
 
   toResponse(): ApiErrorResponse {
@@ -67,6 +72,7 @@ export class ApiError extends Error {
       instance: this.instance,
       internal_code: this.internal_code,
       severity: this.severity,
+      extra: this.extra,
     };
   }
 }
@@ -128,6 +134,63 @@ export class UnprocessableEntityError extends ApiError {
       }
     );
     this.name = "UnprocessableEntityError";
+  }
+}
+
+/**
+ * Unauthorized Error (401) - RFC 7807
+ * Authentication is missing or invalid (no token / invalid signature / expired).
+ */
+export class UnauthorizedError extends ApiError {
+  constructor(
+    detail: string,
+    options?: {
+      instance?: string;
+      internal_code?: string;
+      extra?: ApiErrorResponse["extra"];
+    }
+  ) {
+    super(
+      "/errors/unauthorized",
+      "Unauthorized",
+      401,
+      detail,
+      {
+        ...options,
+        internal_code: options?.internal_code || "UNAUTHORIZED",
+        severity: "MEDIUM",
+      }
+    );
+    this.name = "UnauthorizedError";
+  }
+}
+
+/**
+ * Forbidden Error (403) - RFC 7807
+ * Authentication ok, but the user lacks the required permissions.
+ * `extra.issues` SHOULD contain the missing permissions for the caller to inspect.
+ */
+export class ForbiddenError extends ApiError {
+  constructor(
+    detail: string,
+    options?: {
+      instance?: string;
+      internal_code?: string;
+      extra?: ApiErrorResponse["extra"];
+    }
+  ) {
+    super(
+      "/errors/forbidden",
+      "Forbidden",
+      403,
+      detail,
+      {
+        ...options,
+        internal_code: options?.internal_code || "FORBIDDEN",
+        severity: "MEDIUM",
+      }
+    );
+    this.name = "ForbiddenError";
   }
 }
 
