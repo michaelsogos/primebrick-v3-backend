@@ -161,7 +161,7 @@ app.use(openApiRouter());
 
 // Use makeProtectedRouter for /modules endpoint
 const apiRouter = makeProtectedRouter();
-apiRouter.get("/modules", rbacHandler([Permission.MODULES_LIST]), (_req, res) => {
+apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), (_req, res) => {
   res.json({
     modules: [
       { id: "crm", name: "CRM", enabled: true },
