@@ -94,15 +94,24 @@ export function authMiddleware(): RequestHandler {
 }
 
 async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAuthConfig>>): Promise<AuthUser> {
+  let token = "";
+
+  // 1. TENTATIVO A: Estrazione dall'header Authorization (Standard per integrazioni esterne)
   const header = req.headers["authorization"];
-  if (!header || typeof header !== "string" || !header.toLowerCase().startsWith("bearer ")) {
-    throw new UnauthorizedError("Authentication required - please provide a valid token", {
-      internal_code: "AUTH_BEARER_MISSING",
-    });
+  if (header && typeof header === "string" && header.toLowerCase().startsWith("bearer ")) {
+    token = header.slice(7).trim();
   }
-  const token = header.slice(7).trim();
+
+  // 2. TENTATIVO B: Se l'header è vuoto, cerchiamo nel cookie HttpOnly (Standard per il nostro FE Svelte)
+  if (!token && req.cookies && req.cookies.access_token) {
+    token = req.cookies.access_token;
+  }
+
+  // 3. Se non è presente in nessuno dei due posti, blocchiamo la richiesta
   if (!token) {
-    throw new UnauthorizedError("Empty Bearer token", { internal_code: "AUTH_BEARER_EMPTY" });
+    throw new UnauthorizedError("Authentication required - please provide a valid token via Bearer header or cookie", {
+      internal_code: "AUTH_TOKEN_MISSING",
+    });
   }
 
   let claims;

@@ -1,5 +1,6 @@
 import cors from "cors";
 import express, { type Response } from "express";
+import cookieParser from "cookie-parser";
 import { customersRouter } from "./modules/customers/router.js";
 import { authRouter } from "./modules/auth/router.js";
 import { Pool } from "pg";
@@ -24,6 +25,7 @@ const port = Number(process.env.PORT) || 3001;
 
 app.use(cors({ origin: true }));
 app.use(express.json());
+app.use(cookieParser());
 
 type HealthModule = { id: string; version: string };
 type HealthPayload = {

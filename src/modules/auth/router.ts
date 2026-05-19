@@ -44,16 +44,16 @@ export function authRouter() {
 
       // Load Casdoor configuration from database or fallback to environment variables
       let casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
-      let clientId = process.env.CASDOOR_BUILTIN_CLIENT_ID || "cb05577e2097c31af3c7";
-      let clientSecret = process.env.CASDOOR_BUILTIN_CLIENT_SECRET || "47b2e05673a5307ccf0552e32ba45a18f6627f21";
+      let clientId = process.env.OIDC_CLIENT_ID || "";
+      let clientSecret = process.env.OIDC_CLIENT_SECRET || "";
       let orgName = "admin";
 
       try {
         const pool = getPool();
         const dbConfig = await loadAuthConfigFromDb(pool);
         casdoorEndpoint = dbConfig.casdoorEndpoint || casdoorEndpoint;
-        clientId = dbConfig.casdoorBuiltinClientId || clientId;
-        clientSecret = dbConfig.casdoorBuiltinClientSecret || clientSecret;
+        clientId = dbConfig.oidcClientId || clientId;
+        clientSecret = dbConfig.oidcClientSecret || clientSecret;
         orgName = dbConfig.casdoorOrganization || orgName;
       } catch (error) {
         console.error("[Auth Login] Could not load configuration from database, using fallback:", error);
@@ -74,6 +74,16 @@ export function authRouter() {
       formData.append("scope", "openid profile email");
       formData.append("organization", orgName);
 
+      // --- [ISPEZIONE DEBBUGING OUTBOUND] ---
+      console.log("==================================================");
+      console.log(`📡 [OUTBOUND REQUEST] Invio dati a Casdoor: ${tokenUrl}`);
+      console.log(`   -> grant_type:   "password"`);
+      console.log(`   -> client_id:    "${clientId}"`);
+      console.log(`   -> client_secret: "${clientSecret ? '*** PRESENT (Length: ' + clientSecret.length + ') ***' : 'MISSING'}"`);
+      console.log(`   -> username:     "${username}"`);
+      console.log(`   -> organization: "${orgName}"`);
+      console.log("==================================================");
+
       try {
         const response = await fetch(tokenUrl, {
           method: "POST",
@@ -83,17 +93,23 @@ export function authRouter() {
           body: formData,
         });
 
-        console.log(`[Auth Login] Casdoor response status: ${response.status} ${response.statusText}`);
+        console.log(`📥 [INBOUND RESPONSE] Status: ${response.status} ${response.statusText}`);
+        
+        // Ispezione degli Header di Casdoor (utile per capire se ci sono problemi di sessione o cookie proxy)
+        console.log("   -> Headers:", JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`[Auth Login] Casdoor returned error:`, {
-            status: response.status,
-            statusText: response.statusText,
-            body: errorText,
-          });
+          
+          // GENERAZIONE VOLONTARIA DI UNO STACK TRACE PER L'ERRORE 400/500
+          const fakeError = new Error(`Casdoor rejected the request with status ${response.status}`);
+          
+          console.error(`❌ [AUTH CRITICAL FALLBACK] Dettaglio fallimento proxy:`);
+          console.error(`   -> Body inviato era coerente? ClientID usato: ${clientId}`);
+          console.error(`   -> Risposta grezza Casdoor:`, errorText);
+          console.error(`   -> Stack Trace del punto di fallimento del Proxy:\n`, fakeError.stack);
+          console.error("==================================================");
 
-          // Parse Casdoor error if available
           let errorDetail = "Authentication failed";
           let errorCode = "AUTH_FAILED";
           try {
@@ -101,7 +117,6 @@ export function authRouter() {
             errorDetail = errorJson.error_description || errorJson.error || errorDetail;
             errorCode = errorJson.error || errorCode;
           } catch {
-            // Not JSON, use raw text
             errorDetail = errorText || errorDetail;
           }
 
@@ -117,7 +132,22 @@ export function authRouter() {
         }
 
         const data = await response.json();
-        console.log(`[Auth Login] Login successful for user: ${username}`);
+        console.log(`✅ [AUTH SUCCESS] Login riuscito per: ${username}`);
+        
+        // ISPEZIONE DEL TOKEN RICEVUTO PRIMA DI CRITTOGRAFARLO NEI COOKIE
+        console.log("📦 [TOKEN INSPECTION] Payload grezzo ricevuto da Casdoor:");
+        console.log(`   -> Has Access Token:  ${!!data.access_token}`);
+        console.log(`   -> Has Refresh Token: ${!!data.refresh_token}`);
+        console.log(`   -> Expires In:        ${data.expires_in}s`);
+        console.log(`   -> Refresh Expires:   ${data.refresh_expires_in}s`);
+        if (data.access_token) {
+          const parts = data.access_token.split('.');
+          if (parts[1]) {
+            const payloadDecoded = Buffer.from(parts[1], 'base64').toString('utf-8');
+            console.log(`   -> Claims dentro il JWT di Casdoor:`, JSON.stringify(JSON.parse(payloadDecoded), null, 2));
+          }
+        }
+        console.log("==================================================");
 
         const { access_token, refresh_token, expires_in } = data;
 
@@ -161,7 +191,7 @@ export function authRouter() {
         });
       } catch (e) {
         const error = e as Error;
-        console.error("[Auth Login] Error calling Casdoor:", {
+        console.error("💥 [AUTH EXCEPTION] Eccezione di rete o parsing durante la chiamata a Casdoor:", {
           error: error.message,
           stack: error.stack,
         });
@@ -198,16 +228,16 @@ export function authRouter() {
 
       // Load Casdoor configuration from database or fallback to environment variables
       let casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
-      let clientId = process.env.CASDOOR_BUILTIN_CLIENT_ID || "cb05577e2097c31af3c7";
-      let clientSecret = process.env.CASDOOR_BUILTIN_CLIENT_SECRET || "47b2e05673a5307ccf0552e32ba45a18f6627f21";
+      let clientId = process.env.OIDC_CLIENT_ID || "";
+      let clientSecret = process.env.OIDC_CLIENT_SECRET || "";
       let orgName = "admin";
 
       try {
         const pool = getPool();
         const dbConfig = await loadAuthConfigFromDb(pool);
         casdoorEndpoint = dbConfig.casdoorEndpoint || casdoorEndpoint;
-        clientId = dbConfig.casdoorBuiltinClientId || clientId;
-        clientSecret = dbConfig.casdoorBuiltinClientSecret || clientSecret;
+        clientId = dbConfig.oidcClientId || clientId;
+        clientSecret = dbConfig.oidcClientSecret || clientSecret;
         orgName = dbConfig.casdoorOrganization || orgName;
       } catch (error) {
         console.error("[Auth Refresh] Could not load configuration from database, using fallback:", error);
