@@ -204,6 +204,19 @@ export function authRouter() {
           owner: role.owner
         }));
 
+        // Check if user has any roles
+        if (!roles || roles.length === 0) {
+          res.status(403).json({
+            type: "/errors/forbidden",
+            title: "User doesn't have permission",
+            status: 403,
+            detail: "User doesn't have permission",
+            internal_code: "user_no_permission",
+            severity: "HIGH"
+          });
+          return;
+        }
+
         res.json({
           success: true,
           user: {

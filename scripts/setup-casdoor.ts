@@ -17,7 +17,9 @@ const CASDOOR_ORGANIZATION = process.env.CASDOOR_ORGANIZATION || "ACME";
 
 // Convert names to snake_case lower case (Casdoor uses NAME as ID)
 const ORG_NAME = toSnakeCaseLower(CASDOOR_ORGANIZATION);
-const ROLE_NAME = "administrators"; // Hardcoded as per requirement
+const ROLE_ADMINISTRATORS = "administrators";
+const ROLE_COLLABORATOR = "collaborator";
+const ROLE_GUEST = "guest";
 const USER_NAME = toSnakeCaseLower(CASDOOR_ADMIN_USERNAME);
 
 const BASE_DATABASE_URL = process.env.DATABASE_URL || "postgres://primebrick:primebrick_dev@127.0.0.1:5432/primebrick";
@@ -116,12 +118,34 @@ async function main(): Promise<void> {
   });
   handleResponse(resOrg, "Crea Organizzazione");
 
-  // 4. CREAZIONE RUOLO ADMINISTRATORS
-  console.log("\n📡 [API] Sincronizzazione Ruolo...");
-  const resRole = await http.post(`/add-role?id=${ORG_NAME}/${ROLE_NAME}`, {
-    owner: ORG_NAME, name: ROLE_NAME, displayName: "Administrators", description: "Administrators role"
+  // 4. CREAZIONE RUOLI (Administrators, Collaborator, Guest)
+  console.log("\n📡 [API] Sincronizzazione Ruoli...");
+  const resRoleAdmin = await http.post(`/add-role?id=${ORG_NAME}/${ROLE_ADMINISTRATORS}`, {
+    owner: ORG_NAME, name: ROLE_ADMINISTRATORS, displayName: "Administrators", description: "Administrators role", isEnabled: true
   });
-  handleResponse(resRole, "Crea Ruolo");
+  handleResponse(resRoleAdmin, "Crea Ruolo Administrators");
+
+  const resRoleCollaborator = await http.post(`/add-role?id=${ORG_NAME}/${ROLE_COLLABORATOR}`, {
+    owner: ORG_NAME, name: ROLE_COLLABORATOR, displayName: "Collaborator", description: "Collaborator role", isEnabled: true
+  });
+  handleResponse(resRoleCollaborator, "Crea Ruolo Collaborator");
+
+  const resRoleGuest = await http.post(`/add-role?id=${ORG_NAME}/${ROLE_GUEST}`, {
+    owner: ORG_NAME, name: ROLE_GUEST, displayName: "Guest", description: "Guest role", isEnabled: true
+  });
+  handleResponse(resRoleGuest, "Crea Ruolo Guest");
+
+  // Force update administrators role to isEnabled=true via SQL (in case it already existed)
+  console.log("\n🛠️  [DB CASDOOR] Aggiornamento ruoli esistenti...");
+  const roleUpdatePool = new Pool({ connectionString: CASDOOR_DATABASE_URL });
+  try {
+    await roleUpdatePool.query("UPDATE role SET is_enabled = true WHERE name = $1 AND owner = $2", [ROLE_ADMINISTRATORS, ORG_NAME]);
+    console.log("  ↳ ✅ Ruolo Administrators aggiornato a isEnabled=true.");
+  } catch (err: any) {
+    console.log("  ↳ ⚠️  Impossibile aggiornare ruolo administrators:", err.message);
+  } finally {
+    await roleUpdatePool.end();
+  }
 
   // 5. CREAZIONE UTENTE ADMIN
   console.log("\n📡 [API] Sincronizzazione Utente...");
@@ -132,14 +156,14 @@ async function main(): Promise<void> {
   handleResponse(resUser, "Crea Utente Admin");
 
   // 6. ASSOCIAZIONE UTENTE AL RUOLO (Via SQL per evitare sovrascritture distruttive nel DB Casdoor)
-  console.log("\n🔗 [DB CASDOOR] Associazione Utente -> Ruolo...");
+  console.log("\n🔗 [DB CASDOOR] Associazione Utente -> Ruolo Administrators...");
   const linkPool = new Pool({ connectionString: CASDOOR_DATABASE_URL });
   try {
-    const roleKey = `${ORG_NAME}/${ROLE_NAME}`;
+    const roleKey = `${ORG_NAME}/${ROLE_ADMINISTRATORS}`;
     const userKey = `${ORG_NAME}/${USER_NAME}`;
 
     // Verifichiamo se il link esiste già modificando la colonna users (formato array stringhe o testo nel DB)
-    const roleRes = await linkPool.query("SELECT users FROM role WHERE name=$1 AND owner=$2", [ROLE_NAME, ORG_NAME]);
+    const roleRes = await linkPool.query("SELECT users FROM role WHERE name=$1 AND owner=$2", [ROLE_ADMINISTRATORS, ORG_NAME]);
     if (roleRes.rows.length > 0) {
       let currentUsers: string[] = [];
       try {
@@ -154,7 +178,7 @@ async function main(): Promise<void> {
 
       if (!currentUsers.includes(userKey)) {
         currentUsers.push(userKey);
-        await linkPool.query("UPDATE role SET users = $1 WHERE name=$2 AND owner=$3", [JSON.stringify(currentUsers), ROLE_NAME, ORG_NAME]);
+        await linkPool.query("UPDATE role SET users = $1 WHERE name=$2 AND owner=$3", [JSON.stringify(currentUsers), ROLE_ADMINISTRATORS, ORG_NAME]);
       }
     }
     console.log("  ↳ ✅ Associazione completata in sicurezza.");
