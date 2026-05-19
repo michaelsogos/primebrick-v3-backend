@@ -114,8 +114,8 @@ export async function getAuthConfig(pool?: Pool): Promise<AuthConfig> {
       ? (dbConfig?.oidcIssuerUrl ?? process.env.OIDC_ISSUER_URL ?? "")
       : (dbConfig?.oidcIssuerUrl ?? process.env.OIDC_ISSUER_URL ?? ""),
     clientId: mode === "STANDALONE"
-      ? (dbConfig?.casdoorClientId ?? process.env.OIDC_CLIENT_ID ?? "")
-      : (dbConfig?.casdoorClientId ?? process.env.OIDC_CLIENT_ID ?? ""),
+      ? (dbConfig?.oidcClientId ?? process.env.OIDC_CLIENT_ID ?? "")
+      : (dbConfig?.oidcClientId ?? process.env.OIDC_CLIENT_ID ?? ""),
     clientSecret: mode === "STANDALONE"
       ? (dbConfig?.oidcClientSecret ?? process.env.OIDC_CLIENT_SECRET ?? "")
       : (dbConfig?.oidcClientSecret ?? process.env.OIDC_CLIENT_SECRET ?? ""),

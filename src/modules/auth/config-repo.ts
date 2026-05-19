@@ -8,6 +8,7 @@ export interface AuthConfigDb {
   casdoorAdminRole: string;
   oidcIssuerUrl: string;
   oidcIssuerType: string;
+  oidcClientId?: string;
   oidcClientSecret?: string;
   casdoorAdminPassword?: string;
   casdoorBuiltinClientId?: string;
@@ -37,6 +38,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
     casdoorAdminRole: settings.casdoor_admin_role || "Administrators",
     oidcIssuerUrl: settings.oidc_issuer_url || "http://localhost:8000",
     oidcIssuerType: settings.oidc_issuer_type || "casdoor",
+    oidcClientId: settings.oidc_client_id,
     oidcClientSecret: settings.oidc_client_secret,
     casdoorAdminPassword: settings.casdoor_admin_password,
     casdoorBuiltinClientId: settings.casdoor_builtin_client_id,

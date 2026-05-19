@@ -28,7 +28,8 @@ INSERT INTO "public"."auth_configurations" ("key", "value", "description", "crea
 ('casdoor_admin_username', 'admin', 'Username dell utente amministratore standard', 'system'),
 ('casdoor_admin_role', 'Administrators', 'Nome del ruolo amministrativo', 'system'),
 ('oidc_issuer_url', 'http://localhost:8000', 'OIDC issuer URL per validazione token', 'system'),
-('oidc_issuer_type', 'casdoor', 'Tipo di IDP (casdoor, keycloak, auth0)', 'system')
+('oidc_issuer_type', 'casdoor', 'Tipo di IDP (casdoor, keycloak, auth0)', 'system'),
+('oidc_client_id', '', 'OIDC client ID reale generato da Casdoor', 'system')
 ON CONFLICT ("key") DO NOTHING;
 
 -- === patch registry (repeatable runs) ===
