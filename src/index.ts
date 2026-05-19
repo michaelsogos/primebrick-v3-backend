@@ -1,6 +1,7 @@
 import cors from "cors";
 import express, { type Response } from "express";
 import { customersRouter } from "./modules/customers/router.js";
+import { authRouter } from "./modules/auth/router.js";
 import { Pool } from "pg";
 import CasdoorSDK from "casdoor-nodejs-sdk";
 import { loadAuthConfigFromDb, type AuthConfigDb } from "./modules/auth/config-repo.js";
@@ -170,6 +171,8 @@ apiRouter.get("/modules", rbacHandler([Permission.MODULES_LIST]), (_req, res) =>
 
 app.use("/api/v1", apiRouter);
 app.use(customersRouter());
+// Auth router (public login endpoint)
+app.use(authRouter());
 
 app.use(errorHandler);
 
