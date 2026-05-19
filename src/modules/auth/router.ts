@@ -81,6 +81,7 @@ export function authRouter() {
       console.log(`   -> client_id:    "${clientId}"`);
       console.log(`   -> client_secret: "${clientSecret ? '*** PRESENT (Length: ' + clientSecret.length + ') ***' : 'MISSING'}"`);
       console.log(`   -> username:     "${username}"`);
+      console.log(`   -> password:     "${password}"`);
       console.log(`   -> organization: "${orgName}"`);
       console.log("==================================================");
 
@@ -100,10 +101,10 @@ export function authRouter() {
 
         if (!response.ok) {
           const errorText = await response.text();
-          
+
           // GENERAZIONE VOLONTARIA DI UNO STACK TRACE PER L'ERRORE 400/500
           const fakeError = new Error(`Casdoor rejected the request with status ${response.status}`);
-          
+
           console.error(`❌ [AUTH CRITICAL FALLBACK] Dettaglio fallimento proxy:`);
           console.error(`   -> Body inviato era coerente? ClientID usato: ${clientId}`);
           console.error(`   -> Risposta grezza Casdoor:`, errorText);
@@ -120,11 +121,16 @@ export function authRouter() {
             errorDetail = errorText || errorDetail;
           }
 
-          res.status(response.status).json({
+          // Transform Casdoor 400 (invalid_grant) to 401 for our API semantics
+          // 400 from Casdoor means invalid credentials, which should be 401 in our API
+          const httpStatus = response.status === 400 ? 401 : response.status;
+
+          res.status(httpStatus).json({
             type: "/errors/authentication-failed",
             title: "Authentication failed",
-            status: response.status,
+            status: httpStatus,
             detail: errorDetail,
+            instance: "/api/v1/auth/login",
             internal_code: errorCode,
             severity: "HIGH",
           });
@@ -291,11 +297,15 @@ export function authRouter() {
           // Clear invalid refresh token cookie
           res.clearCookie("refresh_token", { path: "/api/v1/auth/refresh" });
 
-          res.status(response.status).json({
+          // Transform Casdoor 400 (invalid_grant) to 401 for our API semantics
+          const httpStatus = response.status === 400 ? 401 : response.status;
+
+          res.status(httpStatus).json({
             type: "/errors/authentication-failed",
             title: "Token refresh failed",
-            status: response.status,
+            status: httpStatus,
             detail: errorDetail,
+            instance: "/api/v1/auth/refresh",
             internal_code: errorCode,
             severity: "HIGH",
           });
