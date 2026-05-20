@@ -433,7 +433,7 @@ export function authRouter() {
     display_name: z.string().optional(),
     email: z.string().email().optional(),
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  });
+  }).strict();
 
   router.patch(
     "/api/v1/auth/me",
@@ -709,7 +709,6 @@ export function authRouter() {
             audit.changed_at,
             audit.changed_by,
             creator.display_name as changed_by_name,
-            creator.idp_code as changed_by_idp_code,
             audit.version,
             audit.delta
           FROM public.user_profiles_audit audit
@@ -730,7 +729,6 @@ export function authRouter() {
           changed_at: row.changed_at.toISOString(),
           changed_by: row.changed_by,
           changed_by_name: row.changed_by_name,
-          changed_by_idp_code: row.changed_by_idp_code,
           version: row.version,
           delta: row.delta,
         }));
