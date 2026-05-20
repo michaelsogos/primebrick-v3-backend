@@ -504,10 +504,26 @@ export function authRouter() {
         }
 
         const query = `
-          UPDATE public.user_profiles
-          SET ${updates.join(', ')}, updated_at = NOW()
-          WHERE uuid = $1
-          RETURNING uuid, idp_code, email, display_name, avatar_color, created_at, created_by, updated_at, updated_by, version
+          WITH updated AS (
+            UPDATE public.user_profiles
+            SET ${updates.join(', ')}, updated_at = NOW()
+            WHERE uuid = $1
+            RETURNING *
+          )
+          SELECT
+            u.uuid, u.idp_code, u.email, u.display_name, u.avatar_color,
+            u.created_at, u.created_by, u.updated_at, u.updated_by, u.version,
+            u.deleted_at, u.deleted_by,
+            creator.display_name as created_by_name,
+            updater.display_name as updated_by_name,
+            deleter.display_name as deleted_by_name
+          FROM updated u
+          LEFT JOIN public.user_profiles creator
+            ON u.created_by ~ '^[0-9a-fA-F-]{36}$' AND creator.uuid = u.created_by::uuid
+          LEFT JOIN public.user_profiles updater
+            ON u.updated_by ~ '^[0-9a-fA-F-]{36}$' AND updater.uuid = u.updated_by::uuid
+          LEFT JOIN public.user_profiles deleter
+            ON u.deleted_by ~ '^[0-9a-fA-F-]{36}$' AND deleter.uuid = u.deleted_by::uuid
         `;
 
         const result = await pool.query(query, values);
@@ -535,9 +551,14 @@ export function authRouter() {
             avatar_color: profile.avatar_color,
             created_at: profile.created_at,
             created_by: profile.created_by,
+            created_by_name: profile.created_by_name,
             updated_at: profile.updated_at,
             updated_by: profile.updated_by,
+            updated_by_name: profile.updated_by_name,
             version: profile.version,
+            deleted_at: profile.deleted_at,
+            deleted_by: profile.deleted_by,
+            deleted_by_name: profile.deleted_by_name,
           }
         });
       } catch (error) {
