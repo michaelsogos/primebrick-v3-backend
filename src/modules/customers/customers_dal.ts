@@ -4,9 +4,10 @@ import type { Pool } from "pg";
 
 import { entityDateToApiIso } from "../../domain/entities/entity-meta.js";
 import { Repository } from "../../db/repository/repository.js";
-import { field, Filter, Sort, type FieldProjector, type FilterExpr } from "../../db/repository/dsl.js";
+import { field, Filter, Sort, Join, Project, type FieldProjector, type FilterExpr } from "../../db/repository/dsl.js";
 
 import { CustomerEntity, type CustomerStatus } from "./customer_entity.js";
+import { UserProfileEntity } from "../auth/user_profile_entity.js";
 import type { CustomerCreateBody, CustomerUpdateBody, CustomerListQuery } from "./dto.js";
 import { CUSTOMER_SEARCHABLE_KEYS, CUSTOMER_FILTERABLE_KEYS } from "./list-config.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
@@ -154,11 +155,14 @@ export type CustomerDetailRow = {
   onboarding_time_zone?: string;
   created_at: Date;
   created_by: string;
+  created_by_name?: string;
   updated_at: Date;
   updated_by: string;
+  updated_by_name?: string;
   version: number;
   deleted_at?: Date;
   deleted_by?: string;
+  deleted_by_name?: string;
 };
 
 export type CustomerDetailDto = Omit<
@@ -172,7 +176,7 @@ export type CustomerDetailDto = Omit<
 };
 
 function projectAllExceptId(): FieldProjector[] {
-  const keys: Array<keyof CustomerDetailRow & string> = [
+  const keys = [
     "uuid",
     "code",
     "first_name",
@@ -196,8 +200,8 @@ function projectAllExceptId(): FieldProjector[] {
     "version",
     "deleted_at",
     "deleted_by",
-  ];
-  return keys.map((k) => ({ kind: "field", field: field(CustomerEntity, k) }));
+  ] as const;
+  return keys.map((k) => ({ kind: "field" as const, field: field(CustomerEntity, k) }));
 }
 
 export class CustomersDal {
@@ -674,7 +678,28 @@ export class CustomersDal {
       {
         filters: filters as any,
         sorting,
-        deletedRecords: q.deleted_records as any
+        deletedRecords: q.deleted_records as any,
+        joins: [
+          // Use table aliases to join user_profiles three times
+          Join.on(
+            field(UserProfileEntity, "uuid"),
+            field(CustomerEntity, "created_by"),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "creator" }
+          ),
+          Join.on(
+            field(UserProfileEntity, "uuid"),
+            field(CustomerEntity, "updated_by"),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "updater" }
+          ),
+          Join.on(
+            field(UserProfileEntity, "uuid"),
+            field(CustomerEntity, "deleted_by"),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
+          ),
+        ],
       }
     );
 
@@ -690,7 +715,30 @@ export class CustomersDal {
     const row = await this.repo.find<CustomerDetailRow, CustomerDetailRow>(
       CustomerEntity,
       projectAllExceptId(),
-      { filters: [Filter.fieldValue(field(CustomerEntity, "uuid"), "=", uuid)] as any }
+      {
+        filters: [Filter.fieldValue(field(CustomerEntity, "uuid"), "=", uuid)] as any,
+        joins: [
+          // Use table aliases to join user_profiles three times
+          Join.on(
+            field(UserProfileEntity, "uuid"),
+            field(CustomerEntity, "created_by"),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "creator" }
+          ),
+          Join.on(
+            field(UserProfileEntity, "uuid"),
+            field(CustomerEntity, "updated_by"),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "updater" }
+          ),
+          Join.on(
+            field(UserProfileEntity, "uuid"),
+            field(CustomerEntity, "deleted_by"),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
+          ),
+        ],
+      }
     );
     return row ? this.toDto(row) : null;
   }
@@ -859,16 +907,21 @@ export class CustomersDal {
 
     const query = `
       SELECT
-        id,
-        entity_uuid,
-        action,
-        changed_at,
-        changed_by,
-        version,
-        delta
-      FROM public.customers_audit
-      WHERE entity_uuid = $1
-      ORDER BY changed_at DESC, id DESC
+        audit.id,
+        audit.entity_uuid,
+        audit.action,
+        audit.changed_at,
+        audit.changed_by,
+        creator.display_name as changed_by_display_name,
+        creator.idp_code as changed_by_idp_code,
+        audit.version,
+        audit.delta
+      FROM public.customers_audit audit
+      LEFT JOIN public.user_profiles creator
+        ON audit.changed_by ~ '^[0-9a-fA-F-]{36}$'
+       AND creator.uuid = audit.changed_by::uuid
+      WHERE audit.entity_uuid = $1
+      ORDER BY audit.changed_at DESC, audit.id DESC
       LIMIT $2 OFFSET $3
     `;
 
@@ -881,6 +934,8 @@ export class CustomersDal {
         action: row.action,
         changed_at: entityDateToApiIso(row.changed_at),
         changed_by: row.changed_by,
+        changed_by_display_name: row.changed_by_display_name,
+        changed_by_idp_code: row.changed_by_idp_code,
         version: row.version,
         delta: row.delta,
       })),

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx --watch-kill-signal=SIGKILL src/index.ts",
     "version:auto": "node scripts/version-sync.mjs",
     "prebuild": "node scripts/version-sync.mjs",
     "build": "tsc",

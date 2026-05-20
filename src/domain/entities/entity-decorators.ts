@@ -60,6 +60,8 @@ type ColumnRegistration = {
   deletableType?: DeletableFieldType;
   /** Clone field metadata */
   isClone?: boolean;
+  /** Cast type to apply when this field is used in JOIN ON clause */
+  castInJoin?: string;
 };
 
 export type ColumnOptions = {
@@ -77,6 +79,8 @@ export type ColumnOptions = {
   nullable?: boolean;
   /** SQL DEFAULT expression (raw). */
   defaultSql?: string;
+  /** Cast type to apply when this field is used in JOIN ON clause (e.g., 'uuid') */
+  castInJoin?: string;
 };
 
 type ClassEntityMeta = {
@@ -168,10 +172,11 @@ function assertNonEmptyColumnOptions(o: ColumnOptions): void {
     o.precision === undefined &&
     o.scale === undefined &&
     o.nullable === undefined &&
-    o.defaultSql === undefined
+    o.defaultSql === undefined &&
+    o.castInJoin === undefined
   ) {
     throw new TypeError(
-      "@Column({ … }) richiede almeno uno tra: sqlName, pgType, length, precision/scale, nullable, defaultSql"
+      "@Column({ … }) richiede almeno uno tra: sqlName, pgType, length, precision/scale, nullable, defaultSql, castInJoin"
     );
   }
 }
@@ -198,6 +203,7 @@ export function Column(sqlNameOrOpts: string | ColumnOptions): PropertyDecorator
       if (sqlNameOrOpts.scale !== undefined) col.scale = sqlNameOrOpts.scale;
       if (sqlNameOrOpts.nullable !== undefined) col.nullable = sqlNameOrOpts.nullable;
       if (sqlNameOrOpts.defaultSql !== undefined) col.defaultSql = sqlNameOrOpts.defaultSql;
+      if (sqlNameOrOpts.castInJoin !== undefined) col.castInJoin = sqlNameOrOpts.castInJoin;
     }
     if (col.nullable === undefined) {
       const inferred = inferColumnNullableFromDesignType(dt, col.isKey, col.isUnique);
@@ -397,6 +403,7 @@ export type EntityPersistenceMeta = {
       isDeletable?: boolean;
       deletableType?: DeletableFieldType;
       isClone?: boolean;
+      castInJoin?: string;
     }
   >;
 };
@@ -465,6 +472,7 @@ export function getEntityPersistenceMeta(ctor: EntityClass, tableSchema = "publi
     if (reg.isDeletable !== undefined) entry.isDeletable = reg.isDeletable;
     if (reg.deletableType !== undefined) entry.deletableType = reg.deletableType;
     if (reg.isClone !== undefined) entry.isClone = reg.isClone;
+    if (reg.castInJoin !== undefined) entry.castInJoin = reg.castInJoin;
     columns[reg.sqlName] = entry;
   }
   const classMeta = META.get(fn);

@@ -96,10 +96,17 @@ export type JoinExpr = {
   right: FieldRef<any, any>;
   left: FieldRef<any, any>;
   type: SqlJoinType;
+  alias?: string;
+  options?: { castRightTo?: string; castLeftTo?: string };
 };
 export const Join = {
-  on(right: FieldRef<any, any>, left: FieldRef<any, any>, type: SqlJoinType = "INNER"): JoinExpr {
-    return { right, left, type };
+  on(
+    right: FieldRef<any, any>,
+    left: FieldRef<any, any>,
+    type: SqlJoinType = "INNER",
+    options?: { castRightTo?: string; castLeftTo?: string; alias?: string }
+  ): JoinExpr {
+    return { right, left, type, alias: options?.alias, options: { castRightTo: options?.castRightTo, castLeftTo: options?.castLeftTo } };
   },
 };
 
