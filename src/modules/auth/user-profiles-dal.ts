@@ -91,4 +91,60 @@ export class UserProfilesDal {
   ): Promise<void> {
     await this.repo.update(UserProfileEntity, uuid, body, requireActor());
   }
+
+  async getUserProfileAudit(uuid: string, page: number, limit: number) {
+    const offset = (page - 1) * limit;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM public.user_profiles_audit
+      WHERE entity_uuid = $1
+    `;
+
+    const countResult = await this.pool.query(countQuery, [uuid]);
+    const total = parseInt(countResult.rows[0].total, 10);
+
+    const query = `
+      SELECT
+        audit.id,
+        audit.entity_uuid,
+        audit.action,
+        audit.changed_at,
+        audit.changed_by,
+        creator.display_name as changed_by_name,
+        audit.version,
+        audit.delta
+      FROM public.user_profiles_audit audit
+      LEFT JOIN public.user_profiles creator
+        ON audit.changed_by ~ '^[0-9a-fA-F-]{36}$'
+       AND creator.uuid::text = audit.changed_by
+      WHERE audit.entity_uuid = $1
+      ORDER BY audit.changed_at DESC, audit.id DESC
+      LIMIT $2 OFFSET $3
+    `;
+
+    console.log('[User Profile Audit] SQL Query:', query);
+    console.log('[User Profile Audit] Parameters:', [uuid, limit, offset]);
+
+    const result = await this.pool.query(query, [uuid, limit, offset]);
+
+    return {
+      data: result.rows.map((row: any) => ({
+        id: row.id.toString(),
+        entity_uuid: row.entity_uuid,
+        action: row.action,
+        changed_at: row.changed_at.toISOString(),
+        changed_by: row.changed_by,
+        changed_by_name: row.changed_by_name,
+        version: row.version,
+        delta: row.delta,
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        hasMore: offset + limit < total,
+      },
+    };
+  }
 }

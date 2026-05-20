@@ -570,26 +570,9 @@ export function authRouter() {
       }
 
       try {
-        const pool = getPool();
-        const result = await pool.query(
-          `SELECT
-            p.uuid, p.idp_code, p.email, p.display_name, p.avatar_color,
-            p.created_at, p.created_by, p.updated_at, p.updated_by, p.version, p.deleted_at, p.deleted_by,
-            creator.display_name as created_by_name,
-            updater.display_name as updated_by_name,
-            deleter.display_name as deleted_by_name
-           FROM public.user_profiles p
-           LEFT JOIN public.user_profiles creator
-             ON p.created_by ~ '^[0-9a-fA-F-]{36}$' AND creator.uuid = p.created_by::uuid
-           LEFT JOIN public.user_profiles updater
-             ON p.updated_by ~ '^[0-9a-fA-F-]{36}$' AND updater.uuid = p.updated_by::uuid
-           LEFT JOIN public.user_profiles deleter
-             ON p.deleted_by ~ '^[0-9a-fA-F-]{36}$' AND deleter.uuid = p.deleted_by::uuid
-           WHERE p.uuid = $1`,
-          [userId]
-        );
+        const profile = await getDal().getByUuid(userId);
 
-        if (result.rowCount === 0) {
+        if (!profile) {
           res.status(404).json({
             type: "/errors/not-found",
             title: "User profile not found",
@@ -601,7 +584,6 @@ export function authRouter() {
           return;
         }
 
-        const profile = result.rows[0];
         res.json({
           success: true,
           profile: {
@@ -685,60 +667,10 @@ export function authRouter() {
     asyncHandler(async (req, res) => {
       const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
       const { page, limit } = req.query as unknown as z.infer<typeof UserProfileAuditQuerySchema>;
-      const pool = getPool();
-      const offset = (page - 1) * limit;
 
       try {
-        const countQuery = `
-          SELECT COUNT(*) as total
-          FROM public.user_profiles_audit
-          WHERE entity_uuid = $1
-        `;
-
-        const countResult = await pool.query(countQuery, [uuid]);
-        const total = parseInt(countResult.rows[0].total, 10);
-
-        const query = `
-          SELECT
-            audit.id,
-            audit.entity_uuid,
-            audit.action,
-            audit.changed_at,
-            audit.changed_by,
-            creator.display_name as changed_by_name,
-            audit.version,
-            audit.delta
-          FROM public.user_profiles_audit audit
-          LEFT JOIN public.user_profiles creator
-            ON audit.changed_by ~ '^[0-9a-fA-F-]{36}$'
-           AND creator.uuid = audit.changed_by::uuid
-          WHERE audit.entity_uuid = $1
-          ORDER BY audit.changed_at DESC, audit.id DESC
-          LIMIT $2 OFFSET $3
-        `;
-
-        const result = await pool.query(query, [uuid, limit, offset]);
-
-        const data = result.rows.map((row: any) => ({
-          id: row.id.toString(),
-          entity_uuid: row.entity_uuid,
-          action: row.action,
-          changed_at: row.changed_at.toISOString(),
-          changed_by: row.changed_by,
-          changed_by_name: row.changed_by_name,
-          version: row.version,
-          delta: row.delta,
-        }));
-
-        res.json({
-          data,
-          pagination: {
-            page,
-            limit,
-            total,
-            hasMore: offset + limit < total,
-          },
-        });
+        const result = await getDal().getUserProfileAudit(uuid, page, limit);
+        res.json(result);
       } catch (e) {
         console.error('[User Profile Audit Error]', {
           error: e,
