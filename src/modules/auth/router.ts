@@ -211,7 +211,7 @@ export function authRouter() {
         // Return only user profile data to frontend
         const roles = (claims.roles || []).filter((role: any) => role.isEnabled !== false).map((role: any) => ({
           name: role.name,
-          displayName: role.displayName,
+          display_name: role.displayName,
           owner: role.owner
         }));
 
@@ -232,10 +232,10 @@ export function authRouter() {
           success: true,
           user: {
             username: claims.name || claims.username || claims.preferred_username,
-            displayName: claims.displayName || claims.name || claims.username || claims.preferred_username,
+            display_name: claims.displayName || claims.name || claims.username || claims.preferred_username,
             email: claims.email,
             organization: claims.organization,
-            expiresAt: claims.exp * 1000,
+            expires_at: claims.exp * 1000,
             roles
           }
         });
@@ -390,7 +390,7 @@ export function authRouter() {
         // Return only user profile data to frontend
         const roles = (claims.roles || []).filter((role: any) => role.isEnabled !== false).map((role: any) => ({
           name: role.name,
-          displayName: role.displayName,
+          display_name: role.displayName,
           owner: role.owner
         }));
 
@@ -398,10 +398,10 @@ export function authRouter() {
           success: true,
           user: {
             username: claims.name || claims.username || claims.preferred_username,
-            displayName: claims.displayName || claims.name || claims.username || claims.preferred_username,
+            display_name: claims.displayName || claims.name || claims.username || claims.preferred_username,
             email: claims.email,
             organization: claims.organization,
-            expiresAt: claims.exp * 1000,
+            expires_at: claims.exp * 1000,
             roles
           }
         });
@@ -430,9 +430,9 @@ export function authRouter() {
 
   // PATCH /api/v1/auth/me - Update user profile
   const ProfileUpdateSchema = z.object({
-    displayName: z.string().optional(),
+    display_name: z.string().optional(),
     email: z.string().email().optional(),
-    popoverColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   });
 
   router.patch(
@@ -469,7 +469,7 @@ export function authRouter() {
         return;
       }
 
-      const { displayName, email, popoverColor } = parseResult.data;
+      const { display_name, email, avatar_color } = parseResult.data;
 
       try {
         const pool = getPool();
@@ -479,17 +479,17 @@ export function authRouter() {
         const values: any[] = [userId];
         let paramIndex = 2;
 
-        if (displayName !== undefined) {
+        if (display_name !== undefined) {
           updates.push(`display_name = $${paramIndex++}`);
-          values.push(displayName);
+          values.push(display_name);
         }
         if (email !== undefined) {
           updates.push(`email = $${paramIndex++}`);
           values.push(email);
         }
-        if (popoverColor !== undefined) {
+        if (avatar_color !== undefined) {
           updates.push(`avatar_color = $${paramIndex++}`);
-          values.push(popoverColor);
+          values.push(avatar_color);
         }
 
         if (updates.length === 0) {
@@ -529,14 +529,14 @@ export function authRouter() {
           success: true,
           profile: {
             uuid: profile.uuid,
-            idpCode: profile.idp_code,
+            idp_code: profile.idp_code,
             email: profile.email,
-            displayName: profile.display_name,
-            avatarColor: profile.avatar_color,
-            createdAt: profile.created_at,
-            createdBy: profile.created_by,
-            updatedAt: profile.updated_at,
-            updatedBy: profile.updated_by,
+            display_name: profile.display_name,
+            avatar_color: profile.avatar_color,
+            created_at: profile.created_at,
+            created_by: profile.created_by,
+            updated_at: profile.updated_at,
+            updated_by: profile.updated_by,
             version: profile.version,
           }
         });
@@ -575,12 +575,12 @@ export function authRouter() {
       try {
         const pool = getPool();
         const result = await pool.query(
-          `SELECT 
+          `SELECT
             p.uuid, p.idp_code, p.email, p.display_name, p.avatar_color,
             p.created_at, p.created_by, p.updated_at, p.updated_by, p.version, p.deleted_at, p.deleted_by,
-            creator.display_name as created_by_display_name,
-            updater.display_name as updated_by_display_name,
-            deleter.display_name as deleted_by_display_name
+            creator.display_name as created_by_name,
+            updater.display_name as updated_by_name,
+            deleter.display_name as deleted_by_name
            FROM public.user_profiles p
            LEFT JOIN public.user_profiles creator
              ON p.created_by ~ '^[0-9a-fA-F-]{36}$' AND creator.uuid = p.created_by::uuid
@@ -609,20 +609,20 @@ export function authRouter() {
           success: true,
           profile: {
             uuid: profile.uuid,
-            idpCode: profile.idp_code,
+            idp_code: profile.idp_code,
             email: profile.email,
-            displayName: profile.display_name,
-            avatarColor: profile.avatar_color,
-            createdAt: profile.created_at,
-            createdBy: profile.created_by,
-            createdByDisplayName: profile.created_by_display_name,
-            updatedAt: profile.updated_at,
-            updatedBy: profile.updated_by,
-            updatedByDisplayName: profile.updated_by_display_name,
+            display_name: profile.display_name,
+            avatar_color: profile.avatar_color,
+            created_at: profile.created_at,
+            created_by: profile.created_by,
+            created_by_name: profile.created_by_name,
+            updated_at: profile.updated_at,
+            updated_by: profile.updated_by,
+            updated_by_name: profile.updated_by_name,
             version: profile.version,
-            deletedAt: profile.deleted_at,
-            deletedBy: profile.deleted_by,
-            deletedByDisplayName: profile.deleted_by_display_name,
+            deleted_at: profile.deleted_at,
+            deleted_by: profile.deleted_by,
+            deleted_by_name: profile.deleted_by_name,
           }
         });
       } catch (error) {
@@ -708,7 +708,7 @@ export function authRouter() {
             audit.action,
             audit.changed_at,
             audit.changed_by,
-            creator.display_name as changed_by_display_name,
+            creator.display_name as changed_by_name,
             creator.idp_code as changed_by_idp_code,
             audit.version,
             audit.delta
@@ -729,7 +729,7 @@ export function authRouter() {
           action: row.action,
           changed_at: row.changed_at.toISOString(),
           changed_by: row.changed_by,
-          changed_by_display_name: row.changed_by_display_name,
+          changed_by_name: row.changed_by_name,
           changed_by_idp_code: row.changed_by_idp_code,
           version: row.version,
           delta: row.delta,
