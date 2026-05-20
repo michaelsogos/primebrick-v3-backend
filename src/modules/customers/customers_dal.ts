@@ -859,16 +859,21 @@ export class CustomersDal {
 
     const query = `
       SELECT
-        id,
-        entity_uuid,
-        action,
-        changed_at,
-        changed_by,
-        version,
-        delta
-      FROM public.customers_audit
-      WHERE entity_uuid = $1
-      ORDER BY changed_at DESC, id DESC
+        audit.id,
+        audit.entity_uuid,
+        audit.action,
+        audit.changed_at,
+        audit.changed_by,
+        creator.display_name as changed_by_display_name,
+        creator.idp_code as changed_by_idp_code,
+        audit.version,
+        audit.delta
+      FROM public.customers_audit audit
+      LEFT JOIN public.user_profiles creator
+        ON audit.changed_by ~ '^[0-9a-fA-F-]{36}$'
+       AND creator.uuid = audit.changed_by::uuid
+      WHERE audit.entity_uuid = $1
+      ORDER BY audit.changed_at DESC, audit.id DESC
       LIMIT $2 OFFSET $3
     `;
 
@@ -881,6 +886,8 @@ export class CustomersDal {
         action: row.action,
         changed_at: entityDateToApiIso(row.changed_at),
         changed_by: row.changed_by,
+        changed_by_display_name: row.changed_by_display_name,
+        changed_by_idp_code: row.changed_by_idp_code,
         version: row.version,
         delta: row.delta,
       })),
