@@ -575,9 +575,20 @@ export function authRouter() {
       try {
         const pool = getPool();
         const result = await pool.query(
-          `SELECT uuid, idp_code, email, display_name, avatar_color, created_at, created_by, updated_at, updated_by, version, deleted_at, deleted_by
-           FROM public.user_profiles
-           WHERE uuid = $1`,
+          `SELECT 
+            p.uuid, p.idp_code, p.email, p.display_name, p.avatar_color,
+            p.created_at, p.created_by, p.updated_at, p.updated_by, p.version, p.deleted_at, p.deleted_by,
+            creator.display_name as created_by_display_name,
+            updater.display_name as updated_by_display_name,
+            deleter.display_name as deleted_by_display_name
+           FROM public.user_profiles p
+           LEFT JOIN public.user_profiles creator
+             ON p.created_by ~ '^[0-9a-fA-F-]{36}$' AND creator.uuid = p.created_by::uuid
+           LEFT JOIN public.user_profiles updater
+             ON p.updated_by ~ '^[0-9a-fA-F-]{36}$' AND updater.uuid = p.updated_by::uuid
+           LEFT JOIN public.user_profiles deleter
+             ON p.deleted_by ~ '^[0-9a-fA-F-]{36}$' AND deleter.uuid = p.deleted_by::uuid
+           WHERE p.uuid = $1`,
           [userId]
         );
 
@@ -604,11 +615,14 @@ export function authRouter() {
             avatarColor: profile.avatar_color,
             createdAt: profile.created_at,
             createdBy: profile.created_by,
+            createdByDisplayName: profile.created_by_display_name,
             updatedAt: profile.updated_at,
             updatedBy: profile.updated_by,
+            updatedByDisplayName: profile.updated_by_display_name,
             version: profile.version,
             deletedAt: profile.deleted_at,
             deletedBy: profile.deleted_by,
+            deletedByDisplayName: profile.deleted_by_display_name,
           }
         });
       } catch (error) {
