@@ -13,6 +13,7 @@ import { z } from "zod";
 import { rbacHandler } from "./rbac.middleware.js";
 import { Permission } from "./permissions.js";
 import { AuditService } from "../../lib/audit/audit-service.js";
+import { UserProfilesDal } from "./user-profiles-dal.js";
 
 const LoginBodySchema = z.object({
   username: z.string().min(1),
@@ -22,12 +23,21 @@ const LoginBodySchema = z.object({
 export function authRouter() {
   const router = Router();
   let auditService: AuditService | null = null;
+  let dal: UserProfilesDal | null = null;
 
   const getAuditService = () => {
     if (auditService) return auditService;
     const pool = getPool();
     auditService = new AuditService(pool);
     return auditService;
+  };
+
+  const getDal = () => {
+    if (dal) return dal;
+    const pool = getPool();
+    const auditSvc = getAuditService();
+    dal = new UserProfilesDal(pool, auditSvc);
+    return dal;
   };
 
   router.post(
@@ -472,27 +482,13 @@ export function authRouter() {
       const { display_name, email, avatar_color } = parseResult.data;
 
       try {
-        const pool = getPool();
-        
-        // Build dynamic SET clause based on provided fields
-        const updates: string[] = [];
-        const values: any[] = [userId];
-        let paramIndex = 2;
+        // Build update body with only provided fields
+        const updateBody: { display_name?: string; email?: string; avatar_color?: string } = {};
+        if (display_name !== undefined) updateBody.display_name = display_name;
+        if (email !== undefined) updateBody.email = email;
+        if (avatar_color !== undefined) updateBody.avatar_color = avatar_color;
 
-        if (display_name !== undefined) {
-          updates.push(`display_name = $${paramIndex++}`);
-          values.push(display_name);
-        }
-        if (email !== undefined) {
-          updates.push(`email = $${paramIndex++}`);
-          values.push(email);
-        }
-        if (avatar_color !== undefined) {
-          updates.push(`avatar_color = $${paramIndex++}`);
-          values.push(avatar_color);
-        }
-
-        if (updates.length === 0) {
+        if (Object.keys(updateBody).length === 0) {
           res.status(400).json({
             type: '/errors/validation-error',
             title: 'Validation error',
@@ -503,32 +499,13 @@ export function authRouter() {
           return;
         }
 
-        const query = `
-          WITH updated AS (
-            UPDATE public.user_profiles
-            SET ${updates.join(', ')}, updated_at = NOW()
-            WHERE uuid = $1
-            RETURNING *
-          )
-          SELECT
-            u.uuid, u.idp_code, u.email, u.display_name, u.avatar_color,
-            u.created_at, u.created_by, u.updated_at, u.updated_by, u.version,
-            u.deleted_at, u.deleted_by,
-            creator.display_name as created_by_name,
-            updater.display_name as updated_by_name,
-            deleter.display_name as deleted_by_name
-          FROM updated u
-          LEFT JOIN public.user_profiles creator
-            ON u.created_by ~ '^[0-9a-fA-F-]{36}$' AND creator.uuid = u.created_by::uuid
-          LEFT JOIN public.user_profiles updater
-            ON u.updated_by ~ '^[0-9a-fA-F-]{36}$' AND updater.uuid = u.updated_by::uuid
-          LEFT JOIN public.user_profiles deleter
-            ON u.deleted_by ~ '^[0-9a-fA-F-]{36}$' AND deleter.uuid = u.deleted_by::uuid
-        `;
+        // Use DAL to update profile (Repository.update() handles audit logging)
+        await getDal().updateProfile(userId, updateBody);
 
-        const result = await pool.query(query, values);
+        // Fetch updated profile with joins
+        const profile = await getDal().getByUuid(userId);
 
-        if (result.rowCount === 0) {
+        if (!profile) {
           res.status(404).json({
             type: "/errors/not-found",
             title: "User profile not found",
@@ -540,7 +517,6 @@ export function authRouter() {
           return;
         }
 
-        const profile = result.rows[0];
         res.json({
           success: true,
           profile: {
@@ -567,8 +543,8 @@ export function authRouter() {
           type: "/errors/internal-error",
           title: "Failed to update user profile",
           status: 500,
-          detail: "An error occurred while updating user profile",
-          internal_code: "UPDATE_PROFILE_FAILED",
+          detail: "An unexpected error occurred while updating user profile",
+          internal_code: "PROFILE_UPDATE_FAILED",
           severity: "HIGH",
         });
       }
