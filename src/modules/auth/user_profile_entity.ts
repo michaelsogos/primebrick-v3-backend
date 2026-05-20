@@ -55,6 +55,9 @@ export class UserProfileEntity implements IAuditableEntity {
   @Column({ length: 255 })
   display_name?: string;
 
+  @Column({ length: 7, nullable: true })
+  avatar_color?: string;
+
   @AuditableField(AuditableFieldType.CREATED_AT)
   created_at: Date;
 

@@ -12,6 +12,7 @@ import { asyncHandler } from "../../http/async-handler.js";
 import { z } from "zod";
 import { rbacHandler } from "./rbac.middleware.js";
 import { Permission } from "./permissions.js";
+import { AuditService } from "../../lib/audit/audit-service.js";
 
 const LoginBodySchema = z.object({
   username: z.string().min(1),
@@ -20,6 +21,14 @@ const LoginBodySchema = z.object({
 
 export function authRouter() {
   const router = Router();
+  let auditService: AuditService | null = null;
+
+  const getAuditService = () => {
+    if (auditService) return auditService;
+    const pool = getPool();
+    auditService = new AuditService(pool);
+    return auditService;
+  };
 
   router.post(
     "/api/v1/auth/login",
@@ -419,6 +428,132 @@ export function authRouter() {
     })
   );
 
+  // PATCH /api/v1/auth/me - Update user profile
+  const ProfileUpdateSchema = z.object({
+    displayName: z.string().optional(),
+    email: z.string().email().optional(),
+    popoverColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  });
+
+  router.patch(
+    "/api/v1/auth/me",
+    rbacHandler([Permission.AUTHENTICATED_USER]),
+    asyncHandler(async (req, res) => {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({
+          type: "/errors/authentication-failed",
+          title: "User not authenticated",
+          status: 401,
+          detail: "User ID not found in request",
+          internal_code: "USER_NOT_AUTHENTICATED",
+          severity: "HIGH",
+        });
+        return;
+      }
+
+      const parseResult = ProfileUpdateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        res.status(400).json({
+          type: '/errors/validation-error',
+          title: 'Validation error',
+          status: 400,
+          detail: 'Request validation failed',
+          severity: 'MEDIUM',
+          issues: parseResult.error.issues.map((i) => ({
+            path: i.path.join("."),
+            code: i.code,
+            message: i.message,
+          })),
+        });
+        return;
+      }
+
+      const { displayName, email, popoverColor } = parseResult.data;
+
+      try {
+        const pool = getPool();
+        
+        // Build dynamic SET clause based on provided fields
+        const updates: string[] = [];
+        const values: any[] = [userId];
+        let paramIndex = 2;
+
+        if (displayName !== undefined) {
+          updates.push(`display_name = $${paramIndex++}`);
+          values.push(displayName);
+        }
+        if (email !== undefined) {
+          updates.push(`email = $${paramIndex++}`);
+          values.push(email);
+        }
+        if (popoverColor !== undefined) {
+          updates.push(`avatar_color = $${paramIndex++}`);
+          values.push(popoverColor);
+        }
+
+        if (updates.length === 0) {
+          res.status(400).json({
+            type: '/errors/validation-error',
+            title: 'Validation error',
+            status: 400,
+            detail: 'No fields to update',
+            severity: 'MEDIUM',
+          });
+          return;
+        }
+
+        const query = `
+          UPDATE public.user_profiles
+          SET ${updates.join(', ')}, updated_at = NOW()
+          WHERE uuid = $1
+          RETURNING uuid, idp_code, email, display_name, avatar_color, created_at, created_by, updated_at, updated_by, version
+        `;
+
+        const result = await pool.query(query, values);
+
+        if (result.rowCount === 0) {
+          res.status(404).json({
+            type: "/errors/not-found",
+            title: "User profile not found",
+            status: 404,
+            detail: "User profile not found in database",
+            internal_code: "USER_PROFILE_NOT_FOUND",
+            severity: "HIGH",
+          });
+          return;
+        }
+
+        const profile = result.rows[0];
+        res.json({
+          success: true,
+          profile: {
+            uuid: profile.uuid,
+            idpCode: profile.idp_code,
+            email: profile.email,
+            displayName: profile.display_name,
+            avatarColor: profile.avatar_color,
+            createdAt: profile.created_at,
+            createdBy: profile.created_by,
+            updatedAt: profile.updated_at,
+            updatedBy: profile.updated_by,
+            version: profile.version,
+          }
+        });
+      } catch (error) {
+        console.error("[Auth Me Patch] Error updating user profile:", error);
+        res.status(500).json({
+          type: "/errors/internal-error",
+          title: "Failed to update user profile",
+          status: 500,
+          detail: "An error occurred while updating user profile",
+          internal_code: "UPDATE_PROFILE_FAILED",
+          severity: "HIGH",
+        });
+      }
+    })
+  );
+
   // GET /api/v1/auth/me - Fetch user profile from database
   router.get(
     "/api/v1/auth/me",
@@ -440,7 +575,7 @@ export function authRouter() {
       try {
         const pool = getPool();
         const result = await pool.query(
-          `SELECT uuid, idp_code, email, display_name, created_at, created_by, updated_at, updated_by, version, deleted_at, deleted_by
+          `SELECT uuid, idp_code, email, display_name, avatar_color, created_at, created_by, updated_at, updated_by, version, deleted_at, deleted_by
            FROM public.user_profiles
            WHERE uuid = $1`,
           [userId]
@@ -466,6 +601,7 @@ export function authRouter() {
             idpCode: profile.idp_code,
             email: profile.email,
             displayName: profile.display_name,
+            avatarColor: profile.avatar_color,
             createdAt: profile.created_at,
             createdBy: profile.created_by,
             updatedAt: profile.updated_at,
@@ -485,6 +621,122 @@ export function authRouter() {
           internal_code: "FETCH_PROFILE_FAILED",
           severity: "HIGH",
         });
+      }
+    })
+  );
+
+  // GET /api/v1/entities/user_profiles/meta - Metadata endpoint
+  router.get(
+    "/api/v1/entities/user_profiles/meta",
+    rbacHandler([Permission.AUTHENTICATED_USER]),
+    (_req, res) => {
+      res.json({
+        entity: "user_profiles",
+        titleKey: "entities.userProfile.title",
+        uid: "uuid",
+        list: {
+          auditingColumns: ["created_at", "created_by", "updated_at", "updated_by", "version"],
+        },
+      });
+    }
+  );
+
+  // GET /api/v1/entities/user_profiles/:uuid/audit - Audit history endpoint
+  const UuidParamSchema = z.object({ uuid: z.string().uuid() });
+  const UserProfileAuditQuerySchema = z.object({
+    page: z.coerce.number().int().positive().default(1),
+    limit: z.coerce.number().int().positive().max(100).default(50),
+  });
+
+  router.get(
+    "/api/v1/entities/user_profiles/:uuid/audit",
+    rbacHandler([Permission.USER_PROFILE_READ_AUDIT]),
+    (req, res, next) => {
+      const r = UuidParamSchema.safeParse(req.params);
+      if (!r.success) {
+        res.status(400).json({
+          type: '/errors/validation-error',
+          title: 'Validation error',
+          status: 400,
+          detail: 'Request validation failed',
+          severity: 'MEDIUM',
+          issues: r.error.issues.map((i) => ({
+            path: i.path.join("."),
+            code: i.code,
+            message: i.message,
+          })),
+        });
+        return;
+      }
+      (req as any).params = r.data;
+      next();
+    },
+    asyncHandler(async (req, res) => {
+      const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
+      const { page, limit } = req.query as unknown as z.infer<typeof UserProfileAuditQuerySchema>;
+      const pool = getPool();
+      const offset = (page - 1) * limit;
+
+      try {
+        const countQuery = `
+          SELECT COUNT(*) as total
+          FROM public.user_profiles_audit
+          WHERE entity_uuid = $1
+        `;
+
+        const countResult = await pool.query(countQuery, [uuid]);
+        const total = parseInt(countResult.rows[0].total, 10);
+
+        const query = `
+          SELECT
+            id,
+            entity_uuid,
+            action,
+            changed_at,
+            changed_by,
+            version,
+            delta
+          FROM public.user_profiles_audit
+          WHERE entity_uuid = $1
+          ORDER BY changed_at DESC, id DESC
+          LIMIT $2 OFFSET $3
+        `;
+
+        const result = await pool.query(query, [uuid, limit, offset]);
+
+        const data = result.rows.map((row: any) => ({
+          id: row.id.toString(),
+          entity_uuid: row.entity_uuid,
+          action: row.action,
+          changed_at: row.changed_at.toISOString(),
+          changed_by: row.changed_by,
+          version: row.version,
+          delta: row.delta,
+        }));
+
+        res.json({
+          data,
+          pagination: {
+            page,
+            limit,
+            total,
+            hasMore: offset + limit < total,
+          },
+        });
+      } catch (e) {
+        console.error('[User Profile Audit Error]', {
+          error: e,
+          stack: e instanceof Error ? e.stack : undefined,
+          message: e instanceof Error ? e.message : String(e)
+        });
+        res.status(500).json({
+          type: '/errors/audit-failed',
+          title: 'Audit retrieval failed',
+          status: 500,
+          detail: 'An unexpected error occurred while fetching user profile audit history',
+          severity: 'HIGH',
+        });
+        return;
       }
     })
   );
