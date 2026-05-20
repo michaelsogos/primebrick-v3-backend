@@ -10,6 +10,8 @@ import { getPool } from "../../db/pool.js";
 import { loadAuthConfigFromDb, type AuthConfigDb } from "./config-repo.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { z } from "zod";
+import { rbacHandler } from "./rbac.middleware.js";
+import { Permission } from "./permissions.js";
 
 const LoginBodySchema = z.object({
   username: z.string().min(1),
@@ -413,6 +415,76 @@ export function authRouter() {
           severity: "HIGH",
         });
         return;
+      }
+    })
+  );
+
+  // GET /api/v1/auth/me - Fetch user profile from database
+  router.get(
+    "/api/v1/auth/me",
+    rbacHandler([Permission.AUTHENTICATED_USER]),
+    asyncHandler(async (req, res) => {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({
+          type: "/errors/authentication-failed",
+          title: "User not authenticated",
+          status: 401,
+          detail: "User ID not found in request",
+          internal_code: "USER_NOT_AUTHENTICATED",
+          severity: "HIGH",
+        });
+        return;
+      }
+
+      try {
+        const pool = getPool();
+        const result = await pool.query(
+          `SELECT uuid, idp_code, email, display_name, created_at, created_by, updated_at, updated_by, version, deleted_at, deleted_by
+           FROM public.user_profiles
+           WHERE uuid = $1`,
+          [userId]
+        );
+
+        if (result.rowCount === 0) {
+          res.status(404).json({
+            type: "/errors/not-found",
+            title: "User profile not found",
+            status: 404,
+            detail: "User profile not found in database",
+            internal_code: "USER_PROFILE_NOT_FOUND",
+            severity: "HIGH",
+          });
+          return;
+        }
+
+        const profile = result.rows[0];
+        res.json({
+          success: true,
+          profile: {
+            uuid: profile.uuid,
+            idpCode: profile.idp_code,
+            email: profile.email,
+            displayName: profile.display_name,
+            createdAt: profile.created_at,
+            createdBy: profile.created_by,
+            updatedAt: profile.updated_at,
+            updatedBy: profile.updated_by,
+            version: profile.version,
+            deletedAt: profile.deleted_at,
+            deletedBy: profile.deleted_by,
+          }
+        });
+      } catch (error) {
+        console.error("[Auth Me] Error fetching user profile:", error);
+        res.status(500).json({
+          type: "/errors/internal-error",
+          title: "Failed to fetch user profile",
+          status: 500,
+          detail: "An error occurred while fetching user profile",
+          internal_code: "FETCH_PROFILE_FAILED",
+          severity: "HIGH",
+        });
       }
     })
   );
