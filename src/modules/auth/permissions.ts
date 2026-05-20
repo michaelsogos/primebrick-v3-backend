@@ -41,6 +41,11 @@ export const Permission = {
   // --- System / cross-module ---
   MODULES_READ_ALL: "modules.read.all",
 
+  // --- Settings / Profile module ---
+  PROFILE_READ: "profile.read",
+  PROFILE_UPDATE: "profile.update",
+  USER_PROFILE_READ_AUDIT: "userprofile.read.audit",
+
   // --- Customers module ---
   CUSTOMERS_READ_ALL: "customers.read.all",
 

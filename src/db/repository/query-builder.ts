@@ -54,9 +54,11 @@ class ParamWriter {
   }
 }
 
-function renderProjection(entity: EntityClass, fields?: FieldProjector[]): string[] {
+function renderProjection(entity: EntityClass, fields?: FieldProjector[], joins?: JoinExpr[]): string[] {
+  const projections: string[] = [];
+
   if (fields && fields.length > 0) {
-    return fields.map((f) => {
+    projections.push(...fields.map((f) => {
       if (f.kind === "expr") {
         // Explicitly raw; caller owns safety.
         return `${f.expr} AS ${quoteIdent(f.alias)}`;
@@ -66,16 +68,39 @@ function renderProjection(entity: EntityClass, fields?: FieldProjector[]): strin
       const alias = f.alias ?? getColumnName(f.field.entity, f.field.key);
       assertValidIdentPart(alias, "projectionAlias");
       return `${t}.${c} AS ${quoteIdent(alias)}`;
-    });
+    }));
+  } else {
+    // Default: all persisted columns from base entity.
+    const meta = getEntityPersistenceMeta(entity);
+    for (const c of Object.values(meta.columns)) {
+      assertValidIdentPart(c.propertyKey, "propertyKey");
+      // Alias to TS property name (matches C# Dapper mapping).
+      projections.push(`${qTable(entity)}.${quoteIdent(c.sqlName)} AS ${quoteIdent(c.propertyKey)}`);
+    }
   }
 
-  // Default: all persisted columns from base entity.
-  const meta = getEntityPersistenceMeta(entity);
-  return Object.values(meta.columns).map((c) => {
-    assertValidIdentPart(c.propertyKey, "propertyKey");
-    // Alias to TS property name (matches C# Dapper mapping).
-    return `${qTable(entity)}.${quoteIdent(c.sqlName)} AS ${quoteIdent(c.propertyKey)}`;
-  });
+  // Add projections for display_name fields from joined tables
+  // These are NOT in the base entity, they come from the joins
+  if (joins) {
+    for (const j of joins) {
+      if (j.alias) {
+        // Map join alias to the corresponding field name
+        // creator -> created_by_name
+        // updater -> updated_by_name
+        // deleter -> deleted_by_name
+        let fieldName = '';
+        if (j.alias === 'creator') fieldName = 'created_by_name';
+        else if (j.alias === 'updater') fieldName = 'updated_by_name';
+        else if (j.alias === 'deleter') fieldName = 'deleted_by_name';
+
+        if (fieldName) {
+          projections.push(`${quoteIdent(j.alias)}.display_name AS ${quoteIdent(fieldName)}`);
+        }
+      }
+    }
+  }
+
+  return projections;
 }
 
 function renderJoins(joins: JoinExpr[] | undefined): string[] {
@@ -83,8 +108,46 @@ function renderJoins(joins: JoinExpr[] | undefined): string[] {
   const out: string[] = [];
   for (const j of joins) {
     const rightTable = qTable(j.right.entity);
-    const onExpr = `${qQualifiedField(j.right.entity, j.right.key)} = ${qQualifiedField(j.left.entity, j.left.key)}`;
-    out.push(`${j.type} JOIN ${rightTable} ON ${onExpr}`);
+    const aliasClause = j.alias ? ` AS ${quoteIdent(j.alias)}` : '';
+
+    // When alias is provided, reference the right side via alias, not table name.
+    const rightColName = getColumnName(j.right.entity, j.right.key);
+    assertValidIdentPart(rightColName, "columnName");
+    const rightTableRef = j.alias ? quoteIdent(j.alias) : qTable(j.right.entity);
+    let rightExpr = `${rightTableRef}.${quoteIdent(rightColName)}`;
+    let colMeta = null;
+
+    if (j.options?.castRightTo) {
+      rightExpr = `${rightExpr}::${j.options.castRightTo}`;
+    } else {
+      // Check entity metadata
+      const meta = getEntityPersistenceMeta(j.right.entity);
+      colMeta = meta.columns[rightColName];
+      if (colMeta?.castInJoin) {
+        rightExpr = `${rightExpr}::${colMeta.castInJoin}`;
+      }
+    }
+
+    // Build left expression with optional cast
+    const leftExpr = qQualifiedField(j.left.entity, j.left.key);
+    let leftExprWithCast = leftExpr;
+
+    if (j.options?.castLeftTo) {
+      leftExprWithCast = `${leftExpr}::${j.options.castLeftTo}`;
+    }
+
+    // Build ON clause with optional UUID pattern check
+    let onExpr: string;
+
+    if (j.options?.castRightTo === 'uuid' || (colMeta?.castInJoin === 'uuid')) {
+      // When casting to UUID, also cast the left side to UUID for comparison
+      // This avoids "uuid = text" error
+      onExpr = `${leftExpr} ~ '^[0-9a-fA-F-]{36}$' AND ${rightExpr} = ${leftExprWithCast}`;
+    } else {
+      onExpr = `${rightExpr} = ${leftExprWithCast}`;
+    }
+
+    out.push(`${j.type} JOIN ${rightTable}${aliasClause} ON ${onExpr}`);
   }
   return out;
 }
@@ -195,7 +258,7 @@ export type SelectQueryInput = {
 export function buildSelectQuery(input: SelectQueryInput): SqlQuery {
   const w = new ParamWriter();
   const baseTable = qTable(input.entity);
-  const projection = renderProjection(input.entity, input.fields);
+  const projection = renderProjection(input.entity, input.fields, input.joins);
   if (input.includeTotalRecordsWindow) projection.push(`COUNT(*) OVER() AS ${quoteIdent("_total_records")}`);
 
   const joins = renderJoins(input.joins);
