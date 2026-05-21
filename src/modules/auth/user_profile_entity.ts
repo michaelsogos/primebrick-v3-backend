@@ -58,6 +58,24 @@ export class UserProfileEntity implements IAuditableEntity {
   @Column({ length: 7, nullable: true })
   avatar_color?: string;
 
+  @Column({ pgType: "boolean", defaultSql: "true", nullable: false })
+  is_active: boolean;
+
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  is_admin: boolean;
+
+  @Column({ pgType: "jsonb", nullable: true })
+  roles?: string[];
+
+  @Column({ pgType: "timestamp with time zone", nullable: true })
+  last_synced_at?: Date;
+
+  @Column({ length: 255, nullable: true })
+  idp_org?: string;
+
+  @Column({ length: 255, nullable: true })
+  idp_username?: string;
+
   @AuditableField(AuditableFieldType.CREATED_AT)
   created_at: Date;
 

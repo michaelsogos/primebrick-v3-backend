@@ -25,6 +25,10 @@ export type AuthUser = {
   permissions: Set<string>;
   /** If true, user bypasses all permission checks (admin role). */
   isAdmin: boolean;
+  /** IDP organization (from `owner` or `organization` claim) */
+  idp_org: string | null;
+  /** IDP username (from `name`, `username`, or `preferred_username` claim) */
+  idp_username: string | null;
 };
 
 /**

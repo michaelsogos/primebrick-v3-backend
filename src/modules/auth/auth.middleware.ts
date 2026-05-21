@@ -82,6 +82,8 @@ export function authMiddleware(): RequestHandler {
         actor: user.id,
         roles: user.roles,
         idpCode: user.idp_code,
+        idpOrg: user.idp_org,
+        idpUsername: user.idp_username,
       };
       runWithSession(session, () => next());
     } catch (err) {
@@ -115,6 +117,8 @@ async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAu
   try {
     const verified = await verifyAccessToken(token, pool);
     claims = verified.payload;
+    // TEMPORARY DEBUG: dump the full JWT payload to verify available claims
+    console.log("[auth][DEBUG] Full JWT claims:", JSON.stringify(claims, null, 2));
   } catch (e) {
     // Don't leak crypto / JWKS internals — log server-side, return generic 401.
     console.error("[auth] token verification failed:", (e as Error)?.message);
@@ -128,6 +132,8 @@ async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAu
     idp_code: normalized.idp_code,
     email: normalized.email,
     display_name: normalized.name,
+    idp_org: normalized.idp_org,
+    idp_username: normalized.idp_username,
   });
   const { patterns, isAdmin } = await expandPermissions(
     normalized.roles,
@@ -165,10 +171,24 @@ async function fromGateway(req: Request, cfg: Awaited<ReturnType<typeof getAuthC
     ? coerceRoles(rawRoles.split(",").map((s) => s.trim()).filter(Boolean))
     : [];
 
+  // Extract idpOrg and idpUsername from new gateway headers (if configured)
+  // Fallback: split idpCode on '/' if it contains a slash
+  const idpOrg = readHeaderString(req, headers.idpOrg as any) ?? null;
+  const idpUsername = readHeaderString(req, headers.idpUsername as any) ?? null;
+  let finalIdpOrg = idpOrg;
+  let finalIdpUsername = idpUsername;
+  if (!finalIdpOrg && !finalIdpUsername && idpCode.includes('/')) {
+    const parts = idpCode.split('/');
+    finalIdpOrg = parts[0];
+    finalIdpUsername = parts[1];
+  }
+
   const internalUuid = await resolveInternalUuid({
     idp_code: idpCode,
     email,
     display_name: name,
+    idp_org: finalIdpOrg,
+    idp_username: finalIdpUsername,
   });
   const { patterns, isAdmin } = await expandPermissions(
     roles,
@@ -179,6 +199,8 @@ async function fromGateway(req: Request, cfg: Awaited<ReturnType<typeof getAuthC
     email,
     name,
     roles,
+    idp_org: finalIdpOrg,
+    idp_username: finalIdpUsername,
   }, new Set(patterns), isAdmin);
 }
 
