@@ -1,10 +1,7 @@
 {
   "version": 2,
-  "generatedAt": "2026-05-18T13:07:27.317Z",
-  "onlyInEntityTables": [
-    "public.user_profiles",
-    "public.role_mappings"
-  ],
+  "generatedAt": "2026-05-21T17:51:30.588Z",
+  "onlyInEntityTables": [],
   "onlyInDatabaseTables": [],
   "tables": {
     "public.customers": {
@@ -20,6 +17,33 @@
           "databaseType": "uuid",
           "entityTypname": "text",
           "databaseTypname": "uuid"
+        }
+      ],
+      "nullabilityMismatches": []
+    },
+    "public.user_profiles": {
+      "onlyInEntityColumns": [
+        "idp_org",
+        "idp_username"
+      ],
+      "onlyInDatabaseColumns": [],
+      "likelyRenames": [],
+      "typeMismatches": [],
+      "nullabilityMismatches": []
+    },
+    "public.role_mappings": {
+      "onlyInEntityColumns": [],
+      "onlyInDatabaseColumns": [],
+      "likelyRenames": [],
+      "typeMismatches": [
+        {
+          "column": "is_admin",
+          "entityComparable": "text",
+          "databaseComparable": "bool",
+          "entityType": "text",
+          "databaseType": "bool",
+          "entityTypname": "text",
+          "databaseTypname": "bool"
         }
       ],
       "nullabilityMismatches": []

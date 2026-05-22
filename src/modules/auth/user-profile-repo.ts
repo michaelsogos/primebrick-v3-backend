@@ -51,6 +51,8 @@ export interface ResolveInput {
   idp_code: string;
   email: string | null;
   display_name: string | null;
+  idp_org?: string | null;
+  idp_username?: string | null;
 }
 
 /**
@@ -71,13 +73,30 @@ export async function resolveInternalUuid(
   if (cached) return cached;
 
   // Try a fast SELECT first — most requests hit existing users.
-  const sel = await pool.query<{ uuid: string }>(
-    `select uuid from public.user_profiles where idp_code = $1 limit 1`,
+  const sel = await pool.query<{ uuid: string; idp_org?: string; idp_username?: string }>(
+    `select uuid, idp_org, idp_username from public.user_profiles where idp_code = $1 limit 1`,
     [input.idp_code]
   );
   if (sel.rowCount && sel.rows[0]) {
-    cacheSet(input.idp_code, sel.rows[0].uuid);
-    return sel.rows[0].uuid;
+    const row = sel.rows[0];
+    // Sync idp_org and idp_username if they differ from input (keeps Casdoor sync reliable)
+    const needsUpdate =
+      (input.idp_org !== undefined && row.idp_org !== input.idp_org) ||
+      (input.idp_username !== undefined && row.idp_username !== input.idp_username);
+    if (needsUpdate) {
+      await pool.query(
+        `update public.user_profiles
+         set idp_org = coalesce($2, idp_org),
+             idp_username = coalesce($3, idp_username),
+             updated_at = now(),
+             updated_by = uuid,
+             version = version + 1
+         where idp_code = $1`,
+        [input.idp_code, input.idp_org, input.idp_username]
+      );
+    }
+    cacheSet(input.idp_code, row.uuid);
+    return row.uuid;
   }
 
   // Not found → just-in-time provisioning. The user that performs the very
@@ -86,12 +105,14 @@ export async function resolveInternalUuid(
   const now = new Date();
   const ins = await pool.query<{ uuid: string; id: number }>(
     `insert into public.user_profiles
-       (uuid, idp_code, email, display_name,
+       (uuid, idp_code, email, display_name, idp_org, idp_username,
         created_at, created_by, updated_at, updated_by, version)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, 1)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1)
      on conflict (idp_code) do update
        set email = excluded.email,
            display_name = excluded.display_name,
+           idp_org = excluded.idp_org,
+           idp_username = excluded.idp_username,
            updated_at = excluded.updated_at,
            updated_by = excluded.updated_by,
            version = public.user_profiles.version + 1
@@ -101,6 +122,8 @@ export async function resolveInternalUuid(
       input.idp_code,
       input.email,
       input.display_name,
+      input.idp_org,
+      input.idp_username,
       now,
       newUuid,
       now,
@@ -119,6 +142,8 @@ export async function resolveInternalUuid(
       idp_code: { old: null, new: input.idp_code },
       email: { old: null, new: input.email },
       display_name: { old: null, new: input.display_name },
+      idp_org: { old: null, new: input.idp_org },
+      idp_username: { old: null, new: input.idp_username },
       created_at: { old: null, new: now },
       created_by: { old: null, new: newUuid },
       updated_at: { old: null, new: now },

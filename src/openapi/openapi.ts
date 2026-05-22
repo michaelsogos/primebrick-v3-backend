@@ -103,6 +103,85 @@ export const openapi = {
         },
       },
     },
+    "/api/v1/auth/login": {
+      post: {
+        summary: "Login with username and password",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/LoginBody" },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Login successful",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/LoginResponse" },
+              },
+            },
+          },
+          "401": { description: "Invalid credentials" },
+          "429": { description: "Too many login attempts" },
+        },
+      },
+    },
+    "/api/v1/auth/refresh": {
+      post: {
+        summary: "Refresh access token using refresh token cookie",
+        responses: {
+          "200": {
+            description: "Token refreshed successfully",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/LoginResponse" },
+              },
+            },
+          },
+          "401": { description: "Refresh token missing or invalid" },
+        },
+      },
+    },
+    "/api/v1/auth/me": {
+      get: {
+        summary: "Get current user profile",
+        responses: {
+          "200": {
+            description: "OK",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UserProfile" },
+              },
+            },
+          },
+          "401": { description: "Not authenticated" },
+        },
+      },
+      patch: {
+        summary: "Update current user profile",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/UserProfileUpdateBody" },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Profile updated successfully",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UserProfile" },
+              },
+            },
+          },
+          "401": { description: "Not authenticated" },
+        },
+      },
+    },
   },
   components: {
     schemas: {
@@ -233,6 +312,82 @@ export const openapi = {
           page: { type: "integer" },
           page_size: { type: "integer" },
           total: { type: "integer" },
+        },
+      },
+      LoginBody: {
+        type: "object",
+        required: ["username", "password"],
+        properties: {
+          username: { type: "string" },
+          password: { type: "string" },
+        },
+      },
+      LoginResponse: {
+        type: "object",
+        required: ["success", "user"],
+        properties: {
+          success: { type: "boolean" },
+          user: { $ref: "#/components/schemas/User" },
+        },
+      },
+      User: {
+        type: "object",
+        required: ["username", "display_name", "email", "expires_at", "roles"],
+        properties: {
+          username: { type: "string" },
+          display_name: { type: "string" },
+          email: { type: "string", format: "email" },
+          organization: { type: "string" },
+          expires_at: { type: "integer", description: "Expiration timestamp in milliseconds" },
+          roles: {
+            type: "array",
+            items: { $ref: "#/components/schemas/Role" },
+          },
+        },
+      },
+      Role: {
+        type: "object",
+        required: ["name", "display_name", "owner"],
+        properties: {
+          name: { type: "string" },
+          display_name: { type: "string" },
+          owner: { type: "string" },
+        },
+      },
+      UserProfile: {
+        type: "object",
+        required: ["uuid", "idp_code", "email", "display_name", "created_at", "updated_at", "version"],
+        properties: {
+          uuid: { type: "string", format: "uuid" },
+          idp_code: { type: "string" },
+          idp_org: { type: "string" },
+          idp_username: { type: "string" },
+          email: { type: "string", format: "email" },
+          display_name: { type: "string" },
+          avatar_color: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" },
+          avatar_initials: { type: "string" },
+          is_active: { type: "boolean" },
+          is_admin: { type: "boolean" },
+          roles: { type: "array", items: { type: "string" } },
+          created_at: { type: "string", format: "date-time" },
+          created_by: { type: "string" },
+          created_by_name: { type: "string" },
+          updated_at: { type: "string", format: "date-time" },
+          updated_by: { type: "string" },
+          updated_by_name: { type: "string" },
+          version: { type: "integer" },
+          deleted_at: { type: "string", format: "date-time" },
+          deleted_by: { type: "string" },
+          deleted_by_name: { type: "string" },
+        },
+      },
+      UserProfileUpdateBody: {
+        type: "object",
+        properties: {
+          display_name: { type: "string" },
+          email: { type: "string", format: "email" },
+          avatar_color: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" },
+          avatar_initials: { type: "string" },
         },
       },
       EntityMetaResponse: {
