@@ -217,6 +217,14 @@ export function authRouter() {
 
         const { access_token, refresh_token, expires_in } = data;
 
+        // DEBUG: Check token size before setting cookie
+        const accessTokenSize = access_token ? access_token.length : 0;
+        const refreshTokenSize = refresh_token ? refresh_token.length : 0;
+        console.log(`[Auth Login] Token sizes - Access: ${accessTokenSize} bytes, Refresh: ${refreshTokenSize} bytes`);
+        if (accessTokenSize > 4096) {
+          console.warn('[Auth Login] WARNING: Access token exceeds 4KB cookie limit!');
+        }
+
         // Set access_token as httpOnly cookie
         res.cookie("access_token", access_token, {
           httpOnly: true,
@@ -237,6 +245,8 @@ export function authRouter() {
           });
         }
 
+        console.log("[Auth Login] Cookies set successfully");
+
         // Decode JWT payload on backend to extract user profile data
         const tokenParts = access_token.split('.');
         const encodedPayload = tokenParts[1];
@@ -249,6 +259,8 @@ export function authRouter() {
           display_name: role.displayName,
           owner: role.owner
         }));
+
+        console.log(`[Auth Login] Roles parsed: ${JSON.stringify(roles.map((r: any) => r.name))}`);
 
         // Check if user has any roles
         if (!roles || roles.length === 0) {
@@ -274,12 +286,15 @@ export function authRouter() {
             roles
           }
         });
+
+        console.log("[Auth Login] Response sent successfully");
       } catch (e) {
         const error = e as Error;
         console.error("💥 [AUTH EXCEPTION] Eccezione di rete o parsing durante la chiamata a Casdoor:", {
           error: error.message,
           stack: error.stack,
         });
+        console.error("[Auth Login] Error in login response:", error);
 
         res.status(500).json({
           type: "/errors/internal-error",

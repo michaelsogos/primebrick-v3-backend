@@ -1,5 +1,6 @@
 /**
  * Generate hexagon avatar SVG with initials and background color.
+ * Uses stretched viewBox to match app's taller/narrower hexagon shape.
  */
 
 export function generateHexagonAvatarSvg(
@@ -10,16 +11,21 @@ export function generateHexagonAvatarSvg(
   // Calculate contrast color for text (white/black based on background)
   const textColor = getContrastTextColor(backgroundColor);
 
-  // Generate hexagon SVG
+  // Use non-square viewBox for stretched hexagon shape (wider than tall)
+  const viewWidth = 115;
+  const viewHeight = 100;
+
+  // Generate hexagon SVG with stretched aspect ratio
   const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${viewWidth} ${viewHeight}" preserveAspectRatio="none">
   <defs>
     <clipPath id="hexagon">
-      <polygon points="${getHexagonPoints(size)}" />
+      <!-- Hardcoded points for stretched hexagon that touches top/bottom edges -->
+      <polygon points="57.5,0 107.5,28.8 107.5,71.2 57.5,100 7.5,71.2 7.5,28.8" />
     </clipPath>
   </defs>
-  <rect width="${size}" height="${size}" fill="${backgroundColor}" clip-path="url(#hexagon)" />
-  <text x="50%" y="${size/2 + size*0.05}" dominant-baseline="middle" text-anchor="middle" fill="${textColor}" font-size="${size * 0.4}" font-family="Arial, sans-serif" font-weight="bold">
+  <rect width="${viewWidth}" height="${viewHeight}" fill="${backgroundColor}" clip-path="url(#hexagon)" />
+  <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="${textColor}" font-size="42" font-family="Arial, sans-serif" font-weight="bold">
     ${initials}
   </text>
 </svg>`.trim();
@@ -27,24 +33,6 @@ export function generateHexagonAvatarSvg(
   // Encode to base64 data URI
   const base64 = Buffer.from(svg).toString('base64');
   return `data:image/svg+xml;base64,${base64}`;
-}
-
-/**
- * Get hexagon polygon points for a given size.
- */
-function getHexagonPoints(size: number): string {
-  const center = size / 2;
-  const radius = size * 0.45; // Reduced from size/2 for better fit within viewBox
-  const points: string[] = [];
-
-  for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 3) * i - Math.PI / 2; // Start from top
-    const x = center + radius * Math.cos(angle);
-    const y = center + radius * Math.sin(angle);
-    points.push(`${x},${y}`);
-  }
-
-  return points.join(' ');
 }
 
 /**
