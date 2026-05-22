@@ -17,6 +17,8 @@ export type UserProfileDetailRow = {
   avatar_initials?: string;
   is_active: boolean;
   is_admin: boolean;
+  is_verified: boolean;
+  issuer?: string;
   roles?: string[];
   last_synced_at?: Date;
   idp_org?: string;
@@ -94,7 +96,7 @@ export class UserProfilesDal {
 
   async updateProfile(
     uuid: string,
-    body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; roles?: string[]; last_synced_at?: Date; idp_code?: string }
+    body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string }
   ): Promise<void> {
     await this.repo.update(UserProfileEntity, uuid, body, requireActor());
   }

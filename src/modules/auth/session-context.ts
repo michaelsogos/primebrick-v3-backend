@@ -64,6 +64,12 @@ export interface Session {
 
   /** IDP username (from `name`, `username`, or `preferred_username` claim). `null` for `"system"`. */
   idpUsername: string | null;
+
+  /** Email verification status from IDP. `null` for `"system"`. */
+  isVerified?: boolean;
+
+  /** IDP issuer URL (from `iss` claim). `null` for `"system"`. */
+  issuer?: string;
 }
 
 const als = new AsyncLocalStorage<Session>();

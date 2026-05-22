@@ -158,7 +158,9 @@ async function main(): Promise<void> {
 
   const resUser = await http.post(`/add-user?id=${ORG_NAME}/${USER_NAME}`, {
     owner: ORG_NAME, name: USER_NAME, displayName: "Primebrick Admin",
-    email: CASDOOR_ADMIN_EMAIL, password: CASDOOR_ADMIN_PASSWORD, isAdmin: false, isGlobalAdmin: false, signupApplication: CASDOOR_CLIENT_ID,
+    email: CASDOOR_ADMIN_EMAIL, password: CASDOOR_ADMIN_PASSWORD, isAdmin: true, isGlobalAdmin: false, signupApplication: CASDOOR_CLIENT_ID,
+    isVerified: true,
+    emailVerified: true,
     customFields: {
       app_avatar_color: defaultColor,
       app_avatar_shape: "hexagon",
@@ -229,10 +231,10 @@ async function main(): Promise<void> {
     const now = new Date();
     await pbPool.query(
       `INSERT INTO public.user_profiles
-       (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, roles, created_at, created_by, updated_at, updated_by, version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, false, $9, $10, $11, 1)`,
+       (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, is_verified, issuer, roles, last_synced_at, created_at, created_by, updated_at, updated_by, version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, true, true, $9, $10, $11, $12, $13, $14, 1)`,
       [newUuid, casdoorUserId, CASDOOR_ADMIN_EMAIL, "Primebrick Admin", casdoorOrg, casdoorUsername, defaultColor, initials,
-       JSON.stringify([ROLE_ADMINISTRATORS]), now, newUuid, now, newUuid]
+       CASDOOR_ENDPOINT, JSON.stringify([ROLE_ADMINISTRATORS]), now, now, newUuid, now, newUuid]
     );
     console.log("  ↳ ✅ User profile created in Primebrick DB.");
   } catch (dbErr: any) {

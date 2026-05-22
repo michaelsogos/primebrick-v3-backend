@@ -79,6 +79,12 @@ export class UserProfileEntity implements IAuditableEntity {
   @Column({ length: 255, nullable: true })
   idp_username?: string;
 
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  is_verified: boolean;
+
+  @Column({ length: 255, nullable: true })
+  issuer?: string;
+
   @AuditableField(AuditableFieldType.CREATED_AT)
   created_at: Date;
 
