@@ -68,6 +68,9 @@ export interface Session {
   /** Email verification status from IDP. `null` for `"system"`. */
   isVerified?: boolean;
 
+  /** Email verification status (email-specific). `null` for `"system"`. */
+  emailVerified?: boolean;
+
   /** IDP issuer URL (from `iss` claim). `null` for `"system"`. */
   issuer?: string;
 }

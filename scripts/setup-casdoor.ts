@@ -231,8 +231,8 @@ async function main(): Promise<void> {
     const now = new Date();
     await pbPool.query(
       `INSERT INTO public.user_profiles
-       (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, is_verified, issuer, roles, last_synced_at, created_at, created_by, updated_at, updated_by, version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, true, true, $9, $10, $11, $12, $13, $14, 1)`,
+       (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, is_verified, email_verified, issuer, roles, last_synced_at, created_at, created_by, updated_at, updated_by, version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, true, true, true, $9, $10, $11, $12, $13, $14, 1)`,
       [newUuid, casdoorUserId, CASDOOR_ADMIN_EMAIL, "Primebrick Admin", casdoorOrg, casdoorUsername, defaultColor, initials,
        CASDOOR_ENDPOINT, JSON.stringify([ROLE_ADMINISTRATORS]), now, now, newUuid, now, newUuid]
     );

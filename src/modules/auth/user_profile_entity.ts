@@ -82,6 +82,9 @@ export class UserProfileEntity implements IAuditableEntity {
   @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
   is_verified: boolean;
 
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  email_verified: boolean;
+
   @Column({ length: 255, nullable: true })
   issuer?: string;
 
