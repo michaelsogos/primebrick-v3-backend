@@ -13,6 +13,11 @@ export interface CasdoorUser {
   displayName?: string;
   email?: string;
   avatar?: string;
+  customFields?: {
+    app_avatar_color?: string;
+    app_avatar_shape?: string;
+    app_avatar_letters?: string;
+  };
   isForbidden?: boolean;
   isAdmin?: boolean;
   roles?: Array<{ name: string; displayName?: string }>;
@@ -99,16 +104,32 @@ export class CasdoorApiClient {
 
     const url = this.buildUrl(`/api/update-user?id=${encodeURIComponent(queryId)}`);
 
+    // MUST send id, owner, name in request body
+    const requestBody: any = {
+      id: user.id,           // UUID
+      owner: finalOwner,
+      name: finalName,
+      displayName: user.displayName,
+      email: user.email,
+      // other updatable fields
+    };
+
+    // Add customFields and avatar if provided
+    if (user.customFields) {
+      requestBody.customFields = user.customFields;
+    }
+    if (user.avatar) {
+      requestBody.avatar = user.avatar;
+    }
+
+    console.log(`[CasdoorApi] updateUser request: POST ${url}`);
+    console.log(`[CasdoorApi] updateUser request body:`, JSON.stringify(requestBody, null, 2));
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        ...user,
-        owner: finalOwner,
-        name: finalName,
-      }),
+      body: JSON.stringify(requestBody),
     });
     console.log(`[CasdoorApi] updateUser response: ${response.status} ${response.statusText}`);
 

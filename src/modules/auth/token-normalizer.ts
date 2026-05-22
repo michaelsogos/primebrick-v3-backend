@@ -93,8 +93,8 @@ export function normalizeIdpToken(
 
   const idp_org = ownerClaim ?? organizationClaim;
   const idp_username = nameClaim ?? usernameClaim ?? preferredUsername;
-  // Construct idp_code as {owner}/{username} if both are available, otherwise fall back to sub
-  const idp_code = (idp_org && idp_username) ? `${idp_org}/${idp_username}` : sub;
+  // MUST use ONLY JWT sub (UUID) as idp_code - NO fallback logic
+  const idp_code = sub;
 
   return {
     idp_code,

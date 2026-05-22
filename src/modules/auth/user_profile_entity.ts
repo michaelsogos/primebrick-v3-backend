@@ -58,6 +58,9 @@ export class UserProfileEntity implements IAuditableEntity {
   @Column({ length: 7, nullable: true })
   avatar_color?: string;
 
+  @Column({ length: 10, nullable: true })
+  avatar_initials?: string;
+
   @Column({ pgType: "boolean", defaultSql: "true", nullable: false })
   is_active: boolean;
 

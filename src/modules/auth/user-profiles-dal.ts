@@ -14,6 +14,7 @@ export type UserProfileDetailRow = {
   email?: string;
   display_name?: string;
   avatar_color?: string;
+  avatar_initials?: string;
   is_active: boolean;
   is_admin: boolean;
   roles?: string[];

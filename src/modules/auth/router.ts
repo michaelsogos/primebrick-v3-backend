@@ -243,71 +243,6 @@ export function authRouter() {
         const rawPayload = Buffer.from(encodedPayload, 'base64').toString('utf-8');
         const claims = JSON.parse(rawPayload);
 
-        // Sync Casdoor user data to local Primebrick DB
-        try {
-          const cdClient = await getCasdoorClient();
-          if (cdClient) {
-            console.log("[Auth Login] Starting Casdoor→Primebrick sync");
-            console.log(`[Auth Login] claims.sub=${claims.sub}, claims.name=${claims.name}, orgName=${orgName}`);
-            const casdoorUserId = `${orgName}/${claims.name}`;
-            console.log(`[Auth Login] Constructed Casdoor user ID: ${casdoorUserId}`);
-            const casdoorUser = await cdClient.getUser(casdoorUserId);
-            if (casdoorUser) {
-              const idpCode = casdoorUser.id || casdoorUserId;
-              console.log(`[Auth Login] Casdoor user found with id=${casdoorUser.id}, using idpCode=${idpCode}`);
-              const existing = await getDal().getByIdpCode(idpCode);
-              const roleNames = (casdoorUser.roles || []).map((r: any) => r.name);
-              if (existing) {
-                console.log(`[Auth Login] Found local profile ${existing.uuid} with current idp_code=${existing.idp_code}`);
-                const updateData: any = {
-                  display_name: casdoorUser.displayName || existing.display_name,
-                  email: casdoorUser.email || existing.email,
-                  is_active: !casdoorUser.isForbidden,
-                  is_admin: casdoorUser.isAdmin || false,
-                  roles: roleNames.length > 0 ? roleNames : undefined,
-                  last_synced_at: new Date(),
-                };
-                if (existing.idp_code !== idpCode) {
-                  console.log(`[Auth Login] Updating idp_code from ${existing.idp_code} to ${idpCode}`);
-                  updateData.idp_code = idpCode;
-                }
-                await getDal().updateProfile(existing.uuid, updateData);
-                console.log("[Auth Login] Casdoor→Primebrick sync completed successfully");
-                
-                // Directly sync idp_org and idp_username from JWT claims (immutable fields, defensive update)
-                const jwtIdpOrg = claims.organization || claims.owner || null;
-                const jwtIdpUsername = claims.name || claims.username || claims.preferred_username || null;
-                if (jwtIdpOrg || jwtIdpUsername) {
-                  try {
-                    const pool = getPool();
-                    await pool.query(
-                      `UPDATE public.user_profiles
-                       SET idp_org = COALESCE($2, idp_org),
-                           idp_username = COALESCE($3, idp_username),
-                           updated_at = now(),
-                           updated_by = $4,
-                           version = version + 1
-                       WHERE uuid = $1`,
-                      [existing.uuid, jwtIdpOrg, jwtIdpUsername, existing.uuid]
-                    );
-                    console.log(`[Auth Login] Synced idp_org=${jwtIdpOrg}, idp_username=${jwtIdpUsername}`);
-                  } catch (e) {
-                    console.error("[Auth Login] Failed to sync idp_org/idp_username:", e);
-                  }
-                }
-              } else {
-                console.log(`[Auth Login] Local profile not found for claims.sub=${claims.sub}, skipping sync`);
-              }
-            } else {
-              console.log("[Auth Login] Casdoor user not found, skipping sync");
-            }
-          } else {
-            console.log("[Auth Login] Casdoor client not available, skipping sync");
-          }
-        } catch (syncError) {
-          console.error("[Auth Login] Casdoor→Primebrick sync failed (non-critical):", syncError);
-        }
-
         // Return only user profile data to frontend
         const roles = (claims.roles || []).filter((role: any) => role.isEnabled !== false).map((role: any) => ({
           name: role.name,
@@ -598,6 +533,7 @@ export function authRouter() {
     display_name: z.string().optional(),
     email: z.string().email().optional(),
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    avatar_initials: z.string().min(1).optional(),
   }).strict();
 
   router.patch(
@@ -634,14 +570,27 @@ export function authRouter() {
         return;
       }
 
-      const { display_name, email, avatar_color } = parseResult.data;
+      const { display_name, email, avatar_color, avatar_initials } = parseResult.data;
+
+      // Validate avatar_initials is provided if avatar_color is being updated
+      if (avatar_color !== undefined && !avatar_initials) {
+        res.status(400).json({
+          type: '/errors/validation-error',
+          title: 'Validation error',
+          status: 400,
+          detail: 'avatar_initials is required when updating avatar_color',
+          severity: 'MEDIUM',
+        });
+        return;
+      }
 
       try {
         // Build update body with only provided fields
-        const updateBody: { display_name?: string; email?: string; avatar_color?: string } = {};
+        const updateBody: { display_name?: string; email?: string; avatar_color?: string; avatar_initials?: string } = {};
         if (display_name !== undefined) updateBody.display_name = display_name;
         if (email !== undefined) updateBody.email = email;
         if (avatar_color !== undefined) updateBody.avatar_color = avatar_color;
+        if (avatar_initials !== undefined) updateBody.avatar_initials = avatar_initials;
 
         if (Object.keys(updateBody).length === 0) {
           res.status(400).json({
@@ -666,12 +615,25 @@ export function authRouter() {
             console.log("[Auth Me Patch] Starting Primebrick→Casdoor sync for user", profile.idp_code);
             const cdClient = await getCasdoorClient();
             if (cdClient) {
+              // Generate SVG if avatar_color changed
+              let svgDataUri: string | undefined;
+              if (avatar_color && avatar_initials) {
+                const { generateHexagonAvatarSvg } = await import("./avatar-svg-generator.js");
+                svgDataUri = generateHexagonAvatarSvg(avatar_initials, avatar_color);
+              }
+
               await cdClient.updateUser({
                 id: profile.idp_code,
                 owner: profile.idp_org || undefined,
                 name: profile.idp_username || undefined,
                 displayName: updateBody.display_name || profile.display_name,
                 email: updateBody.email || profile.email,
+                customFields: {
+                  app_avatar_color: avatar_color || profile.avatar_color,
+                  app_avatar_shape: "hexagon",
+                  app_avatar_letters: avatar_initials || profile.avatar_initials,
+                },
+                ...(svgDataUri && { avatar: svgDataUri }),
               });
               console.log("[Auth Me Patch] Primebrick→Casdoor sync completed successfully");
             } else {
@@ -697,11 +659,11 @@ export function authRouter() {
         res.json({
           success: true,
           profile: {
-            uuid: profile.uuid,
             idp_code: profile.idp_code,
             email: profile.email,
             display_name: profile.display_name,
             avatar_color: profile.avatar_color,
+            avatar_initials: profile.avatar_initials,
             created_at: profile.created_at,
             created_by: profile.created_by,
             created_by_name: profile.created_by_name,
@@ -764,13 +726,13 @@ export function authRouter() {
         res.json({
           success: true,
           profile: {
-            uuid: profile.uuid,
             idp_code: profile.idp_code,
             idp_org: profile.idp_org,
             idp_username: profile.idp_username,
             email: profile.email,
             display_name: profile.display_name,
             avatar_color: profile.avatar_color,
+            avatar_initials: profile.avatar_initials,
             created_at: profile.created_at,
             created_by: profile.created_by,
             created_by_name: profile.created_by_name,
@@ -805,6 +767,7 @@ export function authRouter() {
     display_name: z.string().min(1),
     email: z.string().email(),
     roles: z.array(z.string()).optional(),
+    avatar_initials: z.string().min(1),
   });
 
   const UpdateUserSchema = z.object({
@@ -838,50 +801,79 @@ export function authRouter() {
         return;
       }
 
-      const { username, password, display_name, email, roles } = parseResult.data;
+      const { username, password, display_name, email, roles, avatar_initials } = parseResult.data;
+
+      // Validate avatar_initials is provided
+      if (!avatar_initials) {
+        res.status(400).json({
+          type: "/errors/validation-error",
+          title: "Validation error",
+          status: 400,
+          detail: "avatar_initials is required",
+          severity: "MEDIUM",
+        });
+        return;
+      }
 
       try {
+        // Default color from palette
+        const defaultColor = "#4f46e5";
+
         // 1. Create in Casdoor
         console.log("[Auth Users Create] Creating user in Casdoor:", username);
         const cdClient = await getCasdoorClient();
         let casdoorUserId: string | null = null;
+        let idpOrg = process.env.CASDOOR_ORGANIZATION || "acme";
+        let idpUsername = username;
         if (cdClient) {
+          const avatarColor = defaultColor;
+
+          // Generate SVG using initials from FE
+          const { generateHexagonAvatarSvg } = await import("./avatar-svg-generator.js");
+          const svgDataUri = generateHexagonAvatarSvg(avatar_initials, avatarColor);
+
           const newUser = await cdClient.addUser({
+            owner: idpOrg,  // REQUIRED
             name: username,
             displayName: display_name,
             email,
             password,
             roles: (roles || []).map((r) => ({ name: r })),
+            customFields: {
+              app_avatar_color: avatarColor,
+              app_avatar_shape: "hexagon",
+              app_avatar_letters: avatar_initials,
+            },
+            avatar: svgDataUri,
           });
-          if (newUser) {
-            casdoorUserId = newUser.id;
-            console.log(`[Auth Users Create] Casdoor user created with id=${casdoorUserId}`);
-          } else {
-            console.log("[Auth Users Create] Casdoor user creation returned null");
+          if (!newUser || !newUser.id) {
+            throw new Error("Casdoor user creation did not return a UUID");
           }
+          casdoorUserId = newUser.id;
+          idpOrg = newUser.owner || process.env.CASDOOR_ORGANIZATION || "acme";
+          idpUsername = newUser.name || username;
+          console.log(`[Auth Users Create] Casdoor user UUID: ${casdoorUserId}, org: ${idpOrg}, username: ${idpUsername}`);
         } else {
           console.log("[Auth Users Create] Casdoor client not available, skipping Casdoor creation");
         }
 
         // 2. Create in local DB via JIT-style provisioning
-        const idpCode = casdoorUserId || `${process.env.CASDOOR_ORGANIZATION || "acme"}/${username}`;
-        const idpOrg = process.env.CASDOOR_ORGANIZATION || "acme";
-        const idpUsername = username;
+        const idpCode = casdoorUserId;
         console.log(`[Auth Users Create] Creating local profile with idpCode=${idpCode}, idp_org=${idpOrg}, idp_username=${idpUsername}`);
         const now = new Date();
         const newUuid = require("node:crypto").randomUUID();
         const pool = getPool();
         await pool.query(
           `INSERT INTO public.user_profiles
-           (uuid, idp_code, email, display_name, idp_org, idp_username, is_active, is_admin, roles, created_at, created_by, updated_at, updated_by, version)
-           VALUES ($1, $2, $3, $4, $5, $6, true, false, $7, $8, $9, $10, 1)`,
-          [newUuid, idpCode, email, display_name, idpOrg, idpUsername, roles ? JSON.stringify(roles) : null, now, req.user?.id || newUuid, now, req.user?.id || newUuid]
+           (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, roles, created_at, created_by, updated_at, updated_by, version)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, false, $9, $10, $11, 1)`,
+          [newUuid, idpCode, email, display_name, idpOrg, idpUsername, defaultColor, avatar_initials, roles ? JSON.stringify(roles) : null, now, req.user?.id || newUuid, now, req.user?.id || newUuid]
         );
         console.log(`[Auth Users Create] Local profile created with uuid=${newUuid}`);
 
         res.status(201).json({
           success: true,
-          user: { uuid: newUuid, idp_code: idpCode, username, display_name, email },
+          user: { idp_code: idpCode, username, display_name, email },
         });
       } catch (error) {
         console.error("[Auth Users Create] Error creating user:", error);
