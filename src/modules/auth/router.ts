@@ -14,6 +14,7 @@ import { rbacHandler } from "./rbac.middleware.js";
 import { Permission } from "./permissions.js";
 import { AuditService } from "../../lib/audit/audit-service.js";
 import { UserProfilesDal } from "./user-profiles-dal.js";
+import { CasdoorApiClient } from "./casdoor-api-client.js";
 
 const LoginBodySchema = z.object({
   username: z.string().min(1),
@@ -38,6 +39,30 @@ export function authRouter() {
     const auditSvc = getAuditService();
     dal = new UserProfilesDal(pool, auditSvc);
     return dal;
+  };
+
+  let casdoorClient: CasdoorApiClient | null = null;
+
+  const getCasdoorClient = async (): Promise<CasdoorApiClient | null> => {
+    if (casdoorClient) return casdoorClient;
+    try {
+      const pool = getPool();
+      const dbConfig = await loadAuthConfigFromDb(pool);
+      if (!dbConfig.casdoorBuiltinClientId || !dbConfig.casdoorBuiltinClientSecret) {
+        console.warn("[Auth Router] Casdoor builtin credentials not configured; skipping Casdoor sync");
+        return null;
+      }
+      casdoorClient = new CasdoorApiClient({
+        endpoint: dbConfig.casdoorEndpoint || process.env.CASDOOR_ENDPOINT || "http://localhost:8000",
+        orgName: dbConfig.casdoorOrganization || "acme",
+        clientId: dbConfig.casdoorBuiltinClientId,
+        clientSecret: dbConfig.casdoorBuiltinClientSecret,
+      });
+      return casdoorClient;
+    } catch (error) {
+      console.error("[Auth Router] Failed to create Casdoor API client:", error);
+      return null;
+    }
   };
 
   router.post(
@@ -192,6 +217,14 @@ export function authRouter() {
 
         const { access_token, refresh_token, expires_in } = data;
 
+        // DEBUG: Check token size before setting cookie
+        const accessTokenSize = access_token ? access_token.length : 0;
+        const refreshTokenSize = refresh_token ? refresh_token.length : 0;
+        console.log(`[Auth Login] Token sizes - Access: ${accessTokenSize} bytes, Refresh: ${refreshTokenSize} bytes`);
+        if (accessTokenSize > 4096) {
+          console.warn('[Auth Login] WARNING: Access token exceeds 4KB cookie limit!');
+        }
+
         // Set access_token as httpOnly cookie
         res.cookie("access_token", access_token, {
           httpOnly: true,
@@ -212,6 +245,8 @@ export function authRouter() {
           });
         }
 
+        console.log("[Auth Login] Cookies set successfully");
+
         // Decode JWT payload on backend to extract user profile data
         const tokenParts = access_token.split('.');
         const encodedPayload = tokenParts[1];
@@ -224,6 +259,21 @@ export function authRouter() {
           display_name: role.displayName,
           owner: role.owner
         }));
+
+        console.log(`[Auth Login] Roles parsed: ${JSON.stringify(roles.map((r: any) => r.name))}`);
+
+        // Check if email is verified
+        if (claims.emailVerified === false) {
+          res.status(401).json({
+            type: "/errors/unauthorized",
+            title: "Email not verified",
+            status: 401,
+            detail: "The user email isn't verified yet",
+            internal_code: "email_not_verified",
+            severity: "HIGH"
+          });
+          return;
+        }
 
         // Check if user has any roles
         if (!roles || roles.length === 0) {
@@ -249,12 +299,15 @@ export function authRouter() {
             roles
           }
         });
+
+        console.log("[Auth Login] Response sent successfully");
       } catch (e) {
         const error = e as Error;
         console.error("💥 [AUTH EXCEPTION] Eccezione di rete o parsing durante la chiamata a Casdoor:", {
           error: error.message,
           stack: error.stack,
         });
+        console.error("[Auth Login] Error in login response:", error);
 
         res.status(500).json({
           type: "/errors/internal-error",
@@ -397,6 +450,74 @@ export function authRouter() {
         const rawPayload = Buffer.from(encodedPayload, 'base64').toString('utf-8');
         const claims = JSON.parse(rawPayload);
 
+        // Sync Casdoor user data to local Primebrick DB
+        try {
+          const cdClient = await getCasdoorClient();
+          if (cdClient) {
+            console.log("[Auth Refresh] Starting Casdoor→Primebrick sync");
+            console.log(`[Auth Refresh] claims.sub=${claims.sub}, claims.name=${claims.name}, orgName=${orgName}`);
+            const casdoorUserId = `${orgName}/${claims.name}`;
+            console.log(`[Auth Refresh] Constructed Casdoor user ID: ${casdoorUserId}`);
+            const casdoorUser = await cdClient.getUser(casdoorUserId);
+            if (casdoorUser) {
+              const idpCode = casdoorUser.id || casdoorUserId;
+              console.log(`[Auth Refresh] Casdoor user found with id=${casdoorUser.id}, using idpCode=${idpCode}`);
+              const existing = await getDal().getByIdpCode(idpCode);
+              const roleNames = (casdoorUser.roles || []).map((r: any) => r.name);
+              if (existing) {
+                console.log(`[Auth Refresh] Found local profile ${existing.uuid} with current idp_code=${existing.idp_code}`);
+                const updateData: any = {
+                  display_name: casdoorUser.displayName || existing.display_name,
+                  email: casdoorUser.email || existing.email,
+                  is_active: !casdoorUser.isForbidden,
+                  is_admin: casdoorUser.isAdmin || false,
+                  is_verified: casdoorUser.isVerified || false,
+                  email_verified: casdoorUser.emailVerified || false,
+                  issuer: claims.iss || null,
+                  roles: roleNames.length > 0 ? roleNames : undefined,
+                  last_synced_at: new Date(),
+                };
+                if (existing.idp_code !== idpCode) {
+                  console.log(`[Auth Refresh] Updating idp_code from ${existing.idp_code} to ${idpCode}`);
+                  updateData.idp_code = idpCode;
+                }
+                await getDal().updateProfile(existing.uuid, updateData);
+                console.log("[Auth Refresh] Casdoor→Primebrick sync completed successfully");
+                
+                // Directly sync idp_org and idp_username from JWT claims (immutable fields, defensive update)
+                const jwtIdpOrg = claims.organization || claims.owner || null;
+                const jwtIdpUsername = claims.name || claims.username || claims.preferred_username || null;
+                if (jwtIdpOrg || jwtIdpUsername) {
+                  try {
+                    const pool = getPool();
+                    await pool.query(
+                      `UPDATE public.user_profiles
+                       SET idp_org = COALESCE($2, idp_org),
+                           idp_username = COALESCE($3, idp_username),
+                           updated_at = now(),
+                           updated_by = $4,
+                           version = version + 1
+                       WHERE uuid = $1`,
+                      [existing.uuid, jwtIdpOrg, jwtIdpUsername, existing.uuid]
+                    );
+                    console.log(`[Auth Refresh] Synced idp_org=${jwtIdpOrg}, idp_username=${jwtIdpUsername}`);
+                  } catch (e) {
+                    console.error("[Auth Refresh] Failed to sync idp_org/idp_username:", e);
+                  }
+                }
+              } else {
+                console.log(`[Auth Refresh] Local profile not found for claims.sub=${claims.sub}, skipping sync`);
+              }
+            } else {
+              console.log("[Auth Refresh] Casdoor user not found, skipping sync");
+            }
+          } else {
+            console.log("[Auth Refresh] Casdoor client not available, skipping sync");
+          }
+        } catch (syncError) {
+          console.error("[Auth Refresh] Casdoor→Primebrick sync failed (non-critical):", syncError);
+        }
+
         // Return only user profile data to frontend
         const roles = (claims.roles || []).filter((role: any) => role.isEnabled !== false).map((role: any) => ({
           name: role.name,
@@ -443,6 +564,7 @@ export function authRouter() {
     display_name: z.string().optional(),
     email: z.string().email().optional(),
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    avatar_initials: z.string().min(1).optional(),
   }).strict();
 
   router.patch(
@@ -479,14 +601,27 @@ export function authRouter() {
         return;
       }
 
-      const { display_name, email, avatar_color } = parseResult.data;
+      const { display_name, email, avatar_color, avatar_initials } = parseResult.data;
+
+      // Validate avatar_initials is provided if avatar_color is being updated
+      if (avatar_color !== undefined && !avatar_initials) {
+        res.status(400).json({
+          type: '/errors/validation-error',
+          title: 'Validation error',
+          status: 400,
+          detail: 'avatar_initials is required when updating avatar_color',
+          severity: 'MEDIUM',
+        });
+        return;
+      }
 
       try {
         // Build update body with only provided fields
-        const updateBody: { display_name?: string; email?: string; avatar_color?: string } = {};
+        const updateBody: { display_name?: string; email?: string; avatar_color?: string; avatar_initials?: string; last_synced_at?: Date } = {};
         if (display_name !== undefined) updateBody.display_name = display_name;
         if (email !== undefined) updateBody.email = email;
         if (avatar_color !== undefined) updateBody.avatar_color = avatar_color;
+        if (avatar_initials !== undefined) updateBody.avatar_initials = avatar_initials;
 
         if (Object.keys(updateBody).length === 0) {
           res.status(400).json({
@@ -499,10 +634,7 @@ export function authRouter() {
           return;
         }
 
-        // Use DAL to update profile (Repository.update() handles audit logging)
-        await getDal().updateProfile(userId, updateBody);
-
-        // Fetch updated profile with joins
+        // Fetch current profile first
         const profile = await getDal().getByUuid(userId);
 
         if (!profile) {
@@ -517,14 +649,70 @@ export function authRouter() {
           return;
         }
 
+        // Sync to Casdoor first (non-best-effort, fail if sync fails)
+        console.log("[Auth Me Patch] Starting Primebrick→Casdoor sync for user", profile.idp_code);
+        const cdClient = await getCasdoorClient();
+        if (cdClient) {
+          // Generate SVG if avatar_color changed
+          let svgDataUri: string | undefined;
+          if (avatar_color && avatar_initials) {
+            const { generateHexagonAvatarSvg } = await import("./avatar-svg-generator.js");
+            svgDataUri = generateHexagonAvatarSvg(avatar_initials, avatar_color);
+          }
+
+          const syncSuccess = await cdClient.updateUser({
+            id: profile.idp_code,
+            owner: profile.idp_org || undefined,
+            name: profile.idp_username || undefined,
+            displayName: updateBody.display_name || profile.display_name,
+            email: updateBody.email || profile.email,
+            customFields: {
+              app_avatar_color: avatar_color || profile.avatar_color,
+              app_avatar_shape: "hexagon",
+              app_avatar_letters: avatar_initials || profile.avatar_initials,
+            },
+            ...(svgDataUri && { avatar: svgDataUri }),
+          });
+
+          if (!syncSuccess) {
+            console.error("[Auth Me Patch] Casdoor sync failed, aborting update");
+            res.status(502).json({
+              type: "/errors/internal-error",
+              title: "Casdoor sync failed",
+              status: 502,
+              detail: "Failed to sync profile to Casdoor",
+              instance: "/api/v1/auth/me",
+              internal_code: "CASDOOR_SYNC_FAILED",
+              severity: "HIGH",
+              extra: {
+                issues: {
+                  error_details: "Casdoor API returned non-success status",
+                  casdoor_user_id: profile.idp_code,
+                  attempted_fields: Object.keys(updateBody)
+                }
+              }
+            });
+            return;
+          }
+
+          console.log("[Auth Me Patch] Casdoor sync successful, updating local DB with last_synced_at");
+        } else {
+          console.log("[Auth Me Patch] Casdoor client not available, skipping sync");
+        }
+
+        // Use DAL to update profile (Repository.update() handles audit logging)
+        // Add last_synced_at to updateBody since Casdoor sync succeeded
+        updateBody.last_synced_at = new Date();
+        await getDal().updateProfile(userId, updateBody);
+
         res.json({
           success: true,
           profile: {
-            uuid: profile.uuid,
             idp_code: profile.idp_code,
             email: profile.email,
             display_name: profile.display_name,
             avatar_color: profile.avatar_color,
+            avatar_initials: profile.avatar_initials,
             created_at: profile.created_at,
             created_by: profile.created_by,
             created_by_name: profile.created_by_name,
@@ -587,11 +775,17 @@ export function authRouter() {
         res.json({
           success: true,
           profile: {
-            uuid: profile.uuid,
             idp_code: profile.idp_code,
+            idp_org: profile.idp_org,
+            idp_username: profile.idp_username,
             email: profile.email,
             display_name: profile.display_name,
             avatar_color: profile.avatar_color,
+            avatar_initials: profile.avatar_initials,
+            is_admin: profile.is_admin,
+            is_verified: profile.is_verified,
+            email_verified: profile.email_verified,
+            issuer: profile.issuer,
             created_at: profile.created_at,
             created_by: profile.created_by,
             created_by_name: profile.created_by_name,
@@ -612,6 +806,337 @@ export function authRouter() {
           status: 500,
           detail: "An error occurred while fetching user profile",
           internal_code: "FETCH_PROFILE_FAILED",
+          severity: "HIGH",
+        });
+      }
+    })
+  );
+
+  // === Admin user management endpoints ===
+
+  const CreateUserSchema = z.object({
+    username: z.string().min(1),
+    password: z.string().min(8),
+    display_name: z.string().min(1),
+    email: z.string().email(),
+    roles: z.array(z.string()).optional(),
+    avatar_initials: z.string().min(1),
+  });
+
+  const UpdateUserSchema = z.object({
+    display_name: z.string().optional(),
+    email: z.string().email().optional(),
+    avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    is_active: z.boolean().optional(),
+    is_admin: z.boolean().optional(),
+    roles: z.array(z.string()).optional(),
+  }).strict();
+
+  // POST /api/v1/auth/users - Create user (admin only)
+  router.post(
+    "/api/v1/auth/users",
+    rbacHandler([Permission.USERS_CREATE_SINGLE]),
+    asyncHandler(async (req, res) => {
+      const parseResult = CreateUserSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        res.status(400).json({
+          type: "/errors/validation-error",
+          title: "Validation error",
+          status: 400,
+          detail: "Request validation failed",
+          severity: "MEDIUM",
+          issues: parseResult.error.issues.map((i) => ({
+            path: i.path.join("."),
+            code: i.code,
+            message: i.message,
+          })),
+        });
+        return;
+      }
+
+      const { username, password, display_name, email, roles, avatar_initials } = parseResult.data;
+
+      // Validate avatar_initials is provided
+      if (!avatar_initials) {
+        res.status(400).json({
+          type: "/errors/validation-error",
+          title: "Validation error",
+          status: 400,
+          detail: "avatar_initials is required",
+          severity: "MEDIUM",
+        });
+        return;
+      }
+
+      try {
+        // Default color from palette
+        const defaultColor = "#4f46e5";
+
+        // 1. Create in Casdoor
+        console.log("[Auth Users Create] Creating user in Casdoor:", username);
+        const cdClient = await getCasdoorClient();
+        let casdoorUserId: string | null = null;
+        let idpOrg = process.env.CASDOOR_ORGANIZATION || "acme";
+        let idpUsername = username;
+        if (cdClient) {
+          const avatarColor = defaultColor;
+
+          // Generate SVG using initials from FE
+          const { generateHexagonAvatarSvg } = await import("./avatar-svg-generator.js");
+          const svgDataUri = generateHexagonAvatarSvg(avatar_initials, avatarColor);
+
+          const newUser = await cdClient.addUser({
+            owner: idpOrg,  // REQUIRED
+            name: username,
+            displayName: display_name,
+            email,
+            password,
+            roles: (roles || []).map((r) => ({ name: r })),
+            customFields: {
+              app_avatar_color: avatarColor,
+              app_avatar_shape: "hexagon",
+              app_avatar_letters: avatar_initials,
+            },
+            avatar: svgDataUri,
+          });
+          if (!newUser || !newUser.id) {
+            throw new Error("Casdoor user creation did not return a UUID");
+          }
+          casdoorUserId = newUser.id;
+          idpOrg = newUser.owner || process.env.CASDOOR_ORGANIZATION || "acme";
+          idpUsername = newUser.name || username;
+          console.log(`[Auth Users Create] Casdoor user UUID: ${casdoorUserId}, org: ${idpOrg}, username: ${idpUsername}`);
+        } else {
+          console.log("[Auth Users Create] Casdoor client not available, skipping Casdoor creation");
+        }
+
+        // 2. Create in local DB via JIT-style provisioning
+        const idpCode = casdoorUserId;
+        console.log(`[Auth Users Create] Creating local profile with idpCode=${idpCode}, idp_org=${idpOrg}, idp_username=${idpUsername}`);
+        const now = new Date();
+        const newUuid = require("node:crypto").randomUUID();
+        const pool = getPool();
+        const issuer = process.env.CASDOOR_ENDPOINT || null;
+        await pool.query(
+          `INSERT INTO public.user_profiles
+           (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, is_verified, issuer, roles, last_synced_at, created_at, created_by, updated_at, updated_by, version)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, false, false, $9, $10, $11, $12, $13, $14, $15, 1)`,
+          [newUuid, idpCode, email, display_name, idpOrg, idpUsername, defaultColor, avatar_initials, issuer, roles ? JSON.stringify(roles) : null, now, now, req.user?.id || newUuid, now, req.user?.id || newUuid]
+        );
+        console.log(`[Auth Users Create] Local profile created with uuid=${newUuid}`);
+
+        res.status(201).json({
+          success: true,
+          user: { idp_code: idpCode, username, display_name, email },
+        });
+      } catch (error) {
+        console.error("[Auth Users Create] Error creating user:", error);
+        res.status(500).json({
+          type: "/errors/internal-error",
+          title: "Failed to create user",
+          status: 500,
+          detail: "An unexpected error occurred while creating the user",
+          internal_code: "USER_CREATE_FAILED",
+          severity: "HIGH",
+        });
+      }
+    })
+  );
+
+  // PATCH /api/v1/auth/users/:uuid - Update user (admin only)
+  router.patch(
+    "/api/v1/auth/users/:uuid",
+    rbacHandler([Permission.USERS_UPDATE_SINGLE]),
+    asyncHandler(async (req, res) => {
+      const targetUuid = typeof req.params.uuid === "string" ? req.params.uuid : "";
+      if (!targetUuid || !z.string().uuid().safeParse(targetUuid).success) {
+        res.status(400).json({
+          type: "/errors/validation-error",
+          title: "Invalid UUID",
+          status: 400,
+          detail: "User UUID is required and must be a valid UUID",
+          severity: "MEDIUM",
+        });
+        return;
+      }
+
+      const parseResult = UpdateUserSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        res.status(400).json({
+          type: "/errors/validation-error",
+          title: "Validation error",
+          status: 400,
+          detail: "Request validation failed",
+          severity: "MEDIUM",
+          issues: parseResult.error.issues.map((i) => ({
+            path: i.path.join("."),
+            code: i.code,
+            message: i.message,
+          })),
+        });
+        return;
+      }
+
+      const body = parseResult.data;
+      const updateBody: any = {};
+      if (body.display_name !== undefined) updateBody.display_name = body.display_name;
+      if (body.email !== undefined) updateBody.email = body.email;
+      if (body.avatar_color !== undefined) updateBody.avatar_color = body.avatar_color;
+      if (body.is_active !== undefined) updateBody.is_active = body.is_active;
+      if (body.is_admin !== undefined) updateBody.is_admin = body.is_admin;
+      if (body.roles !== undefined) updateBody.roles = body.roles;
+
+      if (Object.keys(updateBody).length === 0) {
+        res.status(400).json({
+          type: "/errors/validation-error",
+          title: "Validation error",
+          status: 400,
+          detail: "No fields to update",
+          severity: "MEDIUM",
+        });
+        return;
+      }
+
+      try {
+        const existing = await getDal().getByUuid(targetUuid);
+        if (!existing) {
+          res.status(404).json({
+            type: "/errors/not-found",
+            title: "User not found",
+            status: 404,
+            detail: "User profile not found in database",
+            internal_code: "USER_NOT_FOUND",
+            severity: "HIGH",
+          });
+          return;
+        }
+
+        // Sync to Casdoor first (non-best-effort, fail if sync fails)
+        console.log("[Auth Users Update] Starting Primebrick→Casdoor sync for user", existing.idp_code);
+        const cdClient = await getCasdoorClient();
+        if (cdClient) {
+          const casdoorUpdate: any = {
+            id: existing.idp_code,
+            owner: existing.idp_org || undefined,
+            name: existing.idp_username || undefined,
+          };
+          if (body.display_name !== undefined) casdoorUpdate.displayName = body.display_name;
+          if (body.email !== undefined) casdoorUpdate.email = body.email;
+          if (body.is_active !== undefined) casdoorUpdate.isForbidden = !body.is_active;
+          if (body.is_admin !== undefined) casdoorUpdate.isAdmin = body.is_admin;
+          console.log(`[Auth Users Update] Syncing fields to Casdoor: ${JSON.stringify(Object.keys(casdoorUpdate).filter(k => k !== 'id'))}`);
+
+          const syncSuccess = await cdClient.updateUser(casdoorUpdate);
+
+          if (!syncSuccess) {
+            console.error("[Auth Users Update] Casdoor sync failed, aborting update");
+            res.status(502).json({
+              type: "/errors/internal-error",
+              title: "Casdoor sync failed",
+              status: 502,
+              detail: "Failed to sync user to Casdoor",
+              instance: "/api/v1/auth/users/:uuid",
+              internal_code: "CASDOOR_SYNC_FAILED",
+              severity: "HIGH",
+              extra: {
+                issues: {
+                  error_details: "Casdoor API returned non-success status",
+                  casdoor_user_id: existing.idp_code,
+                  attempted_fields: Object.keys(updateBody)
+                }
+              }
+            });
+            return;
+          }
+
+          console.log("[Auth Users Update] Casdoor sync successful, updating local DB with last_synced_at");
+        } else {
+          console.log("[Auth Users Update] Casdoor client not available, skipping sync");
+        }
+
+        // Update local DB with last_synced_at since Casdoor sync succeeded
+        updateBody.last_synced_at = new Date();
+        await getDal().updateProfile(targetUuid, updateBody);
+
+        const updated = await getDal().getByUuid(targetUuid);
+        res.json({ success: true, profile: updated });
+      } catch (error) {
+        console.error("[Auth Users Update] Error updating user:", error);
+        res.status(500).json({
+          type: "/errors/internal-error",
+          title: "Failed to update user",
+          status: 500,
+          detail: "An unexpected error occurred while updating the user",
+          internal_code: "USER_UPDATE_FAILED",
+          severity: "HIGH",
+        });
+      }
+    })
+  );
+
+  // DELETE /api/v1/auth/users/:uuid - Soft delete user (admin only)
+  router.delete(
+    "/api/v1/auth/users/:uuid",
+    rbacHandler([Permission.USERS_DELETE_SINGLE]),
+    asyncHandler(async (req, res) => {
+      const targetUuid = typeof req.params.uuid === "string" ? req.params.uuid : "";
+      if (!targetUuid || !z.string().uuid().safeParse(targetUuid).success) {
+        res.status(400).json({
+          type: "/errors/validation-error",
+          title: "Invalid UUID",
+          status: 400,
+          detail: "User UUID is required and must be a valid UUID",
+          severity: "MEDIUM",
+        });
+        return;
+      }
+
+      try {
+        const existing = await getDal().getByUuid(targetUuid);
+        if (!existing) {
+          res.status(404).json({
+            type: "/errors/not-found",
+            title: "User not found",
+            status: 404,
+            detail: "User profile not found in database",
+            internal_code: "USER_NOT_FOUND",
+            severity: "HIGH",
+          });
+          return;
+        }
+
+        // Soft delete in local DB
+        console.log(`[Auth Users Delete] Soft deleting local profile ${targetUuid}`);
+        await getDal().softDelete(targetUuid);
+
+        // Disable in Casdoor (soft-delete semantics)
+        try {
+          console.log("[Auth Users Delete] Disabling user in Casdoor:", existing.idp_code);
+          const cdClient = await getCasdoorClient();
+          if (cdClient) {
+            await cdClient.updateUser({
+              id: existing.idp_code,
+              owner: existing.idp_org || undefined,
+              name: existing.idp_username || undefined,
+              isForbidden: true,
+            });
+            console.log("[Auth Users Delete] Primebrick→Casdoor sync completed successfully");
+          } else {
+            console.log("[Auth Users Delete] Casdoor client not available, skipping sync");
+          }
+        } catch (syncError) {
+          console.error("[Auth Users Delete] Primebrick→Casdoor sync failed (non-critical):", syncError);
+        }
+
+        res.json({ success: true });
+      } catch (error) {
+        console.error("[Auth Users Delete] Error deleting user:", error);
+        res.status(500).json({
+          type: "/errors/internal-error",
+          title: "Failed to delete user",
+          status: 500,
+          detail: "An unexpected error occurred while deleting the user",
+          internal_code: "USER_DELETE_FAILED",
           severity: "HIGH",
         });
       }

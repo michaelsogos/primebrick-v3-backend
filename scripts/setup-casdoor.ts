@@ -149,11 +149,36 @@ async function main(): Promise<void> {
 
   // 5. CREAZIONE UTENTE ADMIN
   console.log("\n📡 [API] Sincronizzazione Utente...");
+
+  // Generate static initials and SVG for admin user
+  const initials = "PA"; // Primebrick Admin (static)
+  const defaultColor = "#4f46e5";
+  const { generateHexagonAvatarSvg } = await import("../src/modules/auth/avatar-svg-generator.js");
+  const svgDataUri = generateHexagonAvatarSvg(initials, defaultColor);
+
   const resUser = await http.post(`/add-user?id=${ORG_NAME}/${USER_NAME}`, {
     owner: ORG_NAME, name: USER_NAME, displayName: "Primebrick Admin",
-    email: CASDOOR_ADMIN_EMAIL, password: CASDOOR_ADMIN_PASSWORD, isAdmin: false, isGlobalAdmin: false, signupApplication: CASDOOR_CLIENT_ID
+    email: CASDOOR_ADMIN_EMAIL, password: CASDOOR_ADMIN_PASSWORD, isAdmin: true, isGlobalAdmin: false, signupApplication: CASDOOR_CLIENT_ID,
+    isVerified: true,
+    emailVerified: true,
+    customFields: {
+      app_avatar_color: defaultColor,
+      app_avatar_shape: "hexagon",
+      app_avatar_letters: initials,
+    },
+    avatar: svgDataUri,
   });
   handleResponse(resUser, "Crea Utente Admin");
+
+  // Extract UUID, org, and username from Casdoor response
+  const casdoorUser = resUser.data?.data || resUser.data;
+  if (!casdoorUser || !casdoorUser.id) {
+    throw new Error("Casdoor user creation did not return a UUID");
+  }
+  const casdoorUserId = casdoorUser.id;
+  const casdoorOrg = casdoorUser.owner || ORG_NAME;
+  const casdoorUsername = casdoorUser.name || USER_NAME;
+  console.log(`  ↳ ✅ Casdoor user UUID: ${casdoorUserId}, org: ${casdoorOrg}, username: ${casdoorUsername}`);
 
   // 6. ASSOCIAZIONE UTENTE AL RUOLO (Via SQL per evitare sovrascritture distruttive nel DB Casdoor)
   console.log("\n🔗 [DB CASDOOR] Associazione Utente -> Ruolo Administrators...");
@@ -200,6 +225,18 @@ async function main(): Promise<void> {
     await updateAuthConfig(pbPool, "casdoor_builtin_client_secret", liveClientSecret, "setup-casdoor");
     await updateAuthConfig(pbPool, "casdoor_organization", ORG_NAME, "setup-casdoor");
     console.log("  ↳ ✅ Chiavi consolidate sul database Primebrick.");
+
+    // Create user profile in Primebrick DB
+    const newUuid = crypto.randomUUID();
+    const now = new Date();
+    await pbPool.query(
+      `INSERT INTO public.user_profiles
+       (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, is_verified, email_verified, issuer, roles, last_synced_at, created_at, created_by, updated_at, updated_by, version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, true, true, true, $9, $10, $11, $12, $13, $14, 1)`,
+      [newUuid, casdoorUserId, CASDOOR_ADMIN_EMAIL, "Primebrick Admin", casdoorOrg, casdoorUsername, defaultColor, initials,
+       CASDOOR_ENDPOINT, JSON.stringify([ROLE_ADMINISTRATORS]), now, now, newUuid, now, newUuid]
+    );
+    console.log("  ↳ ✅ User profile created in Primebrick DB.");
   } catch (dbErr: any) {
     console.error("❌ Errore salvataggio DB Core:", dbErr.message);
   } finally {

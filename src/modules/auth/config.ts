@@ -61,6 +61,8 @@ export interface GatewayConfig {
     name: string;       // default: x-user-name
     roles: string;      // default: x-user-roles (CSV)
     idpCode: string;    // default: x-user-idp-code (original sub)
+    idpOrg: string;     // default: x-user-idp-org
+    idpUsername: string; // default: x-user-idp-username
   };
 }
 
@@ -140,6 +142,8 @@ export async function getAuthConfig(pool?: Pool): Promise<AuthConfig> {
       name: (process.env.GATEWAY_HEADER_NAME ?? "x-user-name").toLowerCase(),
       roles: (process.env.GATEWAY_HEADER_ROLES ?? "x-user-roles").toLowerCase(),
       idpCode: (process.env.GATEWAY_HEADER_IDP_CODE ?? "x-user-idp-code").toLowerCase(),
+      idpOrg: (process.env.GATEWAY_HEADER_IDP_ORG ?? "x-user-idp-org").toLowerCase(),
+      idpUsername: (process.env.GATEWAY_HEADER_IDP_USERNAME ?? "x-user-idp-username").toLowerCase(),
     },
   };
 

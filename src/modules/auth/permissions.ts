@@ -46,6 +46,14 @@ export const Permission = {
   PROFILE_UPDATE: "profile.update",
   USER_PROFILE_READ_AUDIT: "userprofile.read.audit",
 
+  // --- Users module (admin) ---
+  USERS_READ_ALL: "users.read.all",
+  USERS_READ_SINGLE: "users.read.single",
+  USERS_CREATE_SINGLE: "users.create.single",
+  USERS_UPDATE_SINGLE: "users.update.single",
+  USERS_DELETE_SINGLE: "users.delete.single",
+  USERS_RESTORE_SINGLE: "users.restore.single",
+
   // --- Customers module ---
   CUSTOMERS_READ_ALL: "customers.read.all",
 

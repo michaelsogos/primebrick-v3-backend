@@ -58,6 +58,21 @@ export interface Session {
 
   /** Original IDP `sub` for traceability. `null` for `"system"`. */
   idpCode: string | null;
+
+  /** IDP organization (from `owner` or `organization` claim). `null` for `"system"`. */
+  idpOrg: string | null;
+
+  /** IDP username (from `name`, `username`, or `preferred_username` claim). `null` for `"system"`. */
+  idpUsername: string | null;
+
+  /** Email verification status from IDP. `null` for `"system"`. */
+  isVerified?: boolean;
+
+  /** Email verification status (email-specific). `null` for `"system"`. */
+  emailVerified?: boolean;
+
+  /** IDP issuer URL (from `iss` claim). `null` for `"system"`. */
+  issuer?: string;
 }
 
 const als = new AsyncLocalStorage<Session>();
@@ -114,7 +129,7 @@ export const SYSTEM_ACTOR = "system";
  */
 export function runAsSystem<T>(fn: () => T): T {
   return runWithSession(
-    { actor: SYSTEM_ACTOR, roles: [], idpCode: null },
+    { actor: SYSTEM_ACTOR, roles: [], idpCode: null, idpOrg: null, idpUsername: null },
     fn
   );
 }

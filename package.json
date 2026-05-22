@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx --watch-kill-signal=SIGKILL src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "version:auto": "node scripts/version-sync.mjs",
     "prebuild": "node scripts/version-sync.mjs",
     "build": "tsc",
@@ -32,6 +32,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",

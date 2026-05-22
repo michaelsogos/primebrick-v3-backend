@@ -14,6 +14,16 @@ export type UserProfileDetailRow = {
   email?: string;
   display_name?: string;
   avatar_color?: string;
+  avatar_initials?: string;
+  is_active: boolean;
+  is_admin: boolean;
+  is_verified: boolean;
+  email_verified: boolean;
+  issuer?: string;
+  roles?: string[];
+  last_synced_at?: Date;
+  idp_org?: string;
+  idp_username?: string;
   created_at: Date;
   created_by: string;
   created_by_name?: string;
@@ -87,9 +97,48 @@ export class UserProfilesDal {
 
   async updateProfile(
     uuid: string,
-    body: { display_name?: string; email?: string; avatar_color?: string }
+    body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string }
   ): Promise<void> {
     await this.repo.update(UserProfileEntity, uuid, body, requireActor());
+  }
+
+  async getByIdpCode(idpCode: string): Promise<UserProfileDetailDto | null> {
+    const row = await this.repo.find<any, any>(
+      UserProfileEntity,
+      null,
+      {
+        filters: [Filter.fieldValue(field(UserProfileEntity, "idp_code" as any), "=", idpCode)] as any,
+        joins: [
+          Join.on(
+            field(UserProfileEntity, "uuid" as any),
+            field(UserProfileEntity, "created_by" as any),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "creator" }
+          ),
+          Join.on(
+            field(UserProfileEntity, "uuid" as any),
+            field(UserProfileEntity, "updated_by" as any),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "updater" }
+          ),
+          Join.on(
+            field(UserProfileEntity, "uuid" as any),
+            field(UserProfileEntity, "deleted_by" as any),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
+          ),
+        ],
+      }
+    );
+    return row ? this.toDto(row) : null;
+  }
+
+  async softDelete(uuid: string): Promise<void> {
+    await this.repo.delete(UserProfileEntity, uuid, requireActor());
+  }
+
+  async restore(uuid: string): Promise<void> {
+    await this.repo.restore(UserProfileEntity, uuid, requireActor());
   }
 
   async getUserProfileAudit(uuid: string, page: number, limit: number) {

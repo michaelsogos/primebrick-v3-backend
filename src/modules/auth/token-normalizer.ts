@@ -56,6 +56,10 @@ export interface NormalizedIdpUser {
   email: string | null;
   name: string | null;
   roles: string[];
+  /** IDP organization (from `owner` or `organization` claim) */
+  idp_org: string | null;
+  /** IDP username (from `name`, `username`, or `preferred_username` claim) */
+  idp_username: string | null;
 }
 
 /**
@@ -83,12 +87,22 @@ export function normalizeIdpToken(
     ? (payload["preferred_username"] as string)
     : null;
   const nameClaim = typeof payload["name"] === "string" ? (payload["name"] as string) : null;
+  const usernameClaim = typeof payload["username"] === "string" ? (payload["username"] as string) : null;
+  const ownerClaim = typeof payload["owner"] === "string" ? (payload["owner"] as string) : null;
+  const organizationClaim = typeof payload["organization"] === "string" ? (payload["organization"] as string) : null;
+
+  const idp_org = ownerClaim ?? organizationClaim;
+  const idp_username = nameClaim ?? usernameClaim ?? preferredUsername;
+  // MUST use ONLY JWT sub (UUID) as idp_code - NO fallback logic
+  const idp_code = sub;
 
   return {
-    idp_code: sub,
+    idp_code,
     email,
     name: nameClaim ?? preferredUsername,
     roles,
+    idp_org,
+    idp_username,
   };
 }
 
@@ -114,5 +128,7 @@ export function buildAuthUser(
     roles: normalized.roles,
     permissions,
     isAdmin,
+    idp_org: normalized.idp_org,
+    idp_username: normalized.idp_username,
   };
 }
