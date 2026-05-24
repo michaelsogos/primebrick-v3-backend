@@ -90,6 +90,7 @@ export function organizationsRouter() {
             edit: true,
             preview: true
           },
+          enableCreateAction: true,
           viewVisibility: {
             table: {
               notHideable: ["idp_code"],
