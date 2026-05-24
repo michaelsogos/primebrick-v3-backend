@@ -38,7 +38,13 @@ export class OrganizationEntity implements IAuditableEntity {
 
   @Unique()
   @Column({ length: 255, nullable: false })
-  idp_code: string; // Casdoor organization name (e.g., "acme") - external identifier for sync
+  idp_code: string; // Casdoor organization ID in owner/name format (e.g., "admin/acme") - external identifier for sync
+
+  @Column({ length: 255, nullable: true })
+  idp_owner?: string; // Casdoor organization owner (e.g., "admin")
+
+  @Column({ length: 255, nullable: true })
+  idp_name?: string; // Casdoor organization name (e.g., "acme")
 
   @Column({ length: 255 })
   display_name?: string;

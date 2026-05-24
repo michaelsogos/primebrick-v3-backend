@@ -14,6 +14,8 @@ import { requireActor } from "./session-context.js";
 export type OrganizationDetailRow = {
   uuid: string;
   idp_code: string;
+  idp_owner?: string;
+  idp_name?: string;
   display_name?: string;
   website_url?: string;
   last_synced_at?: Date;
@@ -86,20 +88,20 @@ export class OrganizationsDal {
         filters: [Filter.fieldValue(field(OrganizationEntity, "uuid" as any), "=", uuid)] as any,
         joins: [
           Join.on(
-            field(OrganizationEntity, "uuid" as any),
-            field(UserProfileEntity, "created_by" as any),
+            field(UserProfileEntity, "uuid" as any),
+            field(OrganizationEntity, "created_by" as any),
             "LEFT",
             { castRightTo: "text", castLeftTo: "text", alias: "creator" }
           ),
           Join.on(
-            field(OrganizationEntity, "uuid" as any),
-            field(UserProfileEntity, "updated_by" as any),
+            field(UserProfileEntity, "uuid" as any),
+            field(OrganizationEntity, "updated_by" as any),
             "LEFT",
             { castRightTo: "text", castLeftTo: "text", alias: "updater" }
           ),
           Join.on(
-            field(OrganizationEntity, "uuid" as any),
-            field(UserProfileEntity, "deleted_by" as any),
+            field(UserProfileEntity, "uuid" as any),
+            field(OrganizationEntity, "deleted_by" as any),
             "LEFT",
             { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
           ),
@@ -117,20 +119,20 @@ export class OrganizationsDal {
         filters: [Filter.fieldValue(field(OrganizationEntity, "idp_code" as any), "=", idpCode)] as any,
         joins: [
           Join.on(
-            field(OrganizationEntity, "uuid" as any),
-            field(UserProfileEntity, "created_by" as any),
+            field(UserProfileEntity, "uuid" as any),
+            field(OrganizationEntity, "created_by" as any),
             "LEFT",
             { castRightTo: "text", castLeftTo: "text", alias: "creator" }
           ),
           Join.on(
-            field(OrganizationEntity, "uuid" as any),
-            field(UserProfileEntity, "updated_by" as any),
+            field(UserProfileEntity, "uuid" as any),
+            field(OrganizationEntity, "updated_by" as any),
             "LEFT",
             { castRightTo: "text", castLeftTo: "text", alias: "updater" }
           ),
           Join.on(
-            field(OrganizationEntity, "uuid" as any),
-            field(UserProfileEntity, "deleted_by" as any),
+            field(UserProfileEntity, "uuid" as any),
+            field(OrganizationEntity, "deleted_by" as any),
             "LEFT",
             { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
           ),
@@ -234,6 +236,8 @@ export class OrganizationsDal {
 
   async createOrganization(data: {
     idp_code: string;
+    idp_owner?: string;
+    idp_name?: string;
     display_name?: string;
     website_url?: string;
   }): Promise<{ uuid: string }> {
@@ -245,6 +249,8 @@ export class OrganizationsDal {
       {
         uuid,
         idp_code: data.idp_code,
+        idp_owner: data.idp_owner,
+        idp_name: data.idp_name,
         display_name: data.display_name,
         website_url: data.website_url,
         created_at: now,
@@ -260,7 +266,7 @@ export class OrganizationsDal {
 
   async updateOrganization(
     uuid: string,
-    data: { display_name?: string; website_url?: string; last_synced_at?: Date }
+    data: { display_name?: string; website_url?: string; idp_owner?: string; idp_name?: string; last_synced_at?: Date }
   ): Promise<void> {
     await this.repo.update(OrganizationEntity, uuid, data, requireActor());
   }

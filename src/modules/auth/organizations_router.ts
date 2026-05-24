@@ -166,7 +166,8 @@ export function organizationsRouter() {
 
   // POST /api/v1/entities/organization - Create organization
   const CreateBodySchema = z.object({
-    idp_code: z.string().min(1).max(255),
+    idp_owner: z.string().min(1).max(255).optional().default("admin"),
+    idp_name: z.string().min(1).max(255),
     display_name: z.string().max(255).optional(),
     website_url: z.string().url().max(2048).optional().or(z.literal("")),
   });
@@ -176,17 +177,52 @@ export function organizationsRouter() {
     rbacHandler([Permission.ORGANIZATIONS_CREATE_SINGLE]),
     validateBody(CreateBodySchema),
     asyncHandler(async (req, res) => {
-      const { idp_code, display_name, website_url } = req.body;
+      const { idp_owner, idp_name, display_name, website_url } = req.body;
+      const idp_code = `${idp_owner}/${idp_name}`;
+
+      // Check for duplicate idp_code locally
+      const existingLocal = await getDal().getByIdpCode(idp_code);
+      if (existingLocal) {
+        console.log("[Organization Create] Organization already exists locally");
+        res.status(409).json({
+          type: "/errors/conflict",
+          title: "Organization already exists",
+          status: 409,
+          detail: `An organization with idp_code "${idp_code}" already exists`,
+          instance: "/api/v1/entities/organization",
+          internal_code: "ORGANIZATION_ALREADY_EXISTS",
+          severity: "MEDIUM",
+        });
+        return;
+      }
 
       // Sync to Casdoor first
       console.log("[Organization Create] Starting Casdoor sync for organization", idp_code);
       const cdClient = await getCasdoorClient();
       if (cdClient) {
-        const syncSuccess = await cdClient.addOrganization({
-          name: idp_code,
-          displayName: display_name,
-          websiteUrl: website_url || undefined,
-        });
+        const existing = await cdClient.getOrganization(idp_code);
+        let syncSuccess: boolean;
+
+        if (existing) {
+          console.log("[Organization Create] Organization exists in Casdoor, updating");
+          syncSuccess = await cdClient.updateOrganization({
+            name: idp_name,
+            owner: idp_owner,
+            displayName: display_name,
+            websiteUrl: website_url || undefined,
+            passwordType: "plain",
+          });
+        } else {
+          console.log("[Organization Create] Organization not found in Casdoor, creating");
+          const created = await cdClient.addOrganization({
+            name: idp_name,
+            owner: idp_owner,
+            displayName: display_name,
+            websiteUrl: website_url || undefined,
+            passwordType: "plain",
+          });
+          syncSuccess = created !== null;
+        }
 
         if (!syncSuccess) {
           console.error("[Organization Create] Casdoor sync failed, aborting creation");
@@ -194,7 +230,7 @@ export function organizationsRouter() {
             type: "/errors/internal-error",
             title: "Casdoor sync failed",
             status: 502,
-            detail: "Failed to create organization in Casdoor",
+            detail: "Failed to create/update organization in Casdoor",
             instance: "/api/v1/entities/organization",
             internal_code: "CASDOOR_SYNC_FAILED",
             severity: "HIGH",
@@ -210,6 +246,8 @@ export function organizationsRouter() {
       // Create in local DB
       const result = await getDal().createOrganization({
         idp_code,
+        idp_owner,
+        idp_name,
         display_name,
         website_url: website_url || undefined,
       });
@@ -254,9 +292,11 @@ export function organizationsRouter() {
       const cdClient = await getCasdoorClient();
       if (cdClient) {
         const syncSuccess = await cdClient.updateOrganization({
-          name: org.idp_code,
+          name: org.idp_name || org.idp_code,
+          owner: org.idp_owner || "admin",
           displayName: display_name || org.display_name,
           websiteUrl: website_url || org.website_url,
+          passwordType: "plain",
         });
 
         if (!syncSuccess) {

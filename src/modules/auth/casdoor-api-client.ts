@@ -234,7 +234,8 @@ export class CasdoorApiClient {
    */
   async getOrganization(name: string): Promise<CasdoorOrganization | null> {
     console.log(`[CasdoorApi] getOrganization: name=${name}`);
-    const url = this.buildUrl(`/api/get-organization?id=${encodeURIComponent(name)}`);
+    const orgId = `admin/${name}`;
+    const url = this.buildUrl(`/api/get-organization?id=${encodeURIComponent(orgId)}`);
 
     const response = await fetch(url);
     console.log(`[CasdoorApi] getOrganization response: ${response.status} ${response.statusText}`);
