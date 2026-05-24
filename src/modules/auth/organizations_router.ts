@@ -60,9 +60,10 @@ export function organizationsRouter() {
             { key: "website_url", labelKey: "entities.organization.fields.website_url", type: "text", sortable: true, defaultVisible: true, filterable: true },
             { key: "user_count", labelKey: "entities.organization.fields.user_count", type: "number", sortable: false, defaultVisible: true },
             { key: "created_at", labelKey: "entities.organization.fields.created_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
-            { key: "updated_at", labelKey: "entities.organization.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
             { key: "created_by", labelKey: "entities.organization.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+            { key: "updated_at", labelKey: "entities.organization.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
             { key: "updated_by", labelKey: "entities.organization.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+            { key: "last_synced_at", labelKey: "entities.organization.fields.last_synced_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
             { key: "version", labelKey: "entities.organization.fields.version", type: "text", sortable: false, defaultVisible: false, searchable: false },
             { key: "deleted_at", labelKey: "entities.organization.fields.deleted_at", type: "datetime", sortable: true, defaultVisible: false, searchable: false },
             { key: "deleted_by", labelKey: "entities.organization.fields.deleted_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
@@ -76,6 +77,7 @@ export function organizationsRouter() {
             { key: "created_by", labelKey: "entities.organization.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
             { key: "updated_at", labelKey: "entities.organization.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
             { key: "updated_by", labelKey: "entities.organization.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+            { key: "last_synced_at", labelKey: "entities.organization.fields.last_synced_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
             { key: "version", labelKey: "entities.organization.fields.version", type: "text", sortable: false, defaultVisible: false, searchable: false },
             { key: "deleted_at", labelKey: "entities.organization.fields.deleted_at", type: "datetime", sortable: true, defaultVisible: false, searchable: false },
             { key: "deleted_by", labelKey: "entities.organization.fields.deleted_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
@@ -212,7 +214,10 @@ export function organizationsRouter() {
         website_url: website_url || undefined,
       });
 
-      res.status(201).json({ success: true, uuid: result.uuid });
+      // Fetch the full organization details to return
+      const createdOrg = await getDal().getByUuid(result.uuid);
+
+      res.status(201).json({ success: true, organization: createdOrg });
     })
   );
 

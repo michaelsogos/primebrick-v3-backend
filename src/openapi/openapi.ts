@@ -103,6 +103,103 @@ export const openapi = {
         },
       },
     },
+    "/api/v1/entities/organization/meta": {
+      get: {
+        summary: "Get organization UI metadata",
+        responses: {
+          "200": {
+            description: "OK",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/EntityMetaResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/v1/entities/organization/list": {
+      get: {
+        summary: "List organizations",
+        parameters: [
+          { name: "search", in: "query", schema: { type: "string" } },
+          { name: "search_in", in: "query", schema: { type: "string", description: "CSV of fields to search in (e.g. idp_code,uuid,display_name)" } },
+          { name: "sort_key", in: "query", schema: { type: "string", enum: ["updated_at", "uuid", "idp_code", "display_name"] } },
+          { name: "sort_dir", in: "query", schema: { type: "string", enum: ["asc", "desc"] } },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+          { name: "page_size", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
+          {
+            name: "filters",
+            in: "query",
+            schema: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  field: { type: "string" },
+                  op: { type: "string", enum: ["=", "!=", "<>", "<", "<=", ">", ">=", "ILIKE", "LIKE", "IN", "NOT IN", "IS", "IS NOT"] },
+                  value: { oneOf: [{ type: "string" }, { type: "number" }, { type: "boolean" }, { type: "null" }] },
+                  connector: { type: "string", enum: ["AND", "OR"] },
+                },
+              },
+            },
+            description: "Advanced filter conditions array",
+          },
+        ],
+        responses: {
+          "200": {
+            description: "OK",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/EntityListResponseOrganization" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/v1/entities/organization": {
+      post: {
+        summary: "Create organization",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/OrganizationCreateBody" },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Created",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/OrganizationCreateResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/v1/entities/organization/{uuid}": {
+      get: {
+        summary: "Get organization detail",
+        parameters: [
+          { name: "uuid", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+        ],
+        responses: {
+          "200": {
+            description: "OK",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/OrganizationDetail" },
+              },
+            },
+          },
+          "404": { description: "Not found" },
+        },
+      },
+    },
     "/api/v1/auth/login": {
       post: {
         summary: "Login with username and password",
@@ -309,6 +406,78 @@ export const openapi = {
         required: ["rows", "page", "page_size", "total"],
         properties: {
           rows: { type: "array", items: { $ref: "#/components/schemas/CustomerDetail" } },
+          page: { type: "integer" },
+          page_size: { type: "integer" },
+          total: { type: "integer" },
+        },
+      },
+      OrganizationCreateBody: {
+        type: "object",
+        required: ["idp_code"],
+        properties: {
+          idp_code: { type: "string", maxLength: 255 },
+          display_name: { type: "string", maxLength: 255 },
+          website_url: { type: "string", format: "uri", maxLength: 2048 },
+        },
+      },
+      OrganizationCreateResponse: {
+        type: "object",
+        required: ["success", "organization"],
+        properties: {
+          success: { type: "boolean" },
+          organization: { $ref: "#/components/schemas/OrganizationDetail" },
+        },
+      },
+      OrganizationDetail: {
+        type: "object",
+        required: ["uuid", "idp_code", "created_at", "updated_at", "version"],
+        properties: {
+          uuid: { type: "string", format: "uuid" },
+          idp_code: { type: "string", maxLength: 255 },
+          display_name: { type: "string", maxLength: 255 },
+          website_url: { type: "string", format: "uri", maxLength: 2048 },
+          user_count: { type: "integer" },
+          created_at: {
+            type: "string",
+            format: "date-time",
+            description:
+              "DateTime (instant). Serialized as RFC3339 / ISO-8601 string with timezone (Z or +/-HH:MM).",
+            examples: ["2026-04-16T12:01:44.606Z", "2026-04-16T12:01:44.606+02:00"],
+          },
+          created_by: { type: "string" },
+          created_by_name: { type: "string" },
+          updated_at: {
+            type: "string",
+            format: "date-time",
+            description:
+              "DateTime (instant). Serialized as RFC3339 / ISO-8601 string with timezone (Z or +/-HH:MM).",
+            examples: ["2026-04-16T12:01:44.606Z", "2026-04-16T12:01:44.606+02:00"],
+          },
+          updated_by: { type: "string" },
+          updated_by_name: { type: "string" },
+          last_synced_at: {
+            type: "string",
+            format: "date-time",
+            description:
+              "DateTime (instant). Serialized as RFC3339 / ISO-8601 string with timezone (Z or +/-HH:MM).",
+            examples: ["2026-04-16T12:01:44.606Z", "2026-04-16T12:01:44.606+02:00"],
+          },
+          version: { type: "integer" },
+          deleted_at: {
+            type: "string",
+            format: "date-time",
+            description:
+              "DateTime (instant). Serialized as RFC3339 / ISO-8601 string with timezone (Z or +/-HH:MM).",
+            examples: ["2026-04-16T12:01:44.606Z", "2026-04-16T12:01:44.606+02:00"],
+          },
+          deleted_by: { type: "string" },
+        },
+      },
+      EntityListResponseOrganization: {
+        type: "object",
+        required: ["rows", "page", "page_size", "total"],
+        properties: {
+          rows: { type: "array", items: { $ref: "#/components/schemas/OrganizationDetail" } },
           page: { type: "integer" },
           page_size: { type: "integer" },
           total: { type: "integer" },

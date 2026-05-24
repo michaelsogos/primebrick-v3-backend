@@ -225,6 +225,9 @@ export function authRouter() {
           console.warn('[Auth Login] WARNING: Access token exceeds 4KB cookie limit!');
         }
 
+        // Clear any existing access_token cookie before setting new one
+        res.clearCookie("access_token", { path: "/" });
+
         // Set access_token as httpOnly cookie
         res.cookie("access_token", access_token, {
           httpOnly: true,
