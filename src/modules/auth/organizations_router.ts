@@ -51,6 +51,7 @@ export function organizationsRouter() {
       const meta = {
         entity: "organization",
         titleKey: "entities.organization.title",
+        updatePageTitle: "${display_name}",
         uid: "uuid",
         list: {
           columns: [
