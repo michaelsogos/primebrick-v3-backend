@@ -141,6 +141,36 @@ async function main(): Promise<void> {
       [orgUuid, `admin/${ORG_NAME}`, CASDOOR_ORGANIZATION, "https://acme.io", "admin", ORG_NAME, now, now, "setup-casdoor", now, "setup-casdoor"]
     );
     console.log("  ↳ ✅ Organization record created in Primebrick DB.");
+
+    // Query the organization ID for audit record
+    const orgResult = await orgPool.query(
+      "SELECT id FROM public.organizations WHERE idp_code = $1",
+      [`admin/${ORG_NAME}`]
+    );
+    const orgId = orgResult.rows[0].id;
+
+    // Insert audit record for organization creation
+    await orgPool.query(
+      `INSERT INTO public.organizations_audit
+       (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        orgId,
+        orgUuid,
+        "INSERT",
+        now,
+        "setup-casdoor",
+        1,
+        JSON.stringify({
+          idp_code: { old: null, new: `admin/${ORG_NAME}` },
+          display_name: { old: null, new: CASDOOR_ORGANIZATION },
+          website_url: { old: null, new: "https://acme.io" },
+          idp_owner: { old: null, new: "admin" },
+          idp_name: { old: null, new: ORG_NAME },
+        })
+      ]
+    );
+    console.log("  ↳ ✅ Organization audit record created.");
   } catch (orgErr: any) {
     console.error("  ↳ ⚠️  Errore creazione organization:", orgErr.message);
   } finally {
@@ -266,6 +296,41 @@ async function main(): Promise<void> {
        CASDOOR_ENDPOINT, JSON.stringify([ROLE_ADMINISTRATORS]), now, now, newUuid, now, newUuid]
     );
     console.log("  ↳ ✅ User profile created in Primebrick DB.");
+
+    // Query the user ID for audit record
+    const userResult = await pbPool.query(
+      "SELECT id FROM public.user_profiles WHERE idp_code = $1",
+      [casdoorUserId]
+    );
+    const userId = userResult.rows[0].id;
+
+    // Insert audit record for user creation
+    await pbPool.query(
+      `INSERT INTO public.user_profiles_audit
+       (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        userId,
+        newUuid,
+        "INSERT",
+        now,
+        "setup-casdoor",
+        1,
+        JSON.stringify({
+          idp_code: { old: null, new: casdoorUserId },
+          email: { old: null, new: CASDOOR_ADMIN_EMAIL },
+          display_name: { old: null, new: "Primebrick Admin" },
+          idp_org: { old: null, new: casdoorOrg },
+          idp_username: { old: null, new: casdoorUsername },
+          avatar_color: { old: null, new: defaultColor },
+          avatar_initials: { old: null, new: initials },
+          is_admin: { old: null, new: true },
+          is_verified: { old: null, new: true },
+          email_verified: { old: null, new: true },
+        })
+      ]
+    );
+    console.log("  ↳ ✅ User profile audit record created.");
   } catch (dbErr: any) {
     console.error("❌ Errore salvataggio DB Core:", dbErr.message);
   } finally {
