@@ -118,6 +118,35 @@ async function main(): Promise<void> {
   });
   handleResponse(resOrg, "Crea Organizzazione");
 
+  // 3.5. CREAZIONE ORGANIZZAZIONE IN PRIMEBRICK DB
+  console.log("\n💾 [DB PRIMEBRICK] Creazione organization record...");
+  const orgPool = new Pool({ connectionString: BASE_DATABASE_URL });
+  try {
+    const orgUuid = crypto.randomUUID();
+    const now = new Date();
+    
+    await orgPool.query(
+      `INSERT INTO public.organizations
+       (uuid, idp_code, display_name, website_url, idp_owner, idp_name, last_synced_at, created_at, created_by, updated_at, updated_by, version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1)
+       ON CONFLICT (idp_code) DO UPDATE SET
+         display_name = EXCLUDED.display_name,
+         website_url = EXCLUDED.website_url,
+         idp_owner = EXCLUDED.idp_owner,
+         idp_name = EXCLUDED.idp_name,
+         last_synced_at = EXCLUDED.last_synced_at,
+         updated_at = EXCLUDED.updated_at,
+         updated_by = EXCLUDED.updated_by,
+         version = organizations.version + 1`,
+      [orgUuid, `admin/${ORG_NAME}`, CASDOOR_ORGANIZATION, "https://acme.io", "admin", ORG_NAME, now, now, "setup-casdoor", now, "setup-casdoor"]
+    );
+    console.log("  ↳ ✅ Organization record created in Primebrick DB.");
+  } catch (orgErr: any) {
+    console.error("  ↳ ⚠️  Errore creazione organization:", orgErr.message);
+  } finally {
+    await orgPool.end();
+  }
+
   // 4. CREAZIONE RUOLI (Administrators, Collaborator, Guest)
   console.log("\n📡 [API] Sincronizzazione Ruoli...");
   const resRoleAdmin = await http.post(`/add-role?id=${ORG_NAME}/${ROLE_ADMINISTRATORS}`, {
