@@ -266,10 +266,15 @@ export class CasdoorApiClient {
   async updateOrganization(org: Partial<CasdoorOrganization> & { name: string }): Promise<boolean> {
     console.log(`[CasdoorApi] updateOrganization: name=${org.name}, fields=${JSON.stringify(Object.keys(org).filter(k => k !== 'name'))}`);
     
+    // Split name into owner and name parts (format: owner/name)
+    const finalOwner = org.name.includes('/') ? org.name.split('/')[0] : this.orgName;
+    const finalName = org.name.includes('/') ? org.name.slice(org.name.indexOf('/') + 1) : org.name;
+    
     const url = this.buildUrl(`/api/update-organization?id=${encodeURIComponent(org.name)}`);
 
     const requestBody: any = {
-      name: org.name,
+      owner: finalOwner,
+      name: finalName,
       displayName: org.displayName,
       websiteUrl: org.websiteUrl,
     };

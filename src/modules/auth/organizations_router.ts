@@ -293,8 +293,7 @@ export function organizationsRouter() {
       const cdClient = await getCasdoorClient();
       if (cdClient) {
         const syncSuccess = await cdClient.updateOrganization({
-          name: org.idp_name || org.idp_code,
-          owner: org.idp_owner || "admin",
+          name: org.idp_code,
           displayName: display_name || org.display_name,
           websiteUrl: website_url || org.website_url,
           passwordType: "plain",
