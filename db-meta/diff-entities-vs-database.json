@@ -1,7 +1,9 @@
 {
   "version": 2,
-  "generatedAt": "2026-05-21T17:51:30.588Z",
-  "onlyInEntityTables": [],
+  "generatedAt": "2026-05-22T21:32:57.008Z",
+  "onlyInEntityTables": [
+    "public.organizations"
+  ],
   "onlyInDatabaseTables": [],
   "tables": {
     "public.customers": {
@@ -22,14 +24,22 @@
       "nullabilityMismatches": []
     },
     "public.user_profiles": {
-      "onlyInEntityColumns": [
-        "idp_org",
-        "idp_username"
-      ],
+      "onlyInEntityColumns": [],
       "onlyInDatabaseColumns": [],
       "likelyRenames": [],
       "typeMismatches": [],
-      "nullabilityMismatches": []
+      "nullabilityMismatches": [
+        {
+          "column": "is_active",
+          "entityNullable": false,
+          "databaseNullable": true
+        },
+        {
+          "column": "is_admin",
+          "entityNullable": false,
+          "databaseNullable": true
+        }
+      ]
     },
     "public.role_mappings": {
       "onlyInEntityColumns": [],

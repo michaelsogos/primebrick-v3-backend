@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-05-21T17:51:30.557Z",
+  "generatedAt": "2026-05-22T21:32:56.981Z",
   "source": "database",
   "tables": {
     "public.customers": {
@@ -379,9 +379,35 @@
           "isNullable": false,
           "isPrimaryKey": false
         },
+        "idp_org": {
+          "name": "idp_org",
+          "ordinalPosition": 4,
+          "dataType": "varchar",
+          "typname": "varchar",
+          "typeOid": 1043,
+          "typcategory": "S",
+          "formatType": "character varying(255)",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "idp_username": {
+          "name": "idp_username",
+          "ordinalPosition": 5,
+          "dataType": "varchar",
+          "typname": "varchar",
+          "typeOid": 1043,
+          "typcategory": "S",
+          "formatType": "character varying(255)",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
         "email": {
           "name": "email",
-          "ordinalPosition": 4,
+          "ordinalPosition": 6,
           "dataType": "varchar",
           "typname": "varchar",
           "typeOid": 1043,
@@ -394,7 +420,7 @@
         },
         "display_name": {
           "name": "display_name",
-          "ordinalPosition": 5,
+          "ordinalPosition": 7,
           "dataType": "varchar",
           "typname": "varchar",
           "typeOid": 1043,
@@ -405,9 +431,74 @@
           "isNullable": true,
           "isPrimaryKey": false
         },
+        "is_active": {
+          "name": "is_active",
+          "ordinalPosition": 8,
+          "dataType": "bool",
+          "typname": "bool",
+          "typeOid": 16,
+          "typcategory": "B",
+          "formatType": "boolean",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "is_admin": {
+          "name": "is_admin",
+          "ordinalPosition": 9,
+          "dataType": "bool",
+          "typname": "bool",
+          "typeOid": 16,
+          "typcategory": "B",
+          "formatType": "boolean",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "roles": {
+          "name": "roles",
+          "ordinalPosition": 10,
+          "dataType": "jsonb",
+          "typname": "jsonb",
+          "typeOid": 3802,
+          "typcategory": "U",
+          "formatType": "jsonb",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "avatar_color": {
+          "name": "avatar_color",
+          "ordinalPosition": 11,
+          "dataType": "varchar",
+          "typname": "varchar",
+          "typeOid": 1043,
+          "typcategory": "S",
+          "formatType": "character varying(7)",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "last_synced_at": {
+          "name": "last_synced_at",
+          "ordinalPosition": 12,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "typeOid": 1184,
+          "typcategory": "D",
+          "formatType": "timestamp with time zone",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
         "created_at": {
           "name": "created_at",
-          "ordinalPosition": 6,
+          "ordinalPosition": 13,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "typeOid": 1184,
@@ -420,7 +511,7 @@
         },
         "created_by": {
           "name": "created_by",
-          "ordinalPosition": 7,
+          "ordinalPosition": 14,
           "dataType": "text",
           "typname": "text",
           "typeOid": 25,
@@ -433,7 +524,7 @@
         },
         "updated_at": {
           "name": "updated_at",
-          "ordinalPosition": 8,
+          "ordinalPosition": 15,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "typeOid": 1184,
@@ -446,7 +537,7 @@
         },
         "updated_by": {
           "name": "updated_by",
-          "ordinalPosition": 9,
+          "ordinalPosition": 16,
           "dataType": "text",
           "typname": "text",
           "typeOid": 25,
@@ -459,7 +550,7 @@
         },
         "version": {
           "name": "version",
-          "ordinalPosition": 10,
+          "ordinalPosition": 17,
           "dataType": "int4",
           "typname": "int4",
           "typeOid": 23,
@@ -472,7 +563,7 @@
         },
         "deleted_at": {
           "name": "deleted_at",
-          "ordinalPosition": 11,
+          "ordinalPosition": 18,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "typeOid": 1184,
@@ -485,7 +576,7 @@
         },
         "deleted_by": {
           "name": "deleted_by",
-          "ordinalPosition": 12,
+          "ordinalPosition": 19,
           "dataType": "text",
           "typname": "text",
           "typeOid": 25,
@@ -496,22 +587,22 @@
           "isNullable": true,
           "isPrimaryKey": false
         },
-        "avatar_color": {
-          "name": "avatar_color",
-          "ordinalPosition": 13,
+        "avatar_initials": {
+          "name": "avatar_initials",
+          "ordinalPosition": 20,
           "dataType": "varchar",
           "typname": "varchar",
           "typeOid": 1043,
           "typcategory": "S",
-          "formatType": "character varying(7)",
+          "formatType": "character varying(10)",
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": true,
           "isPrimaryKey": false
         },
-        "is_active": {
-          "name": "is_active",
-          "ordinalPosition": 14,
+        "is_verified": {
+          "name": "is_verified",
+          "ordinalPosition": 21,
           "dataType": "bool",
           "typname": "bool",
           "typeOid": 16,
@@ -522,9 +613,22 @@
           "isNullable": false,
           "isPrimaryKey": false
         },
-        "is_admin": {
-          "name": "is_admin",
-          "ordinalPosition": 15,
+        "issuer": {
+          "name": "issuer",
+          "ordinalPosition": 22,
+          "dataType": "varchar",
+          "typname": "varchar",
+          "typeOid": 1043,
+          "typcategory": "S",
+          "formatType": "character varying(255)",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "email_verified": {
+          "name": "email_verified",
+          "ordinalPosition": 23,
           "dataType": "bool",
           "typname": "bool",
           "typeOid": 16,
@@ -533,32 +637,6 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
-        },
-        "roles": {
-          "name": "roles",
-          "ordinalPosition": 16,
-          "dataType": "jsonb",
-          "typname": "jsonb",
-          "typeOid": 3802,
-          "typcategory": "U",
-          "formatType": "jsonb",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": true,
-          "isPrimaryKey": false
-        },
-        "last_synced_at": {
-          "name": "last_synced_at",
-          "ordinalPosition": 17,
-          "dataType": "timestamptz",
-          "typname": "timestamptz",
-          "typeOid": 1184,
-          "typcategory": "D",
-          "formatType": "timestamp with time zone",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": true,
           "isPrimaryKey": false
         }
       }

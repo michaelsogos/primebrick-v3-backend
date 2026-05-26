@@ -54,6 +54,15 @@ export const Permission = {
   USERS_DELETE_SINGLE: "users.delete.single",
   USERS_RESTORE_SINGLE: "users.restore.single",
 
+  // --- Organizations module (admin) ---
+  ORGANIZATIONS_READ_ALL: "organizations.read.all",
+  ORGANIZATIONS_READ_SINGLE: "organizations.read.single",
+  ORGANIZATIONS_READ_AUDIT: "organizations.read.audit",
+  ORGANIZATIONS_CREATE_SINGLE: "organizations.create.single",
+  ORGANIZATIONS_UPDATE_SINGLE: "organizations.update.single",
+  ORGANIZATIONS_DELETE_SINGLE: "organizations.delete.single",
+  ORGANIZATIONS_RESTORE_SINGLE: "organizations.restore.single",
+
   // --- Customers module ---
   CUSTOMERS_READ_ALL: "customers.read.all",
 

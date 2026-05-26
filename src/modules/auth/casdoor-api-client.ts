@@ -24,6 +24,14 @@ export interface CasdoorUser {
   [key: string]: unknown;
 }
 
+export interface CasdoorOrganization {
+  name: string;
+  displayName?: string;
+  websiteUrl?: string;
+  createdTime?: string;
+  [key: string]: unknown;
+}
+
 export interface CasdoorApiClientConfig {
   endpoint: string;
   orgName: string;
@@ -217,6 +225,146 @@ export class CasdoorApiClient {
 
     const data = await response.json();
     console.log(`[CasdoorApi] deleteUser response data:`, JSON.stringify(data, null, 2));
+    return data.status === "ok" || data.success === true;
+  }
+
+  /**
+   * GET /api/get-organization
+   * Fetches an organization from Casdoor by name.
+   */
+  async getOrganization(name: string): Promise<CasdoorOrganization | null> {
+    console.log(`[CasdoorApi] getOrganization: name=${name}`);
+    const orgId = `admin/${name}`;
+    const url = this.buildUrl(`/api/get-organization?id=${encodeURIComponent(orgId)}`);
+
+    const response = await fetch(url);
+    console.log(`[CasdoorApi] getOrganization response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.log(`[CasdoorApi] getOrganization response body: ${text}`);
+      if (response.status === 404) {
+        console.log(`[CasdoorApi] getOrganization: Organization not found (404): ${name}`);
+        return null;
+      }
+      console.error(`[CasdoorApi] getOrganization failed: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log(`[CasdoorApi] getOrganization response data:`, JSON.stringify(data, null, 2));
+    if (data.status === "error" || (!data.data && !data.name)) {
+      return null;
+    }
+    return (data.data || data) as CasdoorOrganization;
+  }
+
+  /**
+   * POST /api/update-organization
+   * Updates an existing organization in Casdoor.
+   */
+  async updateOrganization(org: Partial<CasdoorOrganization> & { name: string }): Promise<boolean> {
+    console.log(`[CasdoorApi] updateOrganization: name=${org.name}, fields=${JSON.stringify(Object.keys(org).filter(k => k !== 'name'))}`);
+    
+    // Split name into owner and name parts (format: owner/name)
+    const finalOwner = org.name.includes('/') ? org.name.split('/')[0] : this.orgName;
+    const finalName = org.name.includes('/') ? org.name.slice(org.name.indexOf('/') + 1) : org.name;
+    
+    const url = this.buildUrl(`/api/update-organization?id=${encodeURIComponent(org.name)}`);
+
+    const requestBody: any = {
+      owner: finalOwner,
+      name: finalName,
+      displayName: org.displayName,
+      websiteUrl: org.websiteUrl,
+    };
+
+    console.log(`[CasdoorApi] updateOrganization request: POST ${url}`);
+    console.log(`[CasdoorApi] updateOrganization request body:`, JSON.stringify(requestBody, null, 2));
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+    console.log(`[CasdoorApi] updateOrganization response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.log(`[CasdoorApi] updateOrganization response body: ${text}`);
+      console.error(`[CasdoorApi] updateOrganization failed: ${response.status} ${text}`);
+      return false;
+    }
+
+    const data = await response.json();
+    console.log(`[CasdoorApi] updateOrganization response data:`, JSON.stringify(data, null, 2));
+    return data.status === "ok" || data.success === true;
+  }
+
+  /**
+   * POST /api/add-organization
+   * Creates a new organization in Casdoor.
+   */
+  async addOrganization(org: Partial<CasdoorOrganization>): Promise<CasdoorOrganization | null> {
+    console.log(`[CasdoorApi] addOrganization: name=${org.name}, displayName=${org.displayName}`);
+    const url = this.buildUrl("/api/add-organization");
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(org),
+    });
+    console.log(`[CasdoorApi] addOrganization response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.log(`[CasdoorApi] addOrganization response body: ${text}`);
+      console.error(`[CasdoorApi] addOrganization failed: ${response.status} ${text}`);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log(`[CasdoorApi] addOrganization response data:`, JSON.stringify(data, null, 2));
+    if (data.status !== "ok" && data.success !== true) {
+      console.error(`[CasdoorApi] addOrganization returned error:`, data);
+      return null;
+    }
+
+    return (data.data || data) as CasdoorOrganization;
+  }
+
+  /**
+   * POST /api/delete-organization
+   * Deletes an organization in Casdoor.
+   */
+  async deleteOrganization(name: string): Promise<boolean> {
+    console.log(`[CasdoorApi] deleteOrganization: name=${name}`);
+
+    const url = this.buildUrl(`/api/delete-organization?id=${encodeURIComponent(name)}`);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: name,
+      }),
+    });
+    console.log(`[CasdoorApi] deleteOrganization response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.log(`[CasdoorApi] deleteOrganization response body: ${text}`);
+      console.error(`[CasdoorApi] deleteOrganization failed: ${response.status} ${text}`);
+      return false;
+    }
+
+    const data = await response.json();
+    console.log(`[CasdoorApi] deleteOrganization response data:`, JSON.stringify(data, null, 2));
     return data.status === "ok" || data.success === true;
   }
 }

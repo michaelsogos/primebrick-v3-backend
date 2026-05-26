@@ -225,6 +225,9 @@ export function authRouter() {
           console.warn('[Auth Login] WARNING: Access token exceeds 4KB cookie limit!');
         }
 
+        // Clear any existing access_token cookie before setting new one
+        res.clearCookie("access_token", { path: "/" });
+
         // Set access_token as httpOnly cookie
         res.cookie("access_token", access_token, {
           httpOnly: true,
@@ -775,6 +778,7 @@ export function authRouter() {
         res.json({
           success: true,
           profile: {
+            uuid: profile.uuid,
             idp_code: profile.idp_code,
             idp_org: profile.idp_org,
             idp_username: profile.idp_username,

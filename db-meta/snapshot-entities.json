@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-05-21T17:51:30.556Z",
+  "generatedAt": "2026-05-22T21:32:56.979Z",
   "source": "entities",
   "tables": {
     "public.customers": {
@@ -365,9 +365,20 @@
           "propertyKey": "avatar_color",
           "isNullable": true
         },
+        "avatar_initials": {
+          "name": "avatar_initials",
+          "ordinalPosition": 7,
+          "dataType": "varchar(10)",
+          "typname": "varchar(10)",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "avatar_initials",
+          "isNullable": true
+        },
         "is_active": {
           "name": "is_active",
-          "ordinalPosition": 7,
+          "ordinalPosition": 8,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -379,7 +390,7 @@
         },
         "is_admin": {
           "name": "is_admin",
-          "ordinalPosition": 8,
+          "ordinalPosition": 9,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -391,7 +402,7 @@
         },
         "roles": {
           "name": "roles",
-          "ordinalPosition": 9,
+          "ordinalPosition": 10,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -402,7 +413,7 @@
         },
         "last_synced_at": {
           "name": "last_synced_at",
-          "ordinalPosition": 10,
+          "ordinalPosition": 11,
           "dataType": "timestamp with time zone",
           "typname": "timestamp with time zone",
           "isPrimaryKey": false,
@@ -413,7 +424,7 @@
         },
         "idp_org": {
           "name": "idp_org",
-          "ordinalPosition": 11,
+          "ordinalPosition": 12,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -424,7 +435,7 @@
         },
         "idp_username": {
           "name": "idp_username",
-          "ordinalPosition": 12,
+          "ordinalPosition": 13,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -433,9 +444,44 @@
           "propertyKey": "idp_username",
           "isNullable": true
         },
+        "is_verified": {
+          "name": "is_verified",
+          "ordinalPosition": 14,
+          "dataType": "boolean",
+          "typname": "boolean",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "is_verified",
+          "isNullable": false,
+          "defaultSql": "false"
+        },
+        "email_verified": {
+          "name": "email_verified",
+          "ordinalPosition": 15,
+          "dataType": "boolean",
+          "typname": "boolean",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "email_verified",
+          "isNullable": false,
+          "defaultSql": "false"
+        },
+        "issuer": {
+          "name": "issuer",
+          "ordinalPosition": 16,
+          "dataType": "varchar(255)",
+          "typname": "varchar(255)",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "issuer",
+          "isNullable": true
+        },
         "created_at": {
           "name": "created_at",
-          "ordinalPosition": 13,
+          "ordinalPosition": 17,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -447,7 +493,7 @@
         },
         "created_by": {
           "name": "created_by",
-          "ordinalPosition": 14,
+          "ordinalPosition": 18,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -458,7 +504,7 @@
         },
         "updated_at": {
           "name": "updated_at",
-          "ordinalPosition": 15,
+          "ordinalPosition": 19,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -470,7 +516,7 @@
         },
         "updated_by": {
           "name": "updated_by",
-          "ordinalPosition": 16,
+          "ordinalPosition": 20,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -481,7 +527,7 @@
         },
         "version": {
           "name": "version",
-          "ordinalPosition": 17,
+          "ordinalPosition": 21,
           "dataType": "integer",
           "typname": "integer",
           "isPrimaryKey": false,
@@ -493,7 +539,7 @@
         },
         "deleted_at": {
           "name": "deleted_at",
-          "ordinalPosition": 18,
+          "ordinalPosition": 22,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -504,7 +550,7 @@
         },
         "deleted_by": {
           "name": "deleted_by",
-          "ordinalPosition": 19,
+          "ordinalPosition": 23,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -623,6 +669,162 @@
           "propertyKey": "version",
           "isNullable": true,
           "defaultSql": "1"
+        }
+      }
+    },
+    "public.organizations": {
+      "kind": "table",
+      "schema": "public",
+      "name": "organizations",
+      "entityClassName": "OrganizationEntity",
+      "isAuditable": true,
+      "columns": {
+        "id": {
+          "name": "id",
+          "ordinalPosition": 1,
+          "dataType": "bigint",
+          "typname": "bigint",
+          "isPrimaryKey": true,
+          "isUnique": false,
+          "isPostgresIdentity": true,
+          "propertyKey": "id",
+          "isNullable": false
+        },
+        "uuid": {
+          "name": "uuid",
+          "ordinalPosition": 2,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "isPrimaryKey": false,
+          "isUnique": true,
+          "isPostgresIdentity": false,
+          "propertyKey": "uuid",
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
+        },
+        "idp_code": {
+          "name": "idp_code",
+          "ordinalPosition": 3,
+          "dataType": "varchar(255)",
+          "typname": "varchar(255)",
+          "isPrimaryKey": false,
+          "isUnique": true,
+          "isPostgresIdentity": false,
+          "propertyKey": "idp_code",
+          "isNullable": false
+        },
+        "display_name": {
+          "name": "display_name",
+          "ordinalPosition": 4,
+          "dataType": "varchar(255)",
+          "typname": "varchar(255)",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "display_name",
+          "isNullable": true
+        },
+        "website_url": {
+          "name": "website_url",
+          "ordinalPosition": 5,
+          "dataType": "varchar(2048)",
+          "typname": "varchar(2048)",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "website_url",
+          "isNullable": true
+        },
+        "last_synced_at": {
+          "name": "last_synced_at",
+          "ordinalPosition": 6,
+          "dataType": "timestamp with time zone",
+          "typname": "timestamp with time zone",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "last_synced_at",
+          "isNullable": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "ordinalPosition": 7,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "created_at",
+          "isNullable": true,
+          "defaultSql": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "ordinalPosition": 8,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "created_by",
+          "isNullable": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "ordinalPosition": 9,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "updated_at",
+          "isNullable": true,
+          "defaultSql": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "ordinalPosition": 10,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "updated_by",
+          "isNullable": true
+        },
+        "version": {
+          "name": "version",
+          "ordinalPosition": 11,
+          "dataType": "integer",
+          "typname": "integer",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "version",
+          "isNullable": true,
+          "defaultSql": "1"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "ordinalPosition": 12,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "deleted_at",
+          "isNullable": true
+        },
+        "deleted_by": {
+          "name": "deleted_by",
+          "ordinalPosition": 13,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "deleted_by",
+          "isNullable": true
         }
       }
     }
