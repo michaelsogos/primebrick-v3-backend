@@ -778,6 +778,7 @@ export function authRouter() {
         res.json({
           success: true,
           profile: {
+            uuid: profile.uuid,
             idp_code: profile.idp_code,
             idp_org: profile.idp_org,
             idp_username: profile.idp_username,
