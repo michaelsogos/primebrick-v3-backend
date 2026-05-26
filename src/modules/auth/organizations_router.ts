@@ -88,7 +88,7 @@ export function organizationsRouter() {
           pageSizeOptions: [10, 25, 50, 100],
           searchPlaceholderKey: "entities.list.searchPlaceholder",
           rowActions: {
-            duplicate: true,
+            duplicate: false,
             delete: true,
             edit: true,
             preview: true
@@ -138,6 +138,48 @@ export function organizationsRouter() {
 
       const result = await getDal().listOrganizations(query);
       res.json(result);
+    })
+  );
+
+  // GET /api/v1/entities/organization/check-availability - Check organization name availability
+  // MUST be before /:uuid route to avoid being matched as a UUID parameter
+  router.get(
+    "/api/v1/entities/organization/check-availability",
+    rbacHandler([Permission.ORGANIZATIONS_READ_ALL]),
+    asyncHandler(async (req, res) => {
+      const { idp_owner, idp_name } = req.query;
+
+      // Validate required parameters
+      if (!idp_owner || !idp_name) {
+        res.status(400).json({
+          type: "/errors/bad-request",
+          title: "Missing required parameters",
+          status: 400,
+          detail: "Both idp_owner and idp_name are required",
+          internal_code: "MISSING_PARAMETERS",
+          severity: "LOW",
+        });
+        return;
+      }
+
+      // Construct idp_code
+      const idp_code = `${idp_owner}/${idp_name}`;
+
+      // Check if organization exists in local DB
+      const existing = await getDal().getByIdpCode(idp_code);
+
+      if (existing) {
+        res.json({
+          available: false,
+          idp_code,
+          existing_uuid: existing.uuid,
+        });
+      } else {
+        res.json({
+          available: true,
+          idp_code,
+        });
+      }
     })
   );
 
