@@ -51,6 +51,7 @@ export function organizationsRouter() {
       const meta = {
         entity: "organization",
         titleKey: "entities.organization.title",
+        updatePageTitle: "${display_name}",
         uid: "uuid",
         list: {
           columns: [
@@ -60,9 +61,10 @@ export function organizationsRouter() {
             { key: "website_url", labelKey: "entities.organization.fields.website_url", type: "text", sortable: true, defaultVisible: true, filterable: true },
             { key: "user_count", labelKey: "entities.organization.fields.user_count", type: "number", sortable: false, defaultVisible: true },
             { key: "created_at", labelKey: "entities.organization.fields.created_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
-            { key: "updated_at", labelKey: "entities.organization.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
             { key: "created_by", labelKey: "entities.organization.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+            { key: "updated_at", labelKey: "entities.organization.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
             { key: "updated_by", labelKey: "entities.organization.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+            { key: "last_synced_at", labelKey: "entities.organization.fields.last_synced_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
             { key: "version", labelKey: "entities.organization.fields.version", type: "text", sortable: false, defaultVisible: false, searchable: false },
             { key: "deleted_at", labelKey: "entities.organization.fields.deleted_at", type: "datetime", sortable: true, defaultVisible: false, searchable: false },
             { key: "deleted_by", labelKey: "entities.organization.fields.deleted_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
@@ -76,6 +78,7 @@ export function organizationsRouter() {
             { key: "created_by", labelKey: "entities.organization.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
             { key: "updated_at", labelKey: "entities.organization.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
             { key: "updated_by", labelKey: "entities.organization.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+            { key: "last_synced_at", labelKey: "entities.organization.fields.last_synced_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
             { key: "version", labelKey: "entities.organization.fields.version", type: "text", sortable: false, defaultVisible: false, searchable: false },
             { key: "deleted_at", labelKey: "entities.organization.fields.deleted_at", type: "datetime", sortable: true, defaultVisible: false, searchable: false },
             { key: "deleted_by", labelKey: "entities.organization.fields.deleted_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
@@ -85,11 +88,12 @@ export function organizationsRouter() {
           pageSizeOptions: [10, 25, 50, 100],
           searchPlaceholderKey: "entities.list.searchPlaceholder",
           rowActions: {
-            duplicate: true,
+            duplicate: false,
             delete: true,
             edit: true,
             preview: true
           },
+          enableCreateAction: true,
           viewVisibility: {
             table: {
               notHideable: ["idp_code"],
@@ -137,6 +141,48 @@ export function organizationsRouter() {
     })
   );
 
+  // GET /api/v1/entities/organization/check-availability - Check organization name availability
+  // MUST be before /:uuid route to avoid being matched as a UUID parameter
+  router.get(
+    "/api/v1/entities/organization/check-availability",
+    rbacHandler([Permission.ORGANIZATIONS_READ_ALL]),
+    asyncHandler(async (req, res) => {
+      const { idp_owner, idp_name } = req.query;
+
+      // Validate required parameters
+      if (!idp_owner || !idp_name) {
+        res.status(400).json({
+          type: "/errors/bad-request",
+          title: "Missing required parameters",
+          status: 400,
+          detail: "Both idp_owner and idp_name are required",
+          internal_code: "MISSING_PARAMETERS",
+          severity: "LOW",
+        });
+        return;
+      }
+
+      // Construct idp_code
+      const idp_code = `${idp_owner}/${idp_name}`;
+
+      // Check if organization exists in local DB
+      const existing = await getDal().getByIdpCode(idp_code);
+
+      if (existing) {
+        res.json({
+          available: false,
+          idp_code,
+          existing_uuid: existing.uuid,
+        });
+      } else {
+        res.json({
+          available: true,
+          idp_code,
+        });
+      }
+    })
+  );
+
   // GET /api/v1/entities/organization/:uuid - Get single organization
   router.get(
     "/api/v1/entities/organization/:uuid",
@@ -163,7 +209,8 @@ export function organizationsRouter() {
 
   // POST /api/v1/entities/organization - Create organization
   const CreateBodySchema = z.object({
-    idp_code: z.string().min(1).max(255),
+    idp_owner: z.string().min(1).max(255).optional().default("admin"),
+    idp_name: z.string().min(1).max(255),
     display_name: z.string().max(255).optional(),
     website_url: z.string().url().max(2048).optional().or(z.literal("")),
   });
@@ -173,17 +220,52 @@ export function organizationsRouter() {
     rbacHandler([Permission.ORGANIZATIONS_CREATE_SINGLE]),
     validateBody(CreateBodySchema),
     asyncHandler(async (req, res) => {
-      const { idp_code, display_name, website_url } = req.body;
+      const { idp_owner, idp_name, display_name, website_url } = req.body;
+      const idp_code = `${idp_owner}/${idp_name}`;
+
+      // Check for duplicate idp_code locally
+      const existingLocal = await getDal().getByIdpCode(idp_code);
+      if (existingLocal) {
+        console.log("[Organization Create] Organization already exists locally");
+        res.status(409).json({
+          type: "/errors/conflict",
+          title: "Organization already exists",
+          status: 409,
+          detail: `An organization with idp_code "${idp_code}" already exists`,
+          instance: "/api/v1/entities/organization",
+          internal_code: "ORGANIZATION_ALREADY_EXISTS",
+          severity: "MEDIUM",
+        });
+        return;
+      }
 
       // Sync to Casdoor first
       console.log("[Organization Create] Starting Casdoor sync for organization", idp_code);
       const cdClient = await getCasdoorClient();
       if (cdClient) {
-        const syncSuccess = await cdClient.addOrganization({
-          name: idp_code,
-          displayName: display_name,
-          websiteUrl: website_url || undefined,
-        });
+        const existing = await cdClient.getOrganization(idp_code);
+        let syncSuccess: boolean;
+
+        if (existing) {
+          console.log("[Organization Create] Organization exists in Casdoor, updating");
+          syncSuccess = await cdClient.updateOrganization({
+            name: idp_name,
+            owner: idp_owner,
+            displayName: display_name,
+            websiteUrl: website_url || undefined,
+            passwordType: "plain",
+          });
+        } else {
+          console.log("[Organization Create] Organization not found in Casdoor, creating");
+          const created = await cdClient.addOrganization({
+            name: idp_name,
+            owner: idp_owner,
+            displayName: display_name,
+            websiteUrl: website_url || undefined,
+            passwordType: "plain",
+          });
+          syncSuccess = created !== null;
+        }
 
         if (!syncSuccess) {
           console.error("[Organization Create] Casdoor sync failed, aborting creation");
@@ -191,7 +273,7 @@ export function organizationsRouter() {
             type: "/errors/internal-error",
             title: "Casdoor sync failed",
             status: 502,
-            detail: "Failed to create organization in Casdoor",
+            detail: "Failed to create/update organization in Casdoor",
             instance: "/api/v1/entities/organization",
             internal_code: "CASDOOR_SYNC_FAILED",
             severity: "HIGH",
@@ -207,11 +289,16 @@ export function organizationsRouter() {
       // Create in local DB
       const result = await getDal().createOrganization({
         idp_code,
+        idp_owner,
+        idp_name,
         display_name,
         website_url: website_url || undefined,
       });
 
-      res.status(201).json({ success: true, uuid: result.uuid });
+      // Fetch the full organization details to return
+      const createdOrg = await getDal().getByUuid(result.uuid);
+
+      res.status(201).json({ success: true, organization: createdOrg });
     })
   );
 
@@ -251,6 +338,7 @@ export function organizationsRouter() {
           name: org.idp_code,
           displayName: display_name || org.display_name,
           websiteUrl: website_url || org.website_url,
+          passwordType: "plain",
         });
 
         if (!syncSuccess) {
