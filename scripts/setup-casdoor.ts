@@ -1,5 +1,4 @@
 import "dotenv/config";
-import axios from "axios";
 import { Pool } from "pg";
 import crypto from "crypto";
 
@@ -95,26 +94,46 @@ async function main(): Promise<void> {
   }
 
   // 2. CONFIGURAZIONE CLIENT HTTP API CON CHIAVI MASTER CERTE
-  const http = axios.create({
-    baseURL: `${CASDOOR_ENDPOINT}/api`,
-    params: { clientId: liveClientId, clientSecret: liveClientSecret },
-  });
+  const casdoorFetch = async (endpoint: string, options?: RequestInit) => {
+    const url = new URL(`${CASDOOR_ENDPOINT}/api${endpoint}`);
+    url.searchParams.set('clientId', liveClientId);
+    url.searchParams.set('clientSecret', liveClientSecret);
+    
+    const response = await fetch(url.toString(), {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+    
+    if (!response.ok) {
+      const error = new Error(`HTTP ${response.status}`);
+      (error as any).response = { status: response.status, data: await response.json() };
+      throw error;
+    }
+    
+    return response.json();
+  };
 
   const handleResponse = (res: any, context: string) => {
-    if (res.data && res.data.status === "error") {
-      if (res.data.msg.includes("already exists") || res.data.msg.includes("duplicate")) {
+    if (res.status === "error") {
+      if (res.msg.includes("already exists") || res.msg.includes("duplicate")) {
         console.log(`  ↳ ⚠️  [${context}] Entità già presente. Continua.`);
         return;
       }
-      throw new Error(`[Casdoor API Error - ${context}] ${res.data.msg}`);
+      throw new Error(`[Casdoor API Error - ${context}] ${res.msg}`);
     }
     console.log(`  ↳ ✅ [${context}] Eseguito con successo.`);
   };
 
   // 3. CREAZIONE ORGANIZZAZIONE
   console.log("\n📡 [API] Sincronizzazione Organizzazione...");
-  const resOrg = await http.post(`/add-organization?id=admin/${ORG_NAME}`, {
-    owner: "admin", name: ORG_NAME, displayName: CASDOOR_ORGANIZATION, websiteUrl: "https://acme.io", passwordType: "plain"
+  const resOrg = await casdoorFetch(`/add-organization?id=admin/${ORG_NAME}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      owner: "admin", name: ORG_NAME, displayName: CASDOOR_ORGANIZATION, websiteUrl: "https://acme.io", passwordType: "plain"
+    }),
   });
   handleResponse(resOrg, "Crea Organizzazione");
 
@@ -179,18 +198,27 @@ async function main(): Promise<void> {
 
   // 4. CREAZIONE RUOLI (Administrators, Collaborator, Guest)
   console.log("\n📡 [API] Sincronizzazione Ruoli...");
-  const resRoleAdmin = await http.post(`/add-role?id=${ORG_NAME}/${ROLE_ADMINISTRATORS}`, {
-    owner: ORG_NAME, name: ROLE_ADMINISTRATORS, displayName: "Administrators", description: "Administrators role", isEnabled: true
+  const resRoleAdmin = await casdoorFetch(`/add-role?id=${ORG_NAME}/${ROLE_ADMINISTRATORS}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      owner: ORG_NAME, name: ROLE_ADMINISTRATORS, displayName: "Administrators", description: "Administrators role", isEnabled: true
+    }),
   });
   handleResponse(resRoleAdmin, "Crea Ruolo Administrators");
 
-  const resRoleCollaborator = await http.post(`/add-role?id=${ORG_NAME}/${ROLE_COLLABORATOR}`, {
-    owner: ORG_NAME, name: ROLE_COLLABORATOR, displayName: "Collaborator", description: "Collaborator role", isEnabled: true
+  const resRoleCollaborator = await casdoorFetch(`/add-role?id=${ORG_NAME}/${ROLE_COLLABORATOR}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      owner: ORG_NAME, name: ROLE_COLLABORATOR, displayName: "Collaborator", description: "Collaborator role", isEnabled: true
+    }),
   });
   handleResponse(resRoleCollaborator, "Crea Ruolo Collaborator");
 
-  const resRoleGuest = await http.post(`/add-role?id=${ORG_NAME}/${ROLE_GUEST}`, {
-    owner: ORG_NAME, name: ROLE_GUEST, displayName: "Guest", description: "Guest role", isEnabled: true
+  const resRoleGuest = await casdoorFetch(`/add-role?id=${ORG_NAME}/${ROLE_GUEST}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      owner: ORG_NAME, name: ROLE_GUEST, displayName: "Guest", description: "Guest role", isEnabled: true
+    }),
   });
   handleResponse(resRoleGuest, "Crea Ruolo Guest");
 
@@ -215,22 +243,25 @@ async function main(): Promise<void> {
   const { generateHexagonAvatarSvg } = await import("../src/modules/auth/avatar-svg-generator.js");
   const svgDataUri = generateHexagonAvatarSvg(initials, defaultColor);
 
-  const resUser = await http.post(`/add-user?id=${ORG_NAME}/${USER_NAME}`, {
-    owner: ORG_NAME, name: USER_NAME, displayName: "Primebrick Admin",
-    email: CASDOOR_ADMIN_EMAIL, password: CASDOOR_ADMIN_PASSWORD, isAdmin: true, isGlobalAdmin: false, signupApplication: CASDOOR_CLIENT_ID,
-    isVerified: true,
-    emailVerified: true,
-    customFields: {
-      app_avatar_color: defaultColor,
-      app_avatar_shape: "hexagon",
-      app_avatar_letters: initials,
-    },
-    avatar: svgDataUri,
+  const resUser = await casdoorFetch(`/add-user?id=${ORG_NAME}/${USER_NAME}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      owner: ORG_NAME, name: USER_NAME, displayName: "Primebrick Admin",
+      email: CASDOOR_ADMIN_EMAIL, password: CASDOOR_ADMIN_PASSWORD, isAdmin: true, isGlobalAdmin: false, signupApplication: CASDOOR_CLIENT_ID,
+      isVerified: true,
+      emailVerified: true,
+      customFields: {
+        app_avatar_color: defaultColor,
+        app_avatar_shape: "hexagon",
+        app_avatar_letters: initials,
+      },
+      avatar: svgDataUri,
+    }),
   });
   handleResponse(resUser, "Crea Utente Admin");
 
   // Extract UUID, org, and username from Casdoor response
-  const casdoorUser = resUser.data?.data || resUser.data;
+  const casdoorUser = resUser?.data || resUser;
   if (!casdoorUser || !casdoorUser.id) {
     throw new Error("Casdoor user creation did not return a UUID");
   }
