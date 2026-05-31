@@ -1,5 +1,4 @@
 import "dotenv/config";
-import axios from "axios";
 import { Pool } from "pg";
 
 // Helper function to convert string to snake_case lower case
@@ -49,11 +48,28 @@ async function main(): Promise<void> {
     await casdoorPool.end();
   }
 
-  // 2. Configure HTTP client with master credentials
-  const http = axios.create({
-    baseURL: `${CASDOOR_ENDPOINT}/api`,
-    params: { clientId: liveClientId, clientSecret: liveClientSecret },
-  });
+  // 2. Configure HTTP client helper with master credentials
+  const casdoorFetch = async (endpoint: string, options?: RequestInit) => {
+    const url = new URL(`${CASDOOR_ENDPOINT}/api${endpoint}`);
+    url.searchParams.set('clientId', liveClientId);
+    url.searchParams.set('clientSecret', liveClientSecret);
+    
+    const response = await fetch(url.toString(), {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+    
+    if (!response.ok) {
+      const error = new Error(`HTTP ${response.status}`);
+      (error as any).response = { status: response.status, data: await response.json() };
+      throw error;
+    }
+    
+    return response.json();
+  };
 
   console.log(`  ↳ 📡 Casdoor endpoint: ${CASDOOR_ENDPOINT}/api`);
   console.log(`  ↳ 🔑 Client ID: ${liveClientId}`);
@@ -75,12 +91,11 @@ async function main(): Promise<void> {
     try {
       const getUrl = `/get-user?id=${userId}`;
       console.log(`  ↳ 📡 Tentativo GET: ${CASDOOR_ENDPOINT}/api${getUrl}`);
-      const getRes = await http.get(getUrl);
-      console.log(`  ↳ 📥 Response status: ${getRes.status}`);
-      console.log(`  ↳ 📦 Response data:`, JSON.stringify(getRes.data, null, 2));
+      const getRes = await casdoorFetch(getUrl);
+      console.log(`  ↳  Response data:`, JSON.stringify(getRes, null, 2));
 
       // Casdoor returns user data in data.data field
-      const userData = getRes.data?.data;
+      const userData = getRes?.data;
       if (userData && userData.id) {
         casdoorUserId = userData.id;
         userExists = true;
@@ -105,11 +120,10 @@ async function main(): Promise<void> {
     try {
       const usersUrl = `/get-users?owner=${ORG_NAME}`;
       console.log(`  ↳ 📡 GET: ${CASDOOR_ENDPOINT}/api${usersUrl}`);
-      const usersRes = await http.get(usersUrl);
-      console.log(`  ↳ 📥 Response status: ${usersRes.status}`);
+      const usersRes = await casdoorFetch(usersUrl);
 
-      if (usersRes.data && usersRes.data.data && Array.isArray(usersRes.data.data)) {
-        const users = usersRes.data.data;
+      if (usersRes && usersRes.data && Array.isArray(usersRes.data)) {
+        const users = usersRes.data;
         console.log(`  ↳ 📦 Trovati ${users.length} utenti nell'organizzazione.`);
 
         // Find admin user by name
@@ -124,7 +138,7 @@ async function main(): Promise<void> {
           console.log("  ↳ ❌ Nessun utente admin trovato nella lista.");
         }
       } else {
-        console.log("  ↳ 📦 Utenti trovati:", JSON.stringify(usersRes.data, null, 2));
+        console.log("  ↳ 📦 Utenti trovati:", JSON.stringify(usersRes, null, 2));
       }
     } catch (err: any) {
       console.error("  ↳ ❌ Errore list utenti:", err.message);
@@ -150,14 +164,16 @@ async function main(): Promise<void> {
         emailVerified: true,
       };
       console.log(`  ↳ 📦 Payload:`, JSON.stringify(updatePayload, null, 2));
-      const updateRes = await http.post(updateUrl, updatePayload);
-      console.log(`  ↳ 📥 Response status: ${updateRes.status}`);
-      console.log(`  ↳ 📦 Response data:`, JSON.stringify(updateRes.data, null, 2));
+      const updateRes = await casdoorFetch(updateUrl, {
+        method: 'POST',
+        body: JSON.stringify(updatePayload),
+      });
+      console.log(`  ↳ 📦 Response data:`, JSON.stringify(updateRes, null, 2));
 
       // Verify update by fetching user again via API
       console.log("  ↳ 🔍 Verifica post-update via API...");
-      const verifyRes = await http.get(`/get-user?id=${ORG_NAME}/${USER_NAME}`);
-      const verifyData = verifyRes.data?.data;
+      const verifyRes = await casdoorFetch(`/get-user?id=${ORG_NAME}/${USER_NAME}`);
+      const verifyData = verifyRes?.data;
       console.log(`  ↳ 📊 Stato API dopo update: isAdmin=${verifyData?.isAdmin}, isVerified=${verifyData?.isVerified}, emailVerified=${verifyData?.emailVerified}`);
 
       // Verify update by querying Casdoor DB directly
@@ -259,11 +275,13 @@ async function main(): Promise<void> {
       const createUrl = `/add-user?id=${ORG_NAME}/${USER_NAME}`;
       console.log(`  ↳ 📡 POST: ${CASDOOR_ENDPOINT}/api${createUrl}`);
       console.log(`  ↳ 📦 Payload (senza password):`, JSON.stringify({ ...createPayload, password: "***" }, null, 2));
-      const createRes = await http.post(createUrl, createPayload);
-      console.log(`  ↳ 📥 Response status: ${createRes.status}`);
-      console.log(`  ↳ 📦 Response data:`, JSON.stringify(createRes.data, null, 2));
+      const createRes = await casdoorFetch(createUrl, {
+        method: 'POST',
+        body: JSON.stringify(createPayload),
+      });
+      console.log(`  ↳ 📦 Response data:`, JSON.stringify(createRes, null, 2));
 
-      casdoorUserId = createRes.data?.data?.id || createRes.data?.id;
+      casdoorUserId = createRes?.data?.id || createRes?.id;
       if (!casdoorUserId) {
         console.error("  ↳ ❌ Creazione utente: nessun ID ritornato da Casdoor");
         process.exit(1);
@@ -271,11 +289,11 @@ async function main(): Promise<void> {
 
       // Verify creation by fetching user
       console.log("  ↳ 🔍 Verifica post-creazione...");
-      const verifyRes = await http.get(`/get-user?id=${ORG_NAME}/${USER_NAME}`);
-      console.log(`  ↳ 🆔 Casdoor UUID: ${verifyRes.data.id}`);
-      console.log(`  ↳ 📊 Stato dopo creazione: isAdmin=${verifyRes.data.isAdmin}, isVerified=${verifyRes.data.isVerified}, emailVerified=${verifyRes.data.emailVerified}`);
+      const verifyRes = await casdoorFetch(`/get-user?id=${ORG_NAME}/${USER_NAME}`);
+      console.log(`  ↳ 🆔 Casdoor UUID: ${verifyRes.id}`);
+      console.log(`  ↳ 📊 Stato dopo creazione: isAdmin=${verifyRes.isAdmin}, isVerified=${verifyRes.isVerified}, emailVerified=${verifyRes.emailVerified}`);
 
-      if (verifyRes.data.isAdmin === true && verifyRes.data.isVerified === true && verifyRes.data.emailVerified === true) {
+      if (verifyRes.isAdmin === true && verifyRes.isVerified === true && verifyRes.emailVerified === true) {
         console.log("  ↳ ✅ Utente admin creato con successo e verificato.");
       } else {
         console.error("  ↳ ❌ Creazione non riuscita: valori non corretti dopo creazione");
