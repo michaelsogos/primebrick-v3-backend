@@ -655,6 +655,8 @@ export function authRouter() {
         // Sync to Casdoor first (non-best-effort, fail if sync fails)
         console.log("[Auth Me Patch] Starting Primebrick→Casdoor sync for user", profile.idp_code);
         const cdClient = await getCasdoorClient();
+        // Capture timestamp before Casdoor sync to represent when Casdoor received the changes
+        const syncTimestamp = new Date();
         if (cdClient) {
           // Generate SVG if avatar_color changed
           let svgDataUri: string | undefined;
@@ -705,27 +707,50 @@ export function authRouter() {
 
         // Use DAL to update profile (Repository.update() handles audit logging)
         // Add last_synced_at to updateBody since Casdoor sync succeeded
-        updateBody.last_synced_at = new Date();
+        updateBody.last_synced_at = syncTimestamp;
         await getDal().updateProfile(userId, updateBody);
+
+        // Re-fetch updated profile to return canonical data
+        const updated = await getDal().getByUuid(userId);
+        if (!updated) {
+          console.error("[Auth Me Patch] Failed to re-fetch profile after update");
+          res.status(500).json({
+            type: "/errors/internal-error",
+            title: "Failed to retrieve updated profile",
+            status: 500,
+            detail: "Profile update succeeded but re-fetch failed",
+            internal_code: "PROFILE_REFETCH_FAILED",
+            severity: "HIGH",
+          });
+          return;
+        }
 
         res.json({
           success: true,
           profile: {
-            idp_code: profile.idp_code,
-            email: profile.email,
-            display_name: profile.display_name,
-            avatar_color: profile.avatar_color,
-            avatar_initials: profile.avatar_initials,
-            created_at: profile.created_at,
-            created_by: profile.created_by,
-            created_by_name: profile.created_by_name,
-            updated_at: profile.updated_at,
-            updated_by: profile.updated_by,
-            updated_by_name: profile.updated_by_name,
-            version: profile.version,
-            deleted_at: profile.deleted_at,
-            deleted_by: profile.deleted_by,
-            deleted_by_name: profile.deleted_by_name,
+            uuid: updated.uuid,
+            idp_code: updated.idp_code,
+            idp_org: updated.idp_org,
+            idp_username: updated.idp_username,
+            email: updated.email,
+            display_name: updated.display_name,
+            avatar_color: updated.avatar_color,
+            avatar_initials: updated.avatar_initials,
+            is_admin: updated.is_admin,
+            is_verified: updated.is_verified,
+            email_verified: updated.email_verified,
+            issuer: updated.issuer,
+            last_synced_at: updated.last_synced_at,
+            created_at: updated.created_at,
+            created_by: updated.created_by,
+            created_by_name: updated.created_by_name,
+            updated_at: updated.updated_at,
+            updated_by: updated.updated_by,
+            updated_by_name: updated.updated_by_name,
+            version: updated.version,
+            deleted_at: updated.deleted_at,
+            deleted_by: updated.deleted_by,
+            deleted_by_name: updated.deleted_by_name,
           }
         });
       } catch (error) {
@@ -790,6 +815,7 @@ export function authRouter() {
             is_verified: profile.is_verified,
             email_verified: profile.email_verified,
             issuer: profile.issuer,
+            last_synced_at: profile.last_synced_at,
             created_at: profile.created_at,
             created_by: profile.created_by,
             created_by_name: profile.created_by_name,
