@@ -919,7 +919,7 @@ export class CustomersDal {
       FROM public.customers_audit audit
       LEFT JOIN public.user_profiles creator
         ON audit.changed_by ~ '^[0-9a-fA-F-]{36}$'
-       AND creator.uuid = audit.changed_by::uuid
+       AND creator.uuid::text = audit.changed_by
       WHERE audit.entity_uuid = $1
       ORDER BY audit.changed_at DESC, audit.id DESC
       LIMIT $2 OFFSET $3
