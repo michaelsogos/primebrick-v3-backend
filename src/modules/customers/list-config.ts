@@ -14,7 +14,7 @@ export type ListMetaViewVisibility = {
 export type CustomerListColumn = {
   key: string;
   labelKey: string;
-  type: "text" | "badge" | "datetime";
+  type: "text" | "badge" | "datetime" | "color";
   sortable: boolean;
   /** If false, column is excluded from "search in fields" dropdown and backend default search scope. */
   searchable?: boolean;
