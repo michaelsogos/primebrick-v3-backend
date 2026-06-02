@@ -291,6 +291,34 @@ export class OrganizationsDal {
     return parseInt(result.rows[0].count, 10);
   }
 
+  private enrichAuditDeltaWithDisplayNames(
+    delta: Record<string, any>,
+    changedByName: string | null
+  ): Record<string, any> {
+    const enriched = { ...delta };
+    const auditFields = ['created_by', 'updated_by', 'deleted_by'];
+    
+    for (const field of auditFields) {
+      if (field in enriched) {
+        const change = enriched[field];
+        
+        // Add display_name alongside GUID if available
+        if (changedByName && this.isUuid(change.new)) {
+          change.new_display_name = changedByName;
+        }
+        if (changedByName && this.isUuid(change.old)) {
+          change.old_display_name = changedByName;
+        }
+      }
+    }
+    
+    return enriched;
+  }
+
+  private isUuid(value: any): boolean {
+    return typeof value === 'string' && /^[0-9a-fA-F-]{36}$/.test(value);
+  }
+
   async getOrganizationAudit(uuid: string, page: number, limit: number) {
     const offset = (page - 1) * limit;
 
@@ -333,7 +361,7 @@ export class OrganizationsDal {
         changed_by: row.changed_by,
         changed_by_name: row.changed_by_name,
         version: row.version,
-        delta: row.delta,
+        delta: this.enrichAuditDeltaWithDisplayNames(row.delta, row.changed_by_name),
       })),
       pagination: {
         page,
