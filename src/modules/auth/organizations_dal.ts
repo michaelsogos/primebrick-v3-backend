@@ -5,13 +5,15 @@ import type { Pool } from "pg";
 import { entityDateToApiIso } from "../../domain/entities/entity-meta.js";
 import { Repository } from "../../db/repository/repository.js";
 import { field, Filter, Sort, Join, type FilterExpr } from "../../db/repository/dsl.js";
+import { buildAuditableJoins } from "../../db/repository/auditable-joins.js";
+import { WithAuditableDisplayNames } from "../../db/repository/auditable-types.js";
 
 import { OrganizationEntity } from "./organization_entity.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
 import { requireActor } from "./session-context.js";
 
-export type OrganizationDetailRow = {
+export type OrganizationDetailRow = WithAuditableDisplayNames<{
   uuid: string;
   idp_code: string;
   idp_owner?: string;
@@ -19,18 +21,15 @@ export type OrganizationDetailRow = {
   display_name?: string;
   website_url?: string;
   last_synced_at?: Date;
-  user_count?: number; // Computed: count of active users in this organization
+  user_count?: number;
   created_at: Date;
   created_by: string;
-  created_by_name?: string;
   updated_at: Date;
   updated_by: string;
-  updated_by_name?: string;
   version: number;
   deleted_at?: Date;
   deleted_by?: string;
-  deleted_by_name?: string;
-};
+}>;
 
 export type OrganizationDetailDto = Omit<
   OrganizationDetailRow,
@@ -86,26 +85,7 @@ export class OrganizationsDal {
       null,
       {
         filters: [Filter.fieldValue(field(OrganizationEntity, "uuid" as any), "=", uuid)] as any,
-        joins: [
-          Join.on(
-            field(UserProfileEntity, "uuid" as any),
-            field(OrganizationEntity, "created_by" as any),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "creator" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid" as any),
-            field(OrganizationEntity, "updated_by" as any),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "updater" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid" as any),
-            field(OrganizationEntity, "deleted_by" as any),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
-          ),
-        ],
+        joins: buildAuditableJoins(OrganizationEntity),
       }
     );
     return row ? this.toDto(row) : null;
@@ -117,26 +97,7 @@ export class OrganizationsDal {
       null,
       {
         filters: [Filter.fieldValue(field(OrganizationEntity, "idp_code" as any), "=", idpCode)] as any,
-        joins: [
-          Join.on(
-            field(UserProfileEntity, "uuid" as any),
-            field(OrganizationEntity, "created_by" as any),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "creator" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid" as any),
-            field(OrganizationEntity, "updated_by" as any),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "updater" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid" as any),
-            field(OrganizationEntity, "deleted_by" as any),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
-          ),
-        ],
+        joins: buildAuditableJoins(OrganizationEntity),
       }
     );
     return row ? this.toDto(row) : null;

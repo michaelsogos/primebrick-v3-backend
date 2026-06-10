@@ -3,6 +3,7 @@ import { getColumnName, getEntityPersistenceMeta, getTableName } from "../../dom
 
 import type { FieldProjector, FilterExpr, JoinExpr, SortingExpr } from "./dsl.js";
 import type { WithDeletedRecords } from "./types.js";
+import { buildAuditableJoins } from "./auditable-joins.js";
 
 export type SqlQuery = { text: string; values: unknown[] };
 
@@ -253,21 +254,35 @@ export type SelectQueryInput = {
   limit?: number;
   offset?: number;
   includeTotalRecordsWindow?: boolean;
+  /** Automatically add auditable joins for IAuditableEntity implementations */
+  includeAuditableJoins?: boolean;
 };
 
 export function buildSelectQuery(input: SelectQueryInput): SqlQuery {
   const w = new ParamWriter();
   const baseTable = qTable(input.entity);
-  const projection = renderProjection(input.entity, input.fields, input.joins);
+  
+  // Automatically add auditable joins if requested
+  let joins = input.joins;
+  if (input.includeAuditableJoins) {
+    const auditableJoins = buildAuditableJoins(input.entity);
+    if (!joins) {
+      joins = auditableJoins;
+    } else {
+      joins = [...joins, ...auditableJoins];
+    }
+  }
+  
+  const projection = renderProjection(input.entity, input.fields, joins);
   if (input.includeTotalRecordsWindow) projection.push(`COUNT(*) OVER() AS ${quoteIdent("_total_records")}`);
 
-  const joins = renderJoins(input.joins);
+  const renderedJoins = renderJoins(joins);
   const where = renderWhere(w, input.entity, input.deletedRecords, input.filters);
   const orderBy = renderOrderBy(input.entity, input.sorting);
 
   const parts: string[] = [];
   parts.push(`SELECT ${projection.join(", ")} FROM ${baseTable}`);
-  if (joins.length) parts.push(joins.join(" "));
+  if (renderedJoins.length) parts.push(renderedJoins.join(" "));
   if (where.length) parts.push(`WHERE ${where.join(" AND ")}`);
   if (orderBy) parts.push(`ORDER BY ${orderBy}`);
   if (input.limit !== undefined) parts.push(`LIMIT ${w.add(input.limit)}::int`);

@@ -11,6 +11,8 @@ export type FindOptions = {
   filters?: import("./dsl.js").FilterExpr[];
   sorting?: import("./dsl.js").SortingExpr[];
   joins?: import("./dsl.js").JoinExpr[];
+  /** Automatically add auditable joins for IAuditableEntity implementations */
+  includeAuditableJoins?: boolean;
 };
 
 export type PaginatedEntity<TEntity> = {
