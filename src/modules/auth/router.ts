@@ -851,6 +851,12 @@ export function authRouter() {
     email: z.string().email(),
     roles: z.array(z.string()).optional(),
     avatar_initials: z.string().min(1),
+    avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    idp_org: z.string().optional(),
+    is_active: z.boolean().default(false),
+    is_admin: z.boolean().default(false),
+    is_verified: z.boolean().default(false),
+    email_verified: z.boolean().default(false),
   });
 
   const UpdateUserSchema = z.object({
@@ -859,6 +865,8 @@ export function authRouter() {
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
     is_active: z.boolean().optional(),
     is_admin: z.boolean().optional(),
+    is_verified: z.boolean().optional(),
+    email_verified: z.boolean().optional(),
     roles: z.array(z.string()).optional(),
   }).strict();
 
@@ -884,7 +892,7 @@ export function authRouter() {
         return;
       }
 
-      const { username, password, display_name, email, roles, avatar_initials } = parseResult.data;
+      const { username, password, display_name, email, roles, avatar_initials, avatar_color, idp_org, is_active, is_admin, is_verified, email_verified } = parseResult.data;
 
       // Validate avatar_initials is provided
       if (!avatar_initials) {
@@ -899,14 +907,14 @@ export function authRouter() {
       }
 
       try {
-        // Default color from palette
-        const defaultColor = "#4f46e5";
+        // Default color from palette, or use provided avatar_color
+        const defaultColor = avatar_color || "#4f46e5";
 
         // 1. Create in Casdoor
         console.log("[Auth Users Create] Creating user in Casdoor:", username);
         const cdClient = await getCasdoorClient();
         let casdoorUserId: string | null = null;
-        let idpOrg = process.env.CASDOOR_ORGANIZATION || "acme";
+        let idpOrg = idp_org || process.env.CASDOOR_ORGANIZATION || "acme";
         let idpUsername = username;
         if (cdClient) {
           const avatarColor = defaultColor;
@@ -928,6 +936,10 @@ export function authRouter() {
               app_avatar_letters: avatar_initials,
             },
             avatar: svgDataUri,
+            isForbidden: !is_active,
+            isAdmin: is_admin,
+            isVerified: is_verified,
+            emailVerified: email_verified,
           });
           if (!newUser || !newUser.id) {
             throw new Error("Casdoor user creation did not return a UUID");
@@ -949,15 +961,17 @@ export function authRouter() {
         const issuer = process.env.CASDOOR_ENDPOINT || null;
         await pool.query(
           `INSERT INTO public.user_profiles
-           (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, is_verified, issuer, roles, last_synced_at, created_at, created_by, updated_at, updated_by, version)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, false, false, $9, $10, $11, $12, $13, $14, $15, 1)`,
-          [newUuid, idpCode, email, display_name, idpOrg, idpUsername, defaultColor, avatar_initials, issuer, roles ? JSON.stringify(roles) : null, now, now, req.user?.id || newUuid, now, req.user?.id || newUuid]
+           (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, is_verified, email_verified, issuer, roles, last_synced_at, created_at, created_by, updated_at, updated_by, version)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 1)`,
+          [newUuid, idpCode, email, display_name, idpOrg, idpUsername, defaultColor, avatar_initials, is_active, is_admin, is_verified, email_verified, issuer, roles ? JSON.stringify(roles) : null, now, now, req.user?.id || newUuid, now, req.user?.id || newUuid]
         );
         console.log(`[Auth Users Create] Local profile created with uuid=${newUuid}`);
 
+        // Fetch the full created user DTO to return to FE
+        const createdUser = await getDal().getByUuid(newUuid);
         res.status(201).json({
           success: true,
-          user: { idp_code: idpCode, username, display_name, email },
+          profile: createdUser,
         });
       } catch (error) {
         console.error("[Auth Users Create] Error creating user:", error);
@@ -1014,6 +1028,8 @@ export function authRouter() {
       if (body.avatar_color !== undefined) updateBody.avatar_color = body.avatar_color;
       if (body.is_active !== undefined) updateBody.is_active = body.is_active;
       if (body.is_admin !== undefined) updateBody.is_admin = body.is_admin;
+      if (body.is_verified !== undefined) updateBody.is_verified = body.is_verified;
+      if (body.email_verified !== undefined) updateBody.email_verified = body.email_verified;
       if (body.roles !== undefined) updateBody.roles = body.roles;
 
       if (Object.keys(updateBody).length === 0) {
@@ -1054,6 +1070,8 @@ export function authRouter() {
           if (body.email !== undefined) casdoorUpdate.email = body.email;
           if (body.is_active !== undefined) casdoorUpdate.isForbidden = !body.is_active;
           if (body.is_admin !== undefined) casdoorUpdate.isAdmin = body.is_admin;
+          if (body.is_verified !== undefined) casdoorUpdate.isVerified = body.is_verified;
+          if (body.email_verified !== undefined) casdoorUpdate.emailVerified = body.email_verified;
           console.log(`[Auth Users Update] Syncing fields to Casdoor: ${JSON.stringify(Object.keys(casdoorUpdate).filter(k => k !== 'id'))}`);
 
           const syncSuccess = await cdClient.updateUser(casdoorUpdate);
