@@ -132,6 +132,46 @@ export class UserProfilesDal {
     return row ? this.toDto(row) : null;
   }
 
+  async getByEmail(email: string): Promise<UserProfileDetailDto | null> {
+    const row = await this.repo.find<any, any>(
+      UserProfileEntity,
+      null,
+      {
+        filters: [Filter.fieldValue(field(UserProfileEntity, "email" as any), "=", email)] as any,
+        joins: [
+          Join.on(
+            field(UserProfileEntity, "uuid" as any),
+            field(UserProfileEntity, "created_by" as any),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "creator" }
+          ),
+          Join.on(
+            field(UserProfileEntity, "uuid" as any),
+            field(UserProfileEntity, "updated_by" as any),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "updater" }
+          ),
+          Join.on(
+            field(UserProfileEntity, "uuid" as any),
+            field(UserProfileEntity, "deleted_by" as any),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
+          ),
+        ],
+      }
+    );
+    return row ? this.toDto(row) : null;
+  }
+
+  async getByUsernameAndOrg(username: string, idpOrg: string): Promise<UserProfileDetailDto | null> {
+    const result = await this.pool.query(
+      `SELECT * FROM public.user_profiles WHERE idp_username = $1 AND idp_org = $2 AND deleted_at IS NULL LIMIT 1`,
+      [username, idpOrg]
+    );
+    if (result.rows.length === 0) return null;
+    return this.toDto(result.rows[0]);
+  }
+
   async softDelete(uuid: string): Promise<void> {
     await this.repo.delete(UserProfileEntity, uuid, requireActor());
   }

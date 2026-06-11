@@ -850,7 +850,7 @@ export function authRouter() {
     display_name: z.string().min(1),
     email: z.string().email(),
     roles: z.array(z.string()).optional(),
-    avatar_initials: z.string().min(1),
+    avatar_initials: z.string().optional(),
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
     idp_org: z.string().optional(),
     is_active: z.boolean().default(false),
@@ -869,6 +869,119 @@ export function authRouter() {
     email_verified: z.boolean().optional(),
     roles: z.array(z.string()).optional(),
   }).strict();
+
+  // GET /api/v1/auth/users/check-email - Check email availability
+  router.get(
+    "/api/v1/auth/users/check-email",
+    rbacHandler([Permission.USERS_READ_ALL]),
+    asyncHandler(async (req, res) => {
+      const { email } = req.query;
+
+      // Validate required parameter
+      if (!email) {
+        res.status(400).json({
+          type: "/errors/bad-request",
+          title: "Missing required parameter",
+          status: 400,
+          detail: "email parameter is required",
+          internal_code: "MISSING_PARAMETER",
+          severity: "LOW",
+        });
+        return;
+      }
+
+      // Check if user with this email exists in local DB
+      const existing = await getDal().getByEmail(email as string);
+
+      if (existing) {
+        res.json({
+          available: false,
+          email,
+          existing_uuid: existing.uuid,
+        });
+      } else {
+        res.json({
+          available: true,
+          email,
+        });
+      }
+    })
+  );
+
+  // GET /api/v1/auth/users/check-username - Check username availability
+  router.get(
+    "/api/v1/auth/users/check-username",
+    rbacHandler([Permission.USERS_READ_ALL]),
+    asyncHandler(async (req, res) => {
+      const { username, idp_org } = req.query;
+
+      // Validate required parameters
+      if (!username) {
+        res.status(400).json({
+          type: "/errors/bad-request",
+          title: "Missing required parameter",
+          status: 400,
+          detail: "username parameter is required",
+          internal_code: "MISSING_PARAMETER",
+          severity: "LOW",
+        });
+        return;
+      }
+
+      const org = (idp_org as string) || process.env.CASDOOR_ORGANIZATION || "acme";
+
+      // Check if user exists in local DB by username + org combination
+      const existing = await getDal().getByUsernameAndOrg(username as string, org);
+
+      if (existing) {
+        res.json({
+          available: false,
+          username,
+          idp_org: org,
+          existing_uuid: existing.uuid,
+        });
+      } else {
+        // Also check Casdoor if client available
+        const cdClient = await getCasdoorClient();
+        if (cdClient) {
+          // Casdoor API uses {org}/{username} format for query
+          const casdoorQueryId = `${org}/${username}`;
+          const casdoorUser = await cdClient.getUser(casdoorQueryId);
+          if (casdoorUser) {
+            res.json({
+              available: false,
+              username,
+              idp_org: org,
+              exists_in_casdoor: true,
+            });
+            return;
+          }
+        }
+        res.json({
+          available: true,
+          username,
+          idp_org: org,
+        });
+      }
+    })
+  );
+
+  // GET /api/v1/auth/roles - List available roles
+  router.get(
+    "/api/v1/auth/roles",
+    rbacHandler([Permission.USERS_READ_ALL]),
+    asyncHandler(async (req, res) => {
+      const pool = getPool();
+      const result = await pool.query(
+        `SELECT idp_role, label_key FROM role_mappings ORDER BY idp_role`
+      );
+      const roles = result.rows.map((row: any) => ({
+        idp_role: row.idp_role,
+        label_key: row.label_key
+      }));
+      res.json({ roles });
+    })
+  );
 
   // POST /api/v1/auth/users - Create user (admin only)
   router.post(
@@ -894,21 +1007,23 @@ export function authRouter() {
 
       const { username, password, display_name, email, roles, avatar_initials, avatar_color, idp_org, is_active, is_admin, is_verified, email_verified } = parseResult.data;
 
-      // Validate avatar_initials is provided
-      if (!avatar_initials) {
-        res.status(400).json({
-          type: "/errors/validation-error",
-          title: "Validation error",
-          status: 400,
-          detail: "avatar_initials is required",
-          severity: "MEDIUM",
-        });
-        return;
-      }
-
       try {
         // Default color from palette, or use provided avatar_color
         const defaultColor = avatar_color || "#4f46e5";
+
+        // Calculate initials from display_name if not provided
+        const calculatedInitials = avatar_initials || (() => {
+          if (!display_name) return "??";
+          const words = display_name.trim().split(/\s+/).filter(w => w.length > 0);
+          if (words.length === 0) return "??";
+          const firstLetter = words[0][0].toUpperCase();
+          if (words.length > 1) {
+            const lastLetter = words[words.length - 1][0].toUpperCase();
+            return firstLetter + lastLetter;
+          } else {
+            return words[0].slice(0, 2).toUpperCase() || firstLetter;
+          }
+        })();
 
         // 1. Create in Casdoor
         console.log("[Auth Users Create] Creating user in Casdoor:", username);
@@ -919,9 +1034,9 @@ export function authRouter() {
         if (cdClient) {
           const avatarColor = defaultColor;
 
-          // Generate SVG using initials from FE
+          // Generate SVG using calculated initials
           const { generateHexagonAvatarSvg } = await import("./avatar-svg-generator.js");
-          const svgDataUri = generateHexagonAvatarSvg(avatar_initials, avatarColor);
+          const svgDataUri = generateHexagonAvatarSvg(calculatedInitials, avatarColor);
 
           const newUser = await cdClient.addUser({
             owner: idpOrg,  // REQUIRED
@@ -933,7 +1048,7 @@ export function authRouter() {
             customFields: {
               app_avatar_color: avatarColor,
               app_avatar_shape: "hexagon",
-              app_avatar_letters: avatar_initials,
+              app_avatar_letters: calculatedInitials,
             },
             avatar: svgDataUri,
             isForbidden: !is_active,
@@ -963,7 +1078,7 @@ export function authRouter() {
           `INSERT INTO public.user_profiles
            (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, is_verified, email_verified, issuer, roles, last_synced_at, created_at, created_by, updated_at, updated_by, version)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 1)`,
-          [newUuid, idpCode, email, display_name, idpOrg, idpUsername, defaultColor, avatar_initials, is_active, is_admin, is_verified, email_verified, issuer, roles ? JSON.stringify(roles) : null, now, now, req.user?.id || newUuid, now, req.user?.id || newUuid]
+          [newUuid, idpCode, email, display_name, idpOrg, idpUsername, defaultColor, calculatedInitials, is_active, is_admin, is_verified, email_verified, issuer, roles ? JSON.stringify(roles) : null, now, now, req.user?.id || newUuid, now, req.user?.id || newUuid]
         );
         console.log(`[Auth Users Create] Local profile created with uuid=${newUuid}`);
 
