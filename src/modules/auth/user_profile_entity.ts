@@ -29,6 +29,8 @@ import {
   AuditableFieldType,
   DeletableField,
   DeletableFieldType,
+  SynchronizableField,
+  SynchronizableFieldType,
   AuditTrail,
 } from "../../domain/entities/entity-meta.js";
 
@@ -70,6 +72,7 @@ export class UserProfileEntity implements IAuditableEntity {
   @Column({ pgType: "jsonb", nullable: true })
   roles?: string[];
 
+  @SynchronizableField(SynchronizableFieldType.LAST_SYNCED_AT)
   @Column({ pgType: "timestamp with time zone", nullable: true })
   last_synced_at?: Date;
 

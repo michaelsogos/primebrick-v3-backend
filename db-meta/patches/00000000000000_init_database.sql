@@ -157,6 +157,7 @@ CREATE INDEX IF NOT EXISTS "user_profiles_audit_action_idx" ON "public"."user_pr
 CREATE TABLE IF NOT EXISTS "public"."role_mappings" (
   "id" bigint generated always as identity NOT NULL,
   "idp_role" varchar(255) NOT NULL,
+  "label_key" varchar(255),
   "permissions" jsonb NOT NULL,
   "is_admin" boolean NOT NULL DEFAULT false,
   "created_at" timestamptz DEFAULT now(),

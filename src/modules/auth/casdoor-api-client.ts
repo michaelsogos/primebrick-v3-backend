@@ -129,6 +129,11 @@ export class CasdoorApiClient {
     if (user.avatar) {
       requestBody.avatar = user.avatar;
     }
+    // Add Casdoor boolean flags if provided
+    if (user.isForbidden !== undefined) requestBody.isForbidden = user.isForbidden;
+    if (user.isAdmin !== undefined) requestBody.isAdmin = user.isAdmin;
+    if (user.isVerified !== undefined) requestBody.isVerified = user.isVerified;
+    if (user.emailVerified !== undefined) requestBody.emailVerified = user.emailVerified;
 
     console.log(`[CasdoorApi] updateUser request: POST ${url}`);
     console.log(`[CasdoorApi] updateUser request body:`, JSON.stringify(requestBody, null, 2));

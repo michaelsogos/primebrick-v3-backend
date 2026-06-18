@@ -3,12 +3,15 @@ import type { Pool } from "pg";
 import { entityDateToApiIso } from "../../domain/entities/entity-meta.js";
 import { Repository } from "../../db/repository/repository.js";
 import { field, Filter, Sort, Join, type FilterExpr } from "../../db/repository/dsl.js";
+import { buildAuditableJoins } from "../../db/repository/auditable-joins.js";
+import { WithAuditableDisplayNames } from "../../db/repository/auditable-types.js";
+import { getAuditUserJoinSql, getAuditSelectWithDisplayName } from "../../db/repository/audit-join-helper.js";
 
 import { UserProfileEntity } from "./user_profile_entity.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
 import { requireActor } from "./session-context.js";
 
-export type UserProfileDetailRow = {
+export type UserProfileDetailRow = WithAuditableDisplayNames<{
   uuid: string;
   idp_code: string;
   email?: string;
@@ -26,15 +29,12 @@ export type UserProfileDetailRow = {
   idp_username?: string;
   created_at: Date;
   created_by: string;
-  created_by_name?: string;
   updated_at: Date;
   updated_by: string;
-  updated_by_name?: string;
   version: number;
   deleted_at?: Date;
   deleted_by?: string;
-  deleted_by_name?: string;
-};
+}>;
 
 export type UserProfileDetailDto = Omit<
   UserProfileDetailRow,
@@ -88,27 +88,7 @@ export class UserProfilesDal {
       null,
       {
         filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        joins: [
-          // Use table aliases to join user_profiles three times
-          Join.on(
-            field(UserProfileEntity, "uuid" as any),
-            field(UserProfileEntity, "created_by" as any),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "creator" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid" as any),
-            field(UserProfileEntity, "updated_by" as any),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "updater" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid" as any),
-            field(UserProfileEntity, "deleted_by" as any),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
-          ),
-        ],
+        joins: buildAuditableJoins(UserProfileEntity),
       }
     );
     return row ? this.toDto(row) : null;
@@ -150,6 +130,46 @@ export class UserProfilesDal {
       }
     );
     return row ? this.toDto(row) : null;
+  }
+
+  async getByEmail(email: string): Promise<UserProfileDetailDto | null> {
+    const row = await this.repo.find<any, any>(
+      UserProfileEntity,
+      null,
+      {
+        filters: [Filter.fieldValue(field(UserProfileEntity, "email" as any), "=", email)] as any,
+        joins: [
+          Join.on(
+            field(UserProfileEntity, "uuid" as any),
+            field(UserProfileEntity, "created_by" as any),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "creator" }
+          ),
+          Join.on(
+            field(UserProfileEntity, "uuid" as any),
+            field(UserProfileEntity, "updated_by" as any),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "updater" }
+          ),
+          Join.on(
+            field(UserProfileEntity, "uuid" as any),
+            field(UserProfileEntity, "deleted_by" as any),
+            "LEFT",
+            { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
+          ),
+        ],
+      }
+    );
+    return row ? this.toDto(row) : null;
+  }
+
+  async getByUsernameAndOrg(username: string, idpOrg: string): Promise<UserProfileDetailDto | null> {
+    const result = await this.pool.query(
+      `SELECT * FROM public.user_profiles WHERE idp_username = $1 AND idp_org = $2 AND deleted_at IS NULL LIMIT 1`,
+      [username, idpOrg]
+    );
+    if (result.rows.length === 0) return null;
+    return this.toDto(result.rows[0]);
   }
 
   async softDelete(uuid: string): Promise<void> {
@@ -201,19 +221,9 @@ export class UserProfilesDal {
     const total = parseInt(countResult.rows[0].total, 10);
 
     const query = `
-      SELECT
-        audit.id,
-        audit.entity_uuid,
-        audit.action,
-        audit.changed_at,
-        audit.changed_by,
-        creator.display_name as changed_by_name,
-        audit.version,
-        audit.delta
+      SELECT ${getAuditSelectWithDisplayName()}
       FROM public.user_profiles_audit audit
-      LEFT JOIN public.user_profiles creator
-        ON audit.changed_by ~ '^[0-9a-fA-F-]{36}$'
-       AND creator.uuid::text = audit.changed_by
+      ${getAuditUserJoinSql()}
       WHERE audit.entity_uuid = $1
       ORDER BY audit.changed_at DESC, audit.id DESC
       LIMIT $2 OFFSET $3
@@ -297,26 +307,7 @@ export class UserProfilesDal {
         filters: baseFilters.length > 0 ? baseFilters : undefined,
         sorting,
         deletedRecords: deleted_records as any,
-        joins: [
-          Join.on(
-            field(UserProfileEntity, "uuid"),
-            field(UserProfileEntity, "created_by"),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "creator" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid"),
-            field(UserProfileEntity, "updated_by"),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "updater" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid"),
-            field(UserProfileEntity, "deleted_by"),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
-          ),
-        ],
+        joins: buildAuditableJoins(UserProfileEntity),
       }
     );
 

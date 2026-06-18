@@ -4,6 +4,7 @@ import { RoleMappingEntity } from "./role_mapping_entity.js";
 
 interface RoleMappingRow {
   idp_role: string;
+  label_key?: string;
   permissions: string[];
   is_admin: boolean;
 }
@@ -23,18 +24,19 @@ export class RoleMappingRepo {
 
   /**
    * Load all role mappings from the database.
-   * Returns a map of idp_role → { permissions, is_admin }.
+   * Returns a map of idp_role → { permissions, is_admin, label_key }.
    */
-  async loadAllMappings(): Promise<Map<string, { permissions: string[]; is_admin: boolean }>> {
+  async loadAllMappings(): Promise<Map<string, { permissions: string[]; is_admin: boolean; label_key?: string }>> {
     const rows = await this.repo.rawSql<RoleMappingRow>(
-      `SELECT idp_role, permissions, is_admin FROM role_mappings`
+      `SELECT idp_role, label_key, permissions, is_admin FROM role_mappings`
     );
 
-    const map = new Map<string, { permissions: string[]; is_admin: boolean }>();
+    const map = new Map<string, { permissions: string[]; is_admin: boolean; label_key?: string }>();
     for (const row of rows) {
       map.set(row.idp_role, {
         permissions: row.permissions || [],
         is_admin: row.is_admin || false,
+        label_key: row.label_key,
       });
     }
 
@@ -47,7 +49,8 @@ export class RoleMappingRepo {
   async upsertMapping(
     idpRole: string,
     permissions: string[],
-    isAdmin: boolean
+    isAdmin: boolean,
+    labelKey?: string
   ): Promise<void> {
     const existing = await this.repo.rawSql<{ id: number }>(
       `SELECT id FROM role_mappings WHERE idp_role = $1`,
@@ -58,14 +61,15 @@ export class RoleMappingRepo {
       await this.repo.insertMany(RoleMappingEntity, [
         {
           idp_role: idpRole,
+          label_key: labelKey,
           permissions,
           is_admin: isAdmin,
         },
       ]);
     } else {
       await this.repo.rawSql(
-        `UPDATE role_mappings SET permissions = $1, is_admin = $2, updated_at = CURRENT_TIMESTAMP WHERE idp_role = $3`,
-        [permissions, isAdmin, idpRole]
+        `UPDATE role_mappings SET permissions = $1, is_admin = $2, label_key = $3, updated_at = CURRENT_TIMESTAMP WHERE idp_role = $4`,
+        [permissions, isAdmin, labelKey || null, idpRole]
       );
     }
   }

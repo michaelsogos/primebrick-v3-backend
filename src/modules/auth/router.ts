@@ -842,6 +842,35 @@ export function authRouter() {
     })
   );
 
+  // GET /api/v1/auth/me/meta - Metadata for authenticated user's own profile
+  router.get(
+    "/api/v1/auth/me/meta",
+    rbacHandler([Permission.AUTHENTICATED_USER]),
+    asyncHandler(async (req, res) => {
+      // Return same metadata as /api/v1/entities/user_profiles/meta
+      // but with lower permission requirement
+      const meta = {
+        entity: "user_profiles",
+        titleKey: "entities.userProfile.title",
+        updatePageTitle: "${display_name}",
+        uid: "uuid",
+        list: {
+          auditingColumns: [
+            { key: "deleted_at", labelKey: "entities.userProfile.fields.deleted_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
+            { key: "deleted_by", labelKey: "entities.userProfile.fields.deleted_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+            { key: "updated_at", labelKey: "entities.userProfile.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
+            { key: "updated_by", labelKey: "entities.userProfile.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+            { key: "last_synced_at", labelKey: "entities.userProfile.fields.last_synced_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
+            { key: "created_at", labelKey: "entities.userProfile.fields.created_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
+            { key: "created_by", labelKey: "entities.userProfile.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+            { key: "version", labelKey: "entities.userProfile.fields.version", type: "text", sortable: false, defaultVisible: false, searchable: false },
+          ]
+        }
+      };
+      res.json(meta);
+    })
+  );
+
   // === Admin user management endpoints ===
 
   const CreateUserSchema = z.object({
@@ -850,7 +879,13 @@ export function authRouter() {
     display_name: z.string().min(1),
     email: z.string().email(),
     roles: z.array(z.string()).optional(),
-    avatar_initials: z.string().min(1),
+    avatar_initials: z.string().optional(),
+    avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    idp_org: z.string().optional(),
+    is_active: z.boolean().default(false),
+    is_admin: z.boolean().default(false),
+    is_verified: z.boolean().default(false),
+    email_verified: z.boolean().default(false),
   });
 
   const UpdateUserSchema = z.object({
@@ -859,8 +894,123 @@ export function authRouter() {
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
     is_active: z.boolean().optional(),
     is_admin: z.boolean().optional(),
+    is_verified: z.boolean().optional(),
+    email_verified: z.boolean().optional(),
     roles: z.array(z.string()).optional(),
   }).strict();
+
+  // GET /api/v1/auth/users/check-email - Check email availability
+  router.get(
+    "/api/v1/auth/users/check-email",
+    rbacHandler([Permission.USERS_READ_ALL]),
+    asyncHandler(async (req, res) => {
+      const { email } = req.query;
+
+      // Validate required parameter
+      if (!email) {
+        res.status(400).json({
+          type: "/errors/bad-request",
+          title: "Missing required parameter",
+          status: 400,
+          detail: "email parameter is required",
+          internal_code: "MISSING_PARAMETER",
+          severity: "LOW",
+        });
+        return;
+      }
+
+      // Check if user with this email exists in local DB
+      const existing = await getDal().getByEmail(email as string);
+
+      if (existing) {
+        res.json({
+          available: false,
+          email,
+          existing_uuid: existing.uuid,
+        });
+      } else {
+        res.json({
+          available: true,
+          email,
+        });
+      }
+    })
+  );
+
+  // GET /api/v1/auth/users/check-username - Check username availability
+  router.get(
+    "/api/v1/auth/users/check-username",
+    rbacHandler([Permission.USERS_READ_ALL]),
+    asyncHandler(async (req, res) => {
+      const { username, idp_org } = req.query;
+
+      // Validate required parameters
+      if (!username) {
+        res.status(400).json({
+          type: "/errors/bad-request",
+          title: "Missing required parameter",
+          status: 400,
+          detail: "username parameter is required",
+          internal_code: "MISSING_PARAMETER",
+          severity: "LOW",
+        });
+        return;
+      }
+
+      const org = (idp_org as string) || process.env.CASDOOR_ORGANIZATION || "acme";
+
+      // Check if user exists in local DB by username + org combination
+      const existing = await getDal().getByUsernameAndOrg(username as string, org);
+
+      if (existing) {
+        res.json({
+          available: false,
+          username,
+          idp_org: org,
+          existing_uuid: existing.uuid,
+        });
+      } else {
+        // Also check Casdoor if client available
+        const cdClient = await getCasdoorClient();
+        if (cdClient) {
+          // Casdoor API uses {org}/{username} format for query
+          const casdoorQueryId = `${org}/${username}`;
+          const casdoorUser = await cdClient.getUser(casdoorQueryId);
+          if (casdoorUser) {
+            res.json({
+              available: false,
+              username,
+              idp_org: org,
+              exists_in_casdoor: true,
+            });
+            return;
+          }
+        }
+        res.json({
+          available: true,
+          username,
+          idp_org: org,
+        });
+      }
+    })
+  );
+
+  // GET /api/v1/auth/roles - List available roles
+  router.get(
+    "/api/v1/auth/roles",
+    rbacHandler([Permission.USERS_READ_ALL]),
+    asyncHandler(async (req, res) => {
+      const pool = getPool();
+      const result = await pool.query(
+        `SELECT idp_role, label_key FROM role_mappings ORDER BY idp_role`
+      );
+      const roles = result.rows.map((row: any) => ({
+        idp_role: row.idp_role,
+        label_key: row.label_key
+      }));
+      res.json({ roles });
+    })
+  );
 
   // POST /api/v1/auth/users - Create user (admin only)
   router.post(
@@ -884,36 +1034,38 @@ export function authRouter() {
         return;
       }
 
-      const { username, password, display_name, email, roles, avatar_initials } = parseResult.data;
-
-      // Validate avatar_initials is provided
-      if (!avatar_initials) {
-        res.status(400).json({
-          type: "/errors/validation-error",
-          title: "Validation error",
-          status: 400,
-          detail: "avatar_initials is required",
-          severity: "MEDIUM",
-        });
-        return;
-      }
+      const { username, password, display_name, email, roles, avatar_initials, avatar_color, idp_org, is_active, is_admin, is_verified, email_verified } = parseResult.data;
 
       try {
-        // Default color from palette
-        const defaultColor = "#4f46e5";
+        // Default color from palette, or use provided avatar_color
+        const defaultColor = avatar_color || "#4f46e5";
+
+        // Calculate initials from display_name if not provided
+        const calculatedInitials = avatar_initials || (() => {
+          if (!display_name) return "??";
+          const words = display_name.trim().split(/\s+/).filter(w => w.length > 0);
+          if (words.length === 0) return "??";
+          const firstLetter = words[0][0].toUpperCase();
+          if (words.length > 1) {
+            const lastLetter = words[words.length - 1][0].toUpperCase();
+            return firstLetter + lastLetter;
+          } else {
+            return words[0].slice(0, 2).toUpperCase() || firstLetter;
+          }
+        })();
 
         // 1. Create in Casdoor
         console.log("[Auth Users Create] Creating user in Casdoor:", username);
         const cdClient = await getCasdoorClient();
         let casdoorUserId: string | null = null;
-        let idpOrg = process.env.CASDOOR_ORGANIZATION || "acme";
+        let idpOrg = idp_org || process.env.CASDOOR_ORGANIZATION || "acme";
         let idpUsername = username;
         if (cdClient) {
           const avatarColor = defaultColor;
 
-          // Generate SVG using initials from FE
+          // Generate SVG using calculated initials
           const { generateHexagonAvatarSvg } = await import("./avatar-svg-generator.js");
-          const svgDataUri = generateHexagonAvatarSvg(avatar_initials, avatarColor);
+          const svgDataUri = generateHexagonAvatarSvg(calculatedInitials, avatarColor);
 
           const newUser = await cdClient.addUser({
             owner: idpOrg,  // REQUIRED
@@ -925,9 +1077,13 @@ export function authRouter() {
             customFields: {
               app_avatar_color: avatarColor,
               app_avatar_shape: "hexagon",
-              app_avatar_letters: avatar_initials,
+              app_avatar_letters: calculatedInitials,
             },
             avatar: svgDataUri,
+            isForbidden: !is_active,
+            isAdmin: is_admin,
+            isVerified: is_verified,
+            emailVerified: email_verified,
           });
           if (!newUser || !newUser.id) {
             throw new Error("Casdoor user creation did not return a UUID");
@@ -949,15 +1105,17 @@ export function authRouter() {
         const issuer = process.env.CASDOOR_ENDPOINT || null;
         await pool.query(
           `INSERT INTO public.user_profiles
-           (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, is_verified, issuer, roles, last_synced_at, created_at, created_by, updated_at, updated_by, version)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, false, false, $9, $10, $11, $12, $13, $14, $15, 1)`,
-          [newUuid, idpCode, email, display_name, idpOrg, idpUsername, defaultColor, avatar_initials, issuer, roles ? JSON.stringify(roles) : null, now, now, req.user?.id || newUuid, now, req.user?.id || newUuid]
+           (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, is_verified, email_verified, issuer, roles, last_synced_at, created_at, created_by, updated_at, updated_by, version)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 1)`,
+          [newUuid, idpCode, email, display_name, idpOrg, idpUsername, defaultColor, calculatedInitials, is_active, is_admin, is_verified, email_verified, issuer, roles ? JSON.stringify(roles) : null, now, now, req.user?.id || newUuid, now, req.user?.id || newUuid]
         );
         console.log(`[Auth Users Create] Local profile created with uuid=${newUuid}`);
 
+        // Fetch the full created user DTO to return to FE
+        const createdUser = await getDal().getByUuid(newUuid);
         res.status(201).json({
           success: true,
-          user: { idp_code: idpCode, username, display_name, email },
+          profile: createdUser,
         });
       } catch (error) {
         console.error("[Auth Users Create] Error creating user:", error);
@@ -1014,6 +1172,8 @@ export function authRouter() {
       if (body.avatar_color !== undefined) updateBody.avatar_color = body.avatar_color;
       if (body.is_active !== undefined) updateBody.is_active = body.is_active;
       if (body.is_admin !== undefined) updateBody.is_admin = body.is_admin;
+      if (body.is_verified !== undefined) updateBody.is_verified = body.is_verified;
+      if (body.email_verified !== undefined) updateBody.email_verified = body.email_verified;
       if (body.roles !== undefined) updateBody.roles = body.roles;
 
       if (Object.keys(updateBody).length === 0) {
@@ -1054,6 +1214,8 @@ export function authRouter() {
           if (body.email !== undefined) casdoorUpdate.email = body.email;
           if (body.is_active !== undefined) casdoorUpdate.isForbidden = !body.is_active;
           if (body.is_admin !== undefined) casdoorUpdate.isAdmin = body.is_admin;
+          if (body.is_verified !== undefined) casdoorUpdate.isVerified = body.is_verified;
+          if (body.email_verified !== undefined) casdoorUpdate.emailVerified = body.email_verified;
           console.log(`[Auth Users Update] Syncing fields to Casdoor: ${JSON.stringify(Object.keys(casdoorUpdate).filter(k => k !== 'id'))}`);
 
           const syncSuccess = await cdClient.updateUser(casdoorUpdate);
@@ -1213,14 +1375,14 @@ export function authRouter() {
             { key: "idp_code", labelKey: "entities.userProfile.fields.idp_code", type: "text", sortable: true, defaultVisible: true, sticky: true, filterable: true },
           ],
           auditingColumns: [
-            { key: "created_at", labelKey: "entities.userProfile.fields.created_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
-            { key: "created_by", labelKey: "entities.userProfile.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+            { key: "deleted_at", labelKey: "entities.userProfile.fields.deleted_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
+            { key: "deleted_by", labelKey: "entities.userProfile.fields.deleted_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
             { key: "updated_at", labelKey: "entities.userProfile.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
             { key: "updated_by", labelKey: "entities.userProfile.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
-            { key: "version", labelKey: "entities.userProfile.fields.version", type: "text", sortable: false, defaultVisible: false, searchable: false },
-            { key: "deleted_at", labelKey: "entities.userProfile.fields.deleted_at", type: "datetime", sortable: true, defaultVisible: false, searchable: false },
-            { key: "deleted_by", labelKey: "entities.userProfile.fields.deleted_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
             { key: "last_synced_at", labelKey: "entities.userProfile.fields.last_synced_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
+            { key: "created_at", labelKey: "entities.userProfile.fields.created_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
+            { key: "created_by", labelKey: "entities.userProfile.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+            { key: "version", labelKey: "entities.userProfile.fields.version", type: "text", sortable: false, defaultVisible: false, searchable: false },
           ],
           defaultSort: { key: "created_at", dir: "desc" },
           defaultPageSize: 25,
