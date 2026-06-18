@@ -24,6 +24,8 @@ import {
   AuditableFieldType,
   DeletableField,
   DeletableFieldType,
+  SynchronizableField,
+  SynchronizableFieldType,
   AuditTrail,
 } from "../../domain/entities/entity-meta.js";
 
@@ -52,6 +54,7 @@ export class OrganizationEntity implements IAuditableEntity {
   @Column({ length: 2048 })
   website_url?: string;
 
+  @SynchronizableField(SynchronizableFieldType.LAST_SYNCED_AT)
   @Column({ pgType: "timestamp with time zone", nullable: true })
   last_synced_at?: Date;
 

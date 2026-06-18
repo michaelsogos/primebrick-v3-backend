@@ -36,6 +36,10 @@ export enum DeletableFieldType {
   DELETED_BY = "DELETED_BY"
 }
 
+export enum SynchronizableFieldType {
+  LAST_SYNCED_AT = "LAST_SYNCED_AT"
+}
+
 type ColumnRegistration = {
   sqlName: string;
   isKey: boolean;
@@ -58,6 +62,9 @@ type ColumnRegistration = {
   /** Deletable field metadata */
   isDeletable?: boolean;
   deletableType?: DeletableFieldType;
+  /** Synchronizable field metadata */
+  isSynchronizable?: boolean;
+  synchronizableType?: SynchronizableFieldType;
   /** Clone field metadata */
   isClone?: boolean;
   /** Cast type to apply when this field is used in JOIN ON clause */
@@ -290,6 +297,20 @@ export function DeletableField(what: DeletableFieldType): PropertyDecorator {
   };
 }
 
+/** Marks a field as synchronizable (last_synced_at). */
+export function SynchronizableField(what: SynchronizableFieldType): PropertyDecorator {
+  return function (target: object, propertyKey: string | symbol) {
+    const ctor = (target as { constructor: Function }).constructor;
+    const col = touchColumn(ctor, propertyKey);
+    col.isSynchronizable = true;
+    col.synchronizableType = what;
+    const dt = Reflect.getMetadata("design:type", target, propertyKey);
+    if (dt && typeof (dt as { name?: string }).name === "string") {
+      col.tsDesignTypeCtorName = (dt as Function).name;
+    }
+  };
+}
+
 /** Marks a field as clone tracking (cloned_from). Stores UUID of the source record. */
 export function CloneField(): PropertyDecorator {
   return function (target: object, propertyKey: string | symbol) {
@@ -402,6 +423,8 @@ export type EntityPersistenceMeta = {
       auditableType?: AuditableFieldType;
       isDeletable?: boolean;
       deletableType?: DeletableFieldType;
+      isSynchronizable?: boolean;
+      synchronizableType?: SynchronizableFieldType;
       isClone?: boolean;
       castInJoin?: string;
     }
@@ -471,6 +494,8 @@ export function getEntityPersistenceMeta(ctor: EntityClass, tableSchema = "publi
     if (reg.auditableType !== undefined) entry.auditableType = reg.auditableType;
     if (reg.isDeletable !== undefined) entry.isDeletable = reg.isDeletable;
     if (reg.deletableType !== undefined) entry.deletableType = reg.deletableType;
+    if (reg.isSynchronizable !== undefined) entry.isSynchronizable = reg.isSynchronizable;
+    if (reg.synchronizableType !== undefined) entry.synchronizableType = reg.synchronizableType;
     if (reg.isClone !== undefined) entry.isClone = reg.isClone;
     if (reg.castInJoin !== undefined) entry.castInJoin = reg.castInJoin;
     columns[reg.sqlName] = entry;
