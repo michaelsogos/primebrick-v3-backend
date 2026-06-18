@@ -5,6 +5,9 @@ import type { Pool } from "pg";
 import { entityDateToApiIso } from "../../domain/entities/entity-meta.js";
 import { Repository } from "../../db/repository/repository.js";
 import { field, Filter, Sort, Join, Project, type FieldProjector, type FilterExpr } from "../../db/repository/dsl.js";
+import { buildAuditableJoins } from "../../db/repository/auditable-joins.js";
+import { WithAuditableDisplayNames } from "../../db/repository/auditable-types.js";
+import { getAuditUserJoinSql, getAuditSelectWithDisplayName } from "../../db/repository/audit-join-helper.js";
 
 import { CustomerEntity, type CustomerStatus } from "./customer_entity.js";
 import { UserProfileEntity } from "../auth/user_profile_entity.js";
@@ -136,7 +139,7 @@ function translateFilterConditions(conditions: FilterCondition[], connector: "AN
   return [Filter.group([Filter.group(filterExprs, connector)], "AND")];
 }
 
-export type CustomerDetailRow = {
+export type CustomerDetailRow = WithAuditableDisplayNames<{
   uuid: string;
   code: string;
   first_name?: string;
@@ -155,15 +158,12 @@ export type CustomerDetailRow = {
   onboarding_time_zone?: string;
   created_at: Date;
   created_by: string;
-  created_by_name?: string;
   updated_at: Date;
   updated_by: string;
-  updated_by_name?: string;
   version: number;
   deleted_at?: Date;
   deleted_by?: string;
-  deleted_by_name?: string;
-};
+}>;
 
 export type CustomerDetailDto = Omit<
   CustomerDetailRow,
@@ -679,27 +679,7 @@ export class CustomersDal {
         filters: filters as any,
         sorting,
         deletedRecords: q.deleted_records as any,
-        joins: [
-          // Use table aliases to join user_profiles three times
-          Join.on(
-            field(UserProfileEntity, "uuid"),
-            field(CustomerEntity, "created_by"),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "creator" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid"),
-            field(CustomerEntity, "updated_by"),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "updater" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid"),
-            field(CustomerEntity, "deleted_by"),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
-          ),
-        ],
+        joins: buildAuditableJoins(CustomerEntity),
       }
     );
 
@@ -717,27 +697,7 @@ export class CustomersDal {
       projectAllExceptId(),
       {
         filters: [Filter.fieldValue(field(CustomerEntity, "uuid"), "=", uuid)] as any,
-        joins: [
-          // Use table aliases to join user_profiles three times
-          Join.on(
-            field(UserProfileEntity, "uuid"),
-            field(CustomerEntity, "created_by"),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "creator" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid"),
-            field(CustomerEntity, "updated_by"),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "updater" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid"),
-            field(CustomerEntity, "deleted_by"),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
-          ),
-        ],
+        joins: buildAuditableJoins(CustomerEntity),
       }
     );
     return row ? this.toDto(row) : null;
@@ -884,7 +844,8 @@ export class CustomersDal {
       {
         filters: filters as any,
         sorting,
-        deletedRecords: q.deleted_records as any
+        deletedRecords: q.deleted_records as any,
+        joins: buildAuditableJoins(CustomerEntity)
       }
     );
 
@@ -906,20 +867,9 @@ export class CustomersDal {
     const total = parseInt(countResult.rows[0].total, 10);
 
     const query = `
-      SELECT
-        audit.id,
-        audit.entity_uuid,
-        audit.action,
-        audit.changed_at,
-        audit.changed_by,
-        creator.display_name as changed_by_display_name,
-        creator.idp_code as changed_by_idp_code,
-        audit.version,
-        audit.delta
+      SELECT ${getAuditSelectWithDisplayName()}
       FROM public.customers_audit audit
-      LEFT JOIN public.user_profiles creator
-        ON audit.changed_by ~ '^[0-9a-fA-F-]{36}$'
-       AND creator.uuid = audit.changed_by::uuid
+      ${getAuditUserJoinSql()}
       WHERE audit.entity_uuid = $1
       ORDER BY audit.changed_at DESC, audit.id DESC
       LIMIT $2 OFFSET $3

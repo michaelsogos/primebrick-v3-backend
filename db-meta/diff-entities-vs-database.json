@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "generatedAt": "2026-05-22T21:32:57.008Z",
+  "generatedAt": "2026-05-27T17:23:43.889Z",
   "onlyInEntityTables": [
-    "public.organizations"
+    "public.service_registry"
   ],
   "onlyInDatabaseTables": [],
   "tables": {

@@ -23,6 +23,9 @@ export class RoleMappingEntity implements IAuditableEntity {
   @Column({ length: 255, nullable: false })
   idp_role!: string;
 
+  @Column({ length: 255, nullable: true })
+  label_key?: string;
+
   @Column({ pgType: "jsonb", nullable: false })
   permissions!: string[];
 

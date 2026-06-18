@@ -58,7 +58,7 @@ services:
       retries: 5
 
   casdoor:
-    image: casbin/casdoor:latest
+    image: casbin/casdoor:3.75.0
     container_name: primebrick-casdoor
     environment:
       driverName: postgres
@@ -83,6 +83,22 @@ services:
       timeout: 5s
       retries: 10
 
+  nats:
+    image: nats:latest
+    container_name: primebrick-nats
+    command: "-js"
+    ports:
+      # Bind only on loopback; avoids some IPv6/localhost quirks on Windows.
+      - "127.0.0.1:${NATS_HOST_PORT:-4222}:4222"
+      - "127.0.0.1:${NATS_MONITORING_PORT:-8222}:8222"
+    volumes:
+      - primebrick_nats_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8222/varz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   primebrick_pg18_data:
     # Fixed name so the volume is easy to spot and is not tied to the compose project prefix.
@@ -90,3 +106,6 @@ volumes:
   primebrick_casdoor_data:
     # Named volume for Casdoor persistence across container restarts.
     name: primebrick_casdoor_data
+  primebrick_nats_data:
+    # Named volume for NATS JetStream persistence across container restarts.
+    name: primebrick_nats_data
