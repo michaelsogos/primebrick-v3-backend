@@ -20,6 +20,7 @@ export type OrganizationDetailRow = WithAuditableDisplayNames<{
   idp_name?: string;
   display_name?: string;
   website_url?: string;
+  avatar?: string;
   last_synced_at?: Date;
   user_count?: number;
   created_at: Date;

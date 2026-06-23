@@ -233,6 +233,7 @@ CREATE TABLE IF NOT EXISTS "public"."organizations" (
   "idp_name" varchar(255),
   "display_name" varchar(255),
   "website_url" varchar(2048),
+  "avatar" text,
   "last_synced_at" timestamp with time zone,
   "created_at" timestamptz DEFAULT now(),
   "created_by" text,
@@ -302,11 +303,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_uuid_uq" ON "public"."servic
 
 -- Seed initial role mappings
 INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('Administrators', '[]'::jsonb, true, '2026-05-18T14:27:00Z', 'system', '2026-05-18T14:27:00Z', 'system', 1)
+VALUES ('administrators', '[]'::jsonb, true, '2026-05-18T14:27:00Z', 'system', '2026-05-18T14:27:00Z', 'system', 1)
 ON CONFLICT (idp_role) DO NOTHING;
 
 INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('Sales',
+VALUES ('sales',
   '["customers:list", "customers:read", "customers:create", "customers:update"]'::jsonb,
   false,
   '2026-05-18T14:27:00Z',
@@ -318,7 +319,7 @@ VALUES ('Sales',
 ON CONFLICT (idp_role) DO NOTHING;
 
 INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('CustomerService',
+VALUES ('customer_service',
   '["customers:list", "customers:read", "customers:update"]'::jsonb,
   false,
   '2026-05-18T14:27:00Z',
@@ -330,7 +331,7 @@ VALUES ('CustomerService',
 ON CONFLICT (idp_role) DO NOTHING;
 
 INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('HR',
+VALUES ('hr',
   '[]'::jsonb,
   false,
   '2026-05-18T14:27:00Z',
@@ -342,7 +343,7 @@ VALUES ('HR',
 ON CONFLICT (idp_role) DO NOTHING;
 
 INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('Ops',
+VALUES ('ops',
   '[]'::jsonb,
   false,
   '2026-05-18T14:27:00Z',
@@ -359,7 +360,7 @@ INSERT INTO "public"."auth_configurations" ("key", "value", "description", "crea
 ('casdoor_organization', 'ACME', 'Nome dell organization di riferimento', 'system'),
 ('casdoor_client_id', 'primebrick-api', 'Client ID della nostra applicazione', 'system'),
 ('casdoor_admin_username', 'admin', 'Username dell utente amministratore standard', 'system'),
-('casdoor_admin_role', 'Administrators', 'Nome del ruolo amministrativo', 'system'),
+('casdoor_admin_role', 'administrators', 'Nome del ruolo amministrativo', 'system'),
 ('oidc_issuer_url', 'http://localhost:8000', 'OIDC issuer URL per validazione token', 'system'),
 ('oidc_issuer_type', 'casdoor', 'Tipo di IDP (casdoor, keycloak, auth0)', 'system'),
 ('oidc_client_id', '', 'OIDC client ID reale generato da Casdoor', 'system')

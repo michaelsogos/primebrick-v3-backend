@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import { customersRouter } from "./modules/customers/router.js";
 import { authRouter } from "./modules/auth/router.js";
 import { organizationsRouter } from "./modules/auth/organizations_router.js";
+import { systemRouter } from "./modules/system/system-router.js";
 import { Pool } from "pg";
 import CasdoorSDK from "casdoor-nodejs-sdk";
 import { loadAuthConfigFromDb, type AuthConfigDb } from "./modules/auth/config-repo.js";
@@ -175,6 +176,7 @@ apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), (_req, res
 app.use("/api/v1", apiRouter);
 app.use(customersRouter());
 app.use(organizationsRouter());
+app.use(systemRouter());
 // Auth router (public login endpoint)
 app.use(authRouter());
 

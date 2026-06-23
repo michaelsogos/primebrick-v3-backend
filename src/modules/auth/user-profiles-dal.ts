@@ -163,15 +163,6 @@ export class UserProfilesDal {
     return row ? this.toDto(row) : null;
   }
 
-  async getByUsernameAndOrg(username: string, idpOrg: string): Promise<UserProfileDetailDto | null> {
-    const result = await this.pool.query(
-      `SELECT * FROM public.user_profiles WHERE idp_username = $1 AND idp_org = $2 AND deleted_at IS NULL LIMIT 1`,
-      [username, idpOrg]
-    );
-    if (result.rows.length === 0) return null;
-    return this.toDto(result.rows[0]);
-  }
-
   async softDelete(uuid: string): Promise<void> {
     await this.repo.delete(UserProfileEntity, uuid, requireActor());
   }
@@ -326,7 +317,7 @@ export class UserProfilesDal {
     if (!conditions || conditions.length === 0) return null;
 
     const validOps = new Set(["=", "!=", "<>", "<", "<=", ">=", ">=", "ILIKE", "LIKE", "IN", "NOT IN", "IS", "IS NOT"]);
-    const allowedFields = new Set(["display_name", "email", "idp_code", "is_active", "is_admin", "is_verified"]);
+    const allowedFields = new Set(["display_name", "email", "idp_code", "idp_username", "idp_org", "is_active", "is_admin", "is_verified"]);
 
     const filterExprs: FilterExpr[] = [];
 
