@@ -75,7 +75,7 @@ interface PermissionDeclaration {
   mode: "any" | "all";
 }
 
-type DeclaredHandler = RequestHandler & {
+export type DeclaredHandler = RequestHandler & {
   [PERMISSION_DECLARED]: PermissionDeclaration;
 };
 
