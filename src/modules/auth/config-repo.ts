@@ -5,7 +5,6 @@ export interface AuthConfigDb {
   casdoorOrganization: string;
   casdoorClientId: string;
   casdoorAdminUsername: string;
-  casdoorAdminRole: string;
   oidcIssuerUrl: string;
   oidcIssuerType: string;
   oidcClientId?: string;
@@ -35,7 +34,6 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
     casdoorOrganization: settings.casdoor_organization || "ACME",
     casdoorClientId: settings.casdoor_client_id || "primebrick-api",
     casdoorAdminUsername: settings.casdoor_admin_username || "admin",
-    casdoorAdminRole: settings.casdoor_admin_role || "administrators",
     oidcIssuerUrl: settings.oidc_issuer_url || "http://localhost:8000",
     oidcIssuerType: settings.oidc_issuer_type || "casdoor",
     oidcClientId: settings.oidc_client_id,

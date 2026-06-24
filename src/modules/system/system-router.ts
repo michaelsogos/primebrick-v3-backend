@@ -23,6 +23,7 @@ export function systemRouter() {
       const orgs = result.rows.map((org) => ({
         uuid: org.uuid,
         idp_code: org.idp_code,
+        idp_name: org.idp_name,
         display_name: org.display_name,
         avatar: org.avatar ?? null,
       }));
