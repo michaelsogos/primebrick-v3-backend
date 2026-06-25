@@ -15,7 +15,8 @@
     "db:migrate": "tsx scripts/database-patch-apply.ts",
     "db:truncate:customers": "tsx scripts/truncate-customers.ts",
     "db:seed:customers": "tsx scripts/seed-customers.ts",
-    "setup:casdoor": "tsx scripts/setup-casdoor.ts"
+    "setup:casdoor": "tsx scripts/setup-casdoor.ts",
+    "fix:casdoor-admin": "tsx scripts/fix-casdoor-admin-user.ts"
   },
   "dependencies": {
     "casdoor-nodejs-sdk": "^1.34.0",

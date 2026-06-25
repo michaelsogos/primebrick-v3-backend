@@ -95,8 +95,9 @@ export class AuthSessionService {
     };
     const claims = this.decodeJwtPayload(data.access_token);
 
-    // Email-verified + role guards (preserved from the original handler).
-    if (claims.emailVerified === false) {
+    // Email-verified guard — gated by auth_configurations flag (default: disabled).
+    // When disabled, the check is skipped entirely, preserving pre-3720c09 behavior.
+    if (cfg.enableEmailVerificationCheck && claims.emailVerified === false) {
       throw new UnauthorizedError("The user email isn't verified yet", {
         internal_code: "email_not_verified",
       });
@@ -294,11 +295,13 @@ export class AuthSessionService {
     clientId: string;
     clientSecret: string;
     orgName: string;
+    enableEmailVerificationCheck: boolean;
   }> {
     let casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
     let clientId = process.env.OIDC_CLIENT_ID || "";
     let clientSecret = process.env.OIDC_CLIENT_SECRET || "";
     let orgName = "acme";
+    let enableEmailVerificationCheck = false;
 
     try {
       const dbConfig: AuthConfigDb = await loadAuthConfigFromDb(this.pool);
@@ -306,11 +309,12 @@ export class AuthSessionService {
       clientId = dbConfig.oidcClientId || clientId;
       clientSecret = dbConfig.oidcClientSecret || clientSecret;
       orgName = dbConfig.casdoorOrganization || orgName;
+      enableEmailVerificationCheck = dbConfig.enableEmailVerificationCheck;
     } catch (error) {
       console.error("[AuthSessionService] Could not load configuration from database, using fallback:", error);
     }
 
-    return { casdoorEndpoint, clientId, clientSecret, orgName };
+    return { casdoorEndpoint, clientId, clientSecret, orgName, enableEmailVerificationCheck };
   }
 
   private decodeJwtPayload(token: string): Record<string, any> {

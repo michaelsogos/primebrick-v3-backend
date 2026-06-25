@@ -12,6 +12,7 @@ export interface AuthConfigDb {
   casdoorAdminPassword?: string;
   casdoorBuiltinClientId?: string;
   casdoorBuiltinClientSecret?: string;
+  enableEmailVerificationCheck: boolean;
 }
 
 /**
@@ -41,6 +42,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
     casdoorAdminPassword: settings.casdoor_admin_password,
     casdoorBuiltinClientId: settings.casdoor_builtin_client_id,
     casdoorBuiltinClientSecret: settings.casdoor_builtin_client_secret,
+    enableEmailVerificationCheck: settings.enable_email_verification_check === "true",
   };
 }
 

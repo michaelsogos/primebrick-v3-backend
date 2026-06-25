@@ -363,7 +363,8 @@ INSERT INTO "public"."auth_configurations" ("key", "value", "description", "crea
 ('casdoor_admin_role', 'administrators', 'Nome del ruolo amministrativo', 'system'),
 ('oidc_issuer_url', 'http://localhost:8000', 'OIDC issuer URL per validazione token', 'system'),
 ('oidc_issuer_type', 'casdoor', 'Tipo di IDP (casdoor, keycloak, auth0)', 'system'),
-('oidc_client_id', '', 'OIDC client ID reale generato da Casdoor', 'system')
+('oidc_client_id', '', 'OIDC client ID reale generato da Casdoor', 'system'),
+('enable_email_verification_check', 'false', 'Abilita il controllo emailVerified sul JWT durante il login (true/false)', 'system')
 ON CONFLICT ("key") DO NOTHING;
 
 -- === Patch Registry Table ===
