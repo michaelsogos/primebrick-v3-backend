@@ -125,7 +125,7 @@ export class UserService {
     if (body.is_admin !== undefined) updateBody.is_admin = body.is_admin;
     if (body.is_verified !== undefined) updateBody.is_verified = body.is_verified;
     if (body.email_verified !== undefined) updateBody.email_verified = body.email_verified;
-    if (body.roles !== undefined) updateBody.roles = body.roles;
+    if (body.roles !== undefined) updateBody.roles = JSON.stringify(body.roles);
 
     if (Object.keys(updateBody).length === 0) {
       throw new ValidationError("No fields to update", { internal_code: "NO_FIELDS" });
@@ -311,7 +311,7 @@ export class UserService {
     if (body.email !== undefined) updateBody.email = body.email || undefined;
     if (body.avatar_color !== undefined) updateBody.avatar_color = body.avatar_color;
     if (body.avatar_initials !== undefined) updateBody.avatar_initials = body.avatar_initials;
-    if (body.roles !== undefined) updateBody.roles = body.roles;
+    if (body.roles !== undefined) updateBody.roles = JSON.stringify(body.roles);
 
     await this.dal.updateProfile(uuid, updateBody as any);
 
@@ -320,6 +320,49 @@ export class UserService {
       throw new NotFoundError("User profile not found after update", { internal_code: "USER_NOT_FOUND" });
     }
     return updated;
+  }
+
+  // --- Password change ------------------------------------------------------
+
+  /**
+   * Change a user's password in Casdoor.
+   * Returns the raw Casdoor response so the router can check `status === "ok"`.
+   * Throws ApiError if the user is not found or Casdoor is unreachable.
+   */
+  async changePassword(uuid: string, newPassword: string): Promise<{ status: string; success?: boolean; msg?: string }> {
+    const existing = await this.dal.getByUuid(uuid);
+    if (!existing) {
+      throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
+    }
+
+    const cdClient = await this.casdoor.getClient();
+    if (!cdClient) {
+      throw new ApiError(
+        "/errors/internal-error",
+        "Casdoor client unavailable",
+        502,
+        "Cannot change password: Casdoor is not configured or unreachable",
+        { internal_code: "CASDOOR_UNAVAILABLE", severity: "HIGH" },
+      );
+    }
+
+    const result = await cdClient.changePassword(
+      { id: existing.idp_code, owner: existing.idp_org || undefined, name: existing.idp_username || undefined },
+      newPassword,
+    );
+
+    if (result.status !== "ok") {
+      throw new ApiError(
+        "/errors/internal-error",
+        "Casdoor password change failed",
+        502,
+        result.msg || "Casdoor returned an error",
+        { internal_code: "CASDOOR_PASSWORD_CHANGE_FAILED", severity: "HIGH" },
+      );
+    }
+
+    // TODO(future): send email notification to the user about the password change.
+    return result;
   }
 
   // --- Availability checks --------------------------------------------------

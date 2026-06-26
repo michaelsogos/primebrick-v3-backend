@@ -159,6 +159,38 @@ export class CasdoorApiClient {
   }
 
   /**
+   * POST /api/set-password
+   * Sets a new password for a Casdoor user.
+   * Returns the raw Casdoor response so callers can check `status === "ok"` explicitly.
+   */
+  async changePassword(user: { id: string; owner?: string; name?: string }, newPassword: string): Promise<{ status: string; success?: boolean; msg?: string }> {
+    const finalOwner = user.owner ?? (user.id.includes('/') ? user.id.split('/')[0] : this.orgName);
+    const finalName = user.name ?? (user.id.includes('/') ? user.id.slice(user.id.indexOf('/') + 1) : user.id);
+    const queryId = `${finalOwner}/${finalName}`;
+
+    const url = this.buildUrl(`/api/set-password?id=${encodeURIComponent(queryId)}&newPassword=${encodeURIComponent(newPassword)}`);
+
+    console.log(`[CasdoorApi] changePassword request: POST ${url}`);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    console.log(`[CasdoorApi] changePassword response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[CasdoorApi] changePassword failed: ${response.status} ${text}`);
+      return { status: "error", msg: text };
+    }
+
+    const data = await response.json();
+    console.log(`[CasdoorApi] changePassword response data:`, JSON.stringify(data, null, 2));
+    return data;
+  }
+
+  /**
    * POST /api/add-user
    * Creates a new user in Casdoor.
    */

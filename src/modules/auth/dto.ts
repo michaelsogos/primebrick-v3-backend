@@ -98,3 +98,8 @@ export const UserUpdateBodySchema = z
   })
   .strict();
 export type UserUpdateBody = z.infer<typeof UserUpdateBodySchema>;
+
+export const ChangePasswordBodySchema = z.object({
+  newPassword: z.string().min(8).max(64),
+});
+export type ChangePasswordBody = z.infer<typeof ChangePasswordBodySchema>;

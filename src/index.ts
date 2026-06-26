@@ -81,9 +81,6 @@ async function checkIdp(pool?: Pool): Promise<{ ok: boolean; type?: string; vers
       }
     }
     
-    console.log(`[IDP Health Check] Checking Casdoor at: ${casdoorEndpoint}`);
-    console.log(`[IDP Health Check] Using SDK with clientId: ${clientId}`);
-    
     // Initialize Casdoor SDK
     const sdk = new CasdoorSDK.SDK({
       endpoint: casdoorEndpoint,
@@ -105,16 +102,12 @@ async function checkIdp(pool?: Pool): Promise<{ ok: boolean; type?: string; vers
       },
     });
 
-    console.log(`[IDP Health Check] Version endpoint status: ${versionResponse.status} ${versionResponse.statusText}`);
-
     if (!versionResponse.ok) {
       console.error(`[IDP Health Check] Version endpoint returned non-OK status: ${versionResponse.status}`);
       return { ok: false };
     }
 
     const versionData = await versionResponse.json() as { status?: string; msg?: string; data?: { version?: string; commitId?: string; commitOffset?: number } };
-    console.log(`[IDP Health Check] Version data:`, JSON.stringify(versionData, null, 2));
-    
     const result = {
       ok: true,
       type: "Casdoor",

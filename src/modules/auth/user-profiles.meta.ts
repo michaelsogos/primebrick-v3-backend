@@ -60,6 +60,15 @@ export const userProfileMeta = {
       delete: true,
       edit: true,
       preview: true,
+      customActions: [
+        {
+          actionName: "changePassword",
+          translationKey: "shell.settings.users.changePassword",
+          icon: "key-round",
+          textColor: "",
+          disabledWhenDeleted: true,
+        },
+      ],
     },
     enableCreateAction: true,
     viewVisibility: {

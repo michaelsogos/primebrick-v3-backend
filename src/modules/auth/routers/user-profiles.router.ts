@@ -33,6 +33,7 @@ import {
   UuidParamSchema,
   UserProfileAuditQuerySchema,
   UserUpdateBodySchema,
+  ChangePasswordBodySchema,
 } from "../dto.js";
 import { ValidationError } from "../../../http/api-errors.js";
 
@@ -104,6 +105,13 @@ export function userProfilesRouter() {
     res.json(updated);
   });
 
+  const changePassword: RequestHandler = asyncHandler(async (req, res) => {
+    const { uuid } = req.params;
+    const { newPassword } = req.body as z.infer<typeof ChangePasswordBodySchema>;
+    const result = await service.changePassword(uuid as string, newPassword);
+    res.json(result);
+  });
+
   registerRoutes(router, [
     {
       method: "get",
@@ -142,6 +150,13 @@ export function userProfilesRouter() {
       permission: rbacHandler([Permission.USERS_UPDATE_SINGLE]),
       middlewares: [validateBody(UserUpdateBodySchema)],
       handler: update,
+    },
+    {
+      method: "post",
+      path: "/api/v1/entities/user_profiles/:uuid/change-password",
+      permission: rbacHandler([Permission.USERS_UPDATE_SINGLE]),
+      middlewares: [validateBody(ChangePasswordBodySchema)],
+      handler: changePassword,
     },
   ]);
 

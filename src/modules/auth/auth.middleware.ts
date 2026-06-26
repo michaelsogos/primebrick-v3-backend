@@ -117,7 +117,6 @@ async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAu
   try {
     const verified = await verifyAccessToken(token, pool);
     claims = verified.payload;
-    console.log("[auth][DEBUG] Access token:", token);
   } catch (e) {
     // Don't leak crypto / JWKS internals — log server-side, return generic 401.
     console.error("[auth] token verification failed:", (e as Error)?.message);
