@@ -38,12 +38,13 @@ export function systemRouter() {
     asyncHandler(async (_req, res) => {
       const pool = getPool();
       const result = await pool.query(
-        `SELECT idp_role, label_key, permissions FROM role_mappings ORDER BY idp_role`
+        `SELECT idp_role, label_key, permissions, is_admin FROM role_mappings ORDER BY idp_role`
       );
       const roles = result.rows.map((row: any) => ({
         idp_role: row.idp_role,
         label_key: row.label_key,
         permissions: row.permissions ?? [],
+        is_admin: row.is_admin || false,
       }));
       res.json({ roles });
     })
