@@ -26,7 +26,9 @@ import { AuditService } from "../../../lib/audit/audit-service.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
 import { CasdoorService } from "../services/casdoor.service.js";
 import { UserService } from "../services/user.service.js";
-import { CreateUserSchema, UpdateUserSchema } from "../dto.js";
+import { makeCreateUserSchema, UpdateUserSchema, type CreateUserBody } from "../dto.js";
+import { loadAuthConfigFromDb } from "../config-repo.js";
+import { parsePasswordPolicy } from "../password-policy.js";
 import { ValidationError } from "../../../http/api-errors.js";
 
 const UuidSchema = z.string().uuid();
@@ -52,7 +54,31 @@ export function usersRouter() {
   const service = makeUserService();
 
   const create: RequestHandler = asyncHandler(async (req, res) => {
-    const { profile } = await service.createUser(req.body as z.infer<typeof CreateUserSchema>);
+    // Load the active password policy from DB and build the schema dynamically.
+    const cfg = await loadAuthConfigFromDb(getPool());
+    const policy = parsePasswordPolicy(cfg.passwordPolicy);
+    const schema = makeCreateUserSchema(policy);
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        type: '/errors/validation-error',
+        title: 'Validation error',
+        status: 400,
+        detail: 'Request validation failed',
+        severity: 'HIGH' as const,
+        internal_code: 'VALIDATION_ERROR',
+        instance: req.path,
+        extra: {
+          issues: parsed.error.issues.map((i) => ({
+            path: i.path.join("."),
+            code: i.code,
+            message: i.message,
+          })),
+        },
+      });
+      return;
+    }
+    const { profile } = await service.createUser(parsed.data as CreateUserBody);
     res.status(201).json({ success: true, profile });
   });
 
@@ -73,7 +99,6 @@ export function usersRouter() {
       method: "post",
       path: "/api/v1/auth/users",
       permission: rbacHandler([Permission.USERS_CREATE_SINGLE]),
-      middlewares: [validateBody(CreateUserSchema)],
       handler: create,
     },
     {

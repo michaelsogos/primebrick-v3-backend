@@ -4,6 +4,12 @@ import { Permission } from "../auth/permissions.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { getPool } from "../../db/pool.js";
 import { OrganizationsDal } from "../auth/organizations_dal.js";
+import { loadAuthConfigFromDb } from "../auth/config-repo.js";
+import {
+  parsePasswordPolicy,
+  getPasswordPolicyConfig,
+  PASSWORD_SPECIAL_CHARS,
+} from "../auth/password-policy.js";
 
 export function systemRouter() {
   const router = makeProtectedRouter();
@@ -47,6 +53,23 @@ export function systemRouter() {
         is_admin: row.is_admin || false,
       }));
       res.json({ roles });
+    })
+  );
+
+  // GET /api/v1/system/password-policy - Active password policy for FE forms
+  router.get(
+    "/api/v1/system/password-policy",
+    rbacHandler([Permission.AUTHENTICATED_USER]),
+    asyncHandler(async (_req, res) => {
+      const cfg = await loadAuthConfigFromDb(getPool());
+      const policy = parsePasswordPolicy(cfg.passwordPolicy);
+      const config = getPasswordPolicyConfig(policy);
+      res.json({
+        policy,
+        errorLabelKey: config.errorLabelKey,
+        checklistRules: config.checklistRules,
+        specialChars: PASSWORD_SPECIAL_CHARS,
+      });
     })
   );
 

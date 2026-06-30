@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { DEFAULT_PASSWORD_POLICY } from "./password-policy.js";
 
 export interface AuthConfigDb {
   casdoorEndpoint: string;
@@ -13,6 +14,7 @@ export interface AuthConfigDb {
   casdoorBuiltinClientId?: string;
   casdoorBuiltinClientSecret?: string;
   enableEmailVerificationCheck: boolean;
+  passwordPolicy: string;
 }
 
 /**
@@ -43,6 +45,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
     casdoorBuiltinClientId: settings.casdoor_builtin_client_id,
     casdoorBuiltinClientSecret: settings.casdoor_builtin_client_secret,
     enableEmailVerificationCheck: settings.enable_email_verification_check === "true",
+    passwordPolicy: settings.password_policy || DEFAULT_PASSWORD_POLICY,
   };
 }
 

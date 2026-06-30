@@ -169,9 +169,32 @@ mountModules(app);
 
 app.use(errorHandler);
 
-// Load role mappings from database at startup
-await loadRoleMappings();
-
+// Bind the port BEFORE any DB-dependent startup work so /health stays
+// answerable even when Postgres is down (returns 503 + JSON, not a proxy 502).
 app.listen(port, () => {
   console.log(`API listening on http://localhost:${port}`);
 });
+
+// Background startup tasks — MUST NOT prevent the server from starting.
+// /health is public and unaffected; authenticated endpoints fail closed
+// (503 from DB-unavailable errors, or 403 from empty role cache) until
+// the role mappings are successfully loaded.
+void runStartupTasks().catch((err) => {
+  console.error("[startup] background task failed:", err);
+});
+
+async function runStartupTasks(): Promise<void> {
+  await refreshRoleMappings();
+}
+
+async function refreshRoleMappings(): Promise<void> {
+  try {
+    await loadRoleMappings();
+  } catch (err) {
+    console.warn(
+      "[startup] loadRoleMappings failed (database unavailable?). Retrying in 5s.",
+      err
+    );
+    setTimeout(() => void refreshRoleMappings().catch(() => {}), 5000);
+  }
+}

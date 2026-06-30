@@ -33,8 +33,11 @@ import {
   UuidParamSchema,
   UserProfileAuditQuerySchema,
   UserUpdateBodySchema,
-  ChangePasswordBodySchema,
+  makeChangePasswordSchema,
+  type ChangePasswordBody,
 } from "../dto.js";
+import { loadAuthConfigFromDb } from "../config-repo.js";
+import { parsePasswordPolicy } from "../password-policy.js";
 import { ValidationError } from "../../../http/api-errors.js";
 
 function makeUserService(): UserService {
@@ -107,7 +110,31 @@ export function userProfilesRouter() {
 
   const changePassword: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params;
-    const { newPassword } = req.body as z.infer<typeof ChangePasswordBodySchema>;
+    // Load the active password policy from DB and build the schema dynamically.
+    const cfg = await loadAuthConfigFromDb(getPool());
+    const policy = parsePasswordPolicy(cfg.passwordPolicy);
+    const schema = makeChangePasswordSchema(policy);
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        type: '/errors/validation-error',
+        title: 'Validation error',
+        status: 400,
+        detail: 'Request validation failed',
+        severity: 'HIGH' as const,
+        internal_code: 'VALIDATION_ERROR',
+        instance: req.path,
+        extra: {
+          issues: parsed.error.issues.map((i) => ({
+            path: i.path.join("."),
+            code: i.code,
+            message: i.message,
+          })),
+        },
+      });
+      return;
+    }
+    const { newPassword } = parsed.data as ChangePasswordBody;
     const result = await service.changePassword(uuid as string, newPassword);
     res.json(result);
   });
@@ -155,7 +182,6 @@ export function userProfilesRouter() {
       method: "post",
       path: "/api/v1/entities/user_profiles/:uuid/change-password",
       permission: rbacHandler([Permission.USERS_UPDATE_SINGLE]),
-      middlewares: [validateBody(ChangePasswordBodySchema)],
       handler: changePassword,
     },
   ]);

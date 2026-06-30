@@ -30,7 +30,7 @@
  */
 
 import type { Request, Response, NextFunction, RequestHandler } from "express";
-import { UnauthorizedError } from "../../http/api-errors.js";
+import { UnauthorizedError, ForbiddenError } from "../../http/api-errors.js";
 import { getPool } from "../../db/pool.js";
 import { getAuthConfig } from "./config.js";
 import { verifyAccessToken } from "./oidc-client.js";
@@ -68,6 +68,15 @@ export function clearRoleMappingCache(): void {
 export function authMiddleware(): RequestHandler {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {
+      // Fail closed while role mappings are not yet loaded (e.g. DB was down at
+      // startup and the background refresh hasn't succeeded yet). /health is
+      // public and unaffected because it is mounted before this middleware.
+      if (roleMappingCache === null) {
+        throw new ForbiddenError(
+          "Role mappings not loaded yet (database may be unavailable).",
+          { internal_code: "AUTH_ROLE_MAPPINGS_NOT_LOADED" }
+        );
+      }
       const pool = getPool();
       const cfg = await getAuthConfig(pool);
       const user: AuthUser =

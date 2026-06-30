@@ -13,6 +13,7 @@
  */
 
 import { z } from "zod";
+import { PasswordPolicy, passwordZodSchema } from "./password-policy.js";
 
 // --- Session (login / refresh / me) ---------------------------------------
 
@@ -47,21 +48,23 @@ export interface LoginSuccessResponse {
 
 // --- Admin user management ------------------------------------------------
 
-export const CreateUserSchema = z.object({
-  username: z.string().min(1),
-  password: z.string().min(8),
-  display_name: z.string().min(1),
-  email: z.string().email(),
-  roles: z.array(z.string()).optional(),
-  avatar_initials: z.string().optional(),
-  avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  idp_org: z.string().optional(),
-  is_active: z.boolean().default(false),
-  is_admin: z.boolean().default(false),
-  is_verified: z.boolean().default(false),
-  email_verified: z.boolean().default(false),
-});
-export type CreateUserBody = z.infer<typeof CreateUserSchema>;
+export function makeCreateUserSchema(policy: PasswordPolicy) {
+  return z.object({
+    username: z.string().min(1),
+    password: passwordZodSchema(policy),
+    display_name: z.string().min(1),
+    email: z.string().email(),
+    roles: z.array(z.string()).optional(),
+    avatar_initials: z.string().optional(),
+    avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    idp_org: z.string().optional(),
+    is_active: z.boolean().default(false),
+    is_admin: z.boolean().default(false),
+    is_verified: z.boolean().default(false),
+    email_verified: z.boolean().default(false),
+  });
+}
+export type CreateUserBody = z.infer<ReturnType<typeof makeCreateUserSchema>>;
 
 export const UpdateUserSchema = z
   .object({
@@ -99,7 +102,9 @@ export const UserUpdateBodySchema = z
   .strict();
 export type UserUpdateBody = z.infer<typeof UserUpdateBodySchema>;
 
-export const ChangePasswordBodySchema = z.object({
-  newPassword: z.string().min(8).max(64),
-});
-export type ChangePasswordBody = z.infer<typeof ChangePasswordBodySchema>;
+export function makeChangePasswordSchema(policy: PasswordPolicy) {
+  return z.object({
+    newPassword: passwordZodSchema(policy),
+  });
+}
+export type ChangePasswordBody = z.infer<ReturnType<typeof makeChangePasswordSchema>>;
