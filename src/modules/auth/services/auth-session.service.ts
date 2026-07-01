@@ -19,7 +19,7 @@
 
 import type { Pool } from "pg";
 
-import { loadAuthConfigFromDb, type AuthConfigDb } from "../config-repo.js";
+import { getAuthConfig } from "../config.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { requireActor } from "../session-context.js";
@@ -66,16 +66,16 @@ export class AuthSessionService {
   // --- Login ---------------------------------------------------------------
 
   async login(input: LoginBody): Promise<LoginResult> {
-    const cfg = await this.loadOidcConfig();
-    const tokenUrl = `${cfg.casdoorEndpoint}/api/login/oauth/access_token`;
+    const cfg = await getAuthConfig();
+    const tokenUrl = `${cfg.casdoor_endpoint}/api/login/oauth/access_token`;
     const formData = new URLSearchParams();
     formData.append("grant_type", "password");
-    formData.append("client_id", cfg.clientId);
-    formData.append("client_secret", cfg.clientSecret);
+    formData.append("client_id", cfg.oidc.client_id!);
+    formData.append("client_secret", cfg.oidc.client_secret!);
     formData.append("username", input.username);
     formData.append("password", input.password);
     formData.append("scope", "openid profile email");
-    formData.append("organization", cfg.orgName);
+    formData.append("organization", cfg.casdoor_organization!);
 
     const response = await fetch(tokenUrl, {
       method: "POST",
@@ -95,9 +95,8 @@ export class AuthSessionService {
     };
     const claims = this.decodeJwtPayload(data.access_token);
 
-    // Email-verified guard — gated by auth_configurations flag (default: disabled).
-    // When disabled, the check is skipped entirely, preserving pre-3720c09 behavior.
-    if (cfg.enableEmailVerificationCheck && claims.emailVerified === false) {
+    // Email-verified guard — gated by auth_configurations flag.
+    if (cfg.enable_email_verification_check && claims.emailVerified === false) {
       throw new UnauthorizedError("The user email isn't verified yet", {
         internal_code: "email_not_verified",
       });
@@ -119,7 +118,7 @@ export class AuthSessionService {
         refresh_token: data.refresh_token,
         expires_in: data.expires_in,
       },
-      orgName: cfg.orgName,
+      orgName: cfg.casdoor_organization!,
       claims,
     };
   }
@@ -133,15 +132,15 @@ export class AuthSessionService {
       });
     }
 
-    const cfg = await this.loadOidcConfig();
-    const tokenUrl = `${cfg.casdoorEndpoint}/api/login/oauth/access_token`;
+    const cfg = await getAuthConfig();
+    const tokenUrl = `${cfg.casdoor_endpoint}/api/login/oauth/access_token`;
     const formData = new URLSearchParams();
     formData.append("grant_type", "refresh_token");
-    formData.append("client_id", cfg.clientId);
-    formData.append("client_secret", cfg.clientSecret);
+    formData.append("client_id", cfg.oidc.client_id!);
+    formData.append("client_secret", cfg.oidc.client_secret!);
     formData.append("refresh_token", refreshToken);
     formData.append("scope", "openid profile email");
-    formData.append("organization", cfg.orgName);
+    formData.append("organization", cfg.casdoor_organization!);
 
     let response: Response;
     try {
@@ -173,7 +172,7 @@ export class AuthSessionService {
     const claims = this.decodeJwtPayload(data.access_token);
 
     // Best-effort Casdoor→Primebrick profile sync (non-critical).
-    await this.syncProfileFromCasdoor(claims, cfg.orgName).catch((syncError) => {
+    await this.syncProfileFromCasdoor(claims, cfg.casdoor_organization!).catch((syncError) => {
       console.error("[AuthSessionService] Casdoor→Primebrick sync failed (non-critical):", syncError);
     });
 
@@ -183,7 +182,7 @@ export class AuthSessionService {
         refresh_token: data.refresh_token,
         expires_in: data.expires_in,
       },
-      orgName: cfg.orgName,
+      orgName: cfg.casdoor_organization!,
       claims,
     };
   }
@@ -289,33 +288,6 @@ export class AuthSessionService {
   }
 
   // --- Internal helpers ----------------------------------------------------
-
-  private async loadOidcConfig(): Promise<{
-    casdoorEndpoint: string;
-    clientId: string;
-    clientSecret: string;
-    orgName: string;
-    enableEmailVerificationCheck: boolean;
-  }> {
-    let casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
-    let clientId = process.env.OIDC_CLIENT_ID || "";
-    let clientSecret = process.env.OIDC_CLIENT_SECRET || "";
-    let orgName = "acme";
-    let enableEmailVerificationCheck = false;
-
-    try {
-      const dbConfig: AuthConfigDb = await loadAuthConfigFromDb(this.pool);
-      casdoorEndpoint = dbConfig.casdoorEndpoint || casdoorEndpoint;
-      clientId = dbConfig.oidcClientId || clientId;
-      clientSecret = dbConfig.oidcClientSecret || clientSecret;
-      orgName = dbConfig.casdoorOrganization || orgName;
-      enableEmailVerificationCheck = dbConfig.enableEmailVerificationCheck;
-    } catch (error) {
-      console.error("[AuthSessionService] Could not load configuration from database, using fallback:", error);
-    }
-
-    return { casdoorEndpoint, clientId, clientSecret, orgName, enableEmailVerificationCheck };
-  }
 
   private decodeJwtPayload(token: string): Record<string, any> {
     const parts = token.split(".");

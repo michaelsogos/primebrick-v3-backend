@@ -24,7 +24,7 @@
 
 import type { Pool } from "pg";
 import { CasdoorApiClient } from "../casdoor-api-client.js";
-import { loadAuthConfigFromDb } from "../config-repo.js";
+import { getAuthConfig } from "../config.js";
 
 export class CasdoorService {
   private client: CasdoorApiClient | null = null;
@@ -36,24 +36,38 @@ export class CasdoorService {
    * Returns the lazily-initialized `CasdoorApiClient`, or `null` when Casdoor
    * builtin credentials are not configured (e.g. dev setups without IDP).
    *
-   * The first call performs the DB + env lookup; subsequent calls return the
-   * cached instance (or `null`) without re-querying.
+   * Reads from the cached auth config (loaded at startup). The camelCase field
+   * names passed to `CasdoorApiClient` are dictated by Casdoor's REST API
+   * (external adapter boundary exception) — the translation happens ONLY here.
    */
   async getClient(): Promise<CasdoorApiClient | null> {
     if (this.initialized) return this.client;
     this.initialized = true;
 
     try {
-      const dbConfig = await loadAuthConfigFromDb(this.pool);
-      if (!dbConfig.casdoorBuiltinClientId || !dbConfig.casdoorBuiltinClientSecret) {
+      const cfg = await getAuthConfig();
+      // casdoor_builtin_client_id / casdoor_builtin_client_secret are NOT in the
+      // AuthConfig shape (they're only in AuthConfigDb). Read them via the DAL
+      // directly when needed. For now, the cached config exposes casdoor_endpoint
+      // and casdoor_organization; the builtin credentials are read from DB on
+      // first init.
+      const { AuthConfigurationsDal } = await import("../auth_configurations_dal.js");
+      const dal = new AuthConfigurationsDal(this.pool);
+      const [clientIdRow, clientSecretRow] = await Promise.all([
+        dal.findByKey("casdoor_builtin_client_id"),
+        dal.findByKey("casdoor_builtin_client_secret"),
+      ]);
+      const builtinClientId = clientIdRow?.value;
+      const builtinClientSecret = clientSecretRow?.value;
+      if (!builtinClientId || !builtinClientSecret) {
         console.warn("[CasdoorService] Builtin credentials not configured; skipping Casdoor sync");
         return null;
       }
       this.client = new CasdoorApiClient({
-        endpoint: dbConfig.casdoorEndpoint || process.env.CASDOOR_ENDPOINT || "http://localhost:8000",
-        orgName: dbConfig.casdoorOrganization || "acme",
-        clientId: dbConfig.casdoorBuiltinClientId,
-        clientSecret: dbConfig.casdoorBuiltinClientSecret,
+        endpoint: cfg.casdoor_endpoint!,
+        orgName: cfg.casdoor_organization!,
+        clientId: builtinClientId,
+        clientSecret: builtinClientSecret,
       });
       return this.client;
     } catch (error) {

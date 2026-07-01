@@ -13,6 +13,7 @@ import { makeProtectedRouter } from "./http/protected-router.js";
 import { rbacHandler } from "./modules/auth/rbac.middleware.js";
 import { Permission } from "./modules/auth/permissions.js";
 import { loadRoleMappings } from "./modules/auth/auth.middleware.js";
+import { loadAuthConfig } from "./modules/auth/config.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
 import "./modules/auth/types.js";
 import { readFileSync } from "node:fs";
@@ -72,10 +73,10 @@ async function checkIdp(pool?: Pool): Promise<{ ok: boolean; type?: string; vers
     if (pool) {
       try {
         const dbConfig = await loadAuthConfigFromDb(pool);
-        casdoorEndpoint = dbConfig.casdoorEndpoint || casdoorEndpoint;
-        clientId = dbConfig.casdoorBuiltinClientId || clientId;
-        clientSecret = dbConfig.casdoorBuiltinClientSecret || clientSecret;
-        orgName = dbConfig.casdoorOrganization || orgName;
+        casdoorEndpoint = dbConfig.casdoor_endpoint || casdoorEndpoint;
+        clientId = dbConfig.casdoor_builtin_client_id || clientId;
+        clientSecret = dbConfig.casdoor_builtin_client_secret || clientSecret;
+        orgName = dbConfig.casdoor_organization || orgName;
       } catch (error) {
         console.warn("[IDP Health Check] Could not load configuration from database, using fallback:", error);
       }
@@ -185,6 +186,7 @@ void runStartupTasks().catch((err) => {
 
 async function runStartupTasks(): Promise<void> {
   await refreshRoleMappings();
+  await refreshAuthConfig();
 }
 
 async function refreshRoleMappings(): Promise<void> {
@@ -196,5 +198,17 @@ async function refreshRoleMappings(): Promise<void> {
       err
     );
     setTimeout(() => void refreshRoleMappings().catch(() => {}), 5000);
+  }
+}
+
+async function refreshAuthConfig(): Promise<void> {
+  try {
+    await loadAuthConfig(getPool());
+  } catch (err) {
+    console.warn(
+      "[startup] loadAuthConfig failed (database unavailable?). Retrying in 5s.",
+      err
+    );
+    setTimeout(() => void refreshAuthConfig().catch(() => {}), 5000);
   }
 }

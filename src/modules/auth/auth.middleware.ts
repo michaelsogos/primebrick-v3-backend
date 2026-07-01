@@ -32,8 +32,8 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { UnauthorizedError, ForbiddenError } from "../../http/api-errors.js";
 import { getPool } from "../../db/pool.js";
-import { getAuthConfig } from "./config.js";
-import { verifyAccessToken } from "./oidc-client.js";
+import { getAuthConfig, invalidateAuthConfig, AuthMode } from "./config.js";
+import { verifyAccessToken, resetOidcRuntimeForTest } from "./oidc-client.js";
 import { buildAuthUser, normalizeIdpToken, coerceRoles } from "./token-normalizer.js";
 import { resolveInternalUuid } from "./user-profile-repo.js";
 import { runWithSession, type Session } from "./session-context.js";
@@ -78,9 +78,9 @@ export function authMiddleware(): RequestHandler {
         );
       }
       const pool = getPool();
-      const cfg = await getAuthConfig(pool);
+      const cfg = await getAuthConfig();
       const user: AuthUser =
-        cfg.mode === "GATEWAY"
+        cfg.mode === AuthMode.GATEWAY
           ? await fromGateway(req, cfg)
           : await fromStandalone(req, cfg, pool);
       req.user = user;
@@ -124,17 +124,20 @@ async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAu
 
   let claims;
   try {
-    const verified = await verifyAccessToken(token, pool);
+    const verified = await verifyAccessToken(token);
     claims = verified.payload;
   } catch (e) {
     // Don't leak crypto / JWKS internals — log server-side, return generic 401.
     console.error("[auth] token verification failed:", (e as Error)?.message);
+    // Defensive self-heal: invalidate caches so the next request re-reads from DB.
+    invalidateAuthConfig();
+    resetOidcRuntimeForTest();
     throw new UnauthorizedError("Invalid or expired access token", {
       internal_code: "AUTH_TOKEN_INVALID",
     });
   }
 
-  const normalized = normalizeIdpToken(claims, cfg.rolesPath);
+  const normalized = normalizeIdpToken(claims, cfg.roles_path);
   const internalUuid = await resolveInternalUuid({
     idp_code: normalized.idp_code,
     email: normalized.email,
@@ -150,28 +153,28 @@ async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAu
 }
 
 async function fromGateway(req: Request, cfg: Awaited<ReturnType<typeof getAuthConfig>>): Promise<AuthUser> {
-  const { secret, secretHeaderName, headers } = cfg.gateway;
+  const { secret, secret_header_name, headers } = cfg.gateway;
 
   // Anti-spoofing: the gateway and only the gateway knows this value.
   // Without it, the API MUST NOT trust any X-User-* header.
-  const provided = req.headers[secretHeaderName];
+  const provided = req.headers[secret_header_name!];
   if (typeof provided !== "string" || provided !== secret) {
     throw new UnauthorizedError("Gateway authentication failed", {
       internal_code: "AUTH_GATEWAY_SECRET_INVALID",
     });
   }
 
-  const idpCode = readHeaderString(req, headers.idpCode);
+  const idpCode = readHeaderString(req, headers.idp_code!);
   if (!idpCode) {
     throw new UnauthorizedError(
-      `Missing user identity header '${headers.idpCode}' from gateway`,
+      `Missing user identity header '${headers.idp_code}' from gateway`,
       { internal_code: "AUTH_GATEWAY_HEADERS_MISSING" }
     );
   }
 
-  const email = readHeaderString(req, headers.email);
-  const name = readHeaderString(req, headers.name);
-  const rawRoles = readHeaderString(req, headers.roles);
+  const email = readHeaderString(req, headers.email!);
+  const name = readHeaderString(req, headers.name!);
+  const rawRoles = readHeaderString(req, headers.roles!);
   // The gateway forwards roles as a comma-separated list (CSV).
   // Empty / missing → no roles, which means the user gets only public endpoints.
   const roles = rawRoles
@@ -180,8 +183,8 @@ async function fromGateway(req: Request, cfg: Awaited<ReturnType<typeof getAuthC
 
   // Extract idpOrg and idpUsername from new gateway headers (if configured)
   // Fallback: split idpCode on '/' if it contains a slash
-  const idpOrg = readHeaderString(req, headers.idpOrg as any) ?? null;
-  const idpUsername = readHeaderString(req, headers.idpUsername as any) ?? null;
+  const idpOrg = readHeaderString(req, headers.idp_org!) ?? null;
+  const idpUsername = readHeaderString(req, headers.idp_username!) ?? null;
   let finalIdpOrg = idpOrg;
   let finalIdpUsername = idpUsername;
   if (!finalIdpOrg && !finalIdpUsername && idpCode.includes('/')) {

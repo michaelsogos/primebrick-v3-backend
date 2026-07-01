@@ -16,6 +16,7 @@ import type { Pool } from "pg";
 
 import { UserProfilesDal, type UserListQuery, type UserListResponse } from "../user-profiles-dal.js";
 import { CasdoorService } from "./casdoor.service.js";
+import { getAuthConfig } from "../config.js";
 import { requireActor } from "../session-context.js";
 import { ApiError, NotFoundError, ValidationError } from "../../../http/api-errors.js";
 import type { CreateUserBody, UpdateUserBody, UserUpdateBody } from "../dto.js";
@@ -47,8 +48,9 @@ export class UserService {
 
     // 1. Create in Casdoor (if configured)
     const cdClient = await this.casdoor.getClient();
+    const cfg = await getAuthConfig();
     let casdoorUserId: string | null = null;
-    let idpOrg = idp_org || process.env.CASDOOR_ORGANIZATION || "acme";
+    let idpOrg = idp_org || cfg.casdoor_organization!;
     let idpUsername = username;
 
     if (cdClient) {
@@ -83,7 +85,7 @@ export class UserService {
         );
       }
       casdoorUserId = newUser.id;
-      idpOrg = newUser.owner || process.env.CASDOOR_ORGANIZATION || "acme";
+      idpOrg = newUser.owner || cfg.casdoor_organization!;
       idpUsername = newUser.name || username;
     }
 
@@ -91,7 +93,7 @@ export class UserService {
     const idpCode = casdoorUserId;
     const now = new Date();
     const newUuid = randomUUID();
-    const issuer = process.env.CASDOOR_ENDPOINT || null;
+    const issuer = cfg.casdoor_endpoint || null;
 
     await this.pool.query(
       `INSERT INTO public.user_profiles

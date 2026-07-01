@@ -43,15 +43,15 @@ let runtimePromise: Promise<OidcRuntime> | null = null;
  * `jose.createRemoteJWKSet` itself caches keys with HTTP cache semantics, so
  * we don't need to do anything else.
  */
-async function getRuntime(pool?: import("pg").Pool): Promise<OidcRuntime> {
+async function getRuntime(): Promise<OidcRuntime> {
   if (runtimePromise) return runtimePromise;
 
   runtimePromise = (async (): Promise<OidcRuntime> => {
-    const cfg = (await getAuthConfig(pool)).oidc;
-    if (!cfg.issuerUrl) {
-      throw new Error("[auth] OIDC_ISSUER_URL is required to verify access tokens");
+    const cfg = (await getAuthConfig()).oidc;
+    if (!cfg.issuer_url) {
+      throw new Error("[auth] oidc_issuer_url is required to verify access tokens");
     }
-    const discoveryUrl = `${cfg.issuerUrl.replace(/\/+$/, "")}/.well-known/openid-configuration`;
+    const discoveryUrl = `${cfg.issuer_url.replace(/\/+$/, "")}/.well-known/openid-configuration`;
     const res = await fetch(discoveryUrl);
     if (!res.ok) {
       throw new Error(
@@ -92,9 +92,9 @@ export interface VerifiedToken {
  *
  * @param pool Optional database pool to load OIDC configuration from database
  */
-export async function verifyAccessToken(token: string, pool?: import("pg").Pool): Promise<VerifiedToken> {
-  const { discovery, jwks } = await getRuntime(pool);
-  const cfg: OidcConfig = (await getAuthConfig(pool)).oidc;
+export async function verifyAccessToken(token: string): Promise<VerifiedToken> {
+  const { discovery, jwks } = await getRuntime();
+  const cfg: OidcConfig = (await getAuthConfig()).oidc;
 
   const verifyOpts: JWTVerifyOptions = {
     issuer: discovery.issuer,

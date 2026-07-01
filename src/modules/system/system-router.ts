@@ -62,7 +62,7 @@ export function systemRouter() {
     rbacHandler([Permission.AUTHENTICATED_USER]),
     asyncHandler(async (_req, res) => {
       const cfg = await loadAuthConfigFromDb(getPool());
-      const policy = parsePasswordPolicy(cfg.passwordPolicy);
+      const policy = parsePasswordPolicy(cfg.password_policy!);
       const config = getPasswordPolicyConfig(policy);
       res.json({
         policy,

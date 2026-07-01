@@ -60,8 +60,7 @@
 
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { ForbiddenError, UnauthorizedError } from "../../http/api-errors.js";
-import { getAuthConfig } from "./config.js";
-import { getPool } from "../../db/pool.js";
+import { getAuthConfig, AuthMode } from "./config.js";
 import { authMiddleware } from "./auth.middleware.js";
 import { Permission, isPermissionSentinel, isPermissionGranted } from "./permissions.js";
 
@@ -114,14 +113,14 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const cfg = await getAuthConfig(getPool());
+      const cfg = await getAuthConfig();
 
       // --- Step 1: gateway-secret check (ALWAYS in GATEWAY mode) ----------
-      if (cfg.mode === "GATEWAY") {
+      if (cfg.mode === AuthMode.GATEWAY) {
         const headerName = isPublic
-          ? cfg.gateway.publicSecretHeaderName
-          : cfg.gateway.secretHeaderName;
-        const expected = isPublic ? cfg.gateway.publicSecret : cfg.gateway.secret;
+          ? cfg.gateway.public_secret_header_name!
+          : cfg.gateway.secret_header_name!;
+        const expected = isPublic ? cfg.gateway.public_secret : cfg.gateway.secret;
         const provided = req.headers[headerName];
         if (typeof provided !== "string" || provided !== expected) {
           throw new UnauthorizedError("Gateway authentication failed", {

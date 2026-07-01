@@ -112,7 +112,7 @@ export function userProfilesRouter() {
     const { uuid } = req.params;
     // Load the active password policy from DB and build the schema dynamically.
     const cfg = await loadAuthConfigFromDb(getPool());
-    const policy = parsePasswordPolicy(cfg.passwordPolicy);
+    const policy = parsePasswordPolicy(cfg.password_policy!);
     const schema = makeChangePasswordSchema(policy);
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {

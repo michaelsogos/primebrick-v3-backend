@@ -194,6 +194,48 @@ export class ForbiddenError extends ApiError {
   }
 }
 
+/**
+ * Auth Config Not Loaded Error (500) - RFC 7807
+ *
+ * The BE cannot process the request because the auth configuration is
+ * not loaded in memory. This is a CRITICAL configuration error — the
+ * entire application cannot function without auth config.
+ *
+ * This is NOT a 503 (Service Unavailable) because:
+ *   - 503 is intercepted by the FE's DB-offline interceptor (api.ts:175),
+ *     which would trigger a /health probe and show a misleading
+ *     "DB OFFLINE" / "IDP OFFLINE" sidebar badge.
+ *   - The DB and IDP are NOT down — the BE is misconfigured (missing
+ *     mandatory rows in auth_configurations, or the startup load failed).
+ *
+ * The `severity: "CRITICAL"` field in the RFC7807 body drives the FE
+ * toast style (toast.critical) — the 500 status just ensures the FE's
+ * RFC7807 handler processes it normally without triggering the
+ * offline/offline-badge code path.
+ */
+export class AuthConfigNotLoadedError extends ApiError {
+  constructor(
+    detail: string,
+    options?: {
+      instance?: string;
+      internal_code?: string;
+    }
+  ) {
+    super(
+      "/errors/auth-config-not-loaded",
+      "Auth configuration not loaded",
+      500,
+      detail,
+      {
+        ...options,
+        internal_code: options?.internal_code || "AUTH_CONFIG_NOT_LOADED",
+        severity: "CRITICAL",
+      }
+    );
+    this.name = "AuthConfigNotLoadedError";
+  }
+}
+
 export function isDatabaseUnavailableError(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
 
