@@ -32,8 +32,8 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { UnauthorizedError, ForbiddenError } from "../../http/api-errors.js";
 import { getPool } from "../../db/pool.js";
-import { getAuthConfig, invalidateAuthConfig, AuthMode } from "./config.js";
-import { verifyAccessToken, resetOidcRuntimeForTest } from "./oidc-client.js";
+import { getAuthConfig, AuthMode } from "./config.js";
+import { verifyAccessToken } from "./oidc-client.js";
 import { buildAuthUser, normalizeIdpToken, coerceRoles } from "./token-normalizer.js";
 import { resolveInternalUuid } from "./user-profile-repo.js";
 import { runWithSession, type Session } from "./session-context.js";
@@ -129,9 +129,6 @@ async function fromStandalone(req: Request, cfg: Awaited<ReturnType<typeof getAu
   } catch (e) {
     // Don't leak crypto / JWKS internals — log server-side, return generic 401.
     console.error("[auth] token verification failed:", (e as Error)?.message);
-    // Defensive self-heal: invalidate caches so the next request re-reads from DB.
-    invalidateAuthConfig();
-    resetOidcRuntimeForTest();
     throw new UnauthorizedError("Invalid or expired access token", {
       internal_code: "AUTH_TOKEN_INVALID",
     });
