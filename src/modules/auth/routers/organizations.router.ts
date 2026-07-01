@@ -32,16 +32,17 @@ import { organizationMeta } from "../organizations.meta.js";
 import { OrganizationsService } from "../services/organizations.service.js";
 import { ValidationError } from "../../../http/api-errors.js";
 import type { OrganizationListQuery } from "../organizations_dal.js";
+import { displayNameSchema, idpNameSchema } from "../validation.js";
 
 const CreateBodySchema = z.object({
   idp_owner: z.string().min(1).max(255).optional().default("admin"),
-  idp_name: z.string().min(1).max(255),
-  display_name: z.string().max(255).optional(),
+  idp_name: idpNameSchema(z.string()),
+  display_name: displayNameSchema(z.string()).optional(),
   website_url: z.string().url().max(2048).optional().or(z.literal("")),
 });
 
 const UpdateBodySchema = z.object({
-  display_name: z.string().max(255).optional(),
+  display_name: displayNameSchema(z.string()).optional(),
   website_url: z.string().url().max(2048).optional().or(z.literal("")),
 });
 

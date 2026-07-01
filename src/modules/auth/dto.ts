@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 import { PasswordPolicy, passwordZodSchema } from "./password-policy.js";
+import { displayNameSchema, idpNameSchema } from "./validation.js";
 
 // --- Session (login / refresh / me) ---------------------------------------
 
@@ -25,7 +26,7 @@ export type LoginBody = z.infer<typeof LoginBodySchema>;
 
 export const ProfileUpdateSchema = z
   .object({
-    display_name: z.string().optional(),
+    display_name: displayNameSchema(z.string()).optional(),
     email: z.string().email().optional(),
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
     avatar_initials: z.string().min(1).optional(),
@@ -50,9 +51,9 @@ export interface LoginSuccessResponse {
 
 export function makeCreateUserSchema(policy: PasswordPolicy) {
   return z.object({
-    username: z.string().min(1),
+    username: idpNameSchema(z.string()),
     password: passwordZodSchema(policy),
-    display_name: z.string().min(1),
+    display_name: displayNameSchema(z.string()),
     email: z.string().email(),
     roles: z.array(z.string()).optional(),
     avatar_initials: z.string().optional(),
@@ -68,7 +69,7 @@ export type CreateUserBody = z.infer<ReturnType<typeof makeCreateUserSchema>>;
 
 export const UpdateUserSchema = z
   .object({
-    display_name: z.string().optional(),
+    display_name: displayNameSchema(z.string()).optional(),
     email: z.string().email().optional(),
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
     is_active: z.boolean().optional(),
@@ -93,7 +94,7 @@ export type UserProfileAuditQuery = z.infer<typeof UserProfileAuditQuerySchema>;
 
 export const UserUpdateBodySchema = z
   .object({
-    display_name: z.string().max(255).optional(),
+    display_name: displayNameSchema(z.string()).optional(),
     email: z.string().email().max(320).optional().or(z.literal("")),
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
     avatar_initials: z.string().min(1).max(10).optional(),
