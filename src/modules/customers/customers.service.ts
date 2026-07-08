@@ -73,7 +73,7 @@ export class CustomersService {
     if (process.env.PB_CUSTOMERS_FORCE_EMPTY === "1") {
       const p = Math.max(1, query.page ? Number(query.page) : 1);
       const ps = Math.min(100, Math.max(1, query.page_size ? Number(query.page_size) : 25));
-      return { rows: [], page: p, page_size: ps, total: 0 };
+      return { rows: [], page: p, page_size: ps, total: 0n };
     }
     if (process.env.PB_CUSTOMERS_FORCE_ERROR === "1") {
       throw new ApiError(

@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 
-import { entityDateToApiIso } from "../../domain/entities/entity-meta.js";
+import { entityDateToApiIso } from "@primebrick/dal-pg";
 import { Repository } from "../../db/repository/repository.js";
 import { field, Filter, Sort, Join, type FilterExpr } from "../../db/repository/dsl.js";
 import { buildAuditableJoins } from "../../db/repository/auditable-joins.js";
@@ -61,7 +61,7 @@ export type UserListResponse = {
   rows: UserProfileDetailDto[];
   page: number;
   page_size: number;
-  total: number;
+  total: bigint;
 };
 
 export class UserProfilesDal {
@@ -209,7 +209,7 @@ export class UserProfilesDal {
     `;
 
     const countResult = await this.pool.query(countQuery, [uuid]);
-    const total = parseInt(countResult.rows[0].total, 10);
+    const total = Number(countResult.rows[0].total);
 
     const query = `
       SELECT ${getAuditSelectWithDisplayName()}

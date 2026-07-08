@@ -11,7 +11,7 @@
  * connection and `NODE_ENV` for the cookie `secure` attribute).
  */
 
-import type { IAuditableEntity } from "../../domain/entities/iauditable_entity.js";
+import type { IAuditableEntity } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
@@ -22,13 +22,13 @@ import {
   DeletableField,
   DeletableFieldType,
   AuditTrail,
-} from "../../domain/entities/entity-meta.js";
+} from "@primebrick/dal-pg";
 
 @Entity("auth_configurations")
 @AuditTrail()
 export class AuthConfigurationEntity implements IAuditableEntity {
   @Key()
-  id: number;
+  id: bigint;
 
   @Unique()
   uuid: string;

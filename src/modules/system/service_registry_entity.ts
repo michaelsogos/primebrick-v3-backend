@@ -1,17 +1,17 @@
-import type { IAuditableEntity } from "../../domain/entities/iauditable_entity.js";
-import { 
-  Column, 
-  Entity, 
-  Key, 
-  Unique, 
-  AuditableField, 
+import type { IAuditableEntity } from "@primebrick/dal-pg";
+import {
+  Column,
+  Entity,
+  Key,
+  Unique,
+  AuditableField,
   AuditableFieldType,
-} from "../../domain/entities/entity-meta.js";
+} from "@primebrick/dal-pg";
 
 @Entity("service_registry")
 export class ServiceRegistryEntity implements IAuditableEntity {
   @Key()
-  id: number;
+  id: bigint;
 
   @Unique()
   uuid: string;

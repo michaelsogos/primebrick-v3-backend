@@ -1,6 +1,7 @@
 import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
+import { extJsonMiddleware } from "@primebrick/sdk";
 import { mountModules } from "./modules/index.js";
 import { Pool } from "pg";
 import CasdoorSDK from "casdoor-nodejs-sdk";
@@ -26,6 +27,7 @@ const port = Number(process.env.PORT) || 3001;
 app.use(cors({ origin: true }));
 app.use(express.json());
 app.use(cookieParser());
+app.use(extJsonMiddleware());
 
 type HealthModule = { id: string; version: string };
 type HealthPayload = {

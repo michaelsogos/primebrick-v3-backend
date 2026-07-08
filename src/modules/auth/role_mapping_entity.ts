@@ -1,5 +1,4 @@
-import type { IAuditableEntity } from "../../domain/entities/iauditable_entity.js";
-import { Entity, Key, Column, Unique, AuditableField, AuditableFieldType, AuditTrail } from "../../domain/entities/entity-meta.js";
+import { Entity, Key, Column, Unique, AuditableField, AuditableFieldType, AuditTrail } from "@primebrick/dal-pg";
 
 /**
  * Maps IDP roles (from JWT) to Primebrick permissions.
@@ -15,9 +14,9 @@ import { Entity, Key, Column, Unique, AuditableField, AuditableFieldType, AuditT
  */
 @Entity("role_mappings")
 @AuditTrail()
-export class RoleMappingEntity implements IAuditableEntity {
+export class RoleMappingEntity {
   @Key()
-  id!: string;
+  id!: bigint;
 
   @Unique()
   @Column({ length: 255, nullable: false })

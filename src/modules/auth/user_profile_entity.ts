@@ -19,7 +19,7 @@
  * `id` is internal-only (joins, FKs); only `uuid` is ever surfaced via API.
  */
 
-import type { IAuditableEntity } from "../../domain/entities/iauditable_entity.js";
+import type { IAuditableEntity } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
@@ -32,13 +32,13 @@ import {
   SynchronizableField,
   SynchronizableFieldType,
   AuditTrail,
-} from "../../domain/entities/entity-meta.js";
+} from "@primebrick/dal-pg";
 
 @Entity("user_profiles")
 @AuditTrail()
 export class UserProfileEntity implements IAuditableEntity {
   @Key()
-  id: number;
+  id: bigint;
 
   @Unique()
   uuid: string;

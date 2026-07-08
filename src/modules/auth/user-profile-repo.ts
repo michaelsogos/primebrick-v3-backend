@@ -103,7 +103,7 @@ export async function resolveInternalUuid(
   // first auth bootstraps their own profile, hence `created_by = uuid`.
   const newUuid = randomUUID();
   const now = new Date();
-  const ins = await pool.query<{ uuid: string; id: number }>(
+  const ins = await pool.query<{ uuid: string; id: bigint }>(
     `insert into public.user_profiles
        (uuid, idp_code, email, display_name, idp_org, idp_username,
         created_at, created_by, updated_at, updated_by, version)

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { Pool } from "pg";
 
-import { entityDateToApiIso } from "../../domain/entities/entity-meta.js";
+import { entityDateToApiIso } from "@primebrick/dal-pg";
 import { Repository } from "../../db/repository/repository.js";
 import { field, Filter, Sort, Join, type FilterExpr } from "../../db/repository/dsl.js";
 import { buildAuditableJoins } from "../../db/repository/auditable-joins.js";
@@ -58,7 +58,7 @@ export type OrganizationListResponse = {
   rows: OrganizationDetailDto[];
   page: number;
   page_size: number;
-  total: number;
+  total: bigint;
 };
 
 export class OrganizationsDal {
@@ -250,7 +250,7 @@ export class OrganizationsDal {
         AND is_active = true
     `;
     const result = await this.pool.query(query, [idpCode]);
-    return parseInt(result.rows[0].count, 10);
+    return Number(result.rows[0].count);
   }
 
   private enrichAuditDeltaWithDisplayNames(
@@ -291,7 +291,7 @@ export class OrganizationsDal {
     `;
 
     const countResult = await this.pool.query(countQuery, [uuid]);
-    const total = parseInt(countResult.rows[0].total, 10);
+    const total = Number(countResult.rows[0].total);
 
     const query = `
       SELECT

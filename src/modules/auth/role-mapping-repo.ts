@@ -52,7 +52,7 @@ export class RoleMappingRepo {
     isAdmin: boolean,
     labelKey?: string
   ): Promise<void> {
-    const existing = await this.repo.rawSql<{ id: number }>(
+    const existing = await this.repo.rawSql<{ id: bigint }>(
       `SELECT id FROM role_mappings WHERE idp_role = $1`,
       [idpRole]
     );

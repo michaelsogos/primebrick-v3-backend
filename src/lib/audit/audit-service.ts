@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
-import type { EntityClass } from "../../domain/entities/entity-meta.js";
-import { getTableName } from "../../domain/entities/entity-meta.js";
+import type { EntityClass } from "@primebrick/dal-pg";
+import { getTableName } from "@primebrick/dal-pg";
 import { AuditAction } from "./audit-types.js";
 
 export class AuditService {
@@ -8,7 +8,7 @@ export class AuditService {
 
   async writeAudit<T extends object>(
     entityClass: EntityClass,
-    entityId: number,
+    entityId: bigint,
     entityUuid: string,
     action: AuditAction,
     changedAt: Date,

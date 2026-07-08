@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { Pool } from "pg";
 
-import { entityDateToApiIso } from "../../domain/entities/entity-meta.js";
+import { entityDateToApiIso } from "@primebrick/dal-pg";
 import { Repository } from "../../db/repository/repository.js";
 import { field, Filter, Sort, Join, Project, type FieldProjector, type FilterExpr } from "../../db/repository/dsl.js";
 import { buildAuditableJoins } from "../../db/repository/auditable-joins.js";
@@ -215,7 +215,7 @@ export class CustomersDal {
 
   async seedIfEmpty(): Promise<void> {
     const count = await this.repo.count(CustomerEntity);
-    if (count > 0) return;
+    if (count > 0n) return;
 
     const firstNames = [
       "Mario",
@@ -447,7 +447,7 @@ export class CustomersDal {
   private async seedAuditLogs(): Promise<void> {
     // Fetch all inserted customers with their full data
     const allCustomers = await this.pool.query<{
-      id: number;
+      id: bigint;
       uuid: string;
       email: string;
       phone: string;
@@ -864,7 +864,7 @@ export class CustomersDal {
     `;
 
     const countResult = await this.pool.query(countQuery, [uuid]);
-    const total = parseInt(countResult.rows[0].total, 10);
+    const total = Number(countResult.rows[0].total);
 
     const query = `
       SELECT ${getAuditSelectWithDisplayName()}
