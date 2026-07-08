@@ -4,6 +4,7 @@ import { Permission } from "../auth/permissions.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { getPool } from "../../db/pool.js";
 import { OrganizationsDal } from "../auth/organizations_dal.js";
+import { RoleMappingRepo } from "../auth/role-mapping-repo.js";
 import { loadAuthConfigFromDb } from "../auth/config-repo.js";
 import {
   parsePasswordPolicy,
@@ -42,16 +43,16 @@ export function systemRouter() {
     "/api/v1/system/roles/active",
     rbacHandler([Permission.AUTHENTICATED_USER]),
     asyncHandler(async (_req, res) => {
-      const pool = getPool();
-      const result = await pool.query(
-        `SELECT idp_role, label_key, permissions, is_admin FROM role_mappings ORDER BY idp_role`
-      );
-      const roles = result.rows.map((row: any) => ({
-        idp_role: row.idp_role,
-        label_key: row.label_key,
-        permissions: row.permissions ?? [],
-        is_admin: row.is_admin || false,
-      }));
+      const repo = new RoleMappingRepo(getPool());
+      const roleMap = await repo.loadAllMappings();
+      const roles = Array.from(roleMap.entries())
+        .map(([idp_role, mapping]) => ({
+          idp_role,
+          label_key: mapping.label_key,
+          permissions: mapping.permissions ?? [],
+          is_admin: mapping.is_admin || false,
+        }))
+        .sort((a, b) => a.idp_role.localeCompare(b.idp_role));
       res.json({ roles });
     })
   );

@@ -24,7 +24,6 @@ import type {
   CustomerExportQuery,
 } from "./dto.js";
 import { CUSTOMER_DEFAULT_SORT } from "./list-config.js";
-import { AuditService } from "../../lib/audit/audit-service.js";
 import { exportDataWithTemplateToStream } from "../../lib/export/index.js";
 import type { ExportConfig } from "../../lib/export/types.js";
 import { getPool } from "../../db/pool.js";
@@ -61,8 +60,7 @@ export class CustomersService {
   private getDal(): CustomersDal {
     if (this.dal) return this.dal;
     const pool = getPool();
-    const auditService = new AuditService(pool);
-    this.dal = new CustomersDal(pool, auditService);
+    this.dal = new CustomersDal(pool);
     return this.dal;
   }
 

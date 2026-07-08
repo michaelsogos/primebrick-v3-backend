@@ -2,12 +2,15 @@ import { randomUUID } from "node:crypto";
 
 import type { Pool } from "pg";
 
-import { entityDateToApiIso } from "@primebrick/dal-pg";
-import { Repository } from "../../db/repository/repository.js";
-import { field, Filter, Sort, Join, Project, type FieldProjector, type FilterExpr } from "../../db/repository/dsl.js";
-import { buildAuditableJoins } from "../../db/repository/auditable-joins.js";
-import { WithAuditableDisplayNames } from "../../db/repository/auditable-types.js";
-import { getAuditUserJoinSql, getAuditSelectWithDisplayName } from "../../db/repository/audit-join-helper.js";
+import {
+  entityDateToApiIso,
+  Repository,
+  field, Filter, Sort, Join, Project,
+  buildAuditableJoins,
+  type FieldProjector,
+  type FilterExpr,
+  type WithAuditableDisplayNames,
+} from "@primebrick/dal-pg";
 
 import { CustomerEntity, type CustomerStatus } from "./customer_entity.js";
 import { UserProfileEntity } from "../auth/user_profile_entity.js";
@@ -15,6 +18,8 @@ import type { CustomerCreateBody, CustomerUpdateBody, CustomerListQuery } from "
 import { CUSTOMER_SEARCHABLE_KEYS, CUSTOMER_FILTERABLE_KEYS } from "./list-config.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
 import { requireActor } from "../auth/session-context.js";
+import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
+import { findAuditPage } from "../../db/audit-query-helper.js";
 
 function buildIlikeNeedleFromSearch(raw: string): {
   needle: string;
@@ -207,10 +212,12 @@ function projectAllExceptId(): FieldProjector[] {
 export class CustomersDal {
   private repo: Repository;
   private pool: Pool;
+  private auditPort: BeAuditPortAdapter;
 
-  constructor(pool: Pool, auditService?: AuditService) {
-    this.repo = new Repository(pool, auditService);
+  constructor(pool: Pool, _auditService?: AuditService) {
+    this.repo = new Repository(pool);
     this.pool = pool;
+    this.auditPort = new BeAuditPortAdapter(this.repo);
   }
 
   async seedIfEmpty(): Promise<void> {
@@ -438,41 +445,42 @@ export class CustomersDal {
       }
     }
 
-    await this.repo.insertMany(CustomerEntity, rows);
+    await this.repo.addMany(CustomerEntity, rows, { actor: "system", audit: this.auditPort });
 
     // Generate audit logs for all records
     await this.seedAuditLogs();
   }
 
   private async seedAuditLogs(): Promise<void> {
-    // Fetch all inserted customers with their full data
-    const allCustomers = await this.pool.query<{
-      id: bigint;
-      uuid: string;
-      email: string;
-      phone: string;
-      status: string;
-      first_name: string;
-      last_name: string;
-      company_name: string;
-      local_address: string;
-      local_city: string;
-      local_state: string;
-      local_country: string;
-      local_zip: string;
-      status_reason: string;
-    }>(
-      `SELECT id, uuid, email, phone, status, first_name, last_name, company_name,
-              local_address, local_city, local_state, local_country, local_zip, status_reason
-       FROM public.customers ORDER BY id`
+    // Fetch all inserted customers with their full data via repo.findAll()
+    const allCustomersRows = await this.repo.findAll<any, any>(
+      CustomerEntity,
+      [
+        Project.field(field(CustomerEntity, "id" as any)),
+        Project.field(field(CustomerEntity, "uuid" as any)),
+        Project.field(field(CustomerEntity, "email" as any)),
+        Project.field(field(CustomerEntity, "phone" as any)),
+        Project.field(field(CustomerEntity, "status" as any)),
+        Project.field(field(CustomerEntity, "first_name" as any)),
+        Project.field(field(CustomerEntity, "last_name" as any)),
+        Project.field(field(CustomerEntity, "company_name" as any)),
+        Project.field(field(CustomerEntity, "local_address" as any)),
+        Project.field(field(CustomerEntity, "local_city" as any)),
+        Project.field(field(CustomerEntity, "local_state" as any)),
+        Project.field(field(CustomerEntity, "local_country" as any)),
+        Project.field(field(CustomerEntity, "local_zip" as any)),
+        Project.field(field(CustomerEntity, "status_reason" as any)),
+      ],
+      { sorting: [Sort.by(field(CustomerEntity, "id" as any), "ASC")] }
     );
+    const allCustomers = allCustomersRows as any[];
 
     const baseTime = new Date();
     baseTime.setUTCHours(10, 0, 0, 0); // Base time for all operations
 
     // Generate audit logs for all records
-    for (let i = 0; i < allCustomers.rows.length; i++) {
-      const customer = allCustomers.rows[i]!;
+    for (let i = 0; i < allCustomers.length; i++) {
+      const customer = allCustomers[i]!;
       const recordNumber = i + 1; // 1-based index
       const insertTime = new Date(baseTime);
       insertTime.setMinutes(insertTime.getMinutes() + i); // Stagger insert times
@@ -679,7 +687,7 @@ export class CustomersDal {
         filters: filters as any,
         sorting,
         deletedRecords: q.deleted_records as any,
-        joins: buildAuditableJoins(CustomerEntity),
+        joins: buildAuditableJoins(CustomerEntity, UserProfileEntity),
       }
     );
 
@@ -697,7 +705,8 @@ export class CustomersDal {
       projectAllExceptId(),
       {
         filters: [Filter.fieldValue(field(CustomerEntity, "uuid"), "=", uuid)] as any,
-        joins: buildAuditableJoins(CustomerEntity),
+        joins: buildAuditableJoins(CustomerEntity, UserProfileEntity),
+        throwIfNotFound: false,
       }
     );
     return row ? this.toDto(row) : null;
@@ -706,7 +715,8 @@ export class CustomersDal {
   async createCustomer(body: CustomerCreateBody): Promise<{ uuid: string }> {
     const uuid = randomUUID();
     const actor = requireActor();
-    await this.repo.insertMany(CustomerEntity, [
+    await this.repo.add(
+      CustomerEntity,
       {
         uuid,
         code: body.code,
@@ -724,24 +734,22 @@ export class CustomersDal {
         local_zip: body.local_zip,
         onboarding_at: body.onboarding_at,
         onboarding_time_zone: body.onboarding_time_zone,
-        created_by: actor,
-        updated_by: actor,
-        version: 1,
       },
-    ]);
+      { actor, audit: this.auditPort }
+    );
     return { uuid };
   }
 
   async updateCustomer(uuid: string, body: CustomerUpdateBody): Promise<void> {
-    await this.repo.update(CustomerEntity, uuid, body, requireActor());
+    await this.repo.update(CustomerEntity, { ...body, uuid }, { actor: requireActor(), audit: this.auditPort });
   }
 
   async deleteCustomer(uuid: string): Promise<void> {
-    await this.repo.delete(CustomerEntity, uuid, requireActor());
+    await this.repo.delete(CustomerEntity, { uuid }, { actor: requireActor(), audit: this.auditPort });
   }
 
   async restoreCustomer(uuid: string): Promise<void> {
-    await this.repo.restore(CustomerEntity, uuid, requireActor());
+    await this.repo.restore(CustomerEntity, { uuid }, { actor: requireActor(), audit: this.auditPort });
   }
 
   async restoreCustomers(uuids: string[]): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {
@@ -768,8 +776,8 @@ export class CustomersDal {
   }
 
   async duplicateCustomer(uuid: string): Promise<{ uuid: string }> {
-    const newUuid = await this.repo.clone(CustomerEntity, uuid, requireActor());
-    return { uuid: newUuid };
+    const cloned = await this.repo.clone(CustomerEntity, uuid, { actor: requireActor(), audit: this.auditPort });
+    return { uuid: (cloned as any).uuid };
   }
 
   async duplicateCustomers(uuids: string[]): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {
@@ -845,56 +853,36 @@ export class CustomersDal {
         filters: filters as any,
         sorting,
         deletedRecords: q.deleted_records as any,
-        joins: buildAuditableJoins(CustomerEntity)
+        joins: buildAuditableJoins(CustomerEntity, UserProfileEntity)
       }
     );
 
-    for (const row of result) {
+    for (const row of result as CustomerDetailRow[]) {
       yield row;
     }
   }
 
   async getCustomerAudit(uuid: string, page: number, limit: number) {
-    const offset = (page - 1) * limit;
-
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM public.customers_audit
-      WHERE entity_uuid = $1
-    `;
-
-    const countResult = await this.pool.query(countQuery, [uuid]);
-    const total = Number(countResult.rows[0].total);
-
-    const query = `
-      SELECT ${getAuditSelectWithDisplayName()}
-      FROM public.customers_audit audit
-      ${getAuditUserJoinSql()}
-      WHERE audit.entity_uuid = $1
-      ORDER BY audit.changed_at DESC, audit.id DESC
-      LIMIT $2 OFFSET $3
-    `;
-
-    const result = await this.pool.query(query, [uuid, limit, offset]);
+    const result = await findAuditPage(this.repo, {
+      tableName: "customers_audit",
+      entityUuid: uuid,
+      page,
+      limit,
+    });
 
     return {
-      data: result.rows.map((row: any) => ({
+      data: result.data.map((row) => ({
         id: row.id.toString(),
         entity_uuid: row.entity_uuid,
         action: row.action,
-        changed_at: entityDateToApiIso(row.changed_at),
+        changed_at: row.changed_at,
         changed_by: row.changed_by,
         changed_by_display_name: row.changed_by_display_name,
         changed_by_idp_code: row.changed_by_idp_code,
         version: row.version,
         delta: row.delta,
       })),
-      pagination: {
-        page,
-        limit,
-        total,
-        hasMore: offset + limit < total,
-      },
+      pagination: result.pagination,
     };
   }
 }

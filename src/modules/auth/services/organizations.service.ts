@@ -12,7 +12,6 @@
  */
 
 import { getPool } from "../../../db/pool.js";
-import { AuditService } from "../../../lib/audit/audit-service.js";
 import { OrganizationsDal, type OrganizationListQuery } from "../organizations_dal.js";
 import { CasdoorService } from "./casdoor.service.js";
 import {
@@ -41,8 +40,7 @@ export class OrganizationsService {
   private getDal(): OrganizationsDal {
     if (this.dal) return this.dal;
     const pool = getPool();
-    const auditService = new AuditService(pool);
-    this.dal = new OrganizationsDal(pool, auditService);
+    this.dal = new OrganizationsDal(pool);
     return this.dal;
   }
 

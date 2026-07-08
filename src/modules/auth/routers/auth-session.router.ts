@@ -24,7 +24,6 @@ import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../rbac.middleware.js";
 import { Permission } from "../permissions.js";
 import { getPool } from "../../../db/pool.js";
-import { AuditService } from "../../../lib/audit/audit-service.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
 import { CasdoorService } from "../services/casdoor.service.js";
 import {
@@ -38,8 +37,7 @@ import { UnauthorizedError } from "../../../http/api-errors.js";
 
 function makeService(): AuthSessionService {
   const pool = getPool();
-  const auditService = new AuditService(pool);
-  const dal = new UserProfilesDal(pool, auditService);
+  const dal = new UserProfilesDal(pool);
   const casdoor = new CasdoorService(pool);
   return new AuthSessionService(pool, dal, casdoor);
 }

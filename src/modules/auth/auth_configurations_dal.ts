@@ -1,13 +1,12 @@
 /**
  * DAL for `auth_configurations` — key/value store for all auth config.
  *
- * Wraps the `Repository` base class. Exposes standard CRUD/finder methods
- * only — no custom non-standard finders, no raw SQL strings.
+ * Wraps the `Repository` from `@primebrick/dal-pg`. Exposes standard CRUD/finder
+ * methods only — no custom non-standard finders, no raw SQL strings.
  */
 
 import type { Pool } from "pg";
-import { Repository } from "../../db/repository/repository.js";
-import { field, Filter } from "../../db/repository/dsl.js";
+import { Repository, field, Filter } from "@primebrick/dal-pg";
 import { AuthConfigurationEntity } from "./auth_configuration_entity.js";
 
 export class AuthConfigurationsDal {
@@ -22,13 +21,14 @@ export class AuthConfigurationsDal {
    * Returns the raw entity rows — the caller reduces them into a key/value map.
    */
   async findAll(): Promise<AuthConfigurationEntity[]> {
-    return this.repo.findAll<AuthConfigurationEntity, AuthConfigurationEntity>(
+    const rows = await this.repo.findAll<AuthConfigurationEntity, AuthConfigurationEntity>(
       AuthConfigurationEntity,
       null,
       {
         deletedRecords: "EXCLUDED",
       }
     );
+    return rows as AuthConfigurationEntity[];
   }
 
   /**
@@ -48,6 +48,7 @@ export class AuthConfigurationsDal {
           ),
         ],
         deletedRecords: "EXCLUDED",
+        throwIfNotFound: false,
       }
     );
   }
@@ -60,14 +61,16 @@ export class AuthConfigurationsDal {
     value: string,
     updatedBy: string
   ): Promise<void> {
-    await this.repo.insertMany(AuthConfigurationEntity, [
+    await this.repo.add(
+      AuthConfigurationEntity,
       {
         key,
         value,
         created_by: updatedBy,
         updated_by: updatedBy,
       },
-    ]);
+      { actor: updatedBy }
+    );
   }
 
   /**
@@ -85,9 +88,12 @@ export class AuthConfigurationsDal {
     } else {
       await this.repo.update(
         AuthConfigurationEntity,
-        existing.uuid,
-        { value, updated_by: updatedBy },
-        updatedBy
+        {
+          uuid: existing.uuid,
+          value,
+          updated_by: updatedBy,
+        },
+        { actor: updatedBy }
       );
     }
   }

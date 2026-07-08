@@ -24,7 +24,6 @@ import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../rbac.middleware.js";
 import { Permission } from "../permissions.js";
 import { getPool } from "../../../db/pool.js";
-import { AuditService } from "../../../lib/audit/audit-service.js";
 import { UserProfilesDal, type UserListQuery } from "../user-profiles-dal.js";
 import { CasdoorService } from "../services/casdoor.service.js";
 import { UserService } from "../services/user.service.js";
@@ -42,8 +41,7 @@ import { ValidationError } from "../../../http/api-errors.js";
 
 function makeUserService(): UserService {
   const pool = getPool();
-  const auditService = new AuditService(pool);
-  const dal = new UserProfilesDal(pool, auditService);
+  const dal = new UserProfilesDal(pool);
   const casdoor = new CasdoorService(pool);
   return new UserService(pool, dal, casdoor);
 }

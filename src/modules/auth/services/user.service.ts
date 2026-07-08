@@ -89,18 +89,28 @@ export class UserService {
       idpUsername = newUser.name || username;
     }
 
-    // 2. Create local profile (JIT-style provisioning)
+    // 2. Create local profile via DAL (repo.add — no manual audit field setting)
     const idpCode = casdoorUserId;
-    const now = new Date();
     const newUuid = randomUUID();
     const issuer = cfg.casdoor_endpoint || null;
 
-    await this.pool.query(
-      `INSERT INTO public.user_profiles
-       (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, is_verified, email_verified, issuer, roles, last_synced_at, created_at, created_by, updated_at, updated_by, version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 1)`,
-      [newUuid, idpCode, email, display_name, idpOrg, idpUsername, defaultColor, calculatedInitials, is_active, is_admin, is_verified, email_verified, issuer, roles ? JSON.stringify(roles) : null, now, now, actor, now, actor],
-    );
+    await this.dal.createProfile({
+      uuid: newUuid,
+      idp_code: idpCode,
+      email,
+      display_name,
+      idp_org: idpOrg,
+      idp_username: idpUsername,
+      avatar_color: defaultColor,
+      avatar_initials: calculatedInitials,
+      is_active,
+      is_admin,
+      is_verified,
+      email_verified,
+      issuer,
+      roles: roles ?? null,
+      last_synced_at: new Date(),
+    });
 
     const profile = await this.dal.getByUuid(newUuid);
     if (!profile) {
