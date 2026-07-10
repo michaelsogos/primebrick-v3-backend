@@ -1,6 +1,6 @@
 import { makeProtectedRouter } from "../../http/protected-router.js";
 import { rbacHandler } from "../auth/rbac.middleware.js";
-import { Permission } from "../auth/permissions.js";
+import { Permission } from "@primebrick/sdk";
 import { asyncHandler } from "../../http/async-handler.js";
 import { getPool } from "../../db/pool.js";
 import { OrganizationsDal } from "../auth/organizations_dal.js";

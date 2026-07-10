@@ -22,7 +22,7 @@ import type { Pool } from "pg";
 import { getAuthConfig } from "../config.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
 import { CasdoorService } from "./casdoor.service.js";
-import { requireActor } from "../session-context.js";
+import { requireActor } from "@primebrick/sdk";
 import {
   ApiError,
   NotFoundError,

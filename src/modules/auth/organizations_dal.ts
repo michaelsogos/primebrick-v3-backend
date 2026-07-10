@@ -14,7 +14,7 @@ import {
 import { OrganizationEntity } from "./organization_entity.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
-import { requireActor } from "./session-context.js";
+import { requireActor } from "@primebrick/sdk";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { findAuditPage } from "../../db/audit-query-helper.js";
 

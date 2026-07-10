@@ -16,7 +16,7 @@ import { makeProtectedRouter } from "../../../http/protected-router.js";
 import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { rbacHandler } from "../rbac.middleware.js";
-import { Permission } from "../permissions.js";
+import { Permission } from "@primebrick/sdk";
 import { getPool } from "../../../db/pool.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
 import { CasdoorService } from "../services/casdoor.service.js";

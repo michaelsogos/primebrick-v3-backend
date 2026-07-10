@@ -17,7 +17,7 @@ import type { Pool } from "pg";
 import { UserProfilesDal, type UserListQuery, type UserListResponse } from "../user-profiles-dal.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { getAuthConfig } from "../config.js";
-import { requireActor } from "../session-context.js";
+import { requireActor } from "@primebrick/sdk";
 import { ApiError, NotFoundError, ValidationError } from "../../../http/api-errors.js";
 import type { CreateUserBody, UpdateUserBody, UserUpdateBody } from "../dto.js";
 import type { UserProfileDetailDto } from "../user-profiles-dal.js";

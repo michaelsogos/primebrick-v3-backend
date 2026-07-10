@@ -1,7 +1,7 @@
 import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
-import { extJsonMiddleware } from "@primebrick/sdk";
+import { extJsonMiddleware, Permission } from "@primebrick/sdk";
 import { mountModules } from "./modules/index.js";
 import { Pool } from "pg";
 import CasdoorSDK from "casdoor-nodejs-sdk";
@@ -12,11 +12,10 @@ import { getPool } from "./db/pool.js";
 import { isDatabaseUnavailableError } from "./http/api-errors.js";
 import { makeProtectedRouter } from "./http/protected-router.js";
 import { rbacHandler } from "./modules/auth/rbac.middleware.js";
-import { Permission } from "./modules/auth/permissions.js";
-import { loadRoleMappings } from "./modules/auth/auth.middleware.js";
+import { loadRoleMappings, initAuthPorts } from "./modules/auth/auth.middleware.js";
 import { loadAuthConfig } from "./modules/auth/config.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
-import "./modules/auth/types.js";
+import "./modules/auth/express-augmentation.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -187,6 +186,7 @@ void runStartupTasks().catch((err) => {
 });
 
 async function runStartupTasks(): Promise<void> {
+  initAuthPorts();
   await refreshRoleMappings();
   await refreshAuthConfig();
 }

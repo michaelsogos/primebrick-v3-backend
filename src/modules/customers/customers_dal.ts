@@ -17,7 +17,7 @@ import { UserProfileEntity } from "../auth/user_profile_entity.js";
 import type { CustomerCreateBody, CustomerUpdateBody, CustomerListQuery } from "./dto.js";
 import { CUSTOMER_SEARCHABLE_KEYS, CUSTOMER_FILTERABLE_KEYS } from "./list-config.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
-import { requireActor } from "../auth/session-context.js";
+import { requireActor } from "@primebrick/sdk";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { findAuditPage } from "../../db/audit-query-helper.js";
 

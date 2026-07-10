@@ -28,7 +28,7 @@ import { asyncHandler } from "../../http/async-handler.js";
 import { validateBody, validateQuery } from "../../http/validation.js";
 import { isDatabaseUnavailableError } from "../../http/api-errors.js";
 import { rbacHandler } from "../auth/rbac.middleware.js";
-import { Permission } from "../auth/permissions.js";
+import { Permission } from "@primebrick/sdk";
 import { runBulkAction, sendBulkOutcome } from "../../lib/bulk/bulk-action-runner.js";
 import {
   CustomerCreateBodySchema,

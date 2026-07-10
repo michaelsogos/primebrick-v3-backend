@@ -27,7 +27,7 @@ import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../rbac.middleware.js";
-import { Permission } from "../permissions.js";
+import { Permission } from "@primebrick/sdk";
 import { organizationMeta } from "../organizations.meta.js";
 import { OrganizationsService } from "../services/organizations.service.js";
 import { ValidationError } from "../../../http/api-errors.js";

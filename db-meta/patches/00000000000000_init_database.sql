@@ -308,7 +308,7 @@ ON CONFLICT (idp_role) DO NOTHING;
 
 INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
 VALUES ('sales',
-  '["customers:list", "customers:read", "customers:create", "customers:update"]'::jsonb,
+  '["customers.read.all", "customers.read.single", "customers.create.single", "customers.update.single"]'::jsonb,
   false,
   '2026-05-18T14:27:00Z',
   'system',
@@ -320,7 +320,7 @@ ON CONFLICT (idp_role) DO NOTHING;
 
 INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
 VALUES ('customer_service',
-  '["customers:list", "customers:read", "customers:update"]'::jsonb,
+  '["customers.read.all", "customers.read.single", "customers.update.single"]'::jsonb,
   false,
   '2026-05-18T14:27:00Z',
   'system',

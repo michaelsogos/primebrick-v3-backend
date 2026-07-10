@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { AuthConfigurationsDal } from "./auth_configurations_dal.js";
-import { AuthMode } from "./config.js";
+import { AuthMode } from "@primebrick/sdk";
 
 /**
  * Auth configuration loaded from the `auth_configurations` table.

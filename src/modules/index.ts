@@ -19,6 +19,7 @@ import { customersRouter } from "./customers/router.js";
 import { organizationsRouter } from "./auth/routers/organizations.router.js";
 import { systemRouter } from "./system/system-router.js";
 import { authRouter } from "./auth/router.js";
+import { proxyRouter } from "./proxy/proxy-router.js";
 
 export function mountModules(app: Express): void {
   app.use(customersRouter());
@@ -26,4 +27,6 @@ export function mountModules(app: Express): void {
   app.use(systemRouter());
   // Auth router (public login endpoint + protected user/organization surface).
   app.use(authRouter());
+  // Generic microservice proxy (/ws/:serviceCode/* → microservice /api/*).
+  app.use(proxyRouter());
 }
