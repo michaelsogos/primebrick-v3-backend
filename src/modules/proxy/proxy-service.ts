@@ -6,10 +6,14 @@
  *
  * The proxy:
  *   1. Authenticates the caller (via rbacHandler([AUTHENTICATED_USER]) on the route)
- *   2. Looks up the service base_url by code (cached, TTL 60s)
- *   3. Serializes the resolved AuthUser into headers (GATEWAY-RESOLVED mode)
- *   4. Forwards the HTTP method + path + body + auth headers
- *   5. Returns the microservice response (status + body + headers)
+ *   2. Looks up all instances for the service code from the DB
+ *   3. Filters to only status='online' instances
+ *   4. If 0 online + some going_live → RFC 7807 503 (service degraded)
+ *      If 0 online + 0 going_live → RFC 7807 502 (service offline)
+ *   5. Round-robins among online instances
+ *   6. Serializes the resolved AuthUser into headers (GATEWAY-RESOLVED mode)
+ *   7. Forwards the HTTP method + path + body + auth headers
+ *   8. Returns the microservice response (status + body + headers)
  *
  * Error handling:
  *   - US microservices return RFC 7807 Problem Details JSON for all errors.
@@ -27,7 +31,10 @@ import {
   getAuthConfig,
   serializeAuthUserToHeaders,
 } from "@primebrick/sdk";
-import { findServiceByCodeCached } from "./service-registry-repo.js";
+import { ServiceRegistryRepo, type ServiceRegistryEntry } from "./service-registry-repo.js";
+
+// Round-robin counters (in-memory, per process, per service code)
+const rrCounters = new Map<string, number>();
 
 /**
  * Forward a proxied request to the target microservice.
@@ -48,8 +55,10 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
   }
 
   const pool = getPool();
-  const service = await findServiceByCodeCached(pool, serviceCode);
-  if (!service) {
+  const repo = new ServiceRegistryRepo(pool);
+  const allInstances = await repo.findAllByCode(serviceCode);
+
+  if (allInstances.length === 0) {
     res.status(404).json({
       type: "https://primebrick.io/errors/service-not-found",
       title: "Service not found",
@@ -61,14 +70,41 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  const onlineInstances = allInstances.filter((i) => i.status === "online");
+
+  if (onlineInstances.length === 0) {
+    const hasGoingLive = allInstances.some((i) => i.status === "going_live");
+    if (hasGoingLive) {
+      res.status(503).json({
+        type: "https://primebrick.io/errors/service-degraded",
+        title: "Service degraded",
+        status: 503,
+        detail: `Microservice '${serviceCode}' is degraded — no healthy instances available`,
+        internal_code: "SERVICE_DEGRADED",
+        severity: "HIGH",
+      });
+    } else {
+      res.status(502).json({
+        type: "https://primebrick.io/errors/service-offline",
+        title: "Service offline",
+        status: 502,
+        detail: `Microservice '${serviceCode}' is offline — no instances available`,
+        internal_code: "SERVICE_OFFLINE",
+        severity: "CRITICAL",
+      });
+    }
+    return;
+  }
+
+  // Round-robin among online instances
+  const counter = rrCounters.get(serviceCode) ?? 0;
+  const instance = onlineInstances[counter % onlineInstances.length];
+  rrCounters.set(serviceCode, counter + 1);
+
   // Build the target URL: {base_url}/api/{path_after_serviceCode}
-  // The proxy router is mounted at "/" with route "/ws/:serviceCode/*",
-  // so req.url is the full path, e.g. "/ws/EMAILSENDER/v1/providers?foo=bar".
-  // We strip the "/ws/{serviceCode}" prefix and prepend "/api" so the
-  // microservice receives "/api/v1/providers?foo=bar".
   const pathAfterService = req.url.replace(/^\/ws\/[^/]+/, "");
   const targetPath = `/api${pathAfterService}`;
-  const targetUrl = new URL(targetPath, service.base_url).toString();
+  const targetUrl = new URL(targetPath, instance.base_url).toString();
 
   // Serialize the resolved AuthUser into headers for the microservice (GATEWAY-RESOLVED mode)
   let authHeaders: Record<string, string> = {};
@@ -95,8 +131,6 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
     const body = await response.text();
 
     // Log non-2xx responses from the US to the BE console with full detail.
-    // The body is already RFC 7807 JSON from the US — log it so the BE
-    // console shows the source error.
     if (!response.ok) {
       let parsedBody: unknown = body;
       try {
@@ -125,7 +159,6 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
     }
 
     // Pass the response body through as-is.
-    // US errors are already RFC 7807 JSON — the FE handles them natively.
     res.send(body);
   } catch (err) {
     // Network error — US is unreachable
@@ -139,7 +172,7 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
       type: "https://primebrick.io/errors/bad-gateway",
       title: "Bad Gateway",
       status: 502,
-      detail: `Microservice '${serviceCode}' is unreachable at ${service.base_url}`,
+      detail: `Microservice '${serviceCode}' is unreachable at ${instance.base_url}`,
       internal_code: "BAD_GATEWAY",
       severity: "HIGH",
     });

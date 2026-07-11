@@ -1,7 +1,7 @@
 import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
-import { extJsonMiddleware, Permission } from "@primebrick/sdk";
+import { extJsonMiddleware, Permission, NatsClient } from "@primebrick/sdk";
 import { mountModules } from "./modules/index.js";
 import { Pool } from "pg";
 import CasdoorSDK from "casdoor-nodejs-sdk";
@@ -19,6 +19,9 @@ import "./modules/auth/express-augmentation.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { ServiceRegistryRepo } from "./modules/proxy/service-registry-repo.js";
+import { ServiceLifecycleSubscriber } from "./modules/proxy/service-lifecycle-subscriber.js";
+import { StaleDetectionJob } from "./modules/proxy/stale-detection-job.js";
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
@@ -28,12 +31,10 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(extJsonMiddleware());
 
-type HealthModule = { id: string; version: string };
 type HealthPayload = {
   ok: true;
   service: "primebrick-api";
   version: string;
-  modules: HealthModule[];
   db: { ok: boolean };
   idp: { ok: boolean; type?: string; version?: string };
 };
@@ -46,10 +47,6 @@ function readBackendVersion(): string {
 }
 
 const BACKEND_VERSION = readBackendVersion();
-const INSTALLED_MODULES: HealthModule[] = [
-  // NOTE: This is the product/module version, not the API package version.
-  { id: "crm", version: BACKEND_VERSION },
-];
 
 async function checkDb(): Promise<{ ok: boolean }> {
   try {
@@ -130,7 +127,6 @@ async function healthPayload(): Promise<HealthPayload> {
     ok: true,
     service: "primebrick-api",
     version: BACKEND_VERSION,
-    modules: INSTALLED_MODULES,
     db: await checkDb(),
     idp: await checkIdp(pool),
   };
@@ -155,13 +151,15 @@ app.use(openApiRouter());
 
 // Use makeProtectedRouter for /modules endpoint
 const apiRouter = makeProtectedRouter();
-apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), (_req, res) => {
+apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_req, res) => {
+  const repo = new ServiceRegistryRepo(getPool());
+  const services = await repo.findAll();
   res.json({
-    modules: [
-      { id: "crm", name: "CRM", enabled: true },
-      { id: "accounting", name: "Accounting", enabled: false },
-      { id: "warehouse", name: "Warehouse", enabled: false },
-    ],
+    modules: services.map((s) => ({
+      id: s.code.toLowerCase(),
+      name: s.name || s.code,
+      enabled: true,
+    })),
   });
 });
 
@@ -189,6 +187,7 @@ async function runStartupTasks(): Promise<void> {
   initAuthPorts();
   await refreshRoleMappings();
   await refreshAuthConfig();
+  await startServiceLifecycle();
 }
 
 async function refreshRoleMappings(): Promise<void> {
@@ -212,5 +211,21 @@ async function refreshAuthConfig(): Promise<void> {
       err
     );
     setTimeout(() => void refreshAuthConfig().catch(() => {}), 5000);
+  }
+}
+
+async function startServiceLifecycle(): Promise<void> {
+  try {
+    await NatsClient.getConnection();
+    const subscriber = new ServiceLifecycleSubscriber();
+    await subscriber.start();
+    const staleJob = new StaleDetectionJob();
+    staleJob.start();
+  } catch (err) {
+    console.warn(
+      "[startup] NATS connection failed (service lifecycle subscriber not started). Retrying in 5s.",
+      err
+    );
+    setTimeout(() => void startServiceLifecycle().catch(() => {}), 5000);
   }
 }

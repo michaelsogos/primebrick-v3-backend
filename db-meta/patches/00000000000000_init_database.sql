@@ -289,6 +289,14 @@ CREATE TABLE IF NOT EXISTS "public"."service_registry" (
   "code" varchar(100) NOT NULL,
   "base_url" text NOT NULL,
   "endpoints" jsonb NOT NULL,
+  "name" text,
+  "description" text,
+  "author" text,
+  "github_repo_url" text,
+  "service_version" text,
+  "is_behind_scaler" boolean NOT NULL DEFAULT false,
+  "status" text NOT NULL DEFAULT 'unknown',
+  "last_health_check_at" timestamptz,
   "created_at" timestamptz DEFAULT now(),
   "created_by" text,
   "updated_at" timestamptz DEFAULT now(),
@@ -298,6 +306,14 @@ CREATE TABLE IF NOT EXISTS "public"."service_registry" (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_uuid_uq" ON "public"."service_registry" ("uuid");
+
+-- One row per code when behind scaler
+CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_uq_scaler"
+  ON "public"."service_registry" ("code") WHERE is_behind_scaler = true;
+
+-- One row per (code, base_url) when not behind scaler
+CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_base_url_uq"
+  ON "public"."service_registry" ("code", "base_url") WHERE is_behind_scaler = false;
 
 -- === Seed Data ===
 

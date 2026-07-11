@@ -6,6 +6,7 @@ import { getPool } from "../../db/pool.js";
 import { OrganizationsDal } from "../auth/organizations_dal.js";
 import { RoleMappingRepo } from "../auth/role-mapping-repo.js";
 import { loadAuthConfigFromDb } from "../auth/config-repo.js";
+import { ServiceRegistryRepo } from "../proxy/service-registry-repo.js";
 import {
   parsePasswordPolicy,
   getPasswordPolicyConfig,
@@ -71,6 +72,17 @@ export function systemRouter() {
         checklistRules: config.checklistRules,
         specialChars: PASSWORD_SPECIAL_CHARS,
       });
+    })
+  );
+
+  // GET /api/v1/system/services - All registered microservices with health status (DB read only)
+  router.get(
+    "/api/v1/system/services",
+    rbacHandler([Permission.AUTHENTICATED_USER]),
+    asyncHandler(async (_req, res) => {
+      const repo = new ServiceRegistryRepo(getPool());
+      const services = await repo.findAll();
+      res.json({ services });
     })
   );
 

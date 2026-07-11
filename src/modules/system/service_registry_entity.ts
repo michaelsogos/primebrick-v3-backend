@@ -25,6 +25,30 @@ export class ServiceRegistryEntity implements IAuditableEntity {
   @Column({ pgType: "jsonb", nullable: false })
   endpoints: Record<string, unknown>;
 
+  @Column({ nullable: true })
+  name?: string;
+
+  @Column({ nullable: true })
+  description?: string;
+
+  @Column({ nullable: true })
+  author?: string;
+
+  @Column({ nullable: true })
+  github_repo_url?: string;
+
+  @Column({ nullable: true })
+  service_version?: string;
+
+  @Column({ nullable: false, defaultSql: "false" })
+  is_behind_scaler: boolean;
+
+  @Column({ nullable: false, defaultSql: "'unknown'" })
+  status: string;
+
+  @Column({ pgType: "timestamptz", nullable: true })
+  last_health_check_at?: Date;
+
   @AuditableField(AuditableFieldType.CREATED_AT)
   created_at: Date;
 
