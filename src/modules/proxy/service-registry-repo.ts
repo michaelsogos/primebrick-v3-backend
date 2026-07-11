@@ -21,6 +21,10 @@ export interface ServiceRegistryEntry {
   is_behind_scaler: boolean;
   status: string;
   last_health_check_at?: Date;
+  is_enabled: boolean;
+  icon?: string;
+  icon_type: string;
+  is_reserved: boolean;
   uuid?: string;
 }
 
@@ -111,6 +115,30 @@ export class ServiceRegistryRepo {
     );
   }
 
+  async hardDeleteByCode(code: string): Promise<void> {
+    await this.repo.hardDelete(
+      ServiceRegistryEntity,
+      { code } as any,
+      { actor: "system", matchBy: "code" },
+    );
+  }
+
+  async toggleEnabled(code: string, isEnabled: boolean): Promise<void> {
+    await this.repo.update(
+      ServiceRegistryEntity,
+      { code, is_enabled: isEnabled } as any,
+      { actor: "system", matchBy: "code" },
+    );
+  }
+
+  async updateByCodeAdmin(code: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
+    await this.repo.update(
+      ServiceRegistryEntity,
+      { code, ...row } as any,
+      { actor: "system", matchBy: "code" },
+    );
+  }
+
   private fullProjection() {
     return [
       Project.field(field(ServiceRegistryEntity, "code" as any)),
@@ -124,6 +152,10 @@ export class ServiceRegistryRepo {
       Project.field(field(ServiceRegistryEntity, "is_behind_scaler" as any)),
       Project.field(field(ServiceRegistryEntity, "status" as any)),
       Project.field(field(ServiceRegistryEntity, "last_health_check_at" as any)),
+      Project.field(field(ServiceRegistryEntity, "is_enabled" as any)),
+      Project.field(field(ServiceRegistryEntity, "icon" as any)),
+      Project.field(field(ServiceRegistryEntity, "icon_type" as any)),
+      Project.field(field(ServiceRegistryEntity, "is_reserved" as any)),
       Project.field(field(ServiceRegistryEntity, "uuid" as any)),
     ];
   }

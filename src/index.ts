@@ -22,6 +22,7 @@ import { dirname, resolve } from "node:path";
 import { ServiceRegistryRepo } from "./modules/proxy/service-registry-repo.js";
 import { ServiceLifecycleSubscriber } from "./modules/proxy/service-lifecycle-subscriber.js";
 import { StaleDetectionJob } from "./modules/proxy/stale-detection-job.js";
+import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
@@ -155,12 +156,35 @@ apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_re
   const repo = new ServiceRegistryRepo(getPool());
   const services = await repo.findAll();
   res.json({
-    modules: services.map((s) => ({
-      id: s.code.toLowerCase(),
-      name: s.name || s.code,
-      enabled: true,
-    })),
+    modules: services.map((s) => {
+      const navMeta = buildModuleNavMeta(s.code);
+      return {
+        id: s.code.toLowerCase(),
+        name: s.name || s.code,
+        enabled: s.is_enabled,
+        icon: s.icon || navMeta?.icon,
+        route_prefixes: navMeta?.route_prefixes,
+        is_reserved: s.is_reserved,
+      };
+    }),
   });
+});
+
+apiRouter.get("/modules/:code/meta", rbacHandler([Permission.MODULES_READ_ALL]), async (req, res) => {
+  const code = req.params.code as string;
+  const meta = buildModuleNavMeta(code);
+  if (!meta) {
+    res.status(404).json({
+      type: "about:blank",
+      title: "Module not found",
+      status: 404,
+      detail: `No module with code '${code}'`,
+    });
+    return;
+  }
+  // Strip route_prefixes + is_reserved from the response — only needed in the /modules list
+  const { route_prefixes: _rp, is_reserved: _ir, ...navMeta } = meta;
+  res.json(navMeta);
 });
 
 app.use("/api/v1", apiRouter);
