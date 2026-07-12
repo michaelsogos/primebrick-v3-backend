@@ -1,5 +1,5 @@
-import { Pool } from "pg";
-import { Repository } from "../../db/repository/repository.js";
+import type { Pool } from "pg";
+import { Repository, Project, field, Filter } from "@primebrick/dal-pg";
 import { RoleMappingEntity } from "./role_mapping_entity.js";
 
 interface RoleMappingRow {
@@ -27,12 +27,19 @@ export class RoleMappingRepo {
    * Returns a map of idp_role → { permissions, is_admin, label_key }.
    */
   async loadAllMappings(): Promise<Map<string, { permissions: string[]; is_admin: boolean; label_key?: string }>> {
-    const rows = await this.repo.rawSql<RoleMappingRow>(
-      `SELECT idp_role, label_key, permissions, is_admin FROM role_mappings`
+    const rows = await this.repo.findAll<RoleMappingEntity, RoleMappingRow>(
+      RoleMappingEntity,
+      [
+        Project.field(field(RoleMappingEntity, "idp_role" as any)),
+        Project.field(field(RoleMappingEntity, "label_key" as any)),
+        Project.field(field(RoleMappingEntity, "permissions" as any)),
+        Project.field(field(RoleMappingEntity, "is_admin" as any)),
+      ],
     );
+    const list = rows as RoleMappingRow[];
 
     const map = new Map<string, { permissions: string[]; is_admin: boolean; label_key?: string }>();
-    for (const row of rows) {
+    for (const row of list) {
       map.set(row.idp_role, {
         permissions: row.permissions || [],
         is_admin: row.is_admin || false,
@@ -52,35 +59,26 @@ export class RoleMappingRepo {
     isAdmin: boolean,
     labelKey?: string
   ): Promise<void> {
-    const existing = await this.repo.rawSql<{ id: number }>(
-      `SELECT id FROM role_mappings WHERE idp_role = $1`,
-      [idpRole]
+    await this.repo.upsert(
+      RoleMappingEntity,
+      {
+        idp_role: idpRole,
+        label_key: labelKey,
+        permissions,
+        is_admin: isAdmin,
+      },
+      { actor: "system", conflictTarget: "idp_role" }
     );
-
-    if (existing.length === 0) {
-      await this.repo.insertMany(RoleMappingEntity, [
-        {
-          idp_role: idpRole,
-          label_key: labelKey,
-          permissions,
-          is_admin: isAdmin,
-        },
-      ]);
-    } else {
-      await this.repo.rawSql(
-        `UPDATE role_mappings SET permissions = $1, is_admin = $2, label_key = $3, updated_at = CURRENT_TIMESTAMP WHERE idp_role = $4`,
-        [permissions, isAdmin, labelKey || null, idpRole]
-      );
-    }
   }
 
   /**
    * Delete a role mapping.
    */
   async deleteMapping(idpRole: string): Promise<void> {
-    await this.repo.rawSql(
-      `DELETE FROM role_mappings WHERE idp_role = $1`,
-      [idpRole]
+    await this.repo.hardDelete(
+      RoleMappingEntity,
+      { idp_role: idpRole },
+      { actor: "system", matchBy: "idp_role" }
     );
   }
 }

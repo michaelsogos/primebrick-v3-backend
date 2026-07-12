@@ -3,12 +3,17 @@
   "version": "0.23.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "24"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "dev:kill": "node scripts/kill-port-3001.mjs",
     "version:auto": "node scripts/version-sync.mjs",
     "prebuild": "node scripts/version-sync.mjs",
     "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prestart": "pnpm run build",
     "start": "node dist/index.js",
     "db:meta:compare": "tsx scripts/database-patch-compare.ts",
@@ -18,26 +23,30 @@
     "setup:casdoor": "tsx scripts/setup-casdoor.ts"
   },
   "dependencies": {
-    "casdoor-nodejs-sdk": "^1.34.0",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^16.6.1",
-    "exceljs": "^4.4.0",
-    "express": "^4.22.2",
-    "handlebars": "^4.7.9",
-    "jose": "^6.2.3",
-    "openid-client": "^6.8.4",
-    "pg": "^8.21.0",
-    "reflect-metadata": "^0.2.2",
-    "zod": "^4.4.3"
+    "@primebrick/dal-pg": "file:../primebrick-dal-v3",
+    "@primebrick/sdk": "file:../primebrick-v3-sdk",
+    "casdoor-nodejs-sdk": "1.34.0",
+    "cookie-parser": "1.4.7",
+    "cors": "2.8.6",
+    "dotenv": "17.4.2",
+    "exceljs": "4.4.0",
+    "express": "4.22.2",
+    "handlebars": "4.7.9",
+    "jose": "6.2.3",
+    "nats": "2.29.3",
+    "openid-client": "6.8.4",
+    "pg": "8.22.0",
+    "reflect-metadata": "0.2.2",
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "@types/cookie-parser": "^1.4.10",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.6",
-    "@types/node": "^24.12.4",
-    "@types/pg": "^8.11.10",
-    "tsx": "^4.22.3",
-    "typescript": "^5.7.2"
+    "@types/cookie-parser": "1.4.10",
+    "@types/cors": "2.8.19",
+    "@types/express": "5.0.6",
+    "@types/node": "24.13.3",
+    "@types/pg": "8.20.0",
+    "tsx": "4.23.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
   }
 }

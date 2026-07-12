@@ -1,4 +1,4 @@
-import { EntityClass } from "../../domain/entities/entity-meta.js";
+import { EntityClass } from "@primebrick/dal-pg";
 import { UserProfileEntity } from "../../modules/auth/user_profile_entity.js";
 import { Join, field } from "./dsl.js";
 

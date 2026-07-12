@@ -1,4 +1,4 @@
-import type { EntityClass } from "../../domain/entities/entity-meta.js";
+import type { EntityClass } from "@primebrick/dal-pg";
 
 export type SqlOperator =
   | "="

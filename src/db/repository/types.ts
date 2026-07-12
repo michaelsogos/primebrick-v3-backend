@@ -17,6 +17,6 @@ export type FindOptions = {
 
 export type PaginatedEntity<TEntity> = {
   entities: TEntity[];
-  total_records: number;
+  total_records: bigint;
 };
 

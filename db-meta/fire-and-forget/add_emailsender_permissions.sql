@@ -1,0 +1,14 @@
+-- Fire-and-forget: Add emailsender permissions to existing role_mappings.
+-- The administrators role has is_admin=true and bypasses all checks, so no change needed.
+-- Add emailsender permissions to collaborator-like roles as needed.
+-- Run this ONCE on the existing live database.
+
+-- No automatic role permission grants — the admin manages role_mappings via the BE.
+-- This file is a placeholder for documenting that emailsender permissions exist:
+--   emailsender.providers.read.all
+--   emailsender.providers.read.single
+--   emailsender.providers.create
+--   emailsender.providers.update
+--   emailsender.providers.delete
+--   emailsender.send
+--   emailsender.log.create

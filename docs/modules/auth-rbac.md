@@ -2,6 +2,8 @@
 
 OAuth2 / OIDC authentication and role-based access control for the Primebrick backend.
 
+> **Source code:** [`src/modules/auth/`](../../src/modules/auth/)
+
 ## Overview
 
 The module provides:
@@ -171,8 +173,8 @@ middleware guarantees presence and throws `UnauthorizedError` otherwise.
 - Roles are flexible and can match any organizational structure (Sales, HR, Ops, etc.) or entity-specific groups
 
 Unknown roles in user tokens are kept on `req.user.roles` (so the application
-can read them for display) but grant no permissions unless registered in
-the `role_mappings` table.
+can read them for display) but grant no permissions unless registered in the
+`role_mappings` table.
 
 ## Security notes
 

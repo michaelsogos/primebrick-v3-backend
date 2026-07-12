@@ -2,16 +2,21 @@ import { randomUUID } from "node:crypto";
 
 import type { Pool } from "pg";
 
-import { entityDateToApiIso } from "../../domain/entities/entity-meta.js";
-import { Repository } from "../../db/repository/repository.js";
-import { field, Filter, Sort, Join, type FilterExpr } from "../../db/repository/dsl.js";
-import { buildAuditableJoins } from "../../db/repository/auditable-joins.js";
-import { WithAuditableDisplayNames } from "../../db/repository/auditable-types.js";
+import {
+  entityDateToApiIso,
+  Repository,
+  field, Filter, Sort, Join, Project,
+  buildAuditableJoins,
+  type FilterExpr,
+  type WithAuditableDisplayNames,
+} from "@primebrick/dal-pg";
 
 import { OrganizationEntity } from "./organization_entity.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
-import { requireActor } from "./session-context.js";
+import { requireActor } from "@primebrick/sdk";
+import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
+import { findAuditPage } from "../../db/audit-query-helper.js";
 
 export type OrganizationDetailRow = WithAuditableDisplayNames<{
   uuid: string;
@@ -20,6 +25,7 @@ export type OrganizationDetailRow = WithAuditableDisplayNames<{
   idp_name?: string;
   display_name?: string;
   website_url?: string;
+  avatar?: string;
   last_synced_at?: Date;
   user_count?: number;
   created_at: Date;
@@ -57,16 +63,16 @@ export type OrganizationListResponse = {
   rows: OrganizationDetailDto[];
   page: number;
   page_size: number;
-  total: number;
+  total: bigint;
 };
 
 export class OrganizationsDal {
   private repo: Repository;
-  private pool: Pool;
+  private auditPort: BeAuditPortAdapter;
 
-  constructor(pool: Pool, auditService?: AuditService) {
-    this.repo = new Repository(pool, auditService);
-    this.pool = pool;
+  constructor(pool: Pool, _auditService?: AuditService) {
+    this.repo = new Repository(pool);
+    this.auditPort = new BeAuditPortAdapter(this.repo);
   }
 
   private toDto(r: OrganizationDetailRow): OrganizationDetailDto {
@@ -85,7 +91,8 @@ export class OrganizationsDal {
       null,
       {
         filters: [Filter.fieldValue(field(OrganizationEntity, "uuid" as any), "=", uuid)] as any,
-        joins: buildAuditableJoins(OrganizationEntity),
+        joins: buildAuditableJoins(OrganizationEntity, UserProfileEntity),
+        throwIfNotFound: false,
       }
     );
     return row ? this.toDto(row) : null;
@@ -97,7 +104,8 @@ export class OrganizationsDal {
       null,
       {
         filters: [Filter.fieldValue(field(OrganizationEntity, "idp_code" as any), "=", idpCode)] as any,
-        joins: buildAuditableJoins(OrganizationEntity),
+        joins: buildAuditableJoins(OrganizationEntity, UserProfileEntity),
+        throwIfNotFound: false,
       }
     );
     return row ? this.toDto(row) : null;
@@ -156,26 +164,7 @@ export class OrganizationsDal {
         filters: baseFilters.length > 0 ? baseFilters : undefined,
         sorting,
         deletedRecords: deleted_records as any,
-        joins: [
-          Join.on(
-            field(UserProfileEntity, "uuid"),
-            field(OrganizationEntity, "created_by"),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "creator" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid"),
-            field(OrganizationEntity, "updated_by"),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "updater" }
-          ),
-          Join.on(
-            field(UserProfileEntity, "uuid"),
-            field(OrganizationEntity, "deleted_by"),
-            "LEFT",
-            { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
-          ),
-        ],
+        joins: buildAuditableJoins(OrganizationEntity, UserProfileEntity),
       }
     );
 
@@ -203,10 +192,10 @@ export class OrganizationsDal {
     website_url?: string;
   }): Promise<{ uuid: string }> {
     const uuid = randomUUID();
-    const now = new Date();
     const actor = requireActor();
 
-    await this.repo.insertMany(OrganizationEntity, [
+    await this.repo.add(
+      OrganizationEntity,
       {
         uuid,
         idp_code: data.idp_code,
@@ -214,13 +203,9 @@ export class OrganizationsDal {
         idp_name: data.idp_name,
         display_name: data.display_name,
         website_url: data.website_url,
-        created_at: now,
-        created_by: actor,
-        updated_at: now,
-        updated_by: actor,
-        version: 1,
       },
-    ]);
+      { actor, audit: this.auditPort }
+    );
 
     return { uuid };
   }
@@ -229,27 +214,32 @@ export class OrganizationsDal {
     uuid: string,
     data: { display_name?: string; website_url?: string; idp_owner?: string; idp_name?: string; last_synced_at?: Date }
   ): Promise<void> {
-    await this.repo.update(OrganizationEntity, uuid, data, requireActor());
+    await this.repo.update(OrganizationEntity, { ...data, uuid }, { actor: requireActor(), audit: this.auditPort });
   }
 
   async deleteOrganization(uuid: string): Promise<void> {
-    await this.repo.delete(OrganizationEntity, uuid, requireActor());
+    await this.repo.delete(OrganizationEntity, { uuid }, { actor: requireActor(), audit: this.auditPort });
   }
 
   async restoreOrganization(uuid: string): Promise<void> {
-    await this.repo.restore(OrganizationEntity, uuid, requireActor());
+    await this.repo.restore(OrganizationEntity, { uuid }, { actor: requireActor(), audit: this.auditPort });
   }
 
   async getUserCountForOrganization(idpCode: string): Promise<number> {
-    const query = `
-      SELECT COUNT(*) as count
-      FROM public.user_profiles
-      WHERE idp_org = $1
-        AND deleted_at IS NULL
-        AND is_active = true
-    `;
-    const result = await this.pool.query(query, [idpCode]);
-    return parseInt(result.rows[0].count, 10);
+    const countResult = await this.repo.find<UserProfileEntity, { cnt: bigint }>(
+      UserProfileEntity,
+      [Project.expr("COUNT(*)", "cnt")],
+      {
+        filters: [
+          Filter.fieldValue(field(UserProfileEntity, "idp_org" as any), "=", idpCode),
+          Filter.fieldValue(field(UserProfileEntity, "deleted_at" as any), "IS", null),
+          Filter.fieldValue(field(UserProfileEntity, "is_active" as any), "=", true),
+        ],
+        deletedRecords: "EXCLUDED",
+        throwIfNotFound: false,
+      }
+    );
+    return countResult ? Number(countResult.cnt) : 0;
   }
 
   private enrichAuditDeltaWithDisplayNames(
@@ -258,11 +248,11 @@ export class OrganizationsDal {
   ): Record<string, any> {
     const enriched = { ...delta };
     const auditFields = ['created_by', 'updated_by', 'deleted_by'];
-    
-    for (const field of auditFields) {
-      if (field in enriched) {
-        const change = enriched[field];
-        
+
+    for (const f of auditFields) {
+      if (f in enriched) {
+        const change = enriched[f];
+
         // Add display_name alongside GUID if available
         if (changedByName && this.isUuid(change.new)) {
           change.new_display_name = changedByName;
@@ -272,7 +262,7 @@ export class OrganizationsDal {
         }
       }
     }
-    
+
     return enriched;
   }
 
@@ -281,55 +271,25 @@ export class OrganizationsDal {
   }
 
   async getOrganizationAudit(uuid: string, page: number, limit: number) {
-    const offset = (page - 1) * limit;
-
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM public.organizations_audit
-      WHERE entity_uuid = $1
-    `;
-
-    const countResult = await this.pool.query(countQuery, [uuid]);
-    const total = parseInt(countResult.rows[0].total, 10);
-
-    const query = `
-      SELECT
-        audit.id,
-        audit.entity_uuid,
-        audit.action,
-        audit.changed_at,
-        audit.changed_by,
-        creator.display_name as changed_by_name,
-        audit.version,
-        audit.delta
-      FROM public.organizations_audit audit
-      LEFT JOIN public.user_profiles creator
-        ON audit.changed_by ~ '^[0-9a-fA-F-]{36}$'
-       AND creator.uuid::text = audit.changed_by
-      WHERE audit.entity_uuid = $1
-      ORDER BY audit.changed_at DESC, audit.id DESC
-      LIMIT $2 OFFSET $3
-    `;
-
-    const result = await this.pool.query(query, [uuid, limit, offset]);
+    const result = await findAuditPage(this.repo, {
+      tableName: "organizations_audit",
+      entityUuid: uuid,
+      page,
+      limit,
+    });
 
     return {
-      data: result.rows.map((row: any) => ({
+      data: result.data.map((row) => ({
         id: row.id.toString(),
         entity_uuid: row.entity_uuid,
         action: row.action,
-        changed_at: row.changed_at.toISOString(),
+        changed_at: row.changed_at,
         changed_by: row.changed_by,
-        changed_by_name: row.changed_by_name,
+        changed_by_name: row.changed_by_display_name,
         version: row.version,
-        delta: this.enrichAuditDeltaWithDisplayNames(row.delta, row.changed_by_name),
+        delta: this.enrichAuditDeltaWithDisplayNames(row.delta as Record<string, any>, row.changed_by_display_name),
       })),
-      pagination: {
-        page,
-        limit,
-        total,
-        hasMore: offset + limit < total,
-      },
+      pagination: result.pagination,
     };
   }
 

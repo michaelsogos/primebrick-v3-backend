@@ -5,9 +5,7 @@
  * Il suffisso `!` è richiesto da TypeScript (`strictPropertyInitialization`): indica che i valori
  * vengono assegnati dal layer di hydration / DAL, non alla dichiarazione della classe.
  */
-import type { IAuditableEntity } from "../../domain/entities/iauditable_entity.js";
-import type { IExposableEntity } from "../../domain/entities/iexposable_entity.js";
-import type { IClonableEntity } from "../../domain/entities/iclonable_entity.js";
+import type { IAuditableEntity, IExposableEntity, IClonableEntity } from "@primebrick/dal-pg";
 import { 
   Column, 
   Entity, 
@@ -19,7 +17,7 @@ import {
   AuditableFieldType,
   DeletableFieldType,
   AuditTrail
-} from "../../domain/entities/entity-meta.js";
+} from "@primebrick/dal-pg";
 
 export type CustomerStatus = "ACTIVE" | "INACTIVE";
 
@@ -27,7 +25,7 @@ export type CustomerStatus = "ACTIVE" | "INACTIVE";
 @AuditTrail()
 export class CustomerEntity implements IAuditableEntity, IExposableEntity, IClonableEntity {
   @Key()
-  id: number;
+  id: bigint;
 
   @Unique()
   uuid: string;
