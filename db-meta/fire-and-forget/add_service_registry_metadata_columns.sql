@@ -10,7 +10,10 @@ ALTER TABLE public.service_registry
   ADD COLUMN IF NOT EXISTS service_version text,
   ADD COLUMN IF NOT EXISTS is_behind_scaler boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'unknown',
-  ADD COLUMN IF NOT EXISTS last_health_check_at timestamptz;
+  ADD COLUMN IF NOT EXISTS last_health_check_at timestamptz,
+  ADD COLUMN IF NOT EXISTS is_enabled boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS icon text,
+  ADD COLUMN IF NOT EXISTS icon_type text NOT NULL DEFAULT 'icon';
 
 CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_uq_scaler"
   ON "public"."service_registry" ("code") WHERE is_behind_scaler = true;

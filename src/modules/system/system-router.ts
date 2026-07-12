@@ -86,5 +86,93 @@ export function systemRouter() {
     })
   );
 
+  // GET /api/v1/system/services/:code - Single service by code
+  router.get(
+    "/api/v1/system/services/:code",
+    rbacHandler([Permission.MODULES_READ_SINGLE]),
+    asyncHandler(async (req, res) => {
+      const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+      const repo = new ServiceRegistryRepo(getPool());
+      const service = await repo.findByCode(code);
+      if (!service) {
+        res.status(404).json({
+          type: "about:blank",
+          status: 404,
+          title: "Not Found",
+          detail: `Service '${code}' not found`,
+        });
+        return;
+      }
+      res.json({ service });
+    })
+  );
+
+  // PATCH /api/v1/system/services/:code/toggle - Toggle is_enabled
+  router.patch(
+    "/api/v1/system/services/:code/toggle",
+    rbacHandler([Permission.MODULES_UPDATE]),
+    asyncHandler(async (req, res) => {
+      const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+      const repo = new ServiceRegistryRepo(getPool());
+      const existing = await repo.findByCode(code);
+      if (!existing) {
+        res.status(404).json({
+          type: "about:blank",
+          status: 404,
+          title: "Not Found",
+          detail: `Service '${code}' not found`,
+        });
+        return;
+      }
+      const newEnabled = !existing.is_enabled;
+      await repo.toggleEnabled(code, newEnabled);
+      res.json({ code, is_enabled: newEnabled });
+    })
+  );
+
+  // DELETE /api/v1/system/services/:code - Hard delete a service from registry
+  router.delete(
+    "/api/v1/system/services/:code",
+    rbacHandler([Permission.MODULES_DELETE]),
+    asyncHandler(async (req, res) => {
+      const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+      const repo = new ServiceRegistryRepo(getPool());
+      const existing = await repo.findByCode(code);
+      if (!existing) {
+        res.status(404).json({
+          type: "about:blank",
+          status: 404,
+          title: "Not Found",
+          detail: `Service '${code}' not found`,
+        });
+        return;
+      }
+      await repo.hardDeleteByCode(code);
+      res.json({ code, deleted: true });
+    })
+  );
+
+  // PUT /api/v1/system/services/:code - Update service_registry fields (admin config)
+  router.put(
+    "/api/v1/system/services/:code",
+    rbacHandler([Permission.MODULES_UPDATE]),
+    asyncHandler(async (req, res) => {
+      const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+      const repo = new ServiceRegistryRepo(getPool());
+      const { name, description, base_url, icon, icon_type, author, github_repo_url } = req.body;
+      await repo.updateByCodeAdmin(code, {
+        name,
+        description,
+        base_url,
+        icon,
+        icon_type,
+        author,
+        github_repo_url,
+      });
+      const updated = await repo.findByCode(code);
+      res.json({ service: updated });
+    })
+  );
+
   return router;
 }

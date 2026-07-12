@@ -60,6 +60,8 @@ export class ServiceLifecycleSubscriber {
           author: payload.author,
           github_repo_url: payload.github_repo_url,
           endpoints: payload.endpoints,
+          icon: payload.icon,
+          icon_type: payload.icon_type,
           status,
           last_health_check_at: now,
         });
@@ -74,7 +76,10 @@ export class ServiceLifecycleSubscriber {
           description: payload.description,
           author: payload.author,
           github_repo_url: payload.github_repo_url,
+          icon: payload.icon,
+          icon_type: payload.icon_type || "icon",
           is_behind_scaler: true,
+          is_enabled: true,
           status,
           last_health_check_at: now,
         });
@@ -91,6 +96,8 @@ export class ServiceLifecycleSubscriber {
           author: payload.author,
           github_repo_url: payload.github_repo_url,
           endpoints: payload.endpoints,
+          icon: payload.icon,
+          icon_type: payload.icon_type,
           status,
           last_health_check_at: now,
         });
@@ -105,7 +112,10 @@ export class ServiceLifecycleSubscriber {
           description: payload.description,
           author: payload.author,
           github_repo_url: payload.github_repo_url,
+          icon: payload.icon,
+          icon_type: payload.icon_type || "icon",
           is_behind_scaler: false,
+          is_enabled: true,
           status,
           last_health_check_at: now,
         });

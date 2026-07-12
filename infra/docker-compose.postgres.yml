@@ -56,6 +56,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - primebrick-infra-net
 
   casdoor:
     image: casbin/casdoor:3.75.0
@@ -82,6 +84,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - primebrick-infra-net
 
   nats:
     image: nats:latest
@@ -98,6 +102,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - primebrick-infra-net
 
 volumes:
   primebrick_pg18_data:
@@ -109,3 +115,8 @@ volumes:
   primebrick_nats_data:
     # Named volume for NATS JetStream persistence across container restarts.
     name: primebrick_nats_data
+
+networks:
+  primebrick-infra-net:
+    name: primebrick-infra-net
+    driver: bridge
