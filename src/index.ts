@@ -7,6 +7,7 @@ import { Pool } from "pg";
 import CasdoorSDK from "casdoor-nodejs-sdk";
 import { loadAuthConfigFromDb, type AuthConfigDb } from "./modules/auth/config-repo.js";
 import { openApiRouter } from "./openapi/router.js";
+import { aggregatedOpenApiRouter } from "./openapi/aggregated-router.js";
 import { errorHandler } from "./http/error-handler.js";
 import { getPool } from "./db/pool.js";
 import { isDatabaseUnavailableError } from "./http/api-errors.js";
@@ -149,6 +150,7 @@ app.get("/api/v1/health", async (_req, res) => {
 // (already registered above) and the OpenAPI docs router (mounted before the
 // guard, so the spec stays publicly browsable for clients during integration).
 app.use(openApiRouter());
+app.use(aggregatedOpenApiRouter());
 
 // Use makeProtectedRouter for /modules endpoint
 const apiRouter = makeProtectedRouter();
