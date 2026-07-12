@@ -4,9 +4,15 @@ export const openapi = {
     title: "Primebrick API",
     version: "0.1.0",
   },
+  tags: [
+    { name: "Customers", description: "Customer entity CRUD and metadata endpoints" },
+    { name: "Organizations", description: "Organization entity CRUD and metadata endpoints" },
+    { name: "Authentication", description: "Login, token refresh, and user profile endpoints" },
+  ],
   paths: {
     "/api/v1/entities/customer/meta": {
       get: {
+        tags: ["Customers"],
         summary: "Get customer UI metadata",
         "x-badges": [
           { name: "v1", color: "#38bdf8", position: "after" },
@@ -26,6 +32,7 @@ export const openapi = {
     },
     "/api/v1/entities/customer/list": {
       get: {
+        tags: ["Customers"],
         summary: "List customers",
         "x-badges": [
           { name: "v1", color: "#38bdf8", position: "after" },
@@ -71,6 +78,7 @@ export const openapi = {
     },
     "/api/v1/entities/customer": {
       post: {
+        tags: ["Customers"],
         summary: "Create customer",
         "x-badges": [
           { name: "v1", color: "#38bdf8", position: "after" },
@@ -98,6 +106,7 @@ export const openapi = {
     },
     "/api/v1/entities/customer/{uuid}": {
       get: {
+        tags: ["Customers"],
         summary: "Get customer detail",
         "x-badges": [
           { name: "v1", color: "#38bdf8", position: "after" },
@@ -121,6 +130,7 @@ export const openapi = {
     },
     "/api/v1/entities/organization/meta": {
       get: {
+        tags: ["Organizations"],
         summary: "Get organization UI metadata",
         "x-badges": [
           { name: "v1", color: "#38bdf8", position: "after" },
@@ -140,6 +150,7 @@ export const openapi = {
     },
     "/api/v1/entities/organization/list": {
       get: {
+        tags: ["Organizations"],
         summary: "List organizations",
         "x-badges": [
           { name: "v1", color: "#38bdf8", position: "after" },
@@ -184,6 +195,7 @@ export const openapi = {
     },
     "/api/v1/entities/organization": {
       post: {
+        tags: ["Organizations"],
         summary: "Create organization",
         "x-badges": [
           { name: "v1", color: "#38bdf8", position: "after" },
@@ -211,6 +223,7 @@ export const openapi = {
     },
     "/api/v1/entities/organization/{uuid}": {
       get: {
+        tags: ["Organizations"],
         summary: "Get organization detail",
         "x-badges": [
           { name: "v1", color: "#38bdf8", position: "after" },
@@ -234,6 +247,7 @@ export const openapi = {
     },
     "/api/v1/auth/login": {
       post: {
+        tags: ["Authentication"],
         summary: "Login with username and password",
         "x-badges": [
           { name: "v1", color: "#38bdf8", position: "after" },
@@ -263,6 +277,7 @@ export const openapi = {
     },
     "/api/v1/auth/refresh": {
       post: {
+        tags: ["Authentication"],
         summary: "Refresh access token using refresh token cookie",
         "x-badges": [
           { name: "v1", color: "#38bdf8", position: "after" },
@@ -283,6 +298,7 @@ export const openapi = {
     },
     "/api/v1/auth/me": {
       get: {
+        tags: ["Authentication"],
         summary: "Get current user profile",
         "x-badges": [
           { name: "v1", color: "#38bdf8", position: "after" },
@@ -301,6 +317,7 @@ export const openapi = {
         },
       },
       patch: {
+        tags: ["Authentication"],
         summary: "Update current user profile",
         "x-badges": [
           { name: "v1", color: "#38bdf8", position: "after" },
