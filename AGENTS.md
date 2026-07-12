@@ -50,7 +50,14 @@ If `db-meta/diff-entities-vs-database.json` has `renameHeuristicUserReviewRequir
 ### Database patches vs migrations
 
 - **`pnpm run db:meta:compare`** — run when **entity / model code** changes. It refreshes JSON snapshots and may add a new file under `db-meta/patches/`. Do **not** wire this to **post-merge** (it is not a migration runner).
-- **`pnpm run db:migrate`** — applies pending `.sql` files in order, using `public.primebrick_database_patch` (patch_id + `content_sha256`) so already-applied files are skipped and the first missing patch is applied next.
+- **`pnpm run db:migrate`** — applies pending `.sql` files in order, using `public.primebrick_database_patches` (patch_id + `content_sha256`) so already-applied files are skipped and the first missing patch is applied next.
+
+### Patch SHA256 management
+
+If `db:migrate` fails with "exists in registry with a different content_sha256", see
+[.devin/rules/patch-sha256-management.md](./.devin/rules/patch-sha256-management.md).
+**Never create a new initial patch** — update the existing `00000000000000_init_database.sql`
+in place and create a fire-and-forget script to update the registry hash on existing databases.
 
 ### Git hooks (optional)
 
