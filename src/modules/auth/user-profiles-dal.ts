@@ -1,15 +1,21 @@
 import type { Pool } from "pg";
 
-import { entityDateToApiIso } from "../../domain/entities/entity-meta.js";
-import { Repository } from "../../db/repository/repository.js";
-import { field, Filter, Sort, Join, type FilterExpr } from "../../db/repository/dsl.js";
-import { buildAuditableJoins } from "../../db/repository/auditable-joins.js";
-import { WithAuditableDisplayNames } from "../../db/repository/auditable-types.js";
-import { getAuditUserJoinSql, getAuditSelectWithDisplayName } from "../../db/repository/audit-join-helper.js";
+import {
+  entityDateToApiIso,
+  Repository,
+  field, Filter, Sort, Join,
+  buildAuditableJoins,
+  buildAuditTrailJoins,
+  AuditLogEntity, Project,
+  type FilterExpr,
+  type WithAuditableDisplayNames,
+} from "@primebrick/dal-pg";
 
 import { UserProfileEntity } from "./user_profile_entity.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
-import { requireActor } from "./session-context.js";
+import { requireActor } from "@primebrick/sdk";
+import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
+import { findAuditPage } from "../../db/audit-query-helper.js";
 
 export type UserProfileDetailRow = WithAuditableDisplayNames<{
   uuid: string;
@@ -61,16 +67,16 @@ export type UserListResponse = {
   rows: UserProfileDetailDto[];
   page: number;
   page_size: number;
-  total: number;
+  total: bigint;
 };
 
 export class UserProfilesDal {
   private repo: Repository;
-  private pool: Pool;
+  private auditPort: BeAuditPortAdapter;
 
-  constructor(pool: Pool, auditService?: AuditService) {
-    this.repo = new Repository(pool, auditService);
-    this.pool = pool;
+  constructor(pool: Pool, _auditService?: AuditService) {
+    this.repo = new Repository(pool);
+    this.auditPort = new BeAuditPortAdapter(this.repo);
   }
 
   private toDto(r: UserProfileDetailRow): UserProfileDetailDto {
@@ -88,17 +94,59 @@ export class UserProfilesDal {
       null,
       {
         filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        joins: buildAuditableJoins(UserProfileEntity),
+        joins: buildAuditableJoins(UserProfileEntity, UserProfileEntity),
+        throwIfNotFound: false,
       }
     );
     return row ? this.toDto(row) : null;
+  }
+
+  async createProfile(data: {
+    uuid: string;
+    idp_code: string | null;
+    email?: string | null;
+    display_name?: string | null;
+    idp_org?: string | null;
+    idp_username?: string | null;
+    avatar_color?: string;
+    avatar_initials?: string;
+    is_active: boolean;
+    is_admin: boolean;
+    is_verified: boolean;
+    email_verified: boolean;
+    issuer?: string | null;
+    roles?: string[] | null;
+    last_synced_at?: Date;
+  }): Promise<void> {
+    const actor = requireActor();
+    await this.repo.add(
+      UserProfileEntity,
+      {
+        uuid: data.uuid,
+        idp_code: data.idp_code,
+        email: data.email,
+        display_name: data.display_name,
+        idp_org: data.idp_org,
+        idp_username: data.idp_username,
+        avatar_color: data.avatar_color,
+        avatar_initials: data.avatar_initials,
+        is_active: data.is_active,
+        is_admin: data.is_admin,
+        is_verified: data.is_verified,
+        email_verified: data.email_verified,
+        issuer: data.issuer,
+        roles: data.roles,
+        last_synced_at: data.last_synced_at,
+      },
+      { actor, audit: this.auditPort }
+    );
   }
 
   async updateProfile(
     uuid: string,
     body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string }
   ): Promise<void> {
-    await this.repo.update(UserProfileEntity, uuid, body, requireActor());
+    await this.repo.update(UserProfileEntity, { ...body, uuid }, { actor: requireActor(), audit: this.auditPort });
   }
 
   async getByIdpCode(idpCode: string): Promise<UserProfileDetailDto | null> {
@@ -127,6 +175,7 @@ export class UserProfilesDal {
             { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
           ),
         ],
+        throwIfNotFound: false,
       }
     );
     return row ? this.toDto(row) : null;
@@ -158,26 +207,18 @@ export class UserProfilesDal {
             { castRightTo: "text", castLeftTo: "text", alias: "deleter" }
           ),
         ],
+        throwIfNotFound: false,
       }
     );
     return row ? this.toDto(row) : null;
   }
 
-  async getByUsernameAndOrg(username: string, idpOrg: string): Promise<UserProfileDetailDto | null> {
-    const result = await this.pool.query(
-      `SELECT * FROM public.user_profiles WHERE idp_username = $1 AND idp_org = $2 AND deleted_at IS NULL LIMIT 1`,
-      [username, idpOrg]
-    );
-    if (result.rows.length === 0) return null;
-    return this.toDto(result.rows[0]);
-  }
-
   async softDelete(uuid: string): Promise<void> {
-    await this.repo.delete(UserProfileEntity, uuid, requireActor());
+    await this.repo.delete(UserProfileEntity, { uuid }, { actor: requireActor(), audit: this.auditPort });
   }
 
   async restore(uuid: string): Promise<void> {
-    await this.repo.restore(UserProfileEntity, uuid, requireActor());
+    await this.repo.restore(UserProfileEntity, { uuid }, { actor: requireActor(), audit: this.auditPort });
   }
 
   private enrichAuditDeltaWithDisplayNames(
@@ -186,11 +227,11 @@ export class UserProfilesDal {
   ): Record<string, any> {
     const enriched = { ...delta };
     const auditFields = ['created_by', 'updated_by', 'deleted_by'];
-    
-    for (const field of auditFields) {
-      if (field in enriched) {
-        const change = enriched[field];
-        
+
+    for (const f of auditFields) {
+      if (f in enriched) {
+        const change = enriched[f];
+
         // Add display_name alongside GUID if available
         if (changedByName && this.isUuid(change.new)) {
           change.new_display_name = changedByName;
@@ -200,7 +241,7 @@ export class UserProfilesDal {
         }
       }
     }
-    
+
     return enriched;
   }
 
@@ -209,48 +250,25 @@ export class UserProfilesDal {
   }
 
   async getUserProfileAudit(uuid: string, page: number, limit: number) {
-    const offset = (page - 1) * limit;
-
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM public.user_profiles_audit
-      WHERE entity_uuid = $1
-    `;
-
-    const countResult = await this.pool.query(countQuery, [uuid]);
-    const total = parseInt(countResult.rows[0].total, 10);
-
-    const query = `
-      SELECT ${getAuditSelectWithDisplayName()}
-      FROM public.user_profiles_audit audit
-      ${getAuditUserJoinSql()}
-      WHERE audit.entity_uuid = $1
-      ORDER BY audit.changed_at DESC, audit.id DESC
-      LIMIT $2 OFFSET $3
-    `;
-
-    console.log('[User Profile Audit] SQL Query:', query);
-    console.log('[User Profile Audit] Parameters:', [uuid, limit, offset]);
-
-    const result = await this.pool.query(query, [uuid, limit, offset]);
+    const result = await findAuditPage(this.repo, {
+      tableName: "user_profiles_audit",
+      entityUuid: uuid,
+      page,
+      limit,
+    });
 
     return {
-      data: result.rows.map((row: any) => ({
+      data: result.data.map((row) => ({
         id: row.id.toString(),
         entity_uuid: row.entity_uuid,
         action: row.action,
-        changed_at: row.changed_at.toISOString(),
+        changed_at: row.changed_at,
         changed_by: row.changed_by,
-        changed_by_name: row.changed_by_name,
+        changed_by_name: row.changed_by_display_name,
         version: row.version,
-        delta: this.enrichAuditDeltaWithDisplayNames(row.delta, row.changed_by_name),
+        delta: this.enrichAuditDeltaWithDisplayNames(row.delta as Record<string, any>, row.changed_by_display_name),
       })),
-      pagination: {
-        page,
-        limit,
-        total,
-        hasMore: offset + limit < total,
-      },
+      pagination: result.pagination,
     };
   }
 
@@ -307,7 +325,7 @@ export class UserProfilesDal {
         filters: baseFilters.length > 0 ? baseFilters : undefined,
         sorting,
         deletedRecords: deleted_records as any,
-        joins: buildAuditableJoins(UserProfileEntity),
+        joins: buildAuditableJoins(UserProfileEntity, UserProfileEntity),
       }
     );
 
@@ -326,7 +344,7 @@ export class UserProfilesDal {
     if (!conditions || conditions.length === 0) return null;
 
     const validOps = new Set(["=", "!=", "<>", "<", "<=", ">=", ">=", "ILIKE", "LIKE", "IN", "NOT IN", "IS", "IS NOT"]);
-    const allowedFields = new Set(["display_name", "email", "idp_code", "is_active", "is_admin", "is_verified"]);
+    const allowedFields = new Set(["display_name", "email", "idp_code", "idp_username", "idp_org", "is_active", "is_admin", "is_verified"]);
 
     const filterExprs: FilterExpr[] = [];
 

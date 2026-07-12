@@ -1,25 +1,29 @@
 import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
-import { customersRouter } from "./modules/customers/router.js";
-import { authRouter } from "./modules/auth/router.js";
-import { organizationsRouter } from "./modules/auth/organizations_router.js";
+import { extJsonMiddleware, Permission, NatsClient } from "@primebrick/sdk";
+import { mountModules } from "./modules/index.js";
 import { Pool } from "pg";
 import CasdoorSDK from "casdoor-nodejs-sdk";
 import { loadAuthConfigFromDb, type AuthConfigDb } from "./modules/auth/config-repo.js";
 import { openApiRouter } from "./openapi/router.js";
+import { aggregatedOpenApiRouter } from "./openapi/aggregated-router.js";
 import { errorHandler } from "./http/error-handler.js";
 import { getPool } from "./db/pool.js";
 import { isDatabaseUnavailableError } from "./http/api-errors.js";
 import { makeProtectedRouter } from "./http/protected-router.js";
 import { rbacHandler } from "./modules/auth/rbac.middleware.js";
-import { Permission } from "./modules/auth/permissions.js";
-import { loadRoleMappings } from "./modules/auth/auth.middleware.js";
+import { loadRoleMappings, initAuthPorts } from "./modules/auth/auth.middleware.js";
+import { loadAuthConfig } from "./modules/auth/config.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
-import "./modules/auth/types.js";
+import "./modules/auth/express-augmentation.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { ServiceRegistryRepo } from "./modules/proxy/service-registry-repo.js";
+import { ServiceLifecycleSubscriber } from "./modules/proxy/service-lifecycle-subscriber.js";
+import { StaleDetectionJob } from "./modules/proxy/stale-detection-job.js";
+import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
@@ -27,13 +31,12 @@ const port = Number(process.env.PORT) || 3001;
 app.use(cors({ origin: true }));
 app.use(express.json());
 app.use(cookieParser());
+app.use(extJsonMiddleware());
 
-type HealthModule = { id: string; version: string };
 type HealthPayload = {
   ok: true;
   service: "primebrick-api";
   version: string;
-  modules: HealthModule[];
   db: { ok: boolean };
   idp: { ok: boolean; type?: string; version?: string };
 };
@@ -46,10 +49,6 @@ function readBackendVersion(): string {
 }
 
 const BACKEND_VERSION = readBackendVersion();
-const INSTALLED_MODULES: HealthModule[] = [
-  // NOTE: This is the product/module version, not the API package version.
-  { id: "crm", version: BACKEND_VERSION },
-];
 
 async function checkDb(): Promise<{ ok: boolean }> {
   try {
@@ -74,17 +73,14 @@ async function checkIdp(pool?: Pool): Promise<{ ok: boolean; type?: string; vers
     if (pool) {
       try {
         const dbConfig = await loadAuthConfigFromDb(pool);
-        casdoorEndpoint = dbConfig.casdoorEndpoint || casdoorEndpoint;
-        clientId = dbConfig.casdoorBuiltinClientId || clientId;
-        clientSecret = dbConfig.casdoorBuiltinClientSecret || clientSecret;
-        orgName = dbConfig.casdoorOrganization || orgName;
+        casdoorEndpoint = dbConfig.casdoor_endpoint || casdoorEndpoint;
+        clientId = dbConfig.casdoor_builtin_client_id || clientId;
+        clientSecret = dbConfig.casdoor_builtin_client_secret || clientSecret;
+        orgName = dbConfig.casdoor_organization || orgName;
       } catch (error) {
         console.warn("[IDP Health Check] Could not load configuration from database, using fallback:", error);
       }
     }
-    
-    console.log(`[IDP Health Check] Checking Casdoor at: ${casdoorEndpoint}`);
-    console.log(`[IDP Health Check] Using SDK with clientId: ${clientId}`);
     
     // Initialize Casdoor SDK
     const sdk = new CasdoorSDK.SDK({
@@ -107,16 +103,12 @@ async function checkIdp(pool?: Pool): Promise<{ ok: boolean; type?: string; vers
       },
     });
 
-    console.log(`[IDP Health Check] Version endpoint status: ${versionResponse.status} ${versionResponse.statusText}`);
-
     if (!versionResponse.ok) {
       console.error(`[IDP Health Check] Version endpoint returned non-OK status: ${versionResponse.status}`);
       return { ok: false };
     }
 
     const versionData = await versionResponse.json() as { status?: string; msg?: string; data?: { version?: string; commitId?: string; commitOffset?: number } };
-    console.log(`[IDP Health Check] Version data:`, JSON.stringify(versionData, null, 2));
-    
     const result = {
       ok: true,
       type: "Casdoor",
@@ -137,7 +129,6 @@ async function healthPayload(): Promise<HealthPayload> {
     ok: true,
     service: "primebrick-api",
     version: BACKEND_VERSION,
-    modules: INSTALLED_MODULES,
     db: await checkDb(),
     idp: await checkIdp(pool),
   };
@@ -159,30 +150,108 @@ app.get("/api/v1/health", async (_req, res) => {
 // (already registered above) and the OpenAPI docs router (mounted before the
 // guard, so the spec stays publicly browsable for clients during integration).
 app.use(openApiRouter());
+app.use(aggregatedOpenApiRouter());
 
 // Use makeProtectedRouter for /modules endpoint
 const apiRouter = makeProtectedRouter();
-apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), (_req, res) => {
+apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_req, res) => {
+  const repo = new ServiceRegistryRepo(getPool());
+  const services = await repo.findAll();
   res.json({
-    modules: [
-      { id: "crm", name: "CRM", enabled: true },
-      { id: "accounting", name: "Accounting", enabled: false },
-      { id: "warehouse", name: "Warehouse", enabled: false },
-    ],
+    modules: services.map((s) => {
+      const navMeta = buildModuleNavMeta(s.code);
+      return {
+        id: s.code.toLowerCase(),
+        name: s.name || s.code,
+        enabled: s.is_enabled,
+        icon: s.icon || navMeta?.icon,
+        route_prefixes: navMeta?.route_prefixes,
+        is_reserved: s.is_reserved,
+      };
+    }),
   });
 });
 
+apiRouter.get("/modules/:code/meta", rbacHandler([Permission.MODULES_READ_ALL]), async (req, res) => {
+  const code = req.params.code as string;
+  const meta = buildModuleNavMeta(code);
+  if (!meta) {
+    res.status(404).json({
+      type: "about:blank",
+      title: "Module not found",
+      status: 404,
+      detail: `No module with code '${code}'`,
+    });
+    return;
+  }
+  // Strip route_prefixes + is_reserved from the response — only needed in the /modules list
+  const { route_prefixes: _rp, is_reserved: _ir, ...navMeta } = meta;
+  res.json(navMeta);
+});
+
 app.use("/api/v1", apiRouter);
-app.use(customersRouter());
-app.use(organizationsRouter());
-// Auth router (public login endpoint)
-app.use(authRouter());
+// Mount all feature routers (customers / organizations / system / auth).
+mountModules(app);
 
 app.use(errorHandler);
 
-// Load role mappings from database at startup
-await loadRoleMappings();
-
+// Bind the port BEFORE any DB-dependent startup work so /health stays
+// answerable even when Postgres is down (returns 503 + JSON, not a proxy 502).
 app.listen(port, () => {
   console.log(`API listening on http://localhost:${port}`);
 });
+
+// Background startup tasks — MUST NOT prevent the server from starting.
+// /health is public and unaffected; authenticated endpoints fail closed
+// (503 from DB-unavailable errors, or 403 from empty role cache) until
+// the role mappings are successfully loaded.
+void runStartupTasks().catch((err) => {
+  console.error("[startup] background task failed:", err);
+});
+
+async function runStartupTasks(): Promise<void> {
+  initAuthPorts();
+  await refreshRoleMappings();
+  await refreshAuthConfig();
+  await startServiceLifecycle();
+}
+
+async function refreshRoleMappings(): Promise<void> {
+  try {
+    await loadRoleMappings();
+  } catch (err) {
+    console.warn(
+      "[startup] loadRoleMappings failed (database unavailable?). Retrying in 5s.",
+      err
+    );
+    setTimeout(() => void refreshRoleMappings().catch(() => {}), 5000);
+  }
+}
+
+async function refreshAuthConfig(): Promise<void> {
+  try {
+    await loadAuthConfig(getPool());
+  } catch (err) {
+    console.warn(
+      "[startup] loadAuthConfig failed (database unavailable?). Retrying in 5s.",
+      err
+    );
+    setTimeout(() => void refreshAuthConfig().catch(() => {}), 5000);
+  }
+}
+
+async function startServiceLifecycle(): Promise<void> {
+  try {
+    await NatsClient.getConnection();
+    const subscriber = new ServiceLifecycleSubscriber();
+    await subscriber.start();
+    const staleJob = new StaleDetectionJob();
+    staleJob.start();
+  } catch (err) {
+    console.warn(
+      "[startup] NATS connection failed (service lifecycle subscriber not started). Retrying in 5s.",
+      err
+    );
+    setTimeout(() => void startServiceLifecycle().catch(() => {}), 5000);
+  }
+}

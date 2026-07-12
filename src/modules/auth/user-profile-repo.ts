@@ -14,9 +14,9 @@
 
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
+import { Repository, field, Filter } from "@primebrick/dal-pg";
 import { getPool } from "../../db/pool.js";
-import { AuditService } from "../../lib/audit/audit-service.js";
-import { AuditAction } from "../../lib/audit/audit-types.js";
+import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
 
 interface CacheEntry {
@@ -72,27 +72,40 @@ export async function resolveInternalUuid(
   const cached = cacheGet(input.idp_code);
   if (cached) return cached;
 
+  const repo = new Repository(pool);
+  const auditPort = new BeAuditPortAdapter(repo);
+
   // Try a fast SELECT first — most requests hit existing users.
-  const sel = await pool.query<{ uuid: string; idp_org?: string; idp_username?: string }>(
-    `select uuid, idp_org, idp_username from public.user_profiles where idp_code = $1 limit 1`,
-    [input.idp_code]
+  const row = await repo.find<UserProfileEntity, { uuid: string; idp_org?: string; idp_username?: string }>(
+    UserProfileEntity,
+    [
+      { kind: "field", field: field(UserProfileEntity, "uuid" as any) },
+      { kind: "field", field: field(UserProfileEntity, "idp_org" as any) },
+      { kind: "field", field: field(UserProfileEntity, "idp_username" as any) },
+    ],
+    {
+      filters: [Filter.fieldValue(field(UserProfileEntity, "idp_code" as any), "=", input.idp_code)],
+      throwIfNotFound: false,
+    }
   );
-  if (sel.rowCount && sel.rows[0]) {
-    const row = sel.rows[0];
+
+  if (row) {
     // Sync idp_org and idp_username if they differ from input (keeps Casdoor sync reliable)
     const needsUpdate =
-      (input.idp_org !== undefined && row.idp_org !== input.idp_org) ||
-      (input.idp_username !== undefined && row.idp_username !== input.idp_username);
+      (input.idp_org !== undefined && input.idp_org !== null && row.idp_org !== input.idp_org) ||
+      (input.idp_username !== undefined && input.idp_username !== null && row.idp_username !== input.idp_username);
     if (needsUpdate) {
-      await pool.query(
-        `update public.user_profiles
-         set idp_org = coalesce($2, idp_org),
-             idp_username = coalesce($3, idp_username),
-             updated_at = now(),
-             updated_by = uuid,
-             version = version + 1
-         where idp_code = $1`,
-        [input.idp_code, input.idp_org, input.idp_username]
+      const updates: Record<string, unknown> = { idp_code: input.idp_code };
+      if (input.idp_org !== undefined && input.idp_org !== null) {
+        updates.idp_org = input.idp_org;
+      }
+      if (input.idp_username !== undefined && input.idp_username !== null) {
+        updates.idp_username = input.idp_username;
+      }
+      await repo.update(
+        UserProfileEntity,
+        updates,
+        { actor: row.uuid, matchBy: "idp_code", audit: auditPort }
       );
     }
     cacheSet(input.idp_code, row.uuid);
@@ -100,68 +113,23 @@ export async function resolveInternalUuid(
   }
 
   // Not found → just-in-time provisioning. The user that performs the very
-  // first auth bootstraps their own profile, hence `created_by = uuid`.
+  // first auth bootstraps their own profile, hence `actor = newUuid`.
   const newUuid = randomUUID();
-  const now = new Date();
-  const ins = await pool.query<{ uuid: string; id: number }>(
-    `insert into public.user_profiles
-       (uuid, idp_code, email, display_name, idp_org, idp_username,
-        created_at, created_by, updated_at, updated_by, version)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1)
-     on conflict (idp_code) do update
-       set email = excluded.email,
-           display_name = excluded.display_name,
-           idp_org = excluded.idp_org,
-           idp_username = excluded.idp_username,
-           updated_at = excluded.updated_at,
-           updated_by = excluded.updated_by,
-           version = public.user_profiles.version + 1
-     returning uuid, id`,
-    [
-      newUuid,
-      input.idp_code,
-      input.email,
-      input.display_name,
-      input.idp_org,
-      input.idp_username,
-      now,
-      newUuid,
-      now,
-      newUuid,
-    ]
+
+  const upserted = await repo.upsert(
+    UserProfileEntity,
+    {
+      uuid: newUuid,
+      idp_code: input.idp_code,
+      email: input.email,
+      display_name: input.display_name,
+      idp_org: input.idp_org,
+      idp_username: input.idp_username,
+    },
+    { actor: newUuid, conflictTarget: "idp_code", audit: auditPort }
   );
-  const row = ins.rows[0];
-  const uuid = row?.uuid ?? newUuid;
-  const entityId = row?.id;
 
-  // Write audit record for initial insert
-  if (entityId) {
-    const auditService = new AuditService(pool);
-    const delta: Record<string, { old: unknown; new: unknown }> = {
-      uuid: { old: null, new: newUuid },
-      idp_code: { old: null, new: input.idp_code },
-      email: { old: null, new: input.email },
-      display_name: { old: null, new: input.display_name },
-      idp_org: { old: null, new: input.idp_org },
-      idp_username: { old: null, new: input.idp_username },
-      created_at: { old: null, new: now },
-      created_by: { old: null, new: newUuid },
-      updated_at: { old: null, new: now },
-      updated_by: { old: null, new: newUuid },
-      version: { old: null, new: 1 },
-    };
-    await auditService.writeAudit(
-      UserProfileEntity,
-      entityId,
-      newUuid,
-      AuditAction.INSERT,
-      now,
-      1,
-      delta,
-      newUuid
-    ).catch((err) => console.error('[Audit Error]', err));
-  }
-
+  const uuid = (upserted as any)?.uuid ?? newUuid;
   cacheSet(input.idp_code, uuid);
   return uuid;
 }

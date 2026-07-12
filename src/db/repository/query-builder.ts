@@ -1,5 +1,5 @@
-import type { EntityClass } from "../../domain/entities/entity-meta.js";
-import { getColumnName, getEntityPersistenceMeta, getTableName } from "../../domain/entities/entity-meta.js";
+import type { EntityClass } from "@primebrick/dal-pg";
+import { getColumnName, getEntityPersistenceMeta, getTableName } from "@primebrick/dal-pg";
 
 import type { FieldProjector, FilterExpr, JoinExpr, SortingExpr } from "./dsl.js";
 import type { WithDeletedRecords } from "./types.js";

@@ -1,7 +1,14 @@
 import "dotenv/config";
-import { Pool } from "pg";
+import { Pool, types } from "pg";
 
 let pool: Pool | null = null;
+
+// Register INT8 (bigint) type parser — pg returns INT8 as string by default.
+// We want native bigint for all bigint columns (id PKs, counts, etc.).
+// OID 20 = int8, OID 1700 = numeric.
+types.setTypeParser(types.builtins.INT8, (val: string) => BigInt(val));
+// Keep NUMERIC as number (or string if too large) — default pg behavior is string.
+types.setTypeParser(types.builtins.NUMERIC, (val: string) => Number(val));
 
 export function getPool(): Pool {
   if (pool) return pool;

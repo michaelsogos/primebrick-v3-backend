@@ -1,4 +1,4 @@
-import { getEntityPersistenceMeta, type EntityClass } from "../domain/entities/entity-decorators.js";
+import { getEntityPersistenceMeta, type EntityClass } from "@primebrick/dal-pg";
 import { ENTITY_REGISTRY } from "../domain/entities/registry.js";
 import { type SchemaColumnMeta, type SchemaSnapshot, tableKey } from "./schema-types.js";
 

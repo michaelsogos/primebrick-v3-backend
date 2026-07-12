@@ -1,17 +1,17 @@
 import type { Pool, PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 
-import type { EntityClass } from "../../domain/entities/entity-meta.js";
+import type { EntityClass } from "@primebrick/dal-pg";
 import {
   getColumnName,
   getEntityPersistenceMeta,
   getTableName,
   syncImplicitEntityColumns
-} from "../../domain/entities/entity-meta.js";
+} from "@primebrick/dal-pg";
 import {
   AuditableFieldType,
   DeletableFieldType
-} from "../../domain/entities/entity-decorators.js";
+} from "@primebrick/dal-pg";
 
 import type { FieldProjector, FilterExpr, JoinExpr, SortingExpr } from "./dsl.js";
 import { field, Filter } from "./dsl.js";
@@ -32,10 +32,10 @@ export class Repository {
     return (r.rows ?? []) as TResult[];
   }
 
-  async count(entity: EntityClass): Promise<number> {
+  async count(entity: EntityClass): Promise<bigint> {
     const table = getTableName(entity);
-    const r = await this.db.query<{ n: string }>(`SELECT COUNT(*)::text AS n FROM "${table}"`, []);
-    return Number(r.rows?.[0]?.n ?? 0);
+    const r = await this.db.query<{ n: bigint }>(`SELECT COUNT(*) AS n FROM "${table}"`, []);
+    return r.rows?.[0]?.n ?? 0n;
   }
 
   /**
@@ -93,7 +93,7 @@ export class Repository {
       for (let i = 0; i < insertedRows.length; i++) {
         const inserted = insertedRows[i];
         const row = rows[i] as Record<string, unknown>;
-        const entityId = inserted[pk!.sqlName] as number;
+        const entityId = inserted[pk!.sqlName] as bigint;
         const entityUuid = inserted.uuid as string;
         
         // Calculate delta (empty old, full new)
@@ -115,7 +115,7 @@ export class Repository {
 
   async findById<TEntity extends object, TResult = TEntity>(
     entity: EntityClass,
-    id: number | string,
+    id: bigint | string,
     options?: FindByIdOptions
   ): Promise<TResult | null> {
     const throwExceptionIfNullOrMany = options?.throwExceptionIfNullOrMany ?? true;
@@ -200,9 +200,8 @@ export class Repository {
     });
     const r = await this.db.query(q.text, q.values);
 
-    const rows = (r.rows ?? []) as Array<TResult & { _total_records?: number | string | null }>;
-    const totalRaw = rows[0]?._total_records ?? 0;
-    const total_records = typeof totalRaw === "string" ? Number(totalRaw) : Number(totalRaw ?? 0);
+    const rows = (r.rows ?? []) as Array<TResult & { _total_records?: bigint | null }>;
+    const total_records = rows[0]?._total_records ?? 0n;
 
     const entities = rows.map((x) => {
       const { _total_records, ...rest } = x as any;
@@ -263,7 +262,7 @@ export class Repository {
     // Write audit record if entity is auditable
     if (isAuditable && this.auditService && oldRecord) {
       const updated = result.rows[0] as { [key: string]: unknown };
-      const entityId = updated[pk!.sqlName] as number;
+      const entityId = updated[pk!.sqlName] as bigint;
       const newVersion = updated.version as number;
       
       // Calculate delta; force include updated_at/updated_by so the audit trail
@@ -335,7 +334,7 @@ export class Repository {
     // Write audit record if entity is auditable
     if (isAuditable && this.auditService && oldRecord) {
       const updated = result.rows[0] as { [key: string]: unknown };
-      const entityId = updated[pk!.sqlName] as number;
+      const entityId = updated[pk!.sqlName] as bigint;
       const newVersion = updated.version as number;
       
       // Calculate delta; force include updated_at/updated_by so the audit trail
@@ -540,7 +539,7 @@ export class Repository {
     // Write audit record if entity is auditable
     if (isAuditable && this.auditService && oldRecord) {
       const updated = result.rows[0] as { [key: string]: unknown };
-      const entityId = updated[pk!.sqlName] as number;
+      const entityId = updated[pk!.sqlName] as bigint;
       const newVersion = updated.version as number;
       
       // Calculate delta; force include updated_at/updated_by so the audit trail
@@ -591,13 +590,13 @@ export class Repository {
     
     // Fetch old record for audit if auditable
     let oldRecord: Record<string, unknown> | null = null;
-    let entityId: number | null = null;
+    let entityId: bigint | null = null;
     if (isAuditable && this.auditService) {
       const oldQuery = `SELECT * FROM "${table}" WHERE "${uuidColumnMeta.sqlName}" = $1`;
       const oldResult = await this.db.query(oldQuery, [uuid]);
       if (oldResult.rowCount && oldResult.rowCount > 0) {
         oldRecord = oldResult.rows[0] as Record<string, unknown>;
-        entityId = oldRecord[pk!.sqlName] as number;
+        entityId = oldRecord[pk!.sqlName] as bigint;
       }
     }
 

@@ -18,52 +18,28 @@
  *
  *   3. **RBAC check** (only when the declaration is NOT `PUBLIC` /
  *      `AUTHENTICATED_USER`)
- *      Evaluates `req.user.permissions` against the declared permissions.
- *      Default semantics is **OR** (any-of): the user passes if they hold AT
- *      LEAST ONE of the permissions in the array. Use `rbacHandler.all([...])`
- *      for AND semantics.
+ *      Evaluates `req.user.permissions` against the declared permissions using
+ *      the SDK's `checkRbac()` function. Default semantics is **OR** (any-of):
+ *      the user passes if they hold AT LEAST ONE of the permissions in the
+ *      array. Use `rbacHandler.all([...])` for AND semantics.
  *
  * Sentinels:
  *   - `Permission.PUBLIC`             → endpoint reachable anonymously.
- *                                       Auth steps 2 and 3 are skipped. Step 1
- *                                       (gateway secret) still runs.
- *   - `Permission.AUTHENTICATED_USER` → any caller with a valid identity
- *                                       passes regardless of roles. Step 3 is
- *                                       skipped.
+ *   - `Permission.AUTHENTICATED_USER` → any caller with a valid identity passes.
  *
- * The returned RequestHandler is tagged with a non-enumerable property so the
- * `makeProtectedRouter()` factory can detect routes that forgot to declare a
- * permission and inject a default-deny handler (secure-first policy).
- *
- * Usage:
- *   router.delete(
- *     "/api/v1/.../:id",
- *     rbacHandler([Permission.CUSTOMERS_DELETE]),
- *     asyncHandler(...)
- *   );
- *
- *   // OR is the default; explicit AND:
- *   router.get(
- *     "/api/v1/...",
- *     rbacHandler.all([Permission.CUSTOMERS_READ_ALL, Permission.MODULES_ADMIN]),
- *     ...
- *   );
- *
- *   // Public:
- *   router.get("/api/v1/health", rbacHandler([Permission.PUBLIC]), ...);
- *
- * Errors thrown:
- *   - `UnauthorizedError` (401) — missing / invalid gateway secret or token
- *   - `ForbiddenError`    (403) — insufficient permissions; missing perms are
- *                                 carried in `extra.issues`.
+ * Admin bypass: `req.user.isAdmin` skips all permission checks (handled by SDK checkRbac).
+ * System bypass: `req.user.isSystem` skips all permission checks (system API keys).
  */
 
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { ForbiddenError, UnauthorizedError } from "../../http/api-errors.js";
-import { getAuthConfig } from "./config.js";
-import { getPool } from "../../db/pool.js";
+import { getAuthConfig, AuthMode } from "@primebrick/sdk";
+import {
+  Permission,
+  isPermissionSentinel,
+  checkRbac,
+} from "@primebrick/sdk";
 import { authMiddleware } from "./auth.middleware.js";
-import { Permission, isPermissionSentinel, isPermissionGranted } from "./permissions.js";
 
 /** Internal marker injected on every handler returned by `rbacHandler(...)`. */
 export const PERMISSION_DECLARED = Symbol.for("primebrick.rbac.permissionDeclared");
@@ -75,7 +51,7 @@ interface PermissionDeclaration {
   mode: "any" | "all";
 }
 
-type DeclaredHandler = RequestHandler & {
+export type DeclaredHandler = RequestHandler & {
   [PERMISSION_DECLARED]: PermissionDeclaration;
 };
 
@@ -114,15 +90,15 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const cfg = await getAuthConfig(getPool());
+      const cfg = await getAuthConfig();
 
       // --- Step 1: gateway-secret check (ALWAYS in GATEWAY mode) ----------
-      if (cfg.mode === "GATEWAY") {
+      if (cfg.mode === AuthMode.GATEWAY) {
         const headerName = isPublic
-          ? cfg.gateway.publicSecretHeaderName
-          : cfg.gateway.secretHeaderName;
-        const expected = isPublic ? cfg.gateway.publicSecret : cfg.gateway.secret;
-        const provided = req.headers[headerName];
+          ? cfg.gateway.public_secret_header_name!
+          : cfg.gateway.secret_header_name!;
+        const expected = isPublic ? cfg.gateway.public_secret : cfg.gateway.secret;
+        const provided = req.headers[headerName!];
         if (typeof provided !== "string" || provided !== expected) {
           throw new UnauthorizedError("Gateway authentication failed", {
             internal_code: "AUTH_GATEWAY_SECRET_INVALID",
@@ -143,9 +119,8 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
           return;
         }
 
-        // --- Step 3: RBAC check ------------------------------------------
+        // --- Step 3: RBAC check (using SDK checkRbac) -------------------
         if (!req.user) {
-          // Defensive: authMiddleware should always populate req.user or throw.
           next(
             new UnauthorizedError("Authenticated user context not available", {
               internal_code: "AUTH_USER_CONTEXT_MISSING",
@@ -159,34 +134,10 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
           return;
         }
 
-        // Filter out sentinels (defensive — they shouldn't be mixed but if a
-        // future refactor allows it, only the real perms participate in the
-        // role-based decision).
-        const realPerms = perms.filter((p) => !isPermissionSentinel(p));
-        if (realPerms.length === 0) {
-          next();
-          return;
-        }
-
-        // Admin bypass: if user is admin, skip all permission checks
-        if (req.user.isAdmin) {
-          next();
-          return;
-        }
-
-        const userPerms = req.user.permissions;
-        let passes: boolean;
-        if (mode === "all") {
-          passes = realPerms.every((p) => isPermissionGranted(userPerms, p));
-        } else {
-          passes = realPerms.some((p) => isPermissionGranted(userPerms, p));
-        }
-
-        if (!passes) {
-          const missing =
-            mode === "all"
-              ? realPerms.filter((p) => !isPermissionGranted(userPerms, p))
-              : realPerms; // for OR, none was found
+        // Use SDK's checkRbac — handles admin bypass, system bypass, sentinels, wildcards
+        const result = checkRbac(req.user, perms, mode);
+        if (!result.allowed) {
+          const realPerms = perms.filter((p) => !isPermissionSentinel(p));
           next(
             new UnauthorizedError("Insufficient permissions to perform this action", {
               internal_code: "RBAC_PERMISSION_DENIED",
@@ -195,7 +146,7 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
                   {
                     kind: mode === "all" ? "missing_permissions" : "missing_any_of_permissions",
                     required: realPerms,
-                    missing,
+                    missing: result.missing || [],
                     mode,
                     user_roles: req.user!.roles,
                   },
@@ -227,11 +178,4 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
 const factory = ((perms: readonly string[]) => build(perms, "any")) as RbacFactory;
 factory.all = (perms: readonly string[]) => build(perms, "all");
 
-export const rbacHandler: RbacFactory = factory;
-
-/** Test helper: extract the declaration from a handler (for unit tests). */
-export function getDeclaredPermissions(handler: unknown): PermissionDeclaration | null {
-  if (typeof handler !== "function") return null;
-  const decl = (handler as unknown as Record<symbol, unknown>)[PERMISSION_DECLARED];
-  return decl ? (decl as PermissionDeclaration) : null;
-}
+export const rbacHandler = factory;

@@ -14,7 +14,7 @@
  *   - `idp_code` is immutable after creation (one-to-one mapping with Casdoor)
  */
 
-import type { IAuditableEntity } from "../../domain/entities/iauditable_entity.js";
+import type { IAuditableEntity } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
@@ -27,13 +27,13 @@ import {
   SynchronizableField,
   SynchronizableFieldType,
   AuditTrail,
-} from "../../domain/entities/entity-meta.js";
+} from "@primebrick/dal-pg";
 
 @Entity("organizations")
 @AuditTrail()
 export class OrganizationEntity implements IAuditableEntity {
   @Key()
-  id: number;
+  id: bigint;
 
   @Unique()
   uuid: string; // Internal Primebrick UUID (used for all operations, audit fields, API endpoints)
@@ -53,6 +53,9 @@ export class OrganizationEntity implements IAuditableEntity {
 
   @Column({ length: 2048 })
   website_url?: string;
+
+  @Column({ pgType: "text", nullable: true })
+  avatar?: string;
 
   @SynchronizableField(SynchronizableFieldType.LAST_SYNCED_AT)
   @Column({ pgType: "timestamp with time zone", nullable: true })

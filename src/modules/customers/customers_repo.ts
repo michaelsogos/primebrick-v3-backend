@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { entityDateToApiIso } from "../../domain/entities/entity-meta.js";
+import { entityDateToApiIso } from "@primebrick/dal-pg";
 import { CustomerEntity, type CustomerStatus } from "./customer_entity.js";
 
 export type ListCustomersParams = {
@@ -51,7 +51,7 @@ export type CustomerDetail = {
   deleted_by?: string;
 };
 
-function makeCode(id: number) {
+function makeCode(id: bigint | number) {
   return `CUST-${String(id).padStart(5, "0")}`;
 }
 
