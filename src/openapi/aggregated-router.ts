@@ -64,6 +64,18 @@ export function aggregatedOpenApiRouter() {
 
         const svcSpec = await response.json();
 
+        // Inject x-badges into every microservice operation before merging
+        for (const path of Object.keys(svcSpec.paths || {})) {
+          for (const method of ["get", "post", "put", "delete", "patch"]) {
+            if (svcSpec.paths[path][method]) {
+              svcSpec.paths[path][method]["x-badges"] = [
+                { name: "v1", color: "#38bdf8", position: "after" },
+                { name: "Latest", color: "#22c55e", position: "after" },
+              ];
+            }
+          }
+        }
+
         // Prefix microservice paths with /ws/:serviceCode
         for (const [path, methods] of Object.entries(svcSpec.paths || {})) {
           const proxiedPath = `/ws/${svc.code}${path}`;

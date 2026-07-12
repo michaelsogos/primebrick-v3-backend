@@ -8,6 +8,10 @@ export const openapi = {
     "/api/v1/entities/customer/meta": {
       get: {
         summary: "Get customer UI metadata",
+        "x-badges": [
+          { name: "v1", color: "#38bdf8", position: "after" },
+          { name: "Latest", color: "#22c55e", position: "after" },
+        ],
         responses: {
           "200": {
             description: "OK",
@@ -23,6 +27,10 @@ export const openapi = {
     "/api/v1/entities/customer/list": {
       get: {
         summary: "List customers",
+        "x-badges": [
+          { name: "v1", color: "#38bdf8", position: "after" },
+          { name: "Latest", color: "#22c55e", position: "after" },
+        ],
         parameters: [
           { name: "search", in: "query", schema: { type: "string" } },
           { name: "search_in", in: "query", schema: { type: "string", description: "CSV of fields to search in (e.g. code,uuid,email)" } },
@@ -64,6 +72,10 @@ export const openapi = {
     "/api/v1/entities/customer": {
       post: {
         summary: "Create customer",
+        "x-badges": [
+          { name: "v1", color: "#38bdf8", position: "after" },
+          { name: "Latest", color: "#22c55e", position: "after" },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -87,6 +99,10 @@ export const openapi = {
     "/api/v1/entities/customer/{uuid}": {
       get: {
         summary: "Get customer detail",
+        "x-badges": [
+          { name: "v1", color: "#38bdf8", position: "after" },
+          { name: "Latest", color: "#22c55e", position: "after" },
+        ],
         parameters: [
           { name: "uuid", in: "path", required: true, schema: { type: "string", format: "uuid" } },
         ],
@@ -106,6 +122,10 @@ export const openapi = {
     "/api/v1/entities/organization/meta": {
       get: {
         summary: "Get organization UI metadata",
+        "x-badges": [
+          { name: "v1", color: "#38bdf8", position: "after" },
+          { name: "Latest", color: "#22c55e", position: "after" },
+        ],
         responses: {
           "200": {
             description: "OK",
@@ -121,6 +141,10 @@ export const openapi = {
     "/api/v1/entities/organization/list": {
       get: {
         summary: "List organizations",
+        "x-badges": [
+          { name: "v1", color: "#38bdf8", position: "after" },
+          { name: "Latest", color: "#22c55e", position: "after" },
+        ],
         parameters: [
           { name: "search", in: "query", schema: { type: "string" } },
           { name: "search_in", in: "query", schema: { type: "string", description: "CSV of fields to search in (e.g. idp_code,uuid,display_name)" } },
@@ -161,6 +185,10 @@ export const openapi = {
     "/api/v1/entities/organization": {
       post: {
         summary: "Create organization",
+        "x-badges": [
+          { name: "v1", color: "#38bdf8", position: "after" },
+          { name: "Latest", color: "#22c55e", position: "after" },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -184,6 +212,10 @@ export const openapi = {
     "/api/v1/entities/organization/{uuid}": {
       get: {
         summary: "Get organization detail",
+        "x-badges": [
+          { name: "v1", color: "#38bdf8", position: "after" },
+          { name: "Latest", color: "#22c55e", position: "after" },
+        ],
         parameters: [
           { name: "uuid", in: "path", required: true, schema: { type: "string", format: "uuid" } },
         ],
@@ -203,6 +235,10 @@ export const openapi = {
     "/api/v1/auth/login": {
       post: {
         summary: "Login with username and password",
+        "x-badges": [
+          { name: "v1", color: "#38bdf8", position: "after" },
+          { name: "Latest", color: "#22c55e", position: "after" },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -228,6 +264,10 @@ export const openapi = {
     "/api/v1/auth/refresh": {
       post: {
         summary: "Refresh access token using refresh token cookie",
+        "x-badges": [
+          { name: "v1", color: "#38bdf8", position: "after" },
+          { name: "Latest", color: "#22c55e", position: "after" },
+        ],
         responses: {
           "200": {
             description: "Token refreshed successfully",
@@ -244,6 +284,10 @@ export const openapi = {
     "/api/v1/auth/me": {
       get: {
         summary: "Get current user profile",
+        "x-badges": [
+          { name: "v1", color: "#38bdf8", position: "after" },
+          { name: "Latest", color: "#22c55e", position: "after" },
+        ],
         responses: {
           "200": {
             description: "OK",
@@ -258,6 +302,10 @@ export const openapi = {
       },
       patch: {
         summary: "Update current user profile",
+        "x-badges": [
+          { name: "v1", color: "#38bdf8", position: "after" },
+          { name: "Latest", color: "#22c55e", position: "after" },
+        ],
         requestBody: {
           required: true,
           content: {
