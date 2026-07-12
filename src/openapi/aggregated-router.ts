@@ -64,7 +64,7 @@ export function aggregatedOpenApiRouter() {
 
         const svcSpec = await response.json();
 
-        // Inject x-badges into every microservice operation before merging
+        // Inject x-badges and tag into every microservice operation before merging
         for (const path of Object.keys(svcSpec.paths || {})) {
           for (const method of ["get", "post", "put", "delete", "patch"]) {
             if (svcSpec.paths[path][method]) {
@@ -72,6 +72,14 @@ export function aggregatedOpenApiRouter() {
                 { name: "v1", color: "#38bdf8", position: "after" },
                 { name: "Latest", color: "#22c55e", position: "after" },
               ];
+              // Tag each operation with the service code for sidebar grouping
+              const existingTags = svcSpec.paths[path][method].tags;
+              if (!existingTags || !existingTags.includes(svc.code)) {
+                svcSpec.paths[path][method].tags = [
+                  ...(existingTags || []),
+                  svc.code,
+                ];
+              }
             }
           }
         }
