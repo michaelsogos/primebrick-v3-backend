@@ -55,7 +55,7 @@ export function aggregatedOpenApiRouter() {
       if (svc.status !== "online" || !svc.is_enabled) continue;
 
       try {
-        const specUrl = new URL("/api/openapi.json", svc.base_url).toString();
+        const specUrl = new URL("/api/v1/openapi.json", svc.base_url).toString();
         const response = await fetch(specUrl, { signal: AbortSignal.timeout(5000) });
         if (!response.ok) {
           console.error(`[openapi-aggregated] ${svc.code} returned ${response.status}`);
