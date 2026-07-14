@@ -1,15 +1,302 @@
 export const openapi = {
   openapi: "3.0.3",
   info: {
-    title: "Primebrick API",
+    title: "System Catalog",
     version: "0.1.0",
   },
+  servers: [
+    {
+      url: "http://localhost:3001",
+      description: "Local development server",
+    },
+  ],
   tags: [
     { name: "Customers", description: "Customer entity CRUD and metadata endpoints" },
     { name: "Organizations", description: "Organization entity CRUD and metadata endpoints" },
     { name: "Authentication", description: "Login, token refresh, and user profile endpoints" },
+    { name: "MCP", description: "Model Context Protocol server endpoint for AI client integration" },
+    { name: "MCP OAuth", description: "OAuth 2.1 endpoints for MCP server authentication (RFC 9728, RFC 8414, RFC 7591)" },
   ],
   paths: {
+    "/mcp": {
+      post: {
+        tags: ["MCP"],
+        summary: "MCP Server Endpoint",
+        description:
+          "Model Context Protocol (MCP) server endpoint. AI clients (Claude, ChatGPT, Cursor, VS Code) connect to this endpoint to access Primebrick tools for entity CRUD, discovery, and service management. Authentication uses OAuth 2.1 Bearer tokens — see the authorization flow at /mcp/oauth/authorize.\n\n## Available Tools\n\nThe MCP server exposes 11 generic tools that work across all registered entities:\n\n| Tool | Description |\n|------|-------------|\n| `list_entities` | List all available entities across all modules |\n| `get_entity_meta` | Get metadata for a specific entity |\n| `list_records` | List records with search, filter, sort, pagination |\n| `get_record` | Get a single record by UUID |\n| `create_record` | Create a new record |\n| `update_record` | Update an existing record by UUID |\n| `delete_record` | Soft-delete a record by UUID |\n| `restore_record` | Restore a soft-deleted record by UUID |\n| `get_audit` | Get audit history for a specific record |\n| `bulk_delete_records` | Bulk soft-delete multiple records |\n| `list_services` | List all registered microservices |\n\n## Authentication\n\nSend a Bearer token in the `Authorization` header. The token is obtained via the OAuth 2.1 Authorization Code flow — see the [MCP OAuth endpoints](#tag/MCP-OAuth) for details.\n\n## JSON-RPC Protocol\n\nThe MCP server uses JSON-RPC 2.0 over HTTP. Each request is a single JSON-RPC object (batch requests are not supported in stateless mode).",
+        operationId: "mcpEndpoint",
+        "x-mcp-server": {
+          name: "primebrick",
+          version: "1.0.0",
+          tools: [
+            { name: "list_entities", description: "List all available entities across all modules" },
+            { name: "get_entity_meta", description: "Get metadata for a specific entity (fields, types, validation)" },
+            { name: "list_records", description: "List records for a specific entity with search, filter, sort, pagination" },
+            { name: "get_record", description: "Get a single record by UUID" },
+            { name: "create_record", description: "Create a new record for a specific entity" },
+            { name: "update_record", description: "Update an existing record by UUID" },
+            { name: "delete_record", description: "Soft-delete a record by UUID" },
+            { name: "restore_record", description: "Restore a soft-deleted record by UUID" },
+            { name: "get_audit", description: "Get audit history for a specific record" },
+            { name: "bulk_delete_records", description: "Bulk soft-delete multiple records by UUID" },
+            { name: "list_services", description: "List all registered microservices in the service registry" },
+          ],
+        },
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/McpJsonRpcRequest" },
+              examples: {
+                initialize: {
+                  summary: "Initialize session",
+                  value: {
+                    jsonrpc: "2.0",
+                    id: 1,
+                    method: "initialize",
+                    params: {
+                      protocolVersion: "2025-06-18",
+                      capabilities: {},
+                      clientInfo: { name: "claude-desktop", version: "1.0.0" },
+                    },
+                  },
+                },
+                toolsList: {
+                  summary: "List available tools",
+                  value: {
+                    jsonrpc: "2.0",
+                    id: 2,
+                    method: "tools/list",
+                    params: {},
+                  },
+                },
+                toolsCall: {
+                  summary: "Call a tool — list customers",
+                  value: {
+                    jsonrpc: "2.0",
+                    id: 3,
+                    method: "tools/call",
+                    params: {
+                      name: "list_records",
+                      arguments: {
+                        module: "be",
+                        entity: "customers",
+                        page: 1,
+                        page_size: 20,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "MCP JSON-RPC response (tools/list, tools/call, initialize, etc.)",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/McpJsonRpcResponse" },
+                examples: {
+                  toolsList: {
+                    summary: "Response: tools/list",
+                    value: {
+                      jsonrpc: "2.0",
+                      id: 2,
+                      result: {
+                        tools: [
+                          {
+                            name: "list_entities",
+                            description: "List all available entities across all modules",
+                            inputSchema: {
+                              type: "object",
+                              properties: {
+                                module: { type: "string", description: "Filter by module (e.g. 'be', 'emailsender')" },
+                              },
+                            },
+                          },
+                        ],
+                      },
+                    },
+                  },
+                  toolsCall: {
+                    summary: "Response: tools/call (list_records)",
+                    value: {
+                      jsonrpc: "2.0",
+                      id: 3,
+                      result: {
+                        content: [
+                          {
+                            type: "text",
+                            text: '{"data":[{"uuid":"...","code":"ACME","email":"info@acme.com"}],"total":42,"page":1,"page_size":20}',
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Bad request — invalid JSON-RPC payload or unknown method",
+          },
+          "401": {
+            description: "Unauthorized — Bearer token required. See WWW-Authenticate header for OAuth 2.1 discovery endpoints.",
+            headers: {
+              "WWW-Authenticate": {
+                description: "Bearer challenge with resource_metadata URL (RFC 9728)",
+                schema: { type: "string" },
+              },
+            },
+          },
+          "405": {
+            description: "Method not allowed — use POST for MCP requests.",
+          },
+        },
+      },
+    },
+    "/.well-known/oauth-protected-resource/mcp": {
+      get: {
+        tags: ["MCP OAuth"],
+        summary: "Protected Resource Metadata (RFC 9728)",
+        description:
+          "Returns metadata about the MCP protected resource, including the authorization server URL. AI clients use this to discover where to obtain access tokens.",
+        operationId: "getProtectedResourceMetadata",
+        responses: {
+          "200": {
+            description: "Protected Resource Metadata",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ProtectedResourceMetadata" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/.well-known/oauth-authorization-server": {
+      get: {
+        tags: ["MCP OAuth"],
+        summary: "Authorization Server Metadata (RFC 8414)",
+        description:
+          "Returns metadata about the OAuth 2.1 authorization server, including endpoints, supported grant types, and scopes. AI clients use this to discover the authorization and token endpoints.",
+        operationId: "getAuthorizationServerMetadata",
+        responses: {
+          "200": {
+            description: "Authorization Server Metadata",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/AuthorizationServerMetadata" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/mcp/oauth/register": {
+      post: {
+        tags: ["MCP OAuth"],
+        summary: "Dynamic Client Registration (RFC 7591)",
+        description:
+          "Registers a new OAuth client. AI clients call this endpoint to obtain a client_id and client_secret before initiating the authorization flow.",
+        operationId: "registerOAuthClient",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/DcrRequest" },
+              examples: {
+                default: {
+                  summary: "Register an AI client",
+                  value: {
+                    client_name: "Claude Desktop",
+                    redirect_uris: ["http://localhost:8080/callback"],
+                    grant_types: ["authorization_code"],
+                    response_types: ["code"],
+                    token_endpoint_auth_method: "client_secret_post",
+                    scope: "mcp:tools",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Client registered successfully",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DcrResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid registration request",
+          },
+        },
+      },
+    },
+    "/mcp/oauth/authorize": {
+      get: {
+        tags: ["MCP OAuth"],
+        summary: "Authorization Endpoint",
+        description:
+          "Initiates the OAuth 2.1 Authorization Code flow. Redirects the user to the Primebrick consent screen, then to Casdoor for authentication. On approval, redirects back with an authorization code. On denial, redirects back with `error=access_denied`.\n\n**Parameters:**\n- `response_type` — must be `code`\n- `client_id` — from DCR registration\n- `redirect_uri` — must match a registered redirect URI\n- `scope` — requested scopes (e.g. `mcp:tools`)\n- `state` — client-generated state for CSRF protection\n- `code_challenge` / `code_challenge_method` — PKCE parameters (recommended)",
+        operationId: "authorize",
+        parameters: [
+          { name: "response_type", in: "query", required: true, schema: { type: "string", enum: ["code"] } },
+          { name: "client_id", in: "query", required: true, schema: { type: "string" } },
+          { name: "redirect_uri", in: "query", required: true, schema: { type: "string", format: "uri" } },
+          { name: "scope", in: "query", required: false, schema: { type: "string" } },
+          { name: "state", in: "query", required: false, schema: { type: "string" } },
+          { name: "code_challenge", in: "query", required: false, schema: { type: "string" } },
+          { name: "code_challenge_method", in: "query", required: false, schema: { type: "string", enum: ["S256"] } },
+        ],
+        responses: {
+          "302": {
+            description: "Redirect to consent screen (or Casdoor if consent already approved). On success, redirects to `redirect_uri` with `code` and `state`. On denial, redirects with `error=access_denied`.",
+            headers: {
+              Location: { schema: { type: "string" } },
+            },
+          },
+          "400": {
+            description: "Invalid authorization request (missing required parameters or invalid client_id)",
+          },
+        },
+      },
+    },
+    "/mcp/oauth/token": {
+      post: {
+        tags: ["MCP OAuth"],
+        summary: "Token Endpoint",
+        description:
+          "Exchanges an authorization code for an access token (and optional refresh token). The BE proxies the request to Casdoor's token endpoint using its own OIDC client credentials.\n\n**Content-Type:** `application/x-www-form-urlencoded`",
+        operationId: "exchangeToken",
+        requestBody: {
+          required: true,
+          content: {
+            "application/x-www-form-urlencoded": {
+              schema: { $ref: "#/components/schemas/TokenRequest" },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Token response",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/TokenResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid token request (invalid code, expired code, invalid client credentials)",
+          },
+        },
+      },
+    },
     "/api/v1/entities/customer/meta": {
       get: {
         tags: ["Customers"],
@@ -346,7 +633,128 @@ export const openapi = {
     },
   },
   components: {
+    securitySchemes: {
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+        description: "OAuth 2.1 Bearer token obtained via the Authorization Code flow. See /.well-known/oauth-authorization-server for discovery endpoints.",
+      },
+    },
     schemas: {
+      McpJsonRpcRequest: {
+        type: "object",
+        required: ["jsonrpc", "method", "id"],
+        properties: {
+          jsonrpc: { type: "string", enum: ["2.0"] },
+          id: { oneOf: [{ type: "string" }, { type: "number" }] },
+          method: {
+            type: "string",
+            enum: ["initialize", "ping", "tools/list", "tools/call"],
+            description: "JSON-RPC method name",
+          },
+          params: {
+            type: "object",
+            description: "Method-specific parameters. For tools/call, includes `name` (tool name) and `arguments` (tool arguments).",
+          },
+        },
+      },
+      McpJsonRpcResponse: {
+        type: "object",
+        required: ["jsonrpc", "id"],
+        properties: {
+          jsonrpc: { type: "string", enum: ["2.0"] },
+          id: { oneOf: [{ type: "string" }, { type: "number" }] },
+          result: {
+            type: "object",
+            description: "Result object (present on success). Structure depends on the method called.",
+          },
+          error: {
+            type: "object",
+            properties: {
+              code: { type: "integer" },
+              message: { type: "string" },
+              data: { type: "object" },
+            },
+          },
+        },
+      },
+      ProtectedResourceMetadata: {
+        type: "object",
+        description: "RFC 9728 Protected Resource Metadata",
+        properties: {
+          resource: { type: "string", description: "URL of the protected resource (the MCP endpoint)" },
+          authorization_servers: { type: "array", items: { type: "string" } },
+          bearer_methods_supported: { type: "array", items: { type: "string" } },
+          resource_name: { type: "string" },
+        },
+      },
+      AuthorizationServerMetadata: {
+        type: "object",
+        description: "RFC 8414 Authorization Server Metadata",
+        properties: {
+          issuer: { type: "string" },
+          authorization_endpoint: { type: "string" },
+          token_endpoint: { type: "string" },
+          registration_endpoint: { type: "string" },
+          response_types_supported: { type: "array", items: { type: "string" } },
+          grant_types_supported: { type: "array", items: { type: "string" } },
+          code_challenge_methods_supported: { type: "array", items: { type: "string" } },
+          scopes_supported: { type: "array", items: { type: "string" } },
+        },
+      },
+      DcrRequest: {
+        type: "object",
+        description: "RFC 7591 Dynamic Client Registration request",
+        required: ["client_name", "redirect_uris"],
+        properties: {
+          client_name: { type: "string" },
+          redirect_uris: { type: "array", items: { type: "string" } },
+          grant_types: { type: "array", items: { type: "string" } },
+          response_types: { type: "array", items: { type: "string" } },
+          token_endpoint_auth_method: { type: "string" },
+          scope: { type: "string" },
+        },
+      },
+      DcrResponse: {
+        type: "object",
+        description: "RFC 7591 Dynamic Client Registration response",
+        properties: {
+          client_id: { type: "string" },
+          client_secret: { type: "string" },
+          client_id_issued_at: { type: "integer" },
+          client_name: { type: "string" },
+          redirect_uris: { type: "array", items: { type: "string" } },
+          grant_types: { type: "array", items: { type: "string" } },
+          response_types: { type: "array", items: { type: "string" } },
+          token_endpoint_auth_method: { type: "string" },
+          scope: { type: "string" },
+        },
+      },
+      TokenRequest: {
+        type: "object",
+        description: "OAuth 2.1 token exchange request (application/x-www-form-urlencoded)",
+        required: ["grant_type", "code", "redirect_uri", "client_id"],
+        properties: {
+          grant_type: { type: "string", enum: ["authorization_code"] },
+          code: { type: "string", description: "Authorization code from the authorize endpoint" },
+          redirect_uri: { type: "string" },
+          client_id: { type: "string" },
+          client_secret: { type: "string" },
+          code_verifier: { type: "string", description: "PKCE code verifier" },
+        },
+      },
+      TokenResponse: {
+        type: "object",
+        description: "OAuth 2.1 token response",
+        properties: {
+          access_token: { type: "string" },
+          token_type: { type: "string", enum: ["Bearer"] },
+          expires_in: { type: "integer" },
+          refresh_token: { type: "string" },
+          scope: { type: "string" },
+        },
+      },
       CustomerStatus: { type: "string", enum: ["ACTIVE", "INACTIVE"] },
       CustomerCreateBody: {
         type: "object",
