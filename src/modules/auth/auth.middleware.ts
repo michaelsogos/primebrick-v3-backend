@@ -63,6 +63,19 @@ export function clearRoleMappingCache(): void {
 }
 
 /**
+ * Get the current auth ports (user resolver + role mapping).
+ * Returns null if ports have not been initialized yet.
+ * Used by the MCP module to share the same port instances.
+ */
+export function getAuthPorts(): AuthPorts | null {
+  if (!userResolverPort || !roleMappingPort) return null;
+  return {
+    resolveInternalUuid: (input) => userResolverPort!.resolveInternalUuid(input),
+    getRoleMapping: (role) => roleMappingPort!.getRoleMapping(role),
+  };
+}
+
+/**
  * Build the route-attachable middleware. We use a factory so the caller can
  * compose `authMiddleware()` once at boot and reuse it across mounts.
  */

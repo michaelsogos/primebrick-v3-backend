@@ -4,12 +4,56 @@ export const openapi = {
     title: "Primebrick API",
     version: "0.1.0",
   },
+  servers: [
+    {
+      url: "http://localhost:3001",
+      description: "Local development server",
+    },
+  ],
   tags: [
     { name: "Customers", description: "Customer entity CRUD and metadata endpoints" },
     { name: "Organizations", description: "Organization entity CRUD and metadata endpoints" },
     { name: "Authentication", description: "Login, token refresh, and user profile endpoints" },
+    { name: "MCP", description: "Model Context Protocol server endpoint for AI client integration" },
   ],
   paths: {
+    "/mcp": {
+      post: {
+        tags: ["MCP"],
+        summary: "MCP Server Endpoint",
+        description:
+          "Model Context Protocol (MCP) server endpoint. AI clients (Claude, ChatGPT, Cursor, VS Code) connect to this endpoint to access Primebrick tools for entity CRUD, discovery, and service management. Authentication uses OAuth 2.1 Bearer tokens — see the authorization flow at /mcp/oauth/authorize.",
+        operationId: "mcpEndpoint",
+        "x-mcp-server": {
+          name: "primebrick",
+          version: "1.0.0",
+          tools: [
+            { name: "list_entities", description: "List all available entities across all modules" },
+            { name: "get_entity_meta", description: "Get metadata for a specific entity (fields, types, validation)" },
+            { name: "list_records", description: "List records for a specific entity with search, filter, sort, pagination" },
+            { name: "get_record", description: "Get a single record by UUID" },
+            { name: "create_record", description: "Create a new record for a specific entity" },
+            { name: "update_record", description: "Update an existing record by UUID" },
+            { name: "delete_record", description: "Soft-delete a record by UUID" },
+            { name: "restore_record", description: "Restore a soft-deleted record by UUID" },
+            { name: "get_audit", description: "Get audit history for a specific record" },
+            { name: "bulk_delete_records", description: "Bulk soft-delete multiple records by UUID" },
+            { name: "list_services", description: "List all registered microservices in the service registry" },
+          ],
+        },
+        responses: {
+          "200": {
+            description: "MCP JSON-RPC response (tools/list, tools/call, initialize, etc.)",
+          },
+          "401": {
+            description: "Unauthorized — Bearer token required. See WWW-Authenticate header for OAuth 2.1 discovery endpoints.",
+          },
+          "405": {
+            description: "Method not allowed — use POST for MCP requests.",
+          },
+        },
+      },
+    },
     "/api/v1/entities/customer/meta": {
       get: {
         tags: ["Customers"],

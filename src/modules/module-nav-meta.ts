@@ -3,8 +3,8 @@
  *
  * This is a PLACEHOLDER until microservices self-describe their nav via NATS
  * (stored in service_registry.endpoints jsonb). For now, the BE is the single
- * source of truth for module nav — including the reserved 'home' and 'settings'
- * modules which are Primebrick shell constants, not registrable microservices.
+ * source of truth for module nav — including the reserved 'settings' module
+ * which is a Primebrick shell constant, not a registrable microservice.
  *
  * The FE never hardcodes any of this — it fetches everything via the API.
  */
@@ -13,14 +13,6 @@ import type { ModuleNavWithPrefixes } from "./module-nav-types.js";
 
 export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
   switch (code.toLowerCase()) {
-    case "home":
-      return {
-        module: "home",
-        icon: "layout-grid",
-        route_prefixes: ["/"],
-        is_reserved: true,
-        nav: [],
-      };
     case "crm":
       return {
         module: "crm",

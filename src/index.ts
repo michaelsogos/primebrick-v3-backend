@@ -13,8 +13,9 @@ import { getPool } from "./db/pool.js";
 import { isDatabaseUnavailableError } from "./http/api-errors.js";
 import { makeProtectedRouter } from "./http/protected-router.js";
 import { rbacHandler } from "./modules/auth/rbac.middleware.js";
-import { loadRoleMappings, initAuthPorts } from "./modules/auth/auth.middleware.js";
+import { loadRoleMappings, initAuthPorts, getAuthPorts } from "./modules/auth/auth.middleware.js";
 import { loadAuthConfig } from "./modules/auth/config.js";
+import { mountMcp, initMcpModule } from "./modules/mcp/index.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
 import "./modules/auth/express-augmentation.js";
 import { readFileSync } from "node:fs";
@@ -193,6 +194,13 @@ app.use("/api/v1", apiRouter);
 // Mount all feature routers (customers / organizations / system / auth).
 mountModules(app);
 
+// Mount the MCP endpoint at /mcp (Streamable HTTP transport, stateless mode).
+// Auth is handled by requireBearerAuth inside mountMcp — NOT by the global
+// authMiddleware, because MCP uses its own OAuth token verifier that populates
+// req.auth (the MCP SDK's expected auth shape) rather than req.user.
+// OAuth metadata is built lazily on each request so mountMcp is synchronous.
+mountMcp(app, "/mcp");
+
 app.use(errorHandler);
 
 // Bind the port BEFORE any DB-dependent startup work so /health stays
@@ -213,6 +221,14 @@ async function runStartupTasks(): Promise<void> {
   initAuthPorts();
   await refreshRoleMappings();
   await refreshAuthConfig();
+  // Initialize the MCP module with the same auth ports used by authMiddleware.
+  // This must run after initAuthPorts() so the ports are available.
+  const ports = getAuthPorts();
+  if (ports) {
+    initMcpModule(ports);
+  } else {
+    console.warn("[startup] MCP module not initialized — auth ports unavailable");
+  }
   await startServiceLifecycle();
 }
 
