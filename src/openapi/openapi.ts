@@ -1,7 +1,7 @@
 export const openapi = {
   openapi: "3.0.3",
   info: {
-    title: "Primebrick API",
+    title: "System Catalog",
     version: "0.1.0",
   },
   servers: [
