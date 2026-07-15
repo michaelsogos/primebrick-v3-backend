@@ -42,7 +42,7 @@ export const openapi = {
             { name: "list_services", description: "List all registered microservices in the service registry" },
           ],
         },
-        security: [{ bearerAuth: [] }],
+        security: [{ bearerAuth: [] }, { apiKey: [] }],
         requestBody: {
           required: true,
           content: {
@@ -632,13 +632,20 @@ export const openapi = {
       },
     },
   },
+  security: [{ bearerAuth: [] }, { apiKey: [] }],
   components: {
     securitySchemes: {
       bearerAuth: {
         type: "http",
         scheme: "bearer",
         bearerFormat: "JWT",
-        description: "OAuth 2.1 Bearer token obtained via the Authorization Code flow. See /.well-known/oauth-authorization-server for discovery endpoints.",
+        description: "OAuth 2.1 Bearer token obtained via the Authorization Code flow with a consent screen. See /.well-known/oauth-authorization-server for discovery endpoints.",
+      },
+      apiKey: {
+        type: "apiKey",
+        in: "header",
+        name: "X-API-Key",
+        description: "API key passed via the X-API-Key header. Used for service-to-service authentication and MCP client access.",
       },
     },
     schemas: {
