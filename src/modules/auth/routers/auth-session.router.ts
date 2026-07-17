@@ -4,6 +4,7 @@
  * Endpoints:
  *   POST   /api/v1/auth/login    → Casdoor OAuth password grant, sets cookies
  *   POST   /api/v1/auth/refresh  → Casdoor OAuth refresh grant, sets cookies
+ *   GET    /api/v1/auth/config   → public auth flags (enable_formauth, enable_webauthn)
  *   PATCH  /api/v1/auth/me       → self-service profile update
  *   GET    /api/v1/auth/me       → fetch own profile
  *   GET    /api/v1/auth/me/meta  → metadata for the self-service profile form
@@ -22,7 +23,7 @@ import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../rbac.middleware.js";
-import { Permission } from "@primebrick/sdk";
+import { Permission, getAuthConfig } from "@primebrick/sdk";
 import { getPool } from "../../../db/pool.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
 import { CasdoorService } from "../services/casdoor.service.js";
@@ -116,6 +117,19 @@ export function authSessionRouter() {
     res.json(meMeta);
   });
 
+  /**
+   * Public auth configuration — returns only the flags the FE needs to decide
+   * which login methods to show. No secrets, no endpoint URLs.
+   * `GET /api/v1/auth/config`
+   */
+  const getAuthConfigPublic: RequestHandler = asyncHandler(async (_req, res) => {
+    const cfg = getAuthConfig();
+    res.json({
+      enable_formauth: cfg.enable_formauth,
+      enable_webauthn: cfg.enable_webauthn,
+    });
+  });
+
   registerRoutes(router, [
     {
       method: "post",
@@ -129,6 +143,12 @@ export function authSessionRouter() {
       path: "/api/v1/auth/refresh",
       permission: rbacHandler([Permission.PUBLIC]),
       handler: refresh,
+    },
+    {
+      method: "get",
+      path: "/api/v1/auth/config",
+      permission: rbacHandler([Permission.PUBLIC]),
+      handler: getAuthConfigPublic,
     },
     {
       method: "patch",

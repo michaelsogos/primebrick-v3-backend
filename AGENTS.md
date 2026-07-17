@@ -183,3 +183,16 @@ The system is integrated with Casdoor IDP. Role names must match Casdoor roles (
 ### Testing
 
 When testing RBAC changes, ensure the role mapping cache is reloaded by restarting the backend server after database updates.
+
+## User-facing documentation
+
+User-facing developer documentation lives in `docs/user-guide/` as MDX files.
+These are synced to `docs.primebrick.dev` by the docs repo's CI pipeline.
+
+- **Location**: `docs/user-guide/*.mdx` — one file per topic
+- **Ordering**: `docs/user-guide/_order.json` defines the sidebar page order
+- **Conventions**: see `.devin/rules/docs-user-guide.md` for editorial rules
+- **Mermaid**: use `<Mermaid chart={...} />`, never ` ```Code ` or ` ```mermaid `
+- **Do NOT hand-edit** files in `docs/ai/` or `docs/skills/` — those are internal
+- **Internal docs** (`docs/ai/`, `docs/skills/`, `docs/gitflow.md`) are NOT synced
+  to the docs site — they stay in this repo for AI agents only

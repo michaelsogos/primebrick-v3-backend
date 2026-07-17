@@ -109,3 +109,25 @@ export function makeChangePasswordSchema(policy: PasswordPolicy) {
   });
 }
 export type ChangePasswordBody = z.infer<ReturnType<typeof makeChangePasswordSchema>>;
+
+// --- WebAuthn (passkey signin / signup / management) ----------------------
+
+export const WebauthnSigninBeginSchema = z.object({
+  /** Omit for discoverable login (passkey-only, no username). */
+  username: z.string().optional(),
+});
+export type WebauthnSigninBeginBody = z.infer<typeof WebauthnSigninBeginSchema>;
+
+export const WebauthnSigninFinishSchema = z.object({
+  nonce: z.string().min(1),
+  /** Serialized navigator.credentials.get() result (base64url-encoded fields). */
+  credential: z.record(z.string(), z.unknown()),
+});
+export type WebauthnSigninFinishBody = z.infer<typeof WebauthnSigninFinishSchema>;
+
+export const WebauthnSignupFinishSchema = z.object({
+  nonce: z.string().min(1),
+  /** Serialized navigator.credentials.create() result (base64url-encoded fields). */
+  credential: z.record(z.string(), z.unknown()),
+});
+export type WebauthnSignupFinishBody = z.infer<typeof WebauthnSignupFinishSchema>;

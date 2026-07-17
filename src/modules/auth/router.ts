@@ -21,12 +21,16 @@ import { authSessionRouter } from "./routers/auth-session.router.js";
 import { authCheckRouter } from "./routers/auth-check.router.js";
 import { usersRouter } from "./routers/users.router.js";
 import { userProfilesRouter } from "./routers/user-profiles.router.js";
+import { authWebauthnRouter } from "./routers/auth-webauthn.router.js";
 
 export function authRouter() {
   const router = Router();
 
   // Auth session endpoints (login / refresh / me / me/meta).
   router.use(authSessionRouter());
+
+  // WebAuthn / passkey endpoints (signin / signup / credential management).
+  router.use(authWebauthnRouter());
 
   // User availability checks (check-email / check-username).
   router.use(authCheckRouter());
