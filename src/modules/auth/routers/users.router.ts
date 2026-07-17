@@ -76,8 +76,8 @@ export function usersRouter() {
       });
       return;
     }
-    const { profile } = await service.createUser(parsed.data as CreateUserBody);
-    res.status(201).json({ success: true, profile });
+    const { profile, invitation_uuid } = await service.createUser(parsed.data as CreateUserBody);
+    res.status(201).json({ success: true, profile, invitation_uuid });
   });
 
   const update: RequestHandler = asyncHandler(async (req, res) => {

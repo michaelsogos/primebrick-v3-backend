@@ -27,14 +27,16 @@ import { Permission, getAuthConfig } from "@primebrick/sdk";
 import { getPool } from "../../../db/pool.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
 import { CasdoorService } from "../services/casdoor.service.js";
+import { UserService } from "../services/user.service.js";
 import {
   AuthSessionService,
   setAuthCookies,
   clearRefreshCookie,
   buildUserFromClaims,
 } from "../services/auth-session.service.js";
-import { LoginBodySchema, ProfileUpdateSchema } from "../dto.js";
-import { UnauthorizedError } from "../../../http/api-errors.js";
+import { LoginBodySchema, ProfileUpdateSchema, makeChangeOwnPasswordSchema } from "../dto.js";
+import { PasswordPolicy, DEFAULT_PASSWORD_POLICY } from "../password-policy.js";
+import { UnauthorizedError, ApiError } from "../../../http/api-errors.js";
 
 function makeService(): AuthSessionService {
   const pool = getPool();
@@ -42,6 +44,16 @@ function makeService(): AuthSessionService {
   const casdoor = new CasdoorService(pool);
   return new AuthSessionService(pool, dal, casdoor);
 }
+
+function makeUserService(): UserService {
+  const pool = getPool();
+  const dal = new UserProfilesDal(pool);
+  const casdoor = new CasdoorService(pool);
+  return new UserService(pool, dal, casdoor);
+}
+
+// Schema for self-service password change — requires current_password + newPassword
+const ChangeMyPasswordSchema = makeChangeOwnPasswordSchema(DEFAULT_PASSWORD_POLICY);
 
 /** Metadata for the self-service profile form (`GET /api/v1/auth/me/meta`). */
 const meMeta = {
@@ -118,6 +130,40 @@ export function authSessionRouter() {
   });
 
   /**
+   * POST /api/v1/auth/me/dismiss-passkey-prompt
+   * Dismiss the passkey enrollment prompt for the current user.
+   */
+  const dismissPasskeyPrompt: RequestHandler = asyncHandler(async (req, res) => {
+    const userId = requireUserId(req);
+    const result = await service.dismissPasskeyPrompt(userId);
+    res.json(result);
+  });
+
+  /**
+   * POST /api/v1/auth/me/change-password
+   * Self-service password change for the authenticated user.
+   * Requires the current password for verification (sent to Casdoor).
+   * The email notification is sent by UserService.changeOwnPassword().
+   */
+  const changeMyPassword: RequestHandler = asyncHandler(async (req, res) => {
+    const userId = requireUserId(req);
+    const { current_password, newPassword } = req.body as z.infer<typeof ChangeMyPasswordSchema>;
+    const userService = makeUserService();
+    const result = await userService.changeOwnPassword(userId, current_password, newPassword);
+    if (result.status !== "ok") {
+      throw new ApiError(
+        "/errors/internal-error",
+        "Password change failed",
+        502,
+        result.msg || "Casdoor returned an error while changing the password",
+        { internal_code: "CASDOOR_CHANGE_PASSWORD_FAILED", severity: "HIGH" },
+      );
+    }
+
+    res.json({ success: true });
+  });
+
+  /**
    * Public auth configuration — returns only the flags the FE needs to decide
    * which login methods to show. No secrets, no endpoint URLs.
    * `GET /api/v1/auth/config`
@@ -168,6 +214,19 @@ export function authSessionRouter() {
       path: "/api/v1/auth/me/meta",
       permission: rbacHandler([Permission.AUTHENTICATED_USER]),
       handler: getMeMeta,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/me/dismiss-passkey-prompt",
+      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
+      handler: dismissPasskeyPrompt,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/me/change-password",
+      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
+      middlewares: [validateBody(ChangeMyPasswordSchema)],
+      handler: changeMyPassword,
     },
   ]);
 

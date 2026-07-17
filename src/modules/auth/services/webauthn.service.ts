@@ -39,6 +39,11 @@ import { randomUUID } from "crypto";
 
 import { getAuthConfig } from "../config.js";
 import { CasdoorService } from "./casdoor.service.js";
+import { InvitationService } from "./invitation.service.js";
+import { UserPasskeysDal } from "../user-passkeys-dal.js";
+import { UserProfilesDal } from "../user-profiles-dal.js";
+import { sendEmail } from "./email-sender.js";
+import { requireActor } from "@primebrick/sdk";
 import {
   setAuthCookies,
   buildUserFromClaims,
@@ -67,6 +72,7 @@ export interface WebauthnCredentialInfo {
   aaguid?: string;
   transports?: string[];
   created_at?: string;
+  label?: string | null;
 }
 
 // --- Session relay (in-memory, single-instance) ---------------------------
@@ -359,6 +365,73 @@ export class WebauthnService {
       );
     }
 
+    // Track the new passkey in PG + send notification email.
+    // The credential object from the browser contains id (base64url), aaguid, transports.
+    // We extract these and store them in user_passkeys for the passkey prompt logic
+    // and notification emails. Best-effort: if PG tracking fails, the passkey is
+    // still enrolled in Casdoor — we log the error but don't fail the ceremony.
+    try {
+      const cred = credential as { id?: string; response?: { attestationObject?: string } };
+      const credentialId = cred?.id;
+      if (credentialId) {
+        // Get the user profile from the access token to find user_profile_id
+        const profilesDal = new UserProfilesDal(this.pool);
+        // We need the user's idp_code to look up the profile — extract from the
+        // access token claims. For now, we use the Casdoor session to get the user.
+        // The signupFinish is called with an accessToken, so we can decode it.
+        // Actually, the router passes the actor's idpCode via requireActor().
+        // Let's use requireActor() to get the actor UUID, then look up the profile.
+        const actor = requireActor();
+        const profile = await profilesDal.getByUuid(actor);
+        if (profile) {
+          const idResult = await this.pool.query(
+            `SELECT id FROM user_profiles WHERE uuid = $1`,
+            [actor],
+          );
+          const profileId = idResult.rows[0]?.id;
+          if (profileId) {
+            const passkeysDal = new UserPasskeysDal(this.pool);
+            // Check if this credential is already tracked (idempotent)
+            const existing = await passkeysDal.findByCredentialId(credentialId);
+            if (!existing) {
+              await passkeysDal.create({
+                user_profile_id: BigInt(profileId),
+                credential_id: credentialId,
+                // aaguid and transports are inside the attestationObject which is
+                // CBOR-encoded — extracting them requires a CBOR decoder. For now,
+                // we store what we can (credential_id) and leave aaguid/transports
+                // as undefined. The Casdoor user API has the full credential info.
+                aaguid: undefined,
+                transports: undefined,
+              });
+            }
+
+            // Send passkey activated notification email
+            const invitationService = new InvitationService(this.pool, this.casdoor);
+            const alertLink = await invitationService.generateAlertLink(profile.uuid, "passkey-activated");
+            const adminMailto = await invitationService.generateAdminMailto(
+              profile.display_name ?? "",
+              profile.email ?? "",
+            );
+            await sendEmail({
+              template_code: "passkey_activated",
+              language_iso: "en",
+              to: [profile.email ?? ""].filter((e) => e.length > 0),
+              variables: {
+                display_name: profile.display_name ?? "",
+                passkey_label: "",
+                alert_link: alertLink,
+                admin_mailto: adminMailto,
+              },
+            });
+          }
+        }
+      }
+    } catch (trackingErr) {
+      // Best-effort: log but don't fail the ceremony
+      console.error("[webauthn] Failed to track passkey in PG:", trackingErr);
+    }
+
     return { success: true };
   }
 
@@ -403,10 +476,31 @@ export class WebauthnService {
 
     if (!creds || creds.length === 0) return [];
 
+    // Merge with PG passkey labels (best-effort — if PG lookup fails, return
+    // Casdoor data without labels)
+    let pgLabels: Map<string, { label: string | null; created_at?: string }> = new Map();
+    try {
+      const passkeysDal = new UserPasskeysDal(this.pool);
+      const profilesDal = new UserProfilesDal(this.pool);
+      const profile = idpCode
+        ? await profilesDal.getByIdpCode(idpCode)
+        : await profilesDal.getByIdpCode(`${idpOrg}/${idpUsername}`);
+      if (profile) {
+        const pgPasskeys = await passkeysDal.findByUserProfileUuid(profile.uuid);
+        for (const pk of pgPasskeys) {
+          pgLabels.set(pk.credential_id, { label: pk.label ?? null, created_at: pk.created_at?.toISOString() });
+        }
+      }
+    } catch (pgErr) {
+      console.error("[webauthn] Failed to load PG passkey labels:", pgErr);
+    }
+
     return creds.map((c) => ({
       id: c.id,
       aaguid: c.aaguid,
       transports: c.transports,
+      label: pgLabels.get(c.id)?.label ?? null,
+      created_at: pgLabels.get(c.id)?.created_at,
     }));
   }
 
@@ -475,6 +569,40 @@ export class WebauthnService {
         "Casdoor API returned non-success status when updating user credentials",
         { internal_code: "webauthn_delete_failed", severity: "HIGH" },
       );
+    }
+
+    // Remove the passkey from PG + send notification email.
+    // Best-effort: if PG deletion fails, the passkey is still deleted from Casdoor.
+    try {
+      const passkeysDal = new UserPasskeysDal(this.pool);
+      await passkeysDal.deleteByCredentialId(credentialId);
+
+      // Send passkey removed notification email
+      const actor = requireActor();
+      const profilesDal = new UserProfilesDal(this.pool);
+      const profile = await profilesDal.getByUuid(actor);
+      if (profile && profile.email) {
+        const invitationService = new InvitationService(this.pool, this.casdoor);
+        const alertLink = await invitationService.generateAlertLink(profile.uuid, "passkey-removed");
+        const adminMailto = await invitationService.generateAdminMailto(
+          profile.display_name ?? "",
+          profile.email ?? "",
+        );
+        await sendEmail({
+          template_code: "passkey_removed",
+          language_iso: "en",
+          to: [profile.email],
+          variables: {
+            display_name: profile.display_name ?? "",
+            passkey_label: "",
+            alert_link: alertLink,
+            admin_mailto: adminMailto,
+          },
+        });
+      }
+    } catch (trackingErr) {
+      // Best-effort: log but don't fail the deletion
+      console.error("[webauthn] Failed to remove passkey from PG:", trackingErr);
     }
 
     return { success: true };

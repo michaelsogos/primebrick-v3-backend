@@ -21,6 +21,7 @@ import type { Pool } from "pg";
 
 import { getAuthConfig } from "../config.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
+import { UserPasskeysDal } from "../user-passkeys-dal.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { requireActor } from "@primebrick/sdk";
 import {
@@ -52,6 +53,8 @@ export interface RefreshResult extends LoginResult {}
 
 export interface MeProfileResponse {
   profile: UserProfileDetailDto;
+  has_passkey?: boolean;
+  passkey_prompt_dismissed?: boolean;
 }
 
 // --- Service --------------------------------------------------------------
@@ -196,7 +199,36 @@ export class AuthSessionService {
         internal_code: "USER_PROFILE_NOT_FOUND",
       });
     }
-    return { profile };
+
+    // Include passkey info for the FE passkey prompt logic
+    const idResult = await this.pool.query(
+      `SELECT id, passkey_prompt_dismissed FROM user_profiles WHERE uuid = $1`,
+      [userUuid],
+    );
+    const profileId = idResult.rows[0]?.id;
+    const passkeyPromptDismissed = idResult.rows[0]?.passkey_prompt_dismissed ?? false;
+
+    let hasPasskey = false;
+    if (profileId) {
+      const passkeysDal = new UserPasskeysDal(this.pool);
+      const count = await passkeysDal.countByUserProfileId(BigInt(profileId));
+      hasPasskey = count > 0;
+    }
+
+    return { profile, has_passkey: hasPasskey, passkey_prompt_dismissed: passkeyPromptDismissed };
+  }
+
+  /**
+   * Dismiss the passkey enrollment prompt for the current user.
+   * Sets `passkey_prompt_dismissed = true` on the user_profile.
+   */
+  async dismissPasskeyPrompt(userUuid: string): Promise<{ success: true }> {
+    const actor = requireActor();
+    await this.pool.query(
+      `UPDATE user_profiles SET passkey_prompt_dismissed = true, updated_at = now(), updated_by = $1 WHERE uuid = $2`,
+      [actor, userUuid],
+    );
+    return { success: true };
   }
 
   async updateMe(userUuid: string, input: ProfileUpdate): Promise<MeProfileResponse> {

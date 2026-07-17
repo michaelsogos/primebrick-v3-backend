@@ -43,7 +43,7 @@ async function main(): Promise<void> {
   try {
     // Aggiorna grant types sull'app integrata di Casdoor
     await casdoorPool.query(
-      "UPDATE application SET grant_types = '[\"password\", \"authorization_code\", \"client_credentials\"]' WHERE name = 'app-built-in'"
+      "UPDATE application SET grant_types = '[\"password\", \"authorization_code\", \"client_credentials\"]', enable_web_authn = true WHERE name = 'app-built-in'"
     );
     
     // Recupera credenziali master per le chiamate HTTP API
@@ -71,20 +71,21 @@ async function main(): Promise<void> {
       await casdoorPool.query(
         `UPDATE application
          SET grant_types = '["password", "authorization_code", "client_credentials"]',
-             client_id = $1, client_secret = $2, expire_in_hours = 1, refresh_expire_in_hours = 24, organization = $4
+             client_id = $1, client_secret = $2, expire_in_hours = 1, refresh_expire_in_hours = 24, organization = $4,
+             enable_web_authn = true
          WHERE name = $3 AND owner = 'admin'`,
         [pbClientId, pbClientSecret, CASDOOR_CLIENT_ID, ORG_NAME]
       );
-      console.log("  ↳ ✅ Applicazione primebrick-api aggiornata (Token: 1h, Refresh: 24h).");
+      console.log("  ↳ ✅ Applicazione primebrick-api aggiornata (Token: 1h, Refresh: 24h, WebAuthn: ON).");
     } else {
       // Se non esiste la inseriamo pulita direttamente nelle tabelle
       // Nota: lo script assume che l'organizzazione ACME venga creata subito dopo via API HTTP
       await casdoorPool.query(
-        `INSERT INTO application (owner, name, created_time, display_name, logo, homepage_url, description, organization, cert, enable_password, enable_sign_up, client_id, client_secret, redirect_uris, token_format, expire_in_hours, refresh_expire_in_hours, grant_types)
-         VALUES ('admin', $1, NOW()::text, 'Primebrick API', '', '', '', $2, '', true, false, $3, $4, '["http://localhost:3000/callback"]', 'JWT', 1, 24, '["password", "authorization_code", "client_credentials"]')`,
+        `INSERT INTO application (owner, name, created_time, display_name, logo, homepage_url, description, organization, cert, enable_password, enable_sign_up, client_id, client_secret, redirect_uris, token_format, expire_in_hours, refresh_expire_in_hours, grant_types, enable_web_authn)
+         VALUES ('admin', $1, NOW()::text, 'Primebrick API', '', '', '', $2, '', true, false, $3, $4, '["http://localhost:3000/callback"]', 'JWT', 1, 24, '["password", "authorization_code", "client_credentials"]', true)`,
         [CASDOOR_CLIENT_ID, ORG_NAME, pbClientId, pbClientSecret]
       );
-      console.log("  ↳ ✅ Applicazione primebrick-api creata da zero via SQL.");
+      console.log("  ↳ ✅ Applicazione primebrick-api creata da zero via SQL (WebAuthn: ON).");
     }
   } catch (err: any) {
     console.error("❌ [DB CRITICAL ERROR]:", err.message);

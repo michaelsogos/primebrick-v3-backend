@@ -404,4 +404,140 @@ export class CasdoorApiClient {
     console.log(`[CasdoorApi] deleteOrganization response data:`, JSON.stringify(data, null, 2));
     return data.status === "ok" || data.success === true;
   }
+
+  /**
+   * POST /api/check-user-password
+   * Verifies a user's current password against Casdoor.
+   * Used by the self-service change-password flow to verify the old password
+   * before allowing a change.
+   *
+   * Returns `{ status: "ok" | "error", msg?: string }`.
+   */
+  async checkUserPassword(
+    user: { id: string; owner?: string; name?: string },
+    password: string,
+  ): Promise<{ status: "ok" | "error"; msg?: string }> {
+    const finalOwner = user.owner ?? (user.id.includes("/") ? user.id.split("/")[0] : this.orgName);
+    const finalName = user.name ?? (user.id.includes("/") ? user.id.slice(user.id.indexOf("/") + 1) : user.id);
+    const queryId = `${finalOwner}/${finalName}`;
+
+    const url = this.buildUrl(`/api/check-user-password?id=${encodeURIComponent(queryId)}`);
+    console.log(`[CasdoorApi] checkUserPassword: userId=${queryId}`);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: queryId, password }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[CasdoorApi] checkUserPassword failed: ${response.status} ${text}`);
+      return { status: "error", msg: `HTTP ${response.status}` };
+    }
+
+    const data = (await response.json()) as { status?: string; msg?: string; data?: string };
+    console.log(`[CasdoorApi] checkUserPassword response:`, JSON.stringify(data, null, 2));
+    return { status: (data.status as "ok" | "error") ?? "error", msg: data.msg ?? data.data };
+  }
+
+  /**
+   * GET /api/get-application
+   * Fetches a Casdoor application by name (and owner).
+   * Returns the raw application object or null if not found.
+   */
+  async getApplication(name: string, owner?: string): Promise<Record<string, unknown> | null> {
+    const id = owner ? `${owner}/${name}` : name;
+    const url = this.buildUrl(`/api/get-application?id=${encodeURIComponent(id)}`);
+    console.log(`[CasdoorApi] getApplication: id=${id}`);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      console.error(`[CasdoorApi] getApplication failed: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json() as { status?: string; data?: Record<string, unknown> };
+    if (data.status === "error" || !data.data) {
+      return null;
+    }
+    return data.data;
+  }
+
+  /**
+   * POST /api/update-application
+   * Updates a Casdoor application. The `application` object must include the
+   * full application fields (Casdoor replaces the entire object).
+   * Returns true if the update succeeded.
+   */
+  async updateApplication(application: Record<string, unknown>): Promise<boolean> {
+    const id = `${application.owner}/${application.name}`;
+    const url = this.buildUrl(`/api/update-application?id=${encodeURIComponent(String(id))}`);
+    console.log(`[CasdoorApi] updateApplication: id=${id}`);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(application),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[CasdoorApi] updateApplication failed: ${response.status} ${text}`);
+      return false;
+    }
+
+    const data = await response.json() as { status?: string; success?: boolean };
+    return data.status === "ok" || data.success === true;
+  }
+
+  /**
+   * POST /api/add-application
+   * Creates a new Casdoor application. Used when a new org is created and
+   * no existing application is found for that org.
+   * Returns the created application object or null on failure.
+   */
+  async addApplication(application: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+    const url = this.buildUrl("/api/add-application");
+    console.log(`[CasdoorApi] addApplication: name=${application.name}, owner=${application.owner}`);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(application),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[CasdoorApi] addApplication failed: ${response.status} ${text}`);
+      return null;
+    }
+
+    const data = (await response.json()) as { status?: string; data?: Record<string, unknown> };
+    if (data.status !== "ok" && data.status !== "success") {
+      console.error(`[CasdoorApi] addApplication returned error:`, data);
+      return null;
+    }
+    return data.data ?? application;
+  }
+
+  /**
+   * Enable or disable WebAuthn on a Casdoor application.
+   * Reads the current application, sets `enableWebAuthn`, and writes it back.
+   * Best-effort: returns false if the application doesn't exist or the update fails.
+   */
+  async setApplicationWebAuthn(appName: string, appOwner: string, enabled: boolean): Promise<boolean> {
+    const app = await this.getApplication(appName, appOwner);
+    if (!app) {
+      console.warn(`[CasdoorApi] setApplicationWebAuthn: application ${appOwner}/${appName} not found`);
+      return false;
+    }
+
+    app.enableWebAuthn = enabled;
+    return this.updateApplication(app);
+  }
 }

@@ -22,6 +22,7 @@ import { authCheckRouter } from "./routers/auth-check.router.js";
 import { usersRouter } from "./routers/users.router.js";
 import { userProfilesRouter } from "./routers/user-profiles.router.js";
 import { authWebauthnRouter } from "./routers/auth-webauthn.router.js";
+import { authInvitationRouter } from "./routers/auth-invitation.router.js";
 
 export function authRouter() {
   const router = Router();
@@ -31,6 +32,9 @@ export function authRouter() {
 
   // WebAuthn / passkey endpoints (signin / signup / credential management).
   router.use(authWebauthnRouter());
+
+  // Invitation / welcome flow (verify / send-otp / verify-otp / complete / revoke / resend / login-alert).
+  router.use(authInvitationRouter());
 
   // User availability checks (check-email / check-username).
   router.use(authCheckRouter());
