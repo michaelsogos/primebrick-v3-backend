@@ -221,8 +221,22 @@ export class AuthSessionService {
   /**
    * Dismiss the passkey enrollment prompt for the current user.
    * Sets `passkey_prompt_dismissed = true` on the user_profile.
+   *
+   * Refuses with 403 if `passkey_required` is enabled in auth config —
+   * a mandatory passkey cannot be dismissed, even if the FE is bypassed.
    */
   async dismissPasskeyPrompt(userUuid: string): Promise<{ success: true }> {
+    const cfg = getAuthConfig();
+    if (cfg.passkey_required) {
+      throw new ApiError(
+        "/errors/passkey-required",
+        "Passkey enrollment is mandatory",
+        403,
+        "This server requires all users to enroll a passkey. The dismissal request was refused.",
+        { internal_code: "PASSKEY_REQUIRED", severity: "HIGH" },
+      );
+    }
+
     const actor = requireActor();
     await this.pool.query(
       `UPDATE user_profiles SET passkey_prompt_dismissed = true, updated_at = now(), updated_by = $1 WHERE uuid = $2`,

@@ -27,6 +27,7 @@ export interface AuthConfigDb {
   enable_email_verification_check: boolean; // parsed from "true"/"false"
   enable_webauthn: boolean; // parsed from "true"/"false"
   enable_formauth: boolean; // parsed from "true"/"false"
+  passkey_required: boolean; // parsed from "true"/"false"
   password_policy?: string;
 
   // --- Auth mode + roles path ---
@@ -137,6 +138,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
   // NO field-by-field DTO mapping. NO fallback defaults.
   const enableWebauthn = settings.enable_webauthn === "true";
   const enableFormauth = settings.enable_formauth === "true";
+  const passkeyRequired = settings.passkey_required === "true";
 
   // At least one authentication method MUST be enabled — otherwise no user
   // can ever log in. This is a fatal configuration error, not a transient
@@ -153,6 +155,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
     enable_email_verification_check: settings.enable_email_verification_check === "true",
     enable_webauthn: enableWebauthn,
     enable_formauth: enableFormauth,
+    passkey_required: passkeyRequired,
     auth_mode: mode, // normalized to uppercase, already validated above
   } as AuthConfigDb;
 }

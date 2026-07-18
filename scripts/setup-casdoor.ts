@@ -43,7 +43,7 @@ async function main(): Promise<void> {
   try {
     // Aggiorna grant types sull'app integrata di Casdoor
     await casdoorPool.query(
-      "UPDATE application SET grant_types = '[\"password\", \"authorization_code\", \"client_credentials\"]', enable_web_authn = true WHERE name = 'app-built-in'"
+      "UPDATE application SET grant_types = '[\"password\", \"authorization_code\", \"client_credentials\", \"refresh_token\"]', enable_web_authn = true WHERE name = 'app-built-in'"
     );
     
     // Recupera credenziali master per le chiamate HTTP API
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
       
       await casdoorPool.query(
         `UPDATE application
-         SET grant_types = '["password", "authorization_code", "client_credentials"]',
+         SET grant_types = '["password", "authorization_code", "client_credentials", "refresh_token"]',
              client_id = $1, client_secret = $2, expire_in_hours = 1, refresh_expire_in_hours = 24, organization = $4,
              enable_web_authn = true
          WHERE name = $3 AND owner = 'admin'`,
@@ -82,7 +82,7 @@ async function main(): Promise<void> {
       // Nota: lo script assume che l'organizzazione ACME venga creata subito dopo via API HTTP
       await casdoorPool.query(
         `INSERT INTO application (owner, name, created_time, display_name, logo, homepage_url, description, organization, cert, enable_password, enable_sign_up, client_id, client_secret, redirect_uris, token_format, expire_in_hours, refresh_expire_in_hours, grant_types, enable_web_authn)
-         VALUES ('admin', $1, NOW()::text, 'Primebrick API', '', '', '', $2, '', true, false, $3, $4, '["http://localhost:3000/callback"]', 'JWT', 1, 24, '["password", "authorization_code", "client_credentials"]', true)`,
+         VALUES ('admin', $1, NOW()::text, 'Primebrick API', '', '', '', $2, '', true, false, $3, $4, '["http://localhost:3000/callback", "http://localhost:5173/callback"]', 'JWT', 1, 24, '["password", "authorization_code", "client_credentials", "refresh_token"]', true)`,
         [CASDOOR_CLIENT_ID, ORG_NAME, pbClientId, pbClientSecret]
       );
       console.log("  ↳ ✅ Applicazione primebrick-api creata da zero via SQL (WebAuthn: ON).");
@@ -261,14 +261,35 @@ async function main(): Promise<void> {
   });
   handleResponse(resUser, "Crea Utente Admin");
 
-  // Extract UUID, org, and username from Casdoor response
-  const casdoorUser = resUser?.data || resUser;
-  if (!casdoorUser || !casdoorUser.id) {
-    throw new Error("Casdoor user creation did not return a UUID");
+  // Extract UUID, org, and username from Casdoor response.
+  // When the user already exists, the API returns an error response without
+  // user data — fall back to querying the Casdoor DB for the existing UUID.
+  let casdoorUserId: string;
+  let casdoorOrg: string;
+  let casdoorUsername: string;
+
+  if (resUser?.data?.id) {
+    casdoorUserId = resUser.data.id;
+    casdoorOrg = resUser.data.owner || ORG_NAME;
+    casdoorUsername = resUser.data.name || USER_NAME;
+  } else {
+    // User already exists — fetch UUID from Casdoor DB
+    const fallbackPool = new Pool({ connectionString: CASDOOR_DATABASE_URL });
+    try {
+      const existingUser = await fallbackPool.query(
+        "SELECT id, owner, name FROM \"user\" WHERE owner = $1 AND name = $2",
+        [ORG_NAME, USER_NAME]
+      );
+      if (existingUser.rows.length === 0) {
+        throw new Error(`User ${ORG_NAME}/${USER_NAME} not found in Casdoor DB after add-user returned no data`);
+      }
+      casdoorUserId = existingUser.rows[0].id;
+      casdoorOrg = existingUser.rows[0].owner || ORG_NAME;
+      casdoorUsername = existingUser.rows[0].name || USER_NAME;
+    } finally {
+      await fallbackPool.end();
+    }
   }
-  const casdoorUserId = casdoorUser.id;
-  const casdoorOrg = casdoorUser.owner || ORG_NAME;
-  const casdoorUsername = casdoorUser.name || USER_NAME;
   console.log(`  ↳ ✅ Casdoor user UUID: ${casdoorUserId}, org: ${casdoorOrg}, username: ${casdoorUsername}`);
 
   // 6. ASSOCIAZIONE UTENTE AL RUOLO (Via SQL per evitare sovrascritture distruttive nel DB Casdoor)
@@ -317,6 +338,7 @@ async function main(): Promise<void> {
     await updateAuthConfig(pbPool, "casdoor_organization", ORG_NAME, "setup-casdoor");
     await updateAuthConfig(pbPool, "enable_formauth", "true", "setup-casdoor");
     await updateAuthConfig(pbPool, "enable_webauthn", "true", "setup-casdoor");
+    await updateAuthConfig(pbPool, "passkey_required", "true", "setup-casdoor");
     console.log("  ↳ ✅ Chiavi consolidate sul database Primebrick.");
 
     // Create user profile in Primebrick DB

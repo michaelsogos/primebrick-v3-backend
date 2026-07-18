@@ -152,6 +152,12 @@ export function authWebauthnRouter() {
     res.json({ success: true, credentials });
   });
 
+  const syncPasskeys: RequestHandler = asyncHandler(async (req, res) => {
+    const { idp_code, idp_org, idp_username } = requireIdpIdentity(req);
+    const result = await service.syncPasskeys(idp_code, idp_org, idp_username);
+    res.json({ success: true, ...result });
+  });
+
   const deleteCredential: RequestHandler = asyncHandler(async (req, res) => {
     const params = CredentialIdParamSchema.parse(req.params);
     const { idp_code, idp_org, idp_username } = requireIdpIdentity(req);
@@ -197,6 +203,12 @@ export function authWebauthnRouter() {
       path: "/api/v1/auth/webauthn/credentials",
       permission: rbacHandler([Permission.AUTHENTICATED_USER]),
       handler: listCredentials,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/webauthn/sync-passkeys",
+      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
+      handler: syncPasskeys,
     },
     {
       method: "delete",

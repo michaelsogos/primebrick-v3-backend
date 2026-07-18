@@ -121,8 +121,8 @@ export function authSessionRouter() {
 
   const getMe: RequestHandler = asyncHandler(async (req, res) => {
     const userId = requireUserId(req);
-    const { profile } = await service.getMe(userId);
-    res.json({ success: true, profile });
+    const { profile, has_passkey, passkey_prompt_dismissed } = await service.getMe(userId);
+    res.json({ success: true, profile, has_passkey, passkey_prompt_dismissed });
   });
 
   const getMeMeta: RequestHandler = asyncHandler(async (_req, res) => {
@@ -173,6 +173,7 @@ export function authSessionRouter() {
     res.json({
       enable_formauth: cfg.enable_formauth,
       enable_webauthn: cfg.enable_webauthn,
+      passkey_required: cfg.passkey_required,
     });
   });
 

@@ -60,7 +60,7 @@ services:
       - primebrick-infra-net
 
   casdoor:
-    image: casbin/casdoor:3.75.0
+    image: casbin/casdoor:3.118.0
     container_name: primebrick-casdoor
     environment:
       driverName: postgres
@@ -74,6 +74,10 @@ services:
       # Named volume for Casdoor static data (uploaded files, configs).
       # Survives container restarts.
       - primebrick_casdoor_data:/data
+      # Bind-mount app.conf from host so custom edits (origin=, originFrontend=)
+      # survive image upgrades. Env vars in this compose file still override
+      # DB-related keys at runtime.
+      - ./casdoor-conf/app.conf:/conf/app.conf
     # Casdoor will create the database automatically if it doesn't exist
     entrypoint: /bin/sh -c "./server --createDatabase=true"
     depends_on:

@@ -78,13 +78,14 @@ INSERT INTO "public"."auth_configurations" ("key", "value", "description", "crea
 ('invitation_expiry_days', '7', 'Invitation token expiry in days', 'system'),
 ('admin_contact_email', '', 'Admin email for unauthorized action alerts and mailto: links. If empty, BE falls back to first user with is_admin=true.', 'system'),
 ('notification_alert_secret', '', 'HMAC secret for unauthorized-action alert links in emails. Auto-generated (32 random bytes hex) on first use if empty.', 'system'),
-('frontend_url', 'http://localhost:5173', 'Frontend application base URL (used for email links, e.g. welcome page). In production, set to the public HTTPS URL.', 'system')
+('frontend_url', 'http://localhost:5173', 'Frontend application base URL (used for email links, e.g. welcome page). In production, set to the public HTTPS URL.', 'system'),
+('passkey_required', 'true', 'If true, passkey enrollment is mandatory: the prompt cannot be dismissed and the "do not show again" checkbox is hidden (true/false).', 'system')
 ON CONFLICT ("key") DO NOTHING;
 
 -- 5. Update the patch registry hash so db:migrate skips the init patch.
 UPDATE public.primebrick_database_patches
-SET content_sha256 = 'b2dc1ded1d4c80dd281d6845a28941ab69cce6377eb8ff2c60997298f792e08c'
+SET content_sha256 = '7e4655979f9b50354dfe275d0dac7ad7253b92a774f327ef46e62c4e969c9620'
 WHERE patch_id = '00000000000000_init_database'
-  AND content_sha256 <> 'b2dc1ded1d4c80dd281d6845a28941ab69cce6377eb8ff2c60997298f792e08c';
+  AND content_sha256 <> '7e4655979f9b50354dfe275d0dac7ad7253b92a774f327ef46e62c4e969c9620';
 
 COMMIT;
