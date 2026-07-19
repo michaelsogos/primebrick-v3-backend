@@ -23,6 +23,7 @@ import { usersRouter } from "./routers/users.router.js";
 import { userProfilesRouter } from "./routers/user-profiles.router.js";
 import { authWebauthnRouter } from "./routers/auth-webauthn.router.js";
 import { authInvitationRouter } from "./routers/auth-invitation.router.js";
+import { roleMappingsRouter } from "./routers/role-mappings.router.js";
 
 export function authRouter() {
   const router = Router();
@@ -44,6 +45,9 @@ export function authRouter() {
 
   // user_profiles entity CRUD (meta / list / get / restore / audit / put).
   router.use(userProfilesRouter());
+
+  // Role mappings CRUD (Casdoor-synced, non-best-effort).
+  router.use(roleMappingsRouter());
 
   return router;
 }

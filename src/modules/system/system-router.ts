@@ -1,6 +1,6 @@
 import { makeProtectedRouter } from "../../http/protected-router.js";
 import { rbacHandler } from "../auth/rbac.middleware.js";
-import { Permission } from "@primebrick/sdk";
+import { Permission, listNonSentinelPermissions } from "@primebrick/sdk";
 import { asyncHandler } from "../../http/async-handler.js";
 import { getPool } from "../../db/pool.js";
 import { OrganizationsDal } from "../auth/organizations_dal.js";
@@ -55,6 +55,33 @@ export function systemRouter() {
         }))
         .sort((a, b) => a.idp_role.localeCompare(b.idp_role));
       res.json({ roles });
+    })
+  );
+
+  // GET /api/v1/system/permissions - Full non-sentinel permission catalog grouped by module
+  // Used by the FE role-management form to render the Permissions tab.
+  router.get(
+    "/api/v1/system/permissions",
+    rbacHandler([Permission.AUTHENTICATED_USER]),
+    asyncHandler(async (_req, res) => {
+      const all = listNonSentinelPermissions();
+      const modulesMap = new Map<string, string[]>();
+      for (const p of all) {
+        const mod = p.split(".")[0];
+        if (!modulesMap.has(mod)) modulesMap.set(mod, []);
+        modulesMap.get(mod)!.push(p);
+      }
+      const modules = Array.from(modulesMap.entries())
+        .map(([code, perms]) => ({
+          code,
+          label_key: `shell.settings.roles.permissions.module.${code}`,
+          permissions: perms.sort().map((code2) => ({
+            code: code2,
+            label_key: `shell.settings.roles.permissions.${code2}`,
+          })),
+        }))
+        .sort((a, b) => a.code.localeCompare(b.code));
+      res.json({ modules });
     })
   );
 

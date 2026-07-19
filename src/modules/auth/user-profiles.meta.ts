@@ -67,6 +67,7 @@ export const userProfileMeta = {
           icon: "key-round",
           textColor: "",
           disabledWhenDeleted: true,
+          requiredPermission: "AUTHENTICATED_ADMIN",
         },
       ],
     },

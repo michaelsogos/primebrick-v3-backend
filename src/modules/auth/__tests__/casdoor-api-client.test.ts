@@ -193,3 +193,153 @@ describe("CasdoorApiClient — setApplicationWebAuthn", () => {
     expect(result).toBe(false);
   });
 });
+
+describe("CasdoorApiClient — getRole", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("returns the role when found", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ owner: "ACME", name: "sales", displayName: "Sales" }));
+    const client = makeClient();
+    const role = await client.getRole("sales", "ACME");
+    expect(role).not.toBeNull();
+    expect(role?.name).toBe("sales");
+    expect(role?.owner).toBe("ACME");
+  });
+
+  it("builds the URL with owner/name id", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ owner: "ACME", name: "sales" }));
+    const client = makeClient();
+    await client.getRole("sales", "ACME");
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain("/api/get-role?id=ACME%2Fsales");
+  });
+
+  it("falls back to orgName when owner not provided", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ owner: "ACME", name: "sales" }));
+    const client = makeClient();
+    await client.getRole("sales");
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain("id=ACME%2Fsales");
+  });
+
+  it("returns null on 404", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ error: "not found" }, 404));
+    const client = makeClient();
+    const role = await client.getRole("nonexistent", "ACME");
+    expect(role).toBeNull();
+  });
+});
+
+describe("CasdoorApiClient — addRole", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("returns the created role on success", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ status: "ok", data: { owner: "ACME", name: "sales" } }));
+    const client = makeClient();
+    const role = await client.addRole({ owner: "ACME", name: "sales", displayName: "Sales" });
+    expect(role).not.toBeNull();
+    expect(role?.name).toBe("sales");
+  });
+
+  it("builds the URL with owner/name id and sends body with owner/name/displayName", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ status: "ok", data: { owner: "ACME", name: "sales" } }));
+    const client = makeClient();
+    await client.addRole({ owner: "ACME", name: "sales", displayName: "Sales" });
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain("/api/add-role?id=ACME%2Fsales");
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.owner).toBe("ACME");
+    expect(body.name).toBe("sales");
+    expect(body.displayName).toBe("Sales");
+    expect(body.isEnabled).toBe(true);
+  });
+
+  it("returns null when status is not ok", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ status: "error", msg: "duplicate" }));
+    const client = makeClient();
+    const role = await client.addRole({ owner: "ACME", name: "sales" });
+    expect(role).toBeNull();
+  });
+
+  it("returns null on HTTP error", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ error: "internal" }, 500));
+    const client = makeClient();
+    const role = await client.addRole({ owner: "ACME", name: "sales" });
+    expect(role).toBeNull();
+  });
+});
+
+describe("CasdoorApiClient — updateRole", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("returns true on success", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ status: "ok" }));
+    const client = makeClient();
+    const ok = await client.updateRole({ owner: "ACME", name: "sales", displayName: "Sales Team" });
+    expect(ok).toBe(true);
+  });
+
+  it("builds the URL with owner/name id", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ status: "ok" }));
+    const client = makeClient();
+    await client.updateRole({ owner: "ACME", name: "sales", displayName: "Sales Team" });
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain("/api/update-role?id=ACME%2Fsales");
+  });
+
+  it("only sends displayName/description/isEnabled in the body (not idp_role/idp_org as separate fields)", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ status: "ok" }));
+    const client = makeClient();
+    await client.updateRole({ owner: "ACME", name: "sales", displayName: "Sales Team", description: "Updated" });
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.owner).toBe("ACME");
+    expect(body.name).toBe("sales");
+    expect(body.displayName).toBe("Sales Team");
+    expect(body.description).toBe("Updated");
+    expect(body.isEnabled).toBeUndefined();
+  });
+
+  it("returns false on HTTP error", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ error: "internal" }, 500));
+    const client = makeClient();
+    const ok = await client.updateRole({ owner: "ACME", name: "sales", displayName: "X" });
+    expect(ok).toBe(false);
+  });
+});
+
+describe("CasdoorApiClient — deleteRole", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("returns true on success", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ status: "ok" }));
+    const client = makeClient();
+    const ok = await client.deleteRole("sales", "ACME");
+    expect(ok).toBe(true);
+  });
+
+  it("builds the URL with owner/name id and sends body with owner/name", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ status: "ok" }));
+    const client = makeClient();
+    await client.deleteRole("sales", "ACME");
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain("/api/delete-role?id=ACME%2Fsales");
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.owner).toBe("ACME");
+    expect(body.name).toBe("sales");
+  });
+
+  it("returns false on HTTP error", async () => {
+    mockFetch.mockResolvedValue(mockResponse({ error: "internal" }, 500));
+    const client = makeClient();
+    const ok = await client.deleteRole("sales", "ACME");
+    expect(ok).toBe(false);
+  });
+});

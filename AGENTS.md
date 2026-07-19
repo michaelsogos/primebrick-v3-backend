@@ -118,7 +118,12 @@ The backend uses a wildcard-based RBAC system with pattern matching:
 - **Source of truth**: `Permission` enum in `src/modules/auth/permissions.ts` defines all available permissions
 - **Role mappings**: Stored in `role_mappings` table (columns: `idp_role`, `permissions` array, `is_admin` boolean)
 - **Permission format**: Dot notation with wildcards (e.g., `customers.read.*`, `customers.read.single`)
-- **Admin bypass**: Users with `is_admin=true` bypass all permission checks
+- **Admin bypass**: Users with `is_admin=true` bypass all permission checks.
+  For high-risk non-CRUD operations that must be **explicitly** admin-only
+  (not just bypassed), use the `Permission.AUTHENTICATED_ADMIN` sentinel.
+  This sentinel requires `req.user.isAdmin === true` and must appear alone
+  in the permission array (same rule as `PUBLIC` and `AUTHENTICATED_USER`).
+  Example: `POST /api/v1/entities/user_profiles/:uuid/change-password`.
 
 ### Permission Structure
 
