@@ -1,19 +1,30 @@
 /**
  * role-mappings.router — thin controller for role_mappings CRUD.
  *
- * Endpoints:
- *   GET    /api/v1/system/role-mappings            → list all roles
- *   GET    /api/v1/system/role-mappings/:idp_role  → single role
- *   POST   /api/v1/system/role-mappings            → create (Casdoor + local)
- *   PUT    /api/v1/system/role-mappings/:idp_role  → update (Casdoor + local)
- *   DELETE /api/v1/system/role-mappings/:idp_role  → delete (Casdoor + local)
+ * Two endpoint sets coexist:
+ *
+ * 1. Entity-pattern endpoints (used by the FE EntityListTable), keyed by :uuid:
+ *    GET    /api/v1/entities/role_mappings/meta           → entity metadata
+ *    GET    /api/v1/entities/role_mappings/list            → paginated list
+ *    GET    /api/v1/entities/role_mappings/:uuid           → single record
+ *    POST   /api/v1/entities/role_mappings                 → create (Casdoor + local)
+ *    PUT    /api/v1/entities/role_mappings/:uuid           → update (Casdoor + local)
+ *    DELETE /api/v1/entities/role_mappings/:uuid           → delete (Casdoor + local)
+ *    GET    /api/v1/entities/role_mappings/:uuid/audit     → audit history
+ *
+ * 2. Legacy system-path endpoints (used by the FE create/edit forms), keyed by
+ *    :idp_role (the Casdoor role name):
+ *    GET    /api/v1/system/role-mappings                   → list all roles
+ *    GET    /api/v1/system/role-mappings/:idp_role         → single role
+ *    POST   /api/v1/system/role-mappings                   → create (Casdoor + local)
+ *    PUT    /api/v1/system/role-mappings/:idp_role         → update (Casdoor + local)
+ *    DELETE /api/v1/system/role-mappings/:idp_role         → delete (Casdoor + local)
  *
  * The router contains NO business logic. All errors are thrown as `ApiError`
  * subclasses and converted to RFC 7807 by the centralized `errorHandler`.
  *
- * `idp_role` is the URL parameter (the Casdoor role name). On update, the body
- * MUST NOT contain `idp_role` or `idp_org` — both are immutable (the Casdoor
- * role identity `(owner, name)` is fixed at creation).
+ * `idp_role` and `idp_org` are immutable on update — the Casdoor role identity
+ * `(owner, name)` is fixed at creation.
  */
 
 import type { RequestHandler } from "express";
@@ -26,6 +37,8 @@ import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../rbac.middleware.js";
 import { Permission, isPermissionSentinel } from "@primebrick/sdk";
 import { RoleService } from "../services/role.service.js";
+import { roleMappingsMeta } from "../role-mappings.meta.js";
+import type { RoleMappingListQuery } from "../role-mapping-repo.js";
 import { ValidationError } from "../../../http/api-errors.js";
 
 // idp_role: snake_case, lowercase letters / digits / underscores, 1-255 chars.
@@ -106,7 +119,109 @@ export function roleMappingsRouter() {
     res.json({ deleted: true });
   });
 
+  // --- Entity-pattern handlers (keyed by :uuid) -----------------------------
+
+  const getMeta: RequestHandler = asyncHandler(async (_req, res) => {
+    res.json(roleMappingsMeta);
+  });
+
+  const entityList: RequestHandler = asyncHandler(async (req, res) => {
+    const { search, search_in, sort_key, sort_dir, page, page_size, filters, connector } = req.query;
+    const query: RoleMappingListQuery = {
+      search: search as string | undefined,
+      search_in: search_in ? (search_in as string).split(",") : undefined,
+      sort_key: sort_key as string | null,
+      sort_dir: sort_dir as "asc" | "desc",
+      page: page ? parseInt(page as string, 10) : 1,
+      page_size: page_size ? parseInt(page_size as string, 10) : 25,
+      filters: filters ? JSON.parse(filters as string) : undefined,
+      connector: connector as "AND" | "OR",
+    };
+    const result = await service.listRoleMappings(query);
+    res.json(result);
+  });
+
+  const entityGetSingle: RequestHandler = asyncHandler(async (req, res) => {
+    const { uuid } = req.params;
+    const role = await service.getRoleByUuid(uuid as string);
+    res.json(role);
+  });
+
+  const entityCreate: RequestHandler = asyncHandler(async (req, res) => {
+    const actor = req.user?.id ?? "system";
+    const role = await service.createRole(req.body as z.infer<typeof CreateBodySchema>, actor);
+    res.status(201).json({ success: true, role });
+  });
+
+  const entityUpdate: RequestHandler = asyncHandler(async (req, res) => {
+    const { uuid } = req.params;
+    const actor = req.user?.id ?? "system";
+    await service.updateRoleByUuid(uuid as string, req.body as z.infer<typeof UpdateBodySchema>, actor);
+    res.json({ success: true });
+  });
+
+  const entityRemove: RequestHandler = asyncHandler(async (req, res) => {
+    const { uuid } = req.params;
+    const actor = req.user?.id ?? "system";
+    await service.deleteRoleByUuid(uuid as string, actor);
+    res.json({ success: true });
+  });
+
+  const entityGetAudit: RequestHandler = asyncHandler(async (req, res) => {
+    const { uuid } = req.params;
+    const page = parseInt((req.query.page as string) || "1", 10);
+    const limit = parseInt((req.query.limit as string) || "20", 10);
+    const result = await service.getRoleAudit(uuid as string, page, limit);
+    res.json(result);
+  });
+
   registerRoutes(router, [
+    // --- Entity-pattern routes (keyed by :uuid) ---
+    {
+      method: "get",
+      path: "/api/v1/entities/role_mappings/meta",
+      permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_ALL, Permission.ROLE_MAPPINGS_READ_SINGLE]),
+      handler: getMeta,
+    },
+    {
+      method: "get",
+      path: "/api/v1/entities/role_mappings/list",
+      permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_ALL]),
+      handler: entityList,
+    },
+    {
+      method: "get",
+      path: "/api/v1/entities/role_mappings/:uuid",
+      permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_SINGLE]),
+      handler: entityGetSingle,
+    },
+    {
+      method: "post",
+      path: "/api/v1/entities/role_mappings",
+      permission: rbacHandler([Permission.ROLE_MAPPINGS_CREATE]),
+      middlewares: [validateBody(CreateBodySchema)],
+      handler: entityCreate,
+    },
+    {
+      method: "put",
+      path: "/api/v1/entities/role_mappings/:uuid",
+      permission: rbacHandler([Permission.ROLE_MAPPINGS_UPDATE]),
+      middlewares: [validateBody(UpdateBodySchema)],
+      handler: entityUpdate,
+    },
+    {
+      method: "delete",
+      path: "/api/v1/entities/role_mappings/:uuid",
+      permission: rbacHandler([Permission.ROLE_MAPPINGS_DELETE]),
+      handler: entityRemove,
+    },
+    {
+      method: "get",
+      path: "/api/v1/entities/role_mappings/:uuid/audit",
+      permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_AUDIT]),
+      handler: entityGetAudit,
+    },
+    // --- Legacy system-path routes (keyed by :idp_role) ---
     {
       method: "get",
       path: "/api/v1/system/role-mappings",

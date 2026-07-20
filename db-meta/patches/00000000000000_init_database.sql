@@ -383,58 +383,29 @@ CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_base_url_uq"
 
 -- === Seed Data ===
 
--- Seed initial role mappings
+-- Seed the only auto-created role mapping: 'administrators' (is_admin=true).
+-- This matches the 'administrators' role in the admin user's JWT roles array.
+-- All other roles are created by the user via the Settings > Roles UI.
 INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('administrators', '[]'::jsonb, true, '2026-05-18T14:27:00Z', 'system', '2026-05-18T14:27:00Z', 'system', 1)
+VALUES ('administrators', '[]'::jsonb, true, '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1)
 ON CONFLICT (idp_role) DO NOTHING;
 
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('sales',
-  '["customers.read.all", "customers.read.single", "customers.create.single", "customers.update.single"]'::jsonb,
-  false,
-  '2026-05-18T14:27:00Z',
-  'system',
-  '2026-05-18T14:27:00Z',
-  'system',
-  1
-)
-ON CONFLICT (idp_role) DO NOTHING;
-
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('customer_service',
-  '["customers.read.all", "customers.read.single", "customers.update.single"]'::jsonb,
-  false,
-  '2026-05-18T14:27:00Z',
-  'system',
-  '2026-05-18T14:27:00Z',
-  'system',
-  1
-)
-ON CONFLICT (idp_role) DO NOTHING;
-
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('hr',
-  '[]'::jsonb,
-  false,
-  '2026-05-18T14:27:00Z',
-  'system',
-  '2026-05-18T14:27:00Z',
-  'system',
-  1
-)
-ON CONFLICT (idp_role) DO NOTHING;
-
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('ops',
-  '[]'::jsonb,
-  false,
-  '2026-05-18T14:27:00Z',
-  'system',
-  '2026-05-18T14:27:00Z',
-  'system',
-  1
-)
-ON CONFLICT (idp_role) DO NOTHING;
+-- Audit trail for the administrators role seed (INSERT record).
+-- Uses 'initial-setup' as changed_by to distinguish seed/system inserts from user actions.
+INSERT INTO public.role_mappings_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+SELECT id, uuid, 'INSERT', '2026-05-18T14:27:00Z', 'initial-setup', 1,
+  jsonb_build_object(
+    'idp_role', jsonb_build_object('old', null, 'new', idp_role),
+    'is_admin', jsonb_build_object('old', null, 'new', is_admin),
+    'permissions', jsonb_build_object('old', null, 'new', permissions)
+  )
+FROM public.role_mappings
+WHERE idp_role = 'administrators'
+AND NOT EXISTS (
+  SELECT 1 FROM public.role_mappings_audit a
+  WHERE a.entity_uuid = (SELECT uuid FROM public.role_mappings WHERE idp_role = 'administrators')
+    AND a.action = 'INSERT'
+);
 
 -- Seed initial auth configuration values
 INSERT INTO "public"."auth_configurations" ("key", "value", "description", "created_by") VALUES

@@ -58,24 +58,25 @@ const ChangeMyPasswordSchema = makeChangeOwnPasswordSchema(DEFAULT_PASSWORD_POLI
 /** Metadata for the self-service profile form (`GET /api/v1/auth/me/meta`). */
 const meMeta = {
   entity: "user_profiles",
-  titleKey: "entities.userProfile.title",
+  translationKey: "user_profile",
+  titleKey: "entities.user_profile.title",
   updatePageTitle: "${display_name}",
   uid: "uuid",
   list: {
     columns: [
-      { key: "is_admin", labelKey: "entities.userProfile.fields.is_admin", type: "boolean", tooltip: "entities.userProfile.hints.is_admin", tooltipPriority: "WARNING", tooltipTitle: "entities.userProfile.hints.is_admin_title", showFormTooltip: true },
-      { key: "is_verified", labelKey: "entities.userProfile.fields.is_verified", type: "boolean", tooltip: "entities.userProfile.hints.is_verified", tooltipPriority: "HINT", tooltipTitle: "entities.userProfile.hints.is_verified_title", showFormTooltip: true },
-      { key: "email_verified", labelKey: "entities.userProfile.fields.email_verified", type: "boolean", tooltip: "entities.userProfile.hints.email_verified", tooltipPriority: "HINT", tooltipTitle: "entities.userProfile.hints.email_verified_title", showFormTooltip: true },
+      { key: "is_admin", labelKey: "entities.user_profile.fields.is_admin", type: "boolean", tooltip: "entities.user_profile.hints.is_admin", tooltipPriority: "WARNING", tooltipTitle: "entities.user_profile.hints.is_admin_title", showFormTooltip: true },
+      { key: "is_verified", labelKey: "entities.user_profile.fields.is_verified", type: "boolean", tooltip: "entities.user_profile.hints.is_verified", tooltipPriority: "HINT", tooltipTitle: "entities.user_profile.hints.is_verified_title", showFormTooltip: true },
+      { key: "email_verified", labelKey: "entities.user_profile.fields.email_verified", type: "boolean", tooltip: "entities.user_profile.hints.email_verified", tooltipPriority: "HINT", tooltipTitle: "entities.user_profile.hints.email_verified_title", showFormTooltip: true },
     ],
     auditingColumns: [
-      { key: "deleted_at", labelKey: "entities.userProfile.fields.deleted_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
-      { key: "deleted_by", labelKey: "entities.userProfile.fields.deleted_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
-      { key: "updated_at", labelKey: "entities.userProfile.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
-      { key: "updated_by", labelKey: "entities.userProfile.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
-      { key: "last_synced_at", labelKey: "entities.userProfile.fields.last_synced_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
-      { key: "created_at", labelKey: "entities.userProfile.fields.created_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
-      { key: "created_by", labelKey: "entities.userProfile.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
-      { key: "version", labelKey: "entities.userProfile.fields.version", type: "text", sortable: false, defaultVisible: false, searchable: false },
+      { key: "deleted_at", labelKey: "entities.user_profile.fields.deleted_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
+      { key: "deleted_by", labelKey: "entities.user_profile.fields.deleted_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+      { key: "updated_at", labelKey: "entities.user_profile.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
+      { key: "updated_by", labelKey: "entities.user_profile.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+      { key: "last_synced_at", labelKey: "entities.user_profile.fields.last_synced_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
+      { key: "created_at", labelKey: "entities.user_profile.fields.created_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
+      { key: "created_by", labelKey: "entities.user_profile.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+      { key: "version", labelKey: "entities.user_profile.fields.version", type: "text", sortable: false, defaultVisible: false, searchable: false },
     ],
   },
 } as const;

@@ -26,7 +26,13 @@
  */
 
 import { getPool } from "../../../db/pool.js";
-import { RoleMappingRepo, type RoleMappingDetailed } from "../role-mapping-repo.js";
+import {
+  RoleMappingRepo,
+  type RoleMappingDetailed,
+  type RoleMappingDto,
+  type RoleMappingListQuery,
+  type RoleMappingListResponse,
+} from "../role-mapping-repo.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { getAuthConfig } from "../config.js";
 import { ApiError, NotFoundError } from "../../../http/api-errors.js";
@@ -324,5 +330,52 @@ export class RoleService {
 
     // 5. Delete in local DB.
     await this.getRepo().deleteMapping(idpRole, actor);
+  }
+
+  // --- Entity-pattern methods (keyed by uuid) -------------------------------
+  // These back the `/api/v1/entities/role_mappings/...` endpoints used by the
+  // FE EntityListTable. The Casdoor-coupled create/update/delete flows above
+  // remain keyed by idp_role (the Casdoor identity); the entity-pattern
+  // delete/put handlers below resolve uuid → idp_role then delegate to the
+  // existing Casdoor-syncing methods.
+
+  async listRoleMappings(query: RoleMappingListQuery): Promise<RoleMappingListResponse> {
+    return this.getRepo().listPaged(query);
+  }
+
+  async getRoleByUuid(uuid: string): Promise<RoleMappingDetailed> {
+    const role = await this.getRepo().findByUuid(uuid);
+    if (!role) {
+      throw new NotFoundError(`Role with uuid "${uuid}" not found`, {
+        internal_code: "ROLE_NOT_FOUND",
+      });
+    }
+    return role;
+  }
+
+  async updateRoleByUuid(uuid: string, input: UpdateRoleInput, actor: string): Promise<RoleMappingDetailed> {
+    const existing = await this.getRepo().findByUuid(uuid);
+    if (!existing) {
+      throw new NotFoundError(`Role with uuid "${uuid}" not found`, {
+        internal_code: "ROLE_NOT_FOUND",
+      });
+    }
+    return this.updateRole(existing.idp_role, input, actor);
+  }
+
+  async deleteRoleByUuid(uuid: string, actor: string): Promise<void> {
+    const existing = await this.getRepo().findByUuid(uuid);
+    if (!existing) {
+      throw new NotFoundError(`Role with uuid "${uuid}" not found`, {
+        internal_code: "ROLE_NOT_FOUND",
+      });
+    }
+    return this.deleteRole(existing.idp_role, actor);
+  }
+
+  async getRoleAudit(uuid: string, page: number, limit: number) {
+    // Verify the role exists (404 if not).
+    await this.getRoleByUuid(uuid);
+    return this.getRepo().getRoleAudit(uuid, page, limit);
   }
 }

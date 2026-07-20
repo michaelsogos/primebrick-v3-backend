@@ -62,6 +62,7 @@ If **you** started `pnpm run dev` only to verify, **stop it** when done. Do not 
 - No secrets in git (`.env`, credentials).
 - **Team-facing `*.md`:** English only.
 - **API errors:** Use stable error codes with `impact` field for the frontend.
+- **Translation keys:** MUST be snake_case singular — see [`.devin/rules/translation-key-convention.md`](./.devin/rules/translation-key-convention.md). Every meta file MUST include a `translationKey` field (snake_case singular) alongside `entity` (snake_case plural). All `labelKey`/`titleKey`/`tooltip` values MUST use the `translationKey` as the entity segment.
 
 ### Schema diff safety
 
