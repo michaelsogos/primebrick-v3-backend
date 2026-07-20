@@ -111,4 +111,12 @@ export class UserProfileEntity implements IAuditableEntity {
 
   @DeletableField(DeletableFieldType.DELETED_BY)
   deleted_by?: string;
+
+  /** Whether the user dismissed the passkey enrollment prompt. */
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  passkey_prompt_dismissed: boolean;
+
+  /** Whether the user completed the welcome/onboarding flow. */
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  onboarding_completed: boolean;
 }

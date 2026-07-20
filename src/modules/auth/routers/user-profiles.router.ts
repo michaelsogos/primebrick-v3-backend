@@ -179,7 +179,7 @@ export function userProfilesRouter() {
     {
       method: "post",
       path: "/api/v1/entities/user_profiles/:uuid/change-password",
-      permission: rbacHandler([Permission.USERS_UPDATE_SINGLE]),
+      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       handler: changePassword,
     },
   ]);

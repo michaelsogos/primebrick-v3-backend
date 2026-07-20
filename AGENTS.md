@@ -62,6 +62,7 @@ If **you** started `pnpm run dev` only to verify, **stop it** when done. Do not 
 - No secrets in git (`.env`, credentials).
 - **Team-facing `*.md`:** English only.
 - **API errors:** Use stable error codes with `impact` field for the frontend.
+- **Translation keys:** MUST be snake_case singular — see [`.devin/rules/translation-key-convention.md`](./.devin/rules/translation-key-convention.md). Every meta file MUST include a `translationKey` field (snake_case singular) alongside `entity` (snake_case plural). All `labelKey`/`titleKey`/`tooltip` values MUST use the `translationKey` as the entity segment.
 
 ### Schema diff safety
 
@@ -118,7 +119,12 @@ The backend uses a wildcard-based RBAC system with pattern matching:
 - **Source of truth**: `Permission` enum in `src/modules/auth/permissions.ts` defines all available permissions
 - **Role mappings**: Stored in `role_mappings` table (columns: `idp_role`, `permissions` array, `is_admin` boolean)
 - **Permission format**: Dot notation with wildcards (e.g., `customers.read.*`, `customers.read.single`)
-- **Admin bypass**: Users with `is_admin=true` bypass all permission checks
+- **Admin bypass**: Users with `is_admin=true` bypass all permission checks.
+  For high-risk non-CRUD operations that must be **explicitly** admin-only
+  (not just bypassed), use the `Permission.AUTHENTICATED_ADMIN` sentinel.
+  This sentinel requires `req.user.isAdmin === true` and must appear alone
+  in the permission array (same rule as `PUBLIC` and `AUTHENTICATED_USER`).
+  Example: `POST /api/v1/entities/user_profiles/:uuid/change-password`.
 
 ### Permission Structure
 
@@ -183,3 +189,16 @@ The system is integrated with Casdoor IDP. Role names must match Casdoor roles (
 ### Testing
 
 When testing RBAC changes, ensure the role mapping cache is reloaded by restarting the backend server after database updates.
+
+## User-facing documentation
+
+User-facing developer documentation lives in `docs/user-guide/` as MDX files.
+These are synced to `docs.primebrick.dev` by the docs repo's CI pipeline.
+
+- **Location**: `docs/user-guide/*.mdx` — one file per topic
+- **Ordering**: `docs/user-guide/_order.json` defines the sidebar page order
+- **Conventions**: see `.devin/rules/docs-user-guide.md` for editorial rules
+- **Mermaid**: use `<Mermaid chart={...} />`, never ` ```Code ` or ` ```mermaid `
+- **Do NOT hand-edit** files in `docs/ai/` or `docs/skills/` — those are internal
+- **Internal docs** (`docs/ai/`, `docs/skills/`, `docs/gitflow.md`) are NOT synced
+  to the docs site — they stay in this repo for AI agents only

@@ -125,6 +125,8 @@ CREATE TABLE IF NOT EXISTS "public"."user_profiles" (
   "version" integer DEFAULT 1,
   "deleted_at" timestamptz,
   "deleted_by" text,
+  "passkey_prompt_dismissed" boolean NOT NULL DEFAULT false,
+  "onboarding_completed" boolean NOT NULL DEFAULT false,
   PRIMARY KEY ("id")
 );
 
@@ -136,6 +138,8 @@ COMMENT ON COLUMN public.user_profiles.is_active IS 'Whether the user account is
 COMMENT ON COLUMN public.user_profiles.is_admin IS 'Whether the user has admin privileges (mirrors Casdoor isAdmin)';
 COMMENT ON COLUMN public.user_profiles.roles IS 'Array of role names assigned to the user (mirrors Casdoor roles)';
 COMMENT ON COLUMN public.user_profiles.last_synced_at IS 'Timestamp of last successful sync with Casdoor';
+COMMENT ON COLUMN public.user_profiles.passkey_prompt_dismissed IS 'Whether the user dismissed the passkey enrollment prompt';
+COMMENT ON COLUMN public.user_profiles.onboarding_completed IS 'Whether the user completed the welcome/onboarding flow';
 
 -- user_profiles_audit table
 CREATE TABLE IF NOT EXISTS "public"."user_profiles_audit" (
@@ -152,6 +156,68 @@ CREATE TABLE IF NOT EXISTS "public"."user_profiles_audit" (
 
 CREATE INDEX IF NOT EXISTS "user_profiles_audit_entity_uuid_idx" ON "public"."user_profiles_audit" ("entity_uuid");
 CREATE INDEX IF NOT EXISTS "user_profiles_audit_action_idx" ON "public"."user_profiles_audit" ("action");
+
+-- user_invitations table
+CREATE TABLE IF NOT EXISTS "public"."user_invitations" (
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "user_profile_id" bigint NOT NULL,
+  "token_hash" text NOT NULL,
+  "status" text NOT NULL DEFAULT 'PENDING',
+  "email" varchar(320) NOT NULL,
+  "created_at" timestamptz DEFAULT now(),
+  "created_by" text,
+  "expires_at" timestamptz NOT NULL,
+  "completed_at" timestamptz,
+  "updated_at" timestamptz DEFAULT now(),
+  "updated_by" text,
+  "version" integer DEFAULT 1,
+  "otp_hash" text,
+  "otp_expires_at" timestamptz,
+  "otp_attempts" integer NOT NULL DEFAULT 0,
+  "otp_verified_at" timestamptz,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "user_invitations_uuid_uq" ON "public"."user_invitations" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_invitations_token_hash_uq" ON "public"."user_invitations" ("token_hash");
+CREATE INDEX IF NOT EXISTS "user_invitations_user_profile_id_idx" ON "public"."user_invitations" ("user_profile_id");
+CREATE INDEX IF NOT EXISTS "user_invitations_status_idx" ON "public"."user_invitations" ("status");
+
+COMMENT ON TABLE public.user_invitations IS 'Invitation tokens for user onboarding/welcome flow';
+COMMENT ON COLUMN public.user_invitations.token_hash IS 'SHA-256 hash of the invitation token (raw token never stored)';
+COMMENT ON COLUMN public.user_invitations.status IS 'PENDING | OTP_SENT | COMPLETED | EXPIRED | REVOKED';
+COMMENT ON COLUMN public.user_invitations.otp_hash IS 'SHA-256 hash of the 6-digit OTP code (null if not sent)';
+COMMENT ON COLUMN public.user_invitations.otp_expires_at IS 'OTP validity window (5 minutes from send)';
+COMMENT ON COLUMN public.user_invitations.otp_attempts IS 'Failed OTP verify attempts (max 10)';
+COMMENT ON COLUMN public.user_invitations.otp_verified_at IS 'When the user verified the OTP (gate for password set)';
+
+-- user_passkeys table
+CREATE TABLE IF NOT EXISTS "public"."user_passkeys" (
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "user_profile_id" bigint NOT NULL,
+  "credential_id" text NOT NULL,
+  "aaguid" text,
+  "transports" jsonb,
+  "label" varchar(100),
+  "created_at" timestamptz DEFAULT now(),
+  "created_by" text,
+  "updated_at" timestamptz DEFAULT now(),
+  "updated_by" text,
+  "version" integer DEFAULT 1,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "user_passkeys_uuid_uq" ON "public"."user_passkeys" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_passkeys_credential_id_uq" ON "public"."user_passkeys" ("credential_id");
+CREATE INDEX IF NOT EXISTS "user_passkeys_user_profile_id_idx" ON "public"."user_passkeys" ("user_profile_id");
+
+COMMENT ON TABLE public.user_passkeys IS 'Passkey credentials tracked in PG (mirrors Casdoor webauthnCredentials)';
+COMMENT ON COLUMN public.user_passkeys.credential_id IS 'base64url credential ID from WebAuthn';
+COMMENT ON COLUMN public.user_passkeys.aaguid IS 'Authenticator model identifier';
+COMMENT ON COLUMN public.user_passkeys.transports IS 'JSON array of transports ["internal","hybrid","usb","nfc","ble"]';
+COMMENT ON COLUMN public.user_passkeys.label IS 'User-given name (e.g. "Windows Hello", "iPhone")';
 
 -- role_mappings table
 CREATE TABLE IF NOT EXISTS "public"."role_mappings" (
@@ -317,58 +383,29 @@ CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_base_url_uq"
 
 -- === Seed Data ===
 
--- Seed initial role mappings
+-- Seed the only auto-created role mapping: 'administrators' (is_admin=true).
+-- This matches the 'administrators' role in the admin user's JWT roles array.
+-- All other roles are created by the user via the Settings > Roles UI.
 INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('administrators', '[]'::jsonb, true, '2026-05-18T14:27:00Z', 'system', '2026-05-18T14:27:00Z', 'system', 1)
+VALUES ('administrators', '[]'::jsonb, true, '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1)
 ON CONFLICT (idp_role) DO NOTHING;
 
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('sales',
-  '["customers.read.all", "customers.read.single", "customers.create.single", "customers.update.single"]'::jsonb,
-  false,
-  '2026-05-18T14:27:00Z',
-  'system',
-  '2026-05-18T14:27:00Z',
-  'system',
-  1
-)
-ON CONFLICT (idp_role) DO NOTHING;
-
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('customer_service',
-  '["customers.read.all", "customers.read.single", "customers.update.single"]'::jsonb,
-  false,
-  '2026-05-18T14:27:00Z',
-  'system',
-  '2026-05-18T14:27:00Z',
-  'system',
-  1
-)
-ON CONFLICT (idp_role) DO NOTHING;
-
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('hr',
-  '[]'::jsonb,
-  false,
-  '2026-05-18T14:27:00Z',
-  'system',
-  '2026-05-18T14:27:00Z',
-  'system',
-  1
-)
-ON CONFLICT (idp_role) DO NOTHING;
-
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('ops',
-  '[]'::jsonb,
-  false,
-  '2026-05-18T14:27:00Z',
-  'system',
-  '2026-05-18T14:27:00Z',
-  'system',
-  1
-)
-ON CONFLICT (idp_role) DO NOTHING;
+-- Audit trail for the administrators role seed (INSERT record).
+-- Uses 'initial-setup' as changed_by to distinguish seed/system inserts from user actions.
+INSERT INTO public.role_mappings_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+SELECT id, uuid, 'INSERT', '2026-05-18T14:27:00Z', 'initial-setup', 1,
+  jsonb_build_object(
+    'idp_role', jsonb_build_object('old', null, 'new', idp_role),
+    'is_admin', jsonb_build_object('old', null, 'new', is_admin),
+    'permissions', jsonb_build_object('old', null, 'new', permissions)
+  )
+FROM public.role_mappings
+WHERE idp_role = 'administrators'
+AND NOT EXISTS (
+  SELECT 1 FROM public.role_mappings_audit a
+  WHERE a.entity_uuid = (SELECT uuid FROM public.role_mappings WHERE idp_role = 'administrators')
+    AND a.action = 'INSERT'
+);
 
 -- Seed initial auth configuration values
 INSERT INTO "public"."auth_configurations" ("key", "value", "description", "created_by") VALUES
@@ -381,9 +418,16 @@ INSERT INTO "public"."auth_configurations" ("key", "value", "description", "crea
 ('oidc_issuer_type', 'casdoor', 'Tipo di IDP (casdoor, keycloak, auth0)', 'system'),
 ('oidc_client_id', '', 'OIDC client ID reale generato da Casdoor', 'system'),
 ('enable_email_verification_check', 'false', 'Abilita il controllo emailVerified sul JWT durante il login (true/false)', 'system'),
+('enable_formauth', 'true', 'Abilita il login con form username/password (true/false). Almeno uno tra enable_formauth e enable_webauthn deve essere true.', 'system'),
+('enable_webauthn', 'true', 'Abilita il login passwordless con WebAuthn / passkey (true/false). Almeno uno tra enable_formauth e enable_webauthn deve essere true.', 'system'),
+('passkey_required', 'true', 'Se true, la passkey e obbligatoria: il prompt di enrollment non puo essere saltato e il checkbox Non mostrare piu e nascosto (true/false).', 'system'),
 ('password_policy', 'letter_number_special', 'Active password complexity policy (alpha_numeric | letter_and_number | letter_number_special | mixed_case_special)', 'system'),
 ('auth_mode', 'STANDALONE', 'Authentication operating mode (STANDALONE | GATEWAY). STANDALONE = API validates JWT via OIDC discovery; GATEWAY = trusted reverse proxy forwards user identity via headers.', 'system'),
-('auth_roles_path', 'roles', 'Dotted path to extract the roles array from a JWT payload (e.g. "roles" for Casdoor/Entra, "realm_access.roles" for Keycloak realm roles).', 'system')
+('auth_roles_path', 'roles', 'Dotted path to extract the roles array from a JWT payload (e.g. "roles" for Casdoor/Entra, "realm_access.roles" for Keycloak realm roles).', 'system'),
+('invitation_expiry_days', '7', 'Invitation token expiry in days', 'system'),
+('admin_contact_email', '', 'Admin email for unauthorized action alerts and mailto: links. If empty, BE falls back to first user with is_admin=true.', 'system'),
+('notification_alert_secret', '', 'HMAC secret for unauthorized-action alert links in emails. Auto-generated (32 random bytes hex) on first use if empty.', 'system'),
+('frontend_url', 'http://localhost:5173', 'Frontend application base URL (used for email links, e.g. welcome page). In production, set to the public HTTPS URL.', 'system')
 ON CONFLICT ("key") DO NOTHING;
 
 -- === Patch Registry Table ===

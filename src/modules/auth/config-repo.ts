@@ -25,6 +25,9 @@ export interface AuthConfigDb {
   oidc_client_secret?: string;
   oidc_audience?: string;
   enable_email_verification_check: boolean; // parsed from "true"/"false"
+  enable_webauthn: boolean; // parsed from "true"/"false"
+  enable_formauth: boolean; // parsed from "true"/"false"
+  passkey_required: boolean; // parsed from "true"/"false"
   password_policy?: string;
 
   // --- Auth mode + roles path ---
@@ -127,14 +130,32 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
     }
   }
 
-  // Spread the key/value map AS-IS. Override ONLY the field that needs a
-  // real TYPE transformation: enable_email_verification_check (string DB →
-  // bool TS). auth_mode is normalized to uppercase for enum comparison.
+  // Spread the key/value map AS-IS. Override ONLY the fields that need a
+  // real TYPE transformation: enable_email_verification_check, enable_webauthn,
+  // enable_formauth (string DB → bool TS). auth_mode is normalized to uppercase
+  // for enum comparison.
   // NO lowercasing — data quality is enforced at the upsert path.
   // NO field-by-field DTO mapping. NO fallback defaults.
+  const enableWebauthn = settings.enable_webauthn === "true";
+  const enableFormauth = settings.enable_formauth === "true";
+  const passkeyRequired = settings.passkey_required === "true";
+
+  // At least one authentication method MUST be enabled — otherwise no user
+  // can ever log in. This is a fatal configuration error, not a transient
+  // DB-unavailable issue. The error is thrown here (during loadAuthConfigFromDb)
+  // so it surfaces through the standard startup config-load path.
+  if (!enableWebauthn && !enableFormauth) {
+    throw new Error(
+      "[auth] At least one authentication method must be enabled: set 'enable_formauth' or 'enable_webauthn' to 'true' in auth_configurations table.",
+    );
+  }
+
   return {
     ...settings,
     enable_email_verification_check: settings.enable_email_verification_check === "true",
+    enable_webauthn: enableWebauthn,
+    enable_formauth: enableFormauth,
+    passkey_required: passkeyRequired,
     auth_mode: mode, // normalized to uppercase, already validated above
   } as AuthConfigDb;
 }

@@ -30,9 +30,10 @@ export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
         route_prefixes: ["/system/settings"],
         is_reserved: true,
         nav: [
-          { id: "profile", label_key: "shell.settings.tabs.profile", href: "/system/settings/profile", icon: "user" },
+          { id: "profile", label_key: "shell.settings.tabs.profile", href: "/system/settings/profile", icon: "square-user" },
           { id: "organizations", label_key: "shell.settings.tabs.organizations", href: "/system/settings/organizations", icon: "building-2" },
           { id: "users", label_key: "shell.settings.tabs.users", href: "/system/settings/users", icon: "users" },
+          { id: "roles", label_key: "shell.settings.tabs.roles", href: "/system/settings/roles", icon: "user-key" },
           { id: "security", label_key: "shell.settings.tabs.security", href: "/system/settings/security", icon: "shield-check" },
           { id: "modules", label_key: "shell.settings.tabs.modules", href: "/system/settings/modules", icon: "package" },
           { id: "templates", label_key: "shell.settings.tabs.templates", href: "/system/settings/templates", icon: "file-text" },

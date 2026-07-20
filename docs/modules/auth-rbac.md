@@ -130,6 +130,16 @@ router.get("/api/v1/user/profile", rbacHandler([Permission.AUTHENTICATED_USER]),
   res.json({ id: req.user!.id, email: req.user!.email });
 }));
 
+// Admin-only endpoint (only callers with isAdmin === true pass)
+// Use for high-risk non-CRUD operations like admin change-password.
+router.post(
+  "/api/v1/entities/user_profiles/:uuid/change-password",
+  rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+  asyncHandler(async (req, res) => {
+    // ... handler ...
+  })
+);
+
 // Role-based endpoint (default OR semantics: user needs AT LEAST ONE of the listed permissions)
 router.get("/api/v1/entities/customer/list", rbacHandler([Permission.CUSTOMERS_LIST]), asyncHandler(async (req, res) => {
   const result = await getDal().listCustomers(req.query);

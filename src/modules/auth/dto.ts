@@ -52,7 +52,7 @@ export interface LoginSuccessResponse {
 export function makeCreateUserSchema(policy: PasswordPolicy) {
   return z.object({
     username: idpNameSchema(z.string()),
-    password: passwordZodSchema(policy),
+    password: passwordZodSchema(policy).optional(),
     display_name: displayNameSchema(z.string()),
     email: z.string().email(),
     roles: z.array(z.string()).optional(),
@@ -63,6 +63,16 @@ export function makeCreateUserSchema(policy: PasswordPolicy) {
     is_admin: z.boolean().default(false),
     is_verified: z.boolean().default(false),
     email_verified: z.boolean().default(false),
+    send_invitation: z.boolean().default(false),
+  }).superRefine((data, ctx) => {
+    // Password is required when send_invitation is false
+    if (!data.send_invitation && !data.password) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["password"],
+        message: "Password is required when send_invitation is false",
+      });
+    }
   });
 }
 export type CreateUserBody = z.infer<ReturnType<typeof makeCreateUserSchema>>;
@@ -108,4 +118,38 @@ export function makeChangePasswordSchema(policy: PasswordPolicy) {
     newPassword: passwordZodSchema(policy),
   });
 }
+
+/**
+ * Schema for self-service password change (authenticated user).
+ * Requires both current_password (for verification) and newPassword.
+ */
+export function makeChangeOwnPasswordSchema(policy: PasswordPolicy) {
+  return z.object({
+    current_password: z.string().min(1, "Current password is required"),
+    newPassword: passwordZodSchema(policy),
+  });
+}
+export type ChangeOwnPasswordBody = z.infer<ReturnType<typeof makeChangeOwnPasswordSchema>>;
 export type ChangePasswordBody = z.infer<ReturnType<typeof makeChangePasswordSchema>>;
+
+// --- WebAuthn (passkey signin / signup / management) ----------------------
+
+export const WebauthnSigninBeginSchema = z.object({
+  /** Omit for discoverable login (passkey-only, no username). */
+  username: z.string().optional(),
+});
+export type WebauthnSigninBeginBody = z.infer<typeof WebauthnSigninBeginSchema>;
+
+export const WebauthnSigninFinishSchema = z.object({
+  nonce: z.string().min(1),
+  /** Serialized navigator.credentials.get() result (base64url-encoded fields). */
+  credential: z.record(z.string(), z.unknown()),
+});
+export type WebauthnSigninFinishBody = z.infer<typeof WebauthnSigninFinishSchema>;
+
+export const WebauthnSignupFinishSchema = z.object({
+  nonce: z.string().min(1),
+  /** Serialized navigator.credentials.create() result (base64url-encoded fields). */
+  credential: z.record(z.string(), z.unknown()),
+});
+export type WebauthnSignupFinishBody = z.infer<typeof WebauthnSignupFinishSchema>;

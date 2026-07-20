@@ -89,7 +89,7 @@ export class AuthConfigurationsDal {
       await this.repo.update(
         AuthConfigurationEntity,
         {
-          uuid: existing.uuid,
+          id: existing.id,
           value,
           updated_by: updatedBy,
         },

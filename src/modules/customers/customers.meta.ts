@@ -17,6 +17,7 @@ import {
 
 export const customerMeta = {
   entity: "customer",
+  translationKey: "customer",
   titleKey: "entities.customer.title",
   uid: "uuid",
   defaultView: CUSTOMER_DEFAULT_VIEW,
