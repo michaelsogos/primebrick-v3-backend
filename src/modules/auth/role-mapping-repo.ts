@@ -14,6 +14,9 @@ import { buildAuditableJoinsSelective } from "@primebrick/dal-pg";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { findAuditPage } from "../../db/audit-query-helper.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
+import { getCachePort } from "../../cache/cache-port-holder.js";
+
+const ROLE_MAPPINGS_CACHE_KEY = "be:role_mappings:all";
 
 interface RoleMappingRow {
   idp_role: string;
@@ -358,6 +361,7 @@ export class RoleMappingRepo {
       },
       { actor: extras?.actor ?? "system", conflictTarget: "idp_role" }
     );
+    await this.invalidateRoleMappingsCache();
   }
 
   /**
@@ -369,5 +373,21 @@ export class RoleMappingRepo {
       { idp_role: idpRole },
       { actor: actor ?? "system", matchBy: "idp_role" }
     );
+    await this.invalidateRoleMappingsCache();
+  }
+
+  /**
+   * Invalidate the role_mappings Redis cache after a write.
+   * Best-effort — if Redis is down, the cache TTL (5 min) bounds staleness.
+   */
+  private async invalidateRoleMappingsCache(): Promise<void> {
+    const port = getCachePort();
+    if (port) {
+      try {
+        await port.del(ROLE_MAPPINGS_CACHE_KEY);
+      } catch (e) {
+        console.warn(`[cache] role_mappings invalidate failed: ${e}`);
+      }
+    }
   }
 }

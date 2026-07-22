@@ -28,9 +28,11 @@ import {
   SynchronizableFieldType,
   AuditTrail,
 } from "@primebrick/dal-pg";
+import { Cached } from "@primebrick/sdk";
 
 @Entity("organizations")
 @AuditTrail()
+@Cached(300_000) // 5 min TTL — mutable (Casdoor sync)
 export class OrganizationEntity implements IAuditableEntity {
   @Key()
   id: bigint;

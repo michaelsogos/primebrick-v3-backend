@@ -1,7 +1,7 @@
 import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
-import { extJsonMiddleware, Permission, NatsClient } from "@primebrick/sdk";
+import { extJsonMiddleware, Permission, NatsClient, subscribeSharedConfig } from "@primebrick/sdk";
 import { mountModules } from "./modules/index.js";
 import { Pool } from "pg";
 import CasdoorSDK from "casdoor-nodejs-sdk";
@@ -14,7 +14,8 @@ import { isDatabaseUnavailableError } from "./http/api-errors.js";
 import { makeProtectedRouter } from "./http/protected-router.js";
 import { rbacHandler } from "./modules/auth/rbac.middleware.js";
 import { loadRoleMappings, initAuthPorts, getAuthPorts } from "./modules/auth/auth.middleware.js";
-import { loadAuthConfig } from "./modules/auth/config.js";
+import { loadAuthConfig, getAuthConfig } from "./modules/auth/config.js";
+import { initCache, closeCache, getRedisHealth } from "./cache/cache-port-holder.js";
 import { mountMcp, initMcpModule } from "./modules/mcp/index.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
 import "./modules/auth/express-augmentation.js";
@@ -40,6 +41,7 @@ type HealthPayload = {
   version: string;
   db: { ok: boolean };
   idp: { ok: boolean; type?: string; version?: string };
+  redis: { ok: boolean; version?: string };
 };
 
 function readBackendVersion(): string {
@@ -132,6 +134,7 @@ async function healthPayload(): Promise<HealthPayload> {
     version: BACKEND_VERSION,
     db: await checkDb(),
     idp: await checkIdp(pool),
+    redis: getRedisHealth(),
   };
 }
 
@@ -221,6 +224,7 @@ async function runStartupTasks(): Promise<void> {
   initAuthPorts();
   await refreshRoleMappings();
   await refreshAuthConfig();
+  await initCacheFromConfig();
   // Initialize the MCP module with the same auth ports used by authMiddleware.
   // This must run after initAuthPorts() so the ports are available.
   const ports = getAuthPorts();
@@ -230,6 +234,21 @@ async function runStartupTasks(): Promise<void> {
     console.warn("[startup] MCP module not initialized — auth ports unavailable");
   }
   await startServiceLifecycle();
+}
+
+/**
+ * Initialize the Redis cache from `redis_url` in auth_configurations.
+ * Runs after refreshAuthConfig() so the config is loaded.
+ * Best-effort: if redis_url is empty or Redis is unreachable, the cache is
+ * disabled and the BE continues normally.
+ */
+async function initCacheFromConfig(): Promise<void> {
+  try {
+    const cfg = getAuthConfig();
+    await initCache(cfg.redis_url, console);
+  } catch (err) {
+    console.warn("[startup] initCache failed:", err);
+  }
 }
 
 async function refreshRoleMappings(): Promise<void> {
@@ -259,6 +278,12 @@ async function refreshAuthConfig(): Promise<void> {
 async function startServiceLifecycle(): Promise<void> {
   try {
     await NatsClient.getConnection();
+    // Subscribe to config.get — respond with shared config (redis_url, etc.)
+    // Microservices discover redis_url from the BE via this NATS request/reply.
+    await subscribeSharedConfig(NatsClient, () => {
+      const cfg = getAuthConfig();
+      return { redis_url: cfg.redis_url };
+    });
     const subscriber = new ServiceLifecycleSubscriber();
     await subscriber.start();
     const staleJob = new StaleDetectionJob();
@@ -271,3 +296,18 @@ async function startServiceLifecycle(): Promise<void> {
     setTimeout(() => void startServiceLifecycle().catch(() => {}), 5000);
   }
 }
+
+// --- Graceful shutdown --------------------------------------------------------
+// Close the Redis cache connection on SIGTERM/SIGINT so the Redis client
+// quits cleanly (avoids "QUIT" errors in Redis logs on abrupt process exit).
+
+async function gracefulShutdown(): Promise<void> {
+  try {
+    await closeCache();
+  } catch (err) {
+    console.warn("[shutdown] closeCache failed:", err);
+  }
+}
+
+process.on("SIGTERM", () => void gracefulShutdown().finally(() => process.exit(0)));
+process.on("SIGINT", () => void gracefulShutdown().finally(() => process.exit(0)));

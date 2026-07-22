@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS "public"."user_profiles" (
   "version" integer DEFAULT 1,
   "deleted_at" timestamptz,
   "deleted_by" text,
-  "passkey_prompt_dismissed" boolean NOT NULL DEFAULT false,
+  "auth_method_enforcer_dismissed" boolean NOT NULL DEFAULT false,
   "onboarding_completed" boolean NOT NULL DEFAULT false,
   PRIMARY KEY ("id")
 );
@@ -138,7 +138,7 @@ COMMENT ON COLUMN public.user_profiles.is_active IS 'Whether the user account is
 COMMENT ON COLUMN public.user_profiles.is_admin IS 'Whether the user has admin privileges (mirrors Casdoor isAdmin)';
 COMMENT ON COLUMN public.user_profiles.roles IS 'Array of role names assigned to the user (mirrors Casdoor roles)';
 COMMENT ON COLUMN public.user_profiles.last_synced_at IS 'Timestamp of last successful sync with Casdoor';
-COMMENT ON COLUMN public.user_profiles.passkey_prompt_dismissed IS 'Whether the user dismissed the passkey enrollment prompt';
+COMMENT ON COLUMN public.user_profiles.auth_method_enforcer_dismissed IS 'Whether the user dismissed the auth method enforcer prompt (passkey/MFA)';
 COMMENT ON COLUMN public.user_profiles.onboarding_completed IS 'Whether the user completed the welcome/onboarding flow';
 
 -- user_profiles_audit table
@@ -421,13 +421,15 @@ INSERT INTO "public"."auth_configurations" ("key", "value", "description", "crea
 ('enable_formauth', 'true', 'Abilita il login con form username/password (true/false). Almeno uno tra enable_formauth e enable_webauthn deve essere true.', 'system'),
 ('enable_webauthn', 'true', 'Abilita il login passwordless con WebAuthn / passkey (true/false). Almeno uno tra enable_formauth e enable_webauthn deve essere true.', 'system'),
 ('passkey_required', 'true', 'Se true, la passkey e obbligatoria: il prompt di enrollment non puo essere saltato e il checkbox Non mostrare piu e nascosto (true/false).', 'system'),
+('enable_mfa', 'false', 'Abilita MFA / 2FA (login MFA + step-up MFA). Quando false, il login non brancha su MFA e il middleware step-up passa through (true/false).', 'system'),
 ('password_policy', 'letter_number_special', 'Active password complexity policy (alpha_numeric | letter_and_number | letter_number_special | mixed_case_special)', 'system'),
 ('auth_mode', 'STANDALONE', 'Authentication operating mode (STANDALONE | GATEWAY). STANDALONE = API validates JWT via OIDC discovery; GATEWAY = trusted reverse proxy forwards user identity via headers.', 'system'),
 ('auth_roles_path', 'roles', 'Dotted path to extract the roles array from a JWT payload (e.g. "roles" for Casdoor/Entra, "realm_access.roles" for Keycloak realm roles).', 'system'),
 ('invitation_expiry_days', '7', 'Invitation token expiry in days', 'system'),
 ('admin_contact_email', '', 'Admin email for unauthorized action alerts and mailto: links. If empty, BE falls back to first user with is_admin=true.', 'system'),
 ('notification_alert_secret', '', 'HMAC secret for unauthorized-action alert links in emails. Auto-generated (32 random bytes hex) on first use if empty.', 'system'),
-('frontend_url', 'http://localhost:5173', 'Frontend application base URL (used for email links, e.g. welcome page). In production, set to the public HTTPS URL.', 'system')
+('frontend_url', 'http://localhost:5173', 'Frontend application base URL (used for email links, e.g. welcome page). In production, set to the public HTTPS URL.', 'system'),
+('redis_url', 'redis://redis:6379', 'Redis cache URL. Empty = cache disabled (best-effort, system valid without it). Default: dockerized Redis (Docker network name). Change to external Redis URL if needed.', 'system')
 ON CONFLICT ("key") DO NOTHING;
 
 -- === Patch Registry Table ===

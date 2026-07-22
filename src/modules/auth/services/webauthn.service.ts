@@ -137,37 +137,58 @@ export interface WebauthnCredentialInfo {
   label?: string | null;
 }
 
-// --- Session relay (in-memory, single-instance) ---------------------------
+// --- Session relay (Redis-backed, multi-instance) -------------------------
+//
+// Casdoor's WebAuthn begin/finish endpoints store the ceremony challenge in
+// the Beego server-side session, keyed by a session cookie. The BE captures
+// the `Set-Cookie` header from the `begin` response, stashes it in Redis
+// keyed by a random nonce, and replays it as the `Cookie` header on the
+// `finish` call. The nonce is returned to the FE, which sends it back on
+// `finish`. Entries expire after 5 minutes (matches Casdoor's challenge
+// timeout — if the user takes longer, the Casdoor challenge itself has
+// expired, so the ceremony would fail anyway).
+//
+// If Redis is disabled (redis_url empty or unreachable), WebAuthn ceremonies
+// fail — the session cookie cannot be shared across begin/finish calls in a
+// multi-instance deployment. This is a degraded state; password/form auth
+// still works. The error message is clear: "WebAuthn session expired or
+// cache unavailable."
 
-interface RelayEntry {
-  cookie: string;
-  expires_at: number;
+import { getCachePort } from "../../../cache/cache-port-holder.js";
+
+const SESSION_RELAY_TTL_MS = 5 * 60 * 1000; // 5 min — matches Casdoor's challenge expiry
+
+function sessionRelayKey(nonce: string): string {
+  return `webauthn:session:${nonce}`;
 }
 
-const SESSION_RELAY_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const sessionRelay = new Map<string, RelayEntry>();
-
-function stashCasdoorSession(cookie: string): string {
+async function stashCasdoorSession(cookie: string): Promise<string> {
   const nonce = randomUUID();
-  sessionRelay.set(nonce, { cookie, expires_at: Date.now() + SESSION_RELAY_TTL_MS });
+  const port = getCachePort();
+  if (port) {
+    try {
+      await port.set(sessionRelayKey(nonce), cookie, SESSION_RELAY_TTL_MS);
+    } catch (e) {
+      console.warn(`[cache] webauthn session stash failed: ${e}`);
+    }
+  }
   return nonce;
 }
 
-function popCasdoorSession(nonce: string): string | null {
-  const entry = sessionRelay.get(nonce);
-  if (!entry) return null;
-  sessionRelay.delete(nonce);
-  if (Date.now() > entry.expires_at) return null;
-  return entry.cookie;
-}
-
-// Periodic cleanup of expired entries (every 10 minutes)
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of sessionRelay) {
-    if (now > entry.expires_at) sessionRelay.delete(key);
+async function popCasdoorSession(nonce: string): Promise<string | null> {
+  const port = getCachePort();
+  if (!port) return null; // cache disabled — WebAuthn can't work multi-instance
+  try {
+    const cookie = await port.get<string>(sessionRelayKey(nonce));
+    if (cookie) {
+      await port.del(sessionRelayKey(nonce)); // one-time use
+    }
+    return cookie;
+  } catch (e) {
+    console.warn(`[cache] webauthn session pop failed: ${e}`);
+    return null;
   }
-}, 10 * 60 * 1000).unref();
+}
 
 // --- Service --------------------------------------------------------------
 
@@ -216,7 +237,7 @@ export class WebauthnService {
 
     const cookie = response.headers.get("set-cookie") ?? "";
     const options = await response.json();
-    const nonce = stashCasdoorSession(cookie);
+    const nonce = await stashCasdoorSession(cookie);
     return { nonce, options };
   }
 
@@ -235,7 +256,7 @@ export class WebauthnService {
     res: Response,
   ): Promise<WebauthnSigninFinishResult> {
     const cfg = await this.requireWebauthnEnabled();
-    const cookie = popCasdoorSession(nonce);
+    const cookie = await popCasdoorSession(nonce);
     if (!cookie) {
       throw new UnauthorizedError("WebAuthn session expired or not found", {
         internal_code: "webauthn_session_expired",
@@ -417,7 +438,7 @@ export class WebauthnService {
 
     const cookie = response.headers.get("set-cookie") ?? "";
     const options = await response.json();
-    const nonce = stashCasdoorSession(cookie);
+    const nonce = await stashCasdoorSession(cookie);
     return { nonce, options };
   }
 
@@ -432,7 +453,7 @@ export class WebauthnService {
     origin: string,
   ): Promise<{ success: true }> {
     const cfg = await this.requireWebauthnEnabled();
-    const cookie = popCasdoorSession(nonce);
+    const cookie = await popCasdoorSession(nonce);
     if (!cookie) {
       throw new UnauthorizedError("WebAuthn session expired or not found", {
         internal_code: "webauthn_session_expired",
