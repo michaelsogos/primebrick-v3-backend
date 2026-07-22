@@ -26,6 +26,7 @@ import { ServiceRegistryRepo } from "./modules/proxy/service-registry-repo.js";
 import { ServiceLifecycleSubscriber } from "./modules/proxy/service-lifecycle-subscriber.js";
 import { StaleDetectionJob } from "./modules/proxy/stale-detection-job.js";
 import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
+import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
@@ -208,9 +209,14 @@ app.use(errorHandler);
 
 // Bind the port BEFORE any DB-dependent startup work so /health stays
 // answerable even when Postgres is down (returns 503 + JSON, not a proxy 502).
-app.listen(port, () => {
+// Set server.timeout to 5 minutes (300s) — this is a socket inactivity timeout
+// that resets on every res.write(). SSE connections with 15s keep-alive never
+// hit it. It only fires on zombie connections (no data for 5 min), allowing the
+// server to reclaim resources. Never set to 0 (zombie accumulation).
+const server = app.listen(port, () => {
   console.log(`API listening on http://localhost:${port}`);
 });
+server.timeout = 300_000;
 
 // Background startup tasks — MUST NOT prevent the server from starting.
 // /health is public and unaffected; authenticated endpoints fail closed
@@ -302,6 +308,17 @@ async function startServiceLifecycle(): Promise<void> {
 // quits cleanly (avoids "QUIT" errors in Redis logs on abrupt process exit).
 
 async function gracefulShutdown(): Promise<void> {
+  // Notify all SSE clients that the server is shutting down
+  try {
+    serviceEventsBus.emit({
+      id: `shutdown:${Date.now()}`,
+      event: "error",
+      data: { type: "server_shutdown", message: "Server is shutting down" },
+    });
+    serviceEventsBus.close();
+  } catch {
+    // Non-critical — SSE clients will reconnect to another instance
+  }
   try {
     await closeCache();
   } catch (err) {
