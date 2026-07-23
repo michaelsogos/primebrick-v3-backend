@@ -29,8 +29,10 @@ import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
 import { organizationMeta } from "../organizations.meta.js";
+import { OrganizationEntity } from "../organization_entity.js";
 import { OrganizationsService } from "../services/organizations.service.js";
 import { ValidationError } from "../../../http/api-errors.js";
+import { assembleMeta } from "../../../http/meta-assembler.js";
 import type { OrganizationListQuery } from "../organizations_dal.js";
 import { displayNameSchema, idpNameSchema } from "../validation.js";
 
@@ -51,7 +53,7 @@ export function organizationsRouter() {
   const service = new OrganizationsService();
 
   const getMeta: RequestHandler = asyncHandler(async (_req, res) => {
-    res.json(organizationMeta);
+    res.json(assembleMeta(organizationMeta, OrganizationEntity));
   });
 
   const list: RequestHandler = asyncHandler(async (req, res) => {

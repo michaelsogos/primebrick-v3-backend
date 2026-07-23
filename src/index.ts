@@ -16,6 +16,9 @@ import { rbacHandler } from "./modules/auth/rbac.middleware.js";
 import { loadRoleMappings, initAuthPorts, getAuthPorts } from "./modules/auth/auth.middleware.js";
 import { loadAuthConfig, getAuthConfig } from "./modules/auth/config.js";
 import { initCache, closeCache, getRedisHealth } from "./cache/cache-port-holder.js";
+import { initPresenceStore, closePresenceStore } from "./modules/collaboration/presence-store-holder.js";
+import { collaborationBusRegistry } from "./modules/collaboration/collaboration-bus-registry.js";
+import { startKeyspaceListener } from "./modules/collaboration/keyspace-listener.js";
 import { mountMcp, initMcpModule } from "./modules/mcp/index.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
 import "./modules/auth/express-augmentation.js";
@@ -27,6 +30,9 @@ import { ServiceLifecycleSubscriber } from "./modules/proxy/service-lifecycle-su
 import { StaleDetectionJob } from "./modules/proxy/stale-detection-job.js";
 import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
+
+// Keyspace listener cleanup function (set during startup, called during shutdown)
+let stopKeyspaceListener: (() => Promise<void>) | null = null;
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
@@ -231,6 +237,7 @@ async function runStartupTasks(): Promise<void> {
   await refreshRoleMappings();
   await refreshAuthConfig();
   await initCacheFromConfig();
+  await initPresenceStoreFromConfig();
   // Initialize the MCP module with the same auth ports used by authMiddleware.
   // This must run after initAuthPorts() so the ports are available.
   const ports = getAuthPorts();
@@ -254,6 +261,29 @@ async function initCacheFromConfig(): Promise<void> {
     await initCache(cfg.redis_url, console);
   } catch (err) {
     console.warn("[startup] initCache failed:", err);
+  }
+}
+
+/**
+ * Initialize the Redis presence store from `redis_url` in auth_configurations.
+ * Runs after refreshAuthConfig() so the config is loaded.
+ * Best-effort: if redis_url is empty or Redis is unreachable, presence is
+ * disabled and the BE continues normally.
+ */
+async function initPresenceStoreFromConfig(): Promise<void> {
+  try {
+    const cfg = getAuthConfig();
+    await initPresenceStore(cfg.redis_url, console);
+    // Start keyspace listener for presence expiry events (best-effort)
+    if (cfg.redis_url) {
+      try {
+        stopKeyspaceListener = await startKeyspaceListener(cfg.redis_url, console);
+      } catch (err) {
+        console.warn("[startup] keyspace listener failed (best-effort):", err);
+      }
+    }
+  } catch (err) {
+    console.warn("[startup] initPresenceStore failed:", err);
   }
 }
 
@@ -323,6 +353,24 @@ async function gracefulShutdown(): Promise<void> {
     await closeCache();
   } catch (err) {
     console.warn("[shutdown] closeCache failed:", err);
+  }
+  try {
+    await closePresenceStore();
+  } catch (err) {
+    console.warn("[shutdown] closePresenceStore failed:", err);
+  }
+  try {
+    collaborationBusRegistry.closeAll();
+  } catch (err) {
+    console.warn("[shutdown] collaborationBusRegistry.closeAll failed:", err);
+  }
+  if (stopKeyspaceListener) {
+    try {
+      await stopKeyspaceListener();
+    } catch (err) {
+      console.warn("[shutdown] keyspace listener stop failed:", err);
+    }
+    stopKeyspaceListener = null;
   }
 }
 
