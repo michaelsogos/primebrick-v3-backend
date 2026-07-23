@@ -1,0 +1,93 @@
+---
+title: RBAC
+description: "Wildcard-based RBAC permission system with role mappings and admin bypass."
+---
+
+# RBAC Permission System
+
+The backend uses a wildcard-based RBAC (Role-Based Access Control) system
+with pattern matching. Permissions are defined in code and mapped to
+Casdoor roles via the `role_mappings` table.
+
+## Permission format
+
+Permissions follow the pattern: `module.action.granularity`
+
+| Permission | Description |
+|-----------|-------------|
+| `customers.read.all` | List all customers |
+| `customers.read.single` | Read a single customer |
+| `customers.read.audit` | Read customer audit trail |
+| `customers.create.single` | Create a single customer |
+| `customers.create.bulk` | Bulk create customers |
+| `customers.update.single` | Update a single customer |
+| `customers.update.bulk` | Bulk update customers |
+| `customers.delete.single` | Delete a single customer |
+| `customers.delete.bulk` | Bulk delete customers |
+| `customers.restore.single` | Restore a soft-deleted customer |
+| `customers.restore.bulk` | Bulk restore customers |
+| `customers.duplicate.bulk` | Bulk duplicate customers |
+| `customers.export` | Export customers |
+| `modules.read.all` | List all registered modules |
+
+## Wildcard support
+
+Wildcards use `*` to match any segment:
+
+| Pattern | Matches |
+|---------|---------|
+| `customers.*` | All customer permissions |
+| `customers.read.*` | All customer read permissions |
+| `*` | Everything (equivalent to admin) |
+
+The wildcard matching converts the pattern to a regex at runtime
+(`matchesWildcard(pattern, permission)` in `permissions.ts`).
+
+## Role mappings
+
+Role mappings link Casdoor roles to Primebrick permissions. They are
+stored in the `role_mappings` table:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `idp_role` | `text` | Casdoor role name (snake_case) |
+| `permissions` | `text[]` | Array of permission patterns |
+| `is_admin` | `boolean` | If true, bypasses all permission checks |
+
+### Default roles
+
+| Role | Permissions | Admin |
+|------|------------|-------|
+| `administrators` | (bypass) | `true` |
+| `collaborator` | `["customers.*"]` | `false` |
+| `guest` | `["customers.read.*"]` | `false` |
+
+## Implementation
+
+**Key files:**
+
+| File | Purpose |
+|------|---------|
+| `src/modules/auth/permissions.ts` | `Permission` enum and wildcard matching |
+| `src/modules/auth/rbac.middleware.ts` | RBAC middleware with admin bypass |
+| `src/modules/auth/auth.middleware.ts` | Auth middleware with permission expansion |
+| `src/modules/auth/role-mapping-repo.ts` | Role mapping repository |
+| `src/modules/auth/types.ts` | `AuthUser` type with `isAdmin` field |
+
+**Key functions:**
+
+- `expandPermissions(roles, getRoleMappingFn)` — returns `{ patterns, isAdmin }`
+- `isPermissionGranted(userPermissions, requiredPermission)` — pattern matching
+- `matchesWildcard(pattern, permission)` — converts wildcard to regex
+
+## Adding a new permission
+
+1. Add the permission constant to the `Permission` enum in `permissions.ts`
+2. Use it in route handlers: `rbacHandler([Permission.NEW_PERMISSION])`
+3. Update role mappings in the database to grant the permission (or use a wildcard)
+4. The `Permission` enum is the source of truth — no need to update `getAllPermissions`
+
+## Testing RBAC changes
+
+After updating role mappings in the database, restart the backend server
+to reload the role mapping cache.

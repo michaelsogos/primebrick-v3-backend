@@ -1,0 +1,83 @@
+---
+title: Architecture
+description: "Primebrick Backend architecture — module structure, HTTP layer, and database access."
+---
+
+# Architecture
+
+The Primebrick Backend is an Express.js application structured around
+domain modules. Each module owns its entities, DAL, routers, and
+business logic.
+
+## Source layout
+
+```
+src/
+  db/           Database connection and patch runner
+  domain/       Shared domain types and utilities
+  http/         HTTP layer: error handling, validation, route helpers
+  i18n/         Internationalization
+  lib/          Shared library utilities
+  modules/      Domain modules (auth, customers, mcp, proxy, system)
+  openapi/      OpenAPI spec generation and aggregated router
+```
+
+## Module structure
+
+Each module under `src/modules/` follows the same pattern:
+
+| Layer | Responsibility |
+|-------|---------------|
+| **Entity** | TypeScript class defining the DB table shape (`*_entity.ts`) |
+| **Metadata** | Entity metadata for the DAL (`*.meta.ts`) |
+| **DAL** | Data access layer repository (`*_dal.ts`) |
+| **Router** | Express router with endpoint definitions (`router.ts`) |
+| **Service** | Business logic (request-context-free services) |
+| **Middleware** | Auth and RBAC middleware (`*.middleware.ts`) |
+
+## HTTP layer
+
+The `src/http/` directory provides shared HTTP infrastructure:
+
+- **`define-route.ts`** — typed route definition helper with Zod validation
+- **`async-handler.ts`** — wraps async route handlers for error propagation
+- **`error-handler.ts`** — global error handler producing RFC 7807 responses
+- **`api-errors.ts`** — stable error codes with `impact` field for the frontend
+- **`validation.ts`** — request body and query parameter validation
+- **`protected-router.ts`** — router factory that enforces auth + RBAC
+
+## OpenAPI
+
+The backend generates its OpenAPI spec from code:
+
+- **`src/openapi/openapi.ts`** — defines the system API spec
+- **`src/openapi/router.ts`** — mounts the OpenAPI JSON endpoint
+- **`src/openapi/aggregated-router.ts`** — aggregates the backend spec with
+  microservice specs registered via NATS
+
+The docs site fetches these specs at build time to populate the API Catalog.
+
+## Service registry
+
+The backend subscribes to microservice lifecycle events over NATS:
+
+<Mermaid chart={`sequenceDiagram
+  participant US as Microservice
+  participant NATS as NATS
+  participant BE as Backend
+  participant DB as Database
+
+  US->>NATS: service.register(name, version, endpoints)
+  NATS->>BE: register event
+  BE->>DB: INSERT INTO registered_services
+  US->>NATS: heartbeat (every 30s)
+  NATS->>BE: heartbeat event
+  BE->>DB: UPDATE last_heartbeat_at
+  alt Heartbeat timeout
+    BE->>DB: Mark service as stale
+  end
+`} />
+
+When a microservice registers, the backend persists its metadata and
+exposes its endpoints through the aggregated OpenAPI router and the
+reverse proxy module.

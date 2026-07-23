@@ -1,0 +1,115 @@
+---
+title: Overview
+description: "Primebrick Backend — the core API server, database, and authentication hub for Primebrick v3."
+---
+
+# Primebrick Backend
+
+The Primebrick Backend (`primebrick-api`) is the central API server for
+Primebrick v3. It exposes the REST API consumed by the frontend, manages
+the PostgreSQL database, integrates with Casdoor for identity and
+authentication, and acts as the service registry for microservices
+connected via NATS.
+
+## Responsibilities
+
+| Area | What it does |
+|------|-------------|
+| **REST API** | Express-based HTTP server on port 3001 serving all Primebrick endpoints |
+| **Database** | PostgreSQL with a patch-based migration system (`db:migrate`) |
+| **Authentication** | Casdoor IDP integration, JWT/OIDC verification, API keys, passkeys |
+| **RBAC** | Wildcard-based permission system with role mappings and admin bypass |
+| **Service registry** | Subscribes to microservice lifecycle events over NATS |
+| **MCP Server** | Model Context Protocol server for AI agent integration |
+| **Organizations** | Multi-tenant organization management with user invitations |
+
+## Architecture
+
+<Mermaid chart={`flowchart LR
+  subgraph Clients
+    FE["Frontend (React)"]
+    AI["AI Agents"]
+  end
+
+  subgraph BE["Backend (primebrick-api)"]
+    API["Express HTTP Server"]
+    AUTH["Auth Module"]
+    RBAC["RBAC Middleware"]
+    DB["Database Layer"]
+    MCP["MCP Server"]
+  end
+
+  subgraph External
+    CASDOOR["Casdoor IDP"]
+    PG["PostgreSQL"]
+    NATS["NATS"]
+    US["Microservices"]
+  end
+
+  FE -->|REST API| API
+  AI -->|MCP| MCP
+  API --> AUTH
+  AUTH -->|OIDC/JWT| CASDOOR
+  API --> RBAC
+  API --> DB
+  DB --> PG
+  API -.->|service registry| NATS
+  NATS -.-> US
+`} />
+
+## Modules
+
+| Module | Description |
+|--------|-------------|
+| **auth** | Casdoor integration, JWT/OIDC verification, user profiles, passkeys, organizations, role mappings, password policy |
+| **customers** | Customer entity CRUD, audit trail, bulk operations, duplicate/restore |
+| **mcp** | Model Context Protocol server exposing Primebrick tools to AI agents |
+| **proxy** | Reverse proxy to registered microservices via NATS |
+| **system** | System configuration, module registry, health checks, version info |
+
+## Authentication flow
+
+The backend integrates with [Casdoor](https://casdoor.org/) as the identity
+provider (IDP). The authentication flow is:
+
+1. The frontend redirects to Casdoor for login (OIDC authorization code flow)
+2. Casdoor returns a JWT access token
+3. The frontend sends the JWT in the `Authorization: Bearer` header
+4. The backend's auth middleware verifies the JWT against Casdoor's JWKS
+5. The RBAC middleware checks the user's permissions against the required
+   route permission using wildcard pattern matching
+
+## RBAC permission system
+
+Permissions follow the pattern `module.action.granularity`:
+
+- `customers.read.all` — list all customers
+- `customers.read.single` — read a single customer
+- `customers.create.bulk` — bulk create customers
+- `customers.*` — wildcard matching all customer permissions
+- `*` — admin bypass (matches everything)
+
+Role mappings are stored in the `role_mappings` table and linked to Casdoor
+roles. Users with `is_admin = true` bypass all permission checks.
+
+## Database
+
+The backend uses PostgreSQL with a patch-based migration system:
+
+- **`pnpm run db:meta:compare`** — generates snapshots and patch files when
+  entity models drift from the database schema
+- **`pnpm run db:migrate`** — applies pending `.sql` patch files in order,
+  using SHA-256 checksums to skip already-applied patches
+
+## Commands
+
+| Action | Command |
+|--------|---------|
+| Install | `pnpm install` |
+| Dev API | `pnpm run dev` (port 3001) |
+| Build | `pnpm run build` |
+| DB schema compare | `pnpm run db:meta:compare` |
+| Apply DB patches | `pnpm run db:migrate` |
+| Seed demo customers | `pnpm run db:seed:customers` |
+| Postgres up | `docker compose -f infra/docker-compose.postgres.yml up -d` |
+| Postgres down | `docker compose -f infra/docker-compose.postgres.yml down` |

@@ -1,0 +1,83 @@
+---
+title: Authentication
+description: "Casdoor IDP integration, JWT/OIDC verification, sessions, passkeys, and user invitations."
+---
+
+# Authentication
+
+The backend integrates with [Casdoor](https://casdoor.org/) as the
+identity provider (IDP). Authentication uses the OIDC authorization code
+flow with JWT access tokens.
+
+## Login flow
+
+<Mermaid chart={`sequenceDiagram
+  participant FE as Frontend
+  participant BE as Backend
+  participant CD as Casdoor IDP
+
+  FE->>CD: Redirect to /login (OIDC auth code flow)
+  CD->>FE: Redirect back with authorization code
+  FE->>BE: POST /auth/session { code }
+  BE->>CD: Exchange code for access token
+  CD->>BE: access_token (JWT) + refresh_token
+  BE->>FE: { access_token, refresh_token, user }
+  FE->>BE: GET /auth/me (Authorization: Bearer JWT)
+  BE->>FE: { user, permissions }
+`} />
+
+## Auth middleware
+
+The auth middleware (`src/modules/auth/auth.middleware.ts`) runs on every
+protected route:
+
+1. Extracts the JWT from the `Authorization: Bearer` header
+2. Verifies the JWT signature against Casdoor's JWKS
+3. Loads the user profile and role mappings from the database
+4. Expands the user's roles into a set of permission patterns
+5. Attaches `req.user` (type `AuthUser`) with `permissions` and `isAdmin`
+
+## RBAC middleware
+
+The RBAC middleware (`src/modules/auth/rbac.middleware.ts`) enforces
+permission checks:
+
+1. If `req.user.isAdmin === true`, bypass all checks
+2. Otherwise, match the required permission against `req.user.permissions`
+   using wildcard pattern matching
+3. Support both "any" (OR) and "all" (AND) modes
+
+## Passkeys (WebAuthn)
+
+The backend supports WebAuthn passkey enrollment and authentication:
+
+- **`POST /auth/webauthn/register/begin`** — start passkey registration
+- **`POST /auth/webauthn/register/finish`** — complete registration
+- **`POST /auth/webauthn/auth/begin`** — start passkey authentication
+- **`POST /auth/webauthn/auth/finish`** — complete authentication
+
+Passkeys are stored in the `user_passkeys` table and linked to the user
+profile.
+
+## User invitations
+
+Administrators can invite users to an organization:
+
+- **`POST /auth/invitations`** — create an invitation (admin only)
+- **`GET /auth/invitations`** — list pending invitations
+- **`POST /auth/invitations/:id/accept`** — accept an invitation
+
+Invitations are stored in the `user_invitations` table with an expiry
+date and a one-time token.
+
+## Organizations
+
+The backend supports multi-tenant organizations:
+
+- **`POST /auth/organizations`** — create an organization
+- **`GET /auth/organizations`** — list organizations
+- **`PATCH /auth/organizations/:id`** — update an organization
+- **`DELETE /auth/organizations/:id`** — delete an organization
+
+Users can belong to multiple organizations. Role mappings are scoped per
+organization.
