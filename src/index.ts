@@ -1,7 +1,7 @@
 import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
-import { extJsonMiddleware, Permission, NatsClient, subscribeSharedConfig } from "@primebrick/sdk";
+import { extJsonMiddleware, Permission, NatsClient, subscribeSharedConfig, logModuleStartup, logServiceStartup, type HealthResponse } from "@primebrick/sdk";
 import { mountModules } from "./modules/index.js";
 import { Pool } from "pg";
 import CasdoorSDK from "casdoor-nodejs-sdk";
@@ -15,7 +15,7 @@ import { makeProtectedRouter } from "./http/protected-router.js";
 import { rbacHandler } from "./modules/auth/rbac.middleware.js";
 import { loadRoleMappings, initAuthPorts, getAuthPorts } from "./modules/auth/auth.middleware.js";
 import { loadAuthConfig, getAuthConfig } from "./modules/auth/config.js";
-import { initCache, closeCache, getRedisHealth } from "./cache/cache-port-holder.js";
+import { initCache, closeCache, getRedisHealth, getCachePort } from "./cache/cache-port-holder.js";
 import { initPresenceStore, closePresenceStore } from "./modules/collaboration/presence-store-holder.js";
 import { collaborationBusRegistry } from "./modules/collaboration/collaboration-bus-registry.js";
 import { startKeyspaceListener } from "./modules/collaboration/keyspace-listener.js";
@@ -42,14 +42,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(extJsonMiddleware());
 
-type HealthPayload = {
-  ok: true;
-  service: "primebrick-api";
-  version: string;
-  db: { ok: boolean };
-  idp: { ok: boolean; type?: string; version?: string };
-  redis: { ok: boolean; version?: string };
-};
+type HealthCheckResult = { ok: boolean; version?: string; type?: string; error?: string };
 
 function readBackendVersion(): string {
   const here = dirname(fileURLToPath(import.meta.url)); // backend/src
@@ -60,19 +53,22 @@ function readBackendVersion(): string {
 
 const BACKEND_VERSION = readBackendVersion();
 
-async function checkDb(): Promise<{ ok: boolean }> {
+async function checkDb(): Promise<HealthCheckResult> {
   try {
     const pool = getPool();
     // Keep it cheap; if DB is down this will throw quickly.
-    await pool.query("select 1 as ok");
-    return { ok: true };
+    const result = await pool.query("select 1 as ok, version() as pg_version");
+    const pgVersion = result.rows[0]?.pg_version as string | undefined;
+    // version() returns e.g. "PostgreSQL 18.0, compiled by Visual C++ ..."
+    const versionMatch = pgVersion?.match(/PostgreSQL\s+([\d.]+)/);
+    return { ok: true, version: versionMatch?.[1] };
   } catch (e) {
     if (isDatabaseUnavailableError(e)) return { ok: false };
     return { ok: false };
   }
 }
 
-async function checkIdp(pool?: Pool): Promise<{ ok: boolean; type?: string; version?: string }> {
+async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
   try {
     // Load configuration from database or fallback to environment variables
     let casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
@@ -91,21 +87,12 @@ async function checkIdp(pool?: Pool): Promise<{ ok: boolean; type?: string; vers
         console.warn("[IDP Health Check] Could not load configuration from database, using fallback:", error);
       }
     }
-    
-    // Initialize Casdoor SDK
-    const sdk = new CasdoorSDK.SDK({
-      endpoint: casdoorEndpoint,
-      clientId: clientId,
-      clientSecret: clientSecret,
-      certificate: "",
-      orgName: orgName,
-    });
-    
+
     // Call the correct version endpoint from Casdoor docs with authentication
     const url = new URL(`${casdoorEndpoint}/api/get-version-info`);
     url.searchParams.set("clientId", clientId);
     url.searchParams.set("clientSecret", clientSecret);
-    
+
     const versionResponse = await fetch(url.toString(), {
       method: "GET",
       headers: {
@@ -119,37 +106,67 @@ async function checkIdp(pool?: Pool): Promise<{ ok: boolean; type?: string; vers
     }
 
     const versionData = await versionResponse.json() as { status?: string; msg?: string; data?: { version?: string; commitId?: string; commitOffset?: number } };
-    const result = {
+    return {
       ok: true,
       type: "Casdoor",
       version: versionData.data?.version || "unknown",
     };
-    console.log(`[IDP Health Check] Result:`, result);
-    
-    return result;
   } catch (e) {
     console.error(`[IDP Health Check] Error:`, (e as Error).message);
     return { ok: false };
   }
 }
 
-async function healthPayload(): Promise<HealthPayload> {
+/**
+ * Check Redis connectivity with an actual PING command.
+ * Detects Redis going down AFTER startup (not just a null singleton check).
+ * The version is cached at startup — no INFO query on every health probe.
+ */
+async function checkRedis(): Promise<HealthCheckResult> {
+  const port = getCachePort();
+  if (!port) return { ok: false, error: "Redis not configured" };
+  try {
+    const ok = await port.ping();
+    if (!ok) return { ok: false, error: "Redis PING failed" };
+    return { ok: true, version: getRedisHealth().version };
+  } catch {
+    return { ok: false, error: "Redis PING threw" };
+  }
+}
+
+/**
+ * Check NATS connectivity. Uses isConnected() (local check, no network round-trip).
+ * The NATS client's built-in heartbeat/reconnection handles detecting actual
+ * connectivity loss. Version is cached at startup from the INFO handshake.
+ */
+function checkNats(): HealthCheckResult {
+  if (!NatsClient.isConnected()) return { ok: false, error: "NATS connection is not alive" };
+  const version = NatsClient.getServerVersion() ?? undefined;
+  return { ok: true, version };
+}
+
+async function healthPayload(): Promise<HealthResponse> {
   const pool = getPool();
-  return {
-    ok: true,
-    service: "primebrick-api",
-    version: BACKEND_VERSION,
+  const checks: Record<string, HealthCheckResult> = {
     db: await checkDb(),
     idp: await checkIdp(pool),
-    redis: getRedisHealth(),
+    redis: await checkRedis(),
+    nats: checkNats(),
+  };
+  const isHealthy = Object.values(checks).every((c) => c.ok);
+  return {
+    ok: isHealthy,
+    service: "primebrick-api",
+    version: BACKEND_VERSION,
+    url: `http://localhost:${port}`,
+    checks,
   };
 }
 
-/** 200 when DB and IDP are up; 503 when the API process is up but Postgres or IDP is not (same JSON body). */
+/** 200 when ALL checks pass; 503 when any infrastructure component is down (same JSON body). */
 async function sendHealth(res: Response) {
   const payload = await healthPayload();
-  const isHealthy = payload.db.ok && payload.idp.ok;
-  res.status(isHealthy ? 200 : 503).json(payload);
+  res.status(payload.ok ? 200 : 503).json(payload);
 }
 
 // Public health endpoint - no authentication required
@@ -220,7 +237,7 @@ app.use(errorHandler);
 // hit it. It only fires on zombie connections (no data for 5 min), allowing the
 // server to reclaim resources. Never set to 0 (zombie accumulation).
 const server = app.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
+  logServiceStartup("primebrick-api", BACKEND_VERSION, `http://localhost:${port}`);
 });
 server.timeout = 300_000;
 
@@ -252,23 +269,28 @@ async function runStartupTasks(): Promise<void> {
 /**
  * Initialize the Redis cache from `redis_url` in auth_configurations.
  * Runs after refreshAuthConfig() so the config is loaded.
- * Best-effort: if redis_url is empty or Redis is unreachable, the cache is
- * disabled and the BE continues normally.
+ * Redis is mandatory — if redis_url is set but Redis is unreachable, retry
+ * every 5s (same pattern as refreshRoleMappings and refreshAuthConfig).
+ * The /health endpoint will return 503 (redis.ok=false) until the retry succeeds.
  */
 async function initCacheFromConfig(): Promise<void> {
   try {
     const cfg = getAuthConfig();
     await initCache(cfg.redis_url, console);
   } catch (err) {
-    console.warn("[startup] initCache failed:", err);
+    console.warn(
+      "[startup] initCache failed (Redis unavailable?). Retrying in 5s.",
+      err
+    );
+    setTimeout(() => void initCacheFromConfig().catch(() => {}), 5000);
   }
 }
 
 /**
  * Initialize the Redis presence store from `redis_url` in auth_configurations.
  * Runs after refreshAuthConfig() so the config is loaded.
- * Best-effort: if redis_url is empty or Redis is unreachable, presence is
- * disabled and the BE continues normally.
+ * Redis is mandatory — if redis_url is set but Redis is unreachable, retry
+ * every 5s (same pattern as refreshRoleMappings and refreshAuthConfig).
  */
 async function initPresenceStoreFromConfig(): Promise<void> {
   try {
@@ -283,7 +305,11 @@ async function initPresenceStoreFromConfig(): Promise<void> {
       }
     }
   } catch (err) {
-    console.warn("[startup] initPresenceStore failed:", err);
+    console.warn(
+      "[startup] initPresenceStore failed (Redis unavailable?). Retrying in 5s.",
+      err
+    );
+    setTimeout(() => void initPresenceStoreFromConfig().catch(() => {}), 5000);
   }
 }
 
@@ -302,6 +328,16 @@ async function refreshRoleMappings(): Promise<void> {
 async function refreshAuthConfig(): Promise<void> {
   try {
     await loadAuthConfig(getPool());
+    // Log PostgreSQL version after successful DB connection
+    try {
+      const result = await getPool().query("select version() as pg_version");
+      const pgVersion = result.rows[0]?.pg_version as string | undefined;
+      const versionMatch = pgVersion?.match(/PostgreSQL\s+([\d.]+)/);
+      const dbUrl = process.env.DATABASE_URL ?? "localhost:5432";
+      logModuleStartup("PostgreSQL", versionMatch?.[1], dbUrl);
+    } catch {
+      // version query failed — non-critical, DB is up (loadAuthConfig succeeded)
+    }
   } catch (err) {
     console.warn(
       "[startup] loadAuthConfig failed (database unavailable?). Retrying in 5s.",
@@ -313,7 +349,8 @@ async function refreshAuthConfig(): Promise<void> {
 
 async function startServiceLifecycle(): Promise<void> {
   try {
-    await NatsClient.getConnection();
+    const natsUrl = process.env.NATS_URL ?? "nats://127.0.0.1:4222";
+    await NatsClient.getConnection(natsUrl);
     // Subscribe to config.get — respond with shared config (redis_url, etc.)
     // Microservices discover redis_url from the BE via this NATS request/reply.
     await subscribeSharedConfig(NatsClient, () => {

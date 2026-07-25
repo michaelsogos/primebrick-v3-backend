@@ -14,6 +14,12 @@ Independent Git repository containing the Primebrick API, database, and endpoint
 
 **Documentation language:** All `*.md` files must use **English** for team-facing prose.
 
+**Mandatory infrastructure:** PostgreSQL® (database), Redis™ (cache + WebAuthn session
+relay + presence), NATS™ (service registry + collaboration), Casdoor™ (IDP). The
+`/api/v1/health` endpoint returns 503 when ANY of these are down. Redis-dependent
+endpoints (e.g. WebAuthn passkey signin) return `503 + REDIS_UNAVAILABLE` when Redis
+is unavailable.
+
 ## CI / Deployment
 
 **This repo has NO auto-deploy CI. Deployment follows GitFlow.**

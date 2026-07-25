@@ -2,6 +2,7 @@ export type ImpactLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
 export type ApiErrorCode =
   | "DATABASE_UNAVAILABLE"
+  | "REDIS_UNAVAILABLE"
   | "LIST_FAILED"
   | "VALIDATION_ERROR"
   | "NOT_FOUND"
@@ -233,6 +234,37 @@ export class AuthConfigNotLoadedError extends ApiError {
       }
     );
     this.name = "AuthConfigNotLoadedError";
+  }
+}
+
+/**
+ * Redis Unavailable Error (503) - RFC 7807
+ *
+ * Redis is a mandatory infrastructure component. When Redis is down,
+ * Redis-dependent features (WebAuthn session relay, presence, cache
+ * invalidation) cannot function. The FE shows a "Redis offline" health chip.
+ *
+ * 503 is the standard status for downstream unavailability — same as
+ * DATABASE_UNAVAILABLE. The FE's 503 interceptor probes /health, which
+ * reports redis.ok=false and triggers the redis_offline chip.
+ */
+export class RedisUnavailableError extends ApiError {
+  constructor(
+    detail: string,
+    options?: { instance?: string; internal_code?: string }
+  ) {
+    super(
+      "/errors/redis-unavailable",
+      "Redis unavailable",
+      503,
+      detail,
+      {
+        ...options,
+        internal_code: options?.internal_code || "REDIS_UNAVAILABLE",
+        severity: "CRITICAL",
+      }
+    );
+    this.name = "RedisUnavailableError";
   }
 }
 
