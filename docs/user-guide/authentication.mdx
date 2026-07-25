@@ -11,73 +11,280 @@ flow with JWT access tokens.
 
 ## Login flow
 
+The backend operates in **STANDALONE mode**: it receives a raw JWT in the
+`Authorization: Bearer` header (or `access_token` cookie), verifies it via OIDC
+discovery against Casdoor's JWKS, resolves the IDP subject to an internal
+Primebrick UUID, and expands the user's roles into a flat permission set.
+
 <Mermaid chart={`sequenceDiagram
   participant FE as Frontend
   participant BE as Backend
   participant CD as Casdoor IDP
 
-  FE->>CD: Redirect to /login (OIDC auth code flow)
-  CD->>FE: Redirect back with authorization code
-  FE->>BE: POST /auth/session { code }
-  BE->>CD: Exchange code for access token
+  FE->>BE: POST /api/v1/auth/login { username, password }
+  BE->>CD: OAuth password grant
   CD->>BE: access_token (JWT) + refresh_token
-  BE->>FE: { access_token, refresh_token, user }
-  FE->>BE: GET /auth/me (Authorization: Bearer JWT)
+  BE->>FE: 200 + Set-Cookie access_token / refresh_token (HttpOnly)
+  FE->>BE: GET /api/v1/auth/me (Cookie: access_token=...)
+  BE->>BE: verifyAuth: verify JWT via JWKS, resolve sub -> user_profiles.uuid
+  BE->>BE: expandPermissions(roles) -> { patterns, isAdmin }
   BE->>FE: { user, permissions }
 `} />
 
+The login endpoint sets `access_token` and `refresh_token` as HttpOnly cookies
+so the frontend never reads the JWT in JavaScript. Subsequent requests send the
+cookie automatically; the auth middleware also accepts an explicit
+`Authorization: Bearer` header (e.g. for curl, mobile clients, or API keys).
+
+## Auth endpoints
+
+| Method | Path | Permission | Purpose |
+|--------|------|------------|---------|
+| `POST` | `/api/v1/auth/login` | `PUBLIC` | Casdoor password grant; sets cookies |
+| `POST` | `/api/v1/auth/refresh` | `PUBLIC` | Casdoor refresh grant; rotates cookies |
+| `GET`  | `/api/v1/auth/config` | `PUBLIC` | Public auth flags (`enable_formauth`, `enable_webauthn`, `enable_mfa`) |
+| `GET`  | `/api/v1/auth/me` | `AUTHENTICATED_USER` | Fetch own profile + permissions |
+| `PATCH`| `/api/v1/auth/me` | `AUTHENTICATED_USER` | Self-service profile update |
+
+### curl examples
+
+```bash
+# Login — cookies are set on the response
+curl -i -X POST http://localhost:3001/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"<password>"}'
+# Set-Cookie: access_token=eyJhbGciOi...; Path=/; HttpOnly
+# Set-Cookie: refresh_token=...; Path=/; HttpOnly
+
+# Fetch own profile (cookie jar carries the access_token)
+curl http://localhost:3001/api/v1/auth/me -b cookies.txt
+```
+
+```json
+{
+  "user": {
+    "uuid": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "admin@example.com",
+    "display_name": "Alice Admin",
+    "is_admin": true
+  },
+  "permissions": ["customers.*", "users.*", "modules.read.all"]
+}
+```
+
 ## Auth middleware
 
-The auth middleware (`src/modules/auth/auth.middleware.ts`) runs on every
-protected route:
+The auth middleware (`src/modules/auth/auth.middleware.ts`) is a thin Express
+wrapper around the SDK's `verifyAuth()`. It runs on every protected route (the
+`rbacHandler(...)` declaration calls it internally — see
+[RBAC](./rbac#the-rbachandler-declaration)):
 
-1. Extracts the JWT from the `Authorization: Bearer` header
-2. Verifies the JWT signature against Casdoor's JWKS
-3. Loads the user profile and role mappings from the database
-4. Expands the user's roles into a set of permission patterns
-5. Attaches `req.user` (type `AuthUser`) with `permissions` and `isAdmin`
+1. Reads the JWT from the `Authorization: Bearer` header (or `access_token`
+   cookie in STANDALONE mode).
+2. Calls `verifyAuth(HeaderProvider, cfg, ports)` from `@primebrick/sdk` —
+   verifies the JWT signature via OIDC discovery, resolves the IDP subject to
+   an internal `user_profiles.uuid`, and expands roles into a permission set.
+3. Attaches `req.user` (type `AuthUser` from `@primebrick/sdk`).
+4. Mirrors the user into `AsyncLocalStorage` via `runWithSession()` so the DAL
+   can read the actor for audit fields (`created_by`, `updated_by`, etc.)
+   without receiving it through every method signature.
+
+### `AuthUser` shape
+
+```typescript
+import type { AuthUser } from "@primebrick/sdk";
+
+// req.user after authMiddleware runs:
+const user: AuthUser = {
+  id: "550e8400-e29b-41d4-a716-446655440000", // internal user_profiles.uuid
+  idp_code: "casdoor-sub-123",                  // original JWT sub (traceability)
+  email: "alice@example.com",
+  name: "Alice",
+  roles: ["administrators"],
+  permissions: new Set(["customers.*", "users.*"]),
+  isAdmin: true,                                // bypasses all RBAC checks
+  isSystem: false,                              // true for system API keys
+  idp_org: "admin",
+  idp_username: "alice",
+  raw_access_token: "eyJhbGciOi...",            // captured for proxy forwarding
+};
+```
+
+### Initializing auth ports at startup
+
+The auth middleware depends on two ports (`BeUserResolverPort` and
+`BeRoleMappingPort`) that hit the database. They are created once at startup by
+`initAuthPorts()`, and role mappings are preloaded into memory by
+`loadRoleMappings()`. The middleware fails closed (503) while mappings are not
+yet loaded.
+
+```typescript
+// src/index.ts (simplified)
+import { initAuthPorts, loadRoleMappings } from "./modules/auth/auth.middleware.js";
+
+async function runStartupTasks() {
+  initAuthPorts();                       // creates BeUserResolverPort + BeRoleMappingPort
+  await loadRoleMappings();              // preloads role_mappings into memory
+  // ...NATS subscriber, stale-detection job, etc.
+}
+
+app.listen(3001, () => console.log("API listening on http://localhost:3001"));
+void runStartupTasks().catch((err) => console.error("[startup]", err));
+```
 
 ## RBAC middleware
 
-The RBAC middleware (`src/modules/auth/rbac.middleware.ts`) enforces
-permission checks:
+The RBAC middleware (`src/modules/auth/rbac.middleware.ts`) enforces permission
+checks. It is invoked via the `rbacHandler(...)` declaration on every route —
+see [RBAC](./rbac) for the full system. In short:
 
-1. If `req.user.isAdmin === true`, bypass all checks
-2. Otherwise, match the required permission against `req.user.permissions`
-   using wildcard pattern matching
-3. Support both "any" (OR) and "all" (AND) modes
+1. If the declaration is `PUBLIC`, skip auth and call `next()`.
+2. Otherwise, run `authMiddleware()` to populate `req.user`.
+3. If `req.user.isAdmin === true` or `req.user.isSystem === true`, bypass all
+   checks (handled by the SDK's `checkRbac()`).
+4. Otherwise, evaluate `checkRbac(req.user, declaredPerms, mode)` — OR (any-of)
+   by default, AND (all-of) via `rbacHandler.all([...])`.
 
 ## Passkeys (WebAuthn)
 
-The backend supports WebAuthn passkey enrollment and authentication:
+The backend supports WebAuthn passkey signin and enrollment. The browser's
+`Origin` header is forwarded to Casdoor so it computes the correct WebAuthn
+`rpId` — without this, `navigator.credentials.get()` would fail in the browser.
 
-- **`POST /auth/webauthn/register/begin`** — start passkey registration
-- **`POST /auth/webauthn/register/finish`** — complete registration
-- **`POST /auth/webauthn/auth/begin`** — start passkey authentication
-- **`POST /auth/webauthn/auth/finish`** — complete authentication
+| Method | Path | Permission | Purpose |
+|--------|------|------------|---------|
+| `POST` | `/api/v1/auth/webauthn/signin/begin` | `PUBLIC` | Start passkey signin |
+| `POST` | `/api/v1/auth/webauthn/signin/finish` | `PUBLIC` | Complete passkey signin; sets cookies |
+| `POST` | `/api/v1/auth/webauthn/signup/begin` | `AUTHENTICATED_USER` | Start passkey enrollment |
+| `POST` | `/api/v1/auth/webauthn/signup/finish` | `AUTHENTICATED_USER` | Complete passkey enrollment |
+| `GET`  | `/api/v1/auth/webauthn/credentials` | `AUTHENTICATED_USER` | List enrolled passkeys |
+| `DELETE` | `/api/v1/auth/webauthn/credentials/:id` | `AUTHENTICATED_USER` | Remove a passkey |
 
 Passkeys are stored in the `user_passkeys` table and linked to the user
-profile.
+profile. Whether passkey signin is offered is controlled by the
+`enable_webauthn` flag in `auth_configurations` (returned by
+`GET /api/v1/auth/config`).
 
-## User invitations
+### Passkey signin flow
 
-Administrators can invite users to an organization:
+```bash
+# 1. Begin — the response contains the WebAuthn challenge options
+curl -X POST http://localhost:3001/api/v1/auth/webauthn/signin/begin \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alice"}'
+# → { "publicKey": { "challenge": "...", "allowCredentials": [...] } }
 
-- **`POST /auth/invitations`** — create an invitation (admin only)
-- **`GET /auth/invitations`** — list pending invitations
-- **`POST /auth/invitations/:id/accept`** — accept an invitation
+# 2. The browser calls navigator.credentials.get() with the options,
+#    then POSTs the signed assertion back:
+curl -X POST http://localhost:3001/api/v1/auth/webauthn/signin/finish \
+  -H "Content-Type: application/json" \
+  -d '{"credential": { "id": "...", "response": { "authenticatorData": "...", "signature": "..." } }}'
+# → 200 + Set-Cookie access_token / refresh_token
+```
 
-Invitations are stored in the `user_invitations` table with an expiry
-date and a one-time token.
+## User invitations (welcome flow)
+
+Administrators invite users via Casdoor; the invitee completes onboarding
+through a public welcome flow that verifies the invitation token, sends an OTP
+to the invitation email, verifies the OTP, and lets the user set a password.
+
+| Method | Path | Permission | Purpose |
+|--------|------|------------|---------|
+| `POST` | `/api/v1/auth/welcome/verify` | `PUBLIC` | Verify invitation token |
+| `POST` | `/api/v1/auth/welcome/send-otp` | `PUBLIC` | Send OTP to invitation email |
+| `POST` | `/api/v1/auth/welcome/verify-otp` | `PUBLIC` | Verify OTP code |
+| `POST` | `/api/v1/auth/welcome/complete` | `PUBLIC` | Set password + complete onboarding |
+| `POST` | `/api/v1/auth/invitations/:uuid/revoke` | `AUTHENTICATED_ADMIN` | Revoke invitation |
+| `POST` | `/api/v1/auth/invitations/:uuid/resend` | `AUTHENTICATED_ADMIN` | Resend invitation |
+| `GET`  | `/api/v1/auth/login-alert` | `PUBLIC` | Process "if this wasn't you" link |
+
+Security notes:
+
+- Public welcome endpoints return only boolean/flag fields, never the user's
+  email or other PII.
+- The welcome page (FE) sets `Referrer-Policy: no-referrer` and uses a URL
+  fragment (`#token=...`) so the token never leaks via Referer or server logs.
+- IP rate limiting for public endpoints is configured at the infra level.
+
+### Welcome flow example
+
+```bash
+# 1. Verify the token (from the email link's URL fragment)
+curl -X POST http://localhost:3001/api/v1/auth/welcome/verify \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<invitation-token>"}'
+# → { "valid": true }   (never returns the email)
+
+# 2. Send OTP to the invitation email
+curl -X POST http://localhost:3001/api/v1/auth/welcome/send-otp \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<invitation-token>"}'
+
+# 3. Verify the OTP the user typed in
+curl -X POST http://localhost:3001/api/v1/auth/welcome/verify-otp \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<invitation-token>","otp_code":"123456"}'
+
+# 4. Set the password and complete onboarding
+curl -X POST http://localhost:3001/api/v1/auth/welcome/complete \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<invitation-token>","otp_code":"123456","new_password":"<strong-password>"}'
+```
 
 ## Organizations
 
 The backend supports multi-tenant organizations:
 
-- **`POST /auth/organizations`** — create an organization
-- **`GET /auth/organizations`** — list organizations
-- **`PATCH /auth/organizations/:id`** — update an organization
-- **`DELETE /auth/organizations/:id`** — delete an organization
+| Method | Path | Permission | Purpose |
+|--------|------|------------|---------|
+| `POST` | `/api/v1/auth/organizations` | `ORGANIZATIONS_CREATE_SINGLE` | Create an organization |
+| `GET` | `/api/v1/auth/organizations` | `ORGANIZATIONS_READ_ALL` | List organizations |
+| `GET` | `/api/v1/auth/organizations/:uuid` | `ORGANIZATIONS_READ_SINGLE` | Get one organization |
+| `PATCH` | `/api/v1/auth/organizations/:uuid` | `ORGANIZATIONS_UPDATE_SINGLE` | Update an organization |
+| `DELETE` | `/api/v1/auth/organizations/:uuid` | `ORGANIZATIONS_DELETE_SINGLE` | Soft-delete an organization |
+| `POST` | `/api/v1/auth/organizations/:uuid/restore` | `ORGANIZATIONS_RESTORE_SINGLE` | Restore a soft-deleted organization |
+| `GET` | `/api/v1/auth/organizations/:uuid/audit` | `ORGANIZATIONS_READ_AUDIT` | Audit trail |
 
 Users can belong to multiple organizations. Role mappings are scoped per
 organization.
+
+## Error responses
+
+Every auth error is a RFC 7807 Problem Details object with a stable
+`internal_code`. The frontend branches on `internal_code` to pick the right UI
+(toast, redirect to login, show MFA form, etc.).
+
+| `internal_code` | HTTP | Meaning |
+|-----------------|------|---------|
+| `UNAUTHORIZED` | 401 | Missing or invalid Bearer token / cookie |
+| `AUTH_GATEWAY_SECRET_INVALID` | 401 | GATEWAY mode: wrong gateway-secret header |
+| `AUTH_USER_CONTEXT_MISSING` | 401 | authMiddleware ran but `req.user` is null |
+| `AUTH_ROLE_MAPPINGS_NOT_LOADED` | 403 | Startup race — role mappings not yet loaded |
+| `RBAC_PERMISSION_DENIED` | 403 | User lacks the required permission(s) |
+| `RBAC_ADMIN_ONLY` | 403 | `AUTHENTICATED_ADMIN` sentinel, user is not admin |
+| `ROUTE_PERMISSION_NOT_DECLARED` | 403 | Secure-first default-deny (route forgot `rbacHandler`) |
+| `AUTH_CONFIG_NOT_LOADED` | 500 | `auth_configurations` table missing/empty (CRITICAL) |
+
+```bash
+# Expired JWT → 401
+curl -i http://localhost:3001/api/v1/auth/me -H "Authorization: Bearer <expired-jwt>"
+```
+
+```json
+{
+  "type": "/errors/unauthorized",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "jwt expired",
+  "instance": "/api/v1/auth/me",
+  "internal_code": "UNAUTHORIZED",
+  "severity": "MEDIUM"
+}
+```
+
+## Next steps
+
+- [RBAC](./rbac) — the wildcard permission system, `rbacHandler`, and role mappings.
+- [Architecture](./architecture) — the request-flow diagram and HTTP layer internals.
+- [Collaboration](./collaboration) — how the auth user context feeds the audit actor.
+- [DAL connections & transactions](/dal/guide/connections) — `runWithSession` and the actor pattern.

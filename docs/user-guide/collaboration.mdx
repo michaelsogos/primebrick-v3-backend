@@ -1,0 +1,314 @@
+---
+title: Collaboration
+description: "Optimistic locking, field-level audit trail, and clone — the three primitives that make Primebrick records safe to edit collaboratively."
+---
+
+# Collaboration
+
+Primebrick's collaboration model combines three primitives that together make
+records safe to edit when multiple users (or background jobs) might touch the
+same row at the same time:
+
+1. **Optimistic locking** — prevents silent lost updates via a `version` column
+   guard on every auditable write.
+2. **Field-level audit trail** — records who changed what, when, and from what
+   value, in a companion `_audit` table.
+3. **Clone** — copies a record by UUID, resetting audit/unique fields so the
+   clone starts life as a fresh row.
+
+All three are opt-in via decorators on the entity (`@AuditTrail`,
+`@AuditableField(VERSION)`, `@DeletableField`, `@CloneField`) and are enforced
+by the DAL. The BE's job is to wire the actor (from `req.user.id` via
+AsyncLocalStorage) into every write so the audit trail records the real user,
+not a generic "system" string.
+
+## How the three primitives fit together
+
+<Mermaid chart={`flowchart TB
+  subgraph "Entity decorators (opt-in)"
+    AT["@AuditTrail()<br/>+ @AuditableField(VERSION)"]
+    DF["@DeletableField(DELETED_AT / DELETED_BY)"]
+    CF["@CloneField()"]
+  end
+  subgraph "DAL enforcement"
+    VG[Version guard<br/>WHERE version = $expected]
+    AD[Audit delta<br/>calculateDeltaWithForcedFields]
+    CL[Clone flow<br/>exclude PK + @Unique, reset audit]
+  end
+  subgraph "BE wiring"
+    ALS[AsyncLocalStorage session<br/>runWithSession]
+    REPO[Repository.add/update/delete/clone]
+    PORT[AuditPort.writeAudit<br/>fire-and-forget]
+  end
+  subgraph PostgreSQL
+    T[customers]
+    TA[customers_audit]
+  end
+  AT --> VG
+  AT --> AD
+  DF --> AD
+  CF --> CL
+  ALS --> REPO
+  REPO --> VG
+  REPO --> AD
+  REPO --> CL
+  VG --> T
+  CL --> T
+  AD --> PORT
+  PORT --> TA
+`} />
+
+## Optimistic locking
+
+Every entity decorated with `@AuditTrail()` has a `version` column. The DAL's
+`update`/`upsert`/`delete`/`restore`/`hardDelete` methods emit
+`WHERE ... AND version = $expected` and bump `version = version + 1` in the same
+statement. If a second writer got there first, the version no longer matches
+and the statement affects zero rows.
+
+The DAL disambiguates the zero-row case:
+
+- **Row still exists, version mismatch** → PostgreSQL raises
+  `RAISE EXCEPTION ... USING ERRCODE = 'ERR01'` → the BE maps it to HTTP 409.
+- **Row no longer exists** (hard-deleted by another writer) → the DAL throws
+  `RecordVanishedError` (`ERR03`) → the BE maps it to HTTP 404.
+- **Caller forgot to send `version`** → the DAL throws `MissingVersionError`
+  (`ERR02`) before any SQL is issued → the BE maps it to HTTP 400.
+
+### BE error mapping
+
+The DAL is framework-agnostic — it never imports HTTP types. The BE's
+`errorHandler` and route handlers map the stable `code` strings to HTTP
+responses at the controller boundary.
+
+| DAL `code` | DAL class | HTTP | Meaning |
+|------------|-----------|------|---------|
+| `ERR01` | `OptimisticLockError` (PG-originated) | 409 | Version mismatch — another writer got there first |
+| `ERR02` | `MissingVersionError` | 400 | Client forgot to send `version` on an auditable write |
+| `ERR03` | `RecordVanishedError` | 404 | Row was hard-deleted between read and write |
+
+### Typical update flow
+
+The client reads a record (which includes its `version`), lets the user edit,
+then sends the updated fields **plus the original `version`** back to the BE.
+The BE forwards the version to the DAL; the version guard runs atomically in
+the same UPDATE statement.
+
+```bash
+# 1. Read the record — note its version.
+curl http://localhost:3001/api/v1/entities/customer/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Authorization: Bearer <token>"
+# → { "uuid": "...", "name": "Alice", "version": 3, ... }
+
+# 2. User edits "name" in the UI. Send the update WITH the version we read.
+curl -i -X PUT http://localhost:3001/api/v1/entities/customer/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alice 2","version":3}'
+# 200 → { "uuid": "...", "name": "Alice 2", "version": 4, ... }
+```
+
+### 409 conflict response
+
+When two writers race, the second writer's `WHERE version = $expected` matches
+zero rows. The DAL confirms the row still exists, raises `ERR01`, and the BE
+responds 409. The response typically includes the current record so the
+frontend can re-render the merge UI without an extra round-trip.
+
+```json
+{
+  "type": "/errors/optimistic-lock",
+  "title": "Optimistic lock conflict",
+  "status": 409,
+  "detail": "The record was modified by another user. Please re-merge and retry.",
+  "instance": "/api/v1/entities/customer/550e8400-...",
+  "internal_code": "ERR01",
+  "severity": "MEDIUM",
+  "extra": {
+    "current_version": 4,
+    "current_record": { "uuid": "...", "name": "Bob's edit", "version": 4 }
+  }
+}
+```
+
+See the [DAL optimistic locking guide](/dal/guide/optimistic-lock) for the full
+guard flow diagram and the retry pattern.
+
+## Field-level audit trail
+
+Every entity decorated with `@AuditTrail()` has a companion `_audit` table
+(e.g. `customers` → `customers_audit`). When an `AuditPort` is injected into
+the write options, the DAL computes a field-level delta
+(`calculateDeltaWithForcedFields`) and calls `audit.writeAudit(params)`
+fire-and-forget. A slow audit writer never blocks the main write.
+
+### The actor context
+
+The BE populates `AsyncLocalStorage` with the authenticated user's identity
+inside `authMiddleware()` (see [Authentication](./authentication)). The DAL's
+`requireActor()` reads the actor from ALS and stamps it into `created_by` /
+`updated_by` / `deleted_by` — without the BE having to pass `req.user.id`
+through every service method.
+
+```typescript
+// src/modules/auth/auth.middleware.ts (simplified)
+import { runWithSession, type Session } from "@primebrick/sdk";
+
+const session: Session = {
+  actor: user.id,           // user_profiles.uuid — stamped into audit fields
+  roles: user.roles,
+  idpCode: user.idp_code,
+  idpOrg: user.idp_org,
+  idpUsername: user.idp_username,
+};
+runWithSession(session, () => next());
+```
+
+### Audit delta shape
+
+Each audit row records the action, the actor, the version, and a `delta`
+object with the field-level `{ old, new }` diff. Audit columns
+(`updated_at`, `updated_by`, `deleted_at`, `deleted_by`) are force-included
+even when unchanged, so the audit trail always records who performed the
+change.
+
+```json
+{
+  "id": 42,
+  "entity_id": "123",
+  "entity_uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "action": "UPDATE",
+  "changed_at": "2025-07-25T12:00:00.000Z",
+  "changed_by": "alice-uuid",
+  "version": 4,
+  "delta": {
+    "name": { "old": "Alice", "new": "Alice 2" },
+    "updated_at": { "old": "2025-07-25T11:00:00.000Z", "new": "2025-07-25T12:00:00.000Z" },
+    "updated_by": { "old": "alice-uuid", "new": "alice-uuid" }
+  }
+}
+```
+
+### Reading the audit trail
+
+The customers module exposes the audit trail at
+`GET /api/v1/entities/customer/:uuid/audit` (requires
+`Permission.CUSTOMERS_READ_AUDIT`):
+
+```bash
+curl http://localhost:3001/api/v1/entities/customer/550e8400-.../audit \
+  -H "Authorization: Bearer <token>" \
+  -G --data-urlencode "page=1" --data-urlencode "limit=20"
+```
+
+```json
+{
+  "rows": [
+    { "id": 42, "action": "UPDATE", "changed_at": "...", "delta": { "name": { "old": "Alice", "new": "Alice 2" } } },
+    { "id": 41, "action": "INSERT", "changed_at": "...", "delta": {} }
+  ],
+  "page": 1,
+  "page_size": 20,
+  "total": 2
+}
+```
+
+See the [DAL audit trail guide](/dal/guide/audit-trail) for the `AuditLogEntity`
+class, the `buildAuditTrailJoins()` helper, and the audit table SQL schema.
+
+## Clone
+
+`Repository.clone(entity, sourceUuid, options)` copies a record by UUID. It
+fetches the source (including soft-deleted rows), excludes the PK and all
+`@Unique` columns (a new UUID is generated), stamps the `@CloneField` column
+with the source UUID, resets audit/deletable fields, and inserts the new row.
+
+The customers module exposes clone as a bulk operation at
+`POST /api/v1/entities/customer/duplicate` (requires
+`Permission.CUSTOMERS_DUPLICATE_BULK`):
+
+```bash
+curl -X POST http://localhost:3001/api/v1/entities/customer/duplicate \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"uuids":["550e8400-e29b-41d4-a716-446655440000"]}'
+```
+
+```json
+{
+  "total": 1,
+  "succeeded": 1,
+  "failed": 0,
+  "results": [
+    {
+      "uuid": "550e8400-e29b-41d4-a716-446655440000",
+      "success": true,
+      "cloned_uuid": "660e8400-e29b-41d4-a716-446655440001"
+    }
+  ]
+}
+```
+
+The clone does NOT write an audit row for the clone itself (matches backend
+behavior — clone is not audited as an UPDATE on the source). The new row starts
+at `version = 1` with `created_by` / `updated_by` set to the current actor.
+
+See the [DAL clone guide](/dal/guide/clone) for the 7-step clone flow diagram.
+
+## Putting it all together — a collaborative edit
+
+<Mermaid chart={`sequenceDiagram
+  participant A as User A
+  participant B as User B
+  participant FE as Frontend
+  participant BE as Backend
+  participant DAL as DAL Repository
+  participant DB as PostgreSQL
+  participant Audit as customers_audit
+  A->>FE: Open customer Alice
+  B->>FE: Open customer Alice
+  FE->>BE: GET /customer/:uuid
+  BE->>DAL: findByUUID
+  DAL->>DB: SELECT
+  DB-->>FE: { name: Alice, version: 3 }
+  FE-->>A: show form
+  FE-->>B: show form
+  B->>FE: Edit name -> Alice 2
+  FE->>BE: PUT /customer/:uuid { name: Alice 2, version: 3 }
+  BE->>DAL: update(uuid, { name, version: 3 }, { actor: B })
+  DAL->>DB: UPDATE ... WHERE uuid = $1 AND version = 3 RETURNING *
+  DB-->>DAL: 1 row, version = 4
+  DAL->>DAL: calculateDeltaWithForcedFields(old, new)
+  DAL->>Audit: writeAudit(params) fire-and-forget
+  DAL-->>BE: updated row
+  BE-->>FE: 200 { name: Alice 2, version: 4 }
+  A->>FE: Edit name -> Alice 3
+  FE->>BE: PUT /customer/:uuid { name: Alice 3, version: 3 }
+  BE->>DAL: update(uuid, { name, version: 3 }, { actor: A })
+  DAL->>DB: UPDATE ... WHERE uuid = $1 AND version = 3 RETURNING *
+  DB-->>DAL: 0 rows
+  DAL->>DB: SELECT 1 FROM customers WHERE uuid = $1 (disambiguation)
+  DB-->>DAL: 1 row exists
+  DAL->>DB: RAISE EXCEPTION ERRCODE = 'ERR01'
+  DB-->>DAL: DatabaseError code=ERR01
+  DAL-->>BE: throws (propagated)
+  BE-->>FE: 409 { internal_code: ERR01, current_record: { version: 4, ... } }
+  FE-->>A: Show merge UI with current record
+`} />
+
+1. Both users read the same record at `version = 3`.
+2. User B saves first — the version guard passes, the row becomes `version = 4`,
+   and an audit row is written to `customers_audit`.
+3. User A saves later — `WHERE version = 3` matches zero rows. The DAL
+   disambiguates: the row exists, so it raises `ERR01`. The BE responds 409
+   with the current record so the FE can show a merge UI.
+4. User A re-merges and retries with `version = 4` — the guard passes, the row
+   becomes `version = 5`, and a second audit row is written.
+
+## Next steps
+
+- [Authentication](./authentication) — the `runWithSession` ALS context that feeds the audit actor.
+- [RBAC](./rbac) — the permission declarations on the audit/clone endpoints.
+- [DAL optimistic locking](/dal/guide/optimistic-lock) — the full guard flow and retry pattern.
+- [DAL audit trail](/dal/guide/audit-trail) — the `AuditLogEntity` class and audit table schema.
+- [DAL clone](/dal/guide/clone) — the 7-step clone flow.

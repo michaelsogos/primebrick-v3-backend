@@ -113,3 +113,139 @@ The backend uses PostgreSQL with a patch-based migration system:
 | Seed demo customers | `pnpm run db:seed:customers` |
 | Postgres up | `docker compose -f infra/docker-compose.postgres.yml up -d` |
 | Postgres down | `docker compose -f infra/docker-compose.postgres.yml down` |
+
+## Quick start
+
+### 1. Start Postgres and apply migrations
+
+```bash
+docker compose -f infra/docker-compose.postgres.yml up -d
+pnpm install
+pnpm run db:migrate          # applies pending .sql patches in order
+pnpm run db:seed:customers   # optional: load demo customers
+```
+
+### 2. Configure Casdoor
+
+The BE reads its IDP configuration from the `auth_configurations` table at
+startup. The minimum rows required are the Casdoor endpoint, organization,
+builtin client credentials, and the OIDC issuer URL. See
+[Authentication](./authentication) for the full config schema.
+
+If you just want to explore the API without Casdoor, the `/api/v1/health`
+endpoint is public and returns DB + IDP reachability:
+
+```bash
+curl http://localhost:3001/api/v1/health
+```
+
+```json
+{
+  "ok": true,
+  "service": "primebrick-api",
+  "version": "0.0.0",
+  "db": { "ok": true },
+  "idp": { "ok": true, "type": "Casdoor", "version": "v1.x.x" }
+}
+```
+
+### 3. Start the API
+
+```bash
+pnpm run dev
+# API listening on http://localhost:3001
+```
+
+### 4. Authenticate and call a protected endpoint
+
+Every endpoint under `/api/v1/*` (except `/health` and the OpenAPI docs router)
+requires a Bearer JWT issued by Casdoor. The login endpoint exchanges
+credentials for an access token and sets `access_token` / `refresh_token`
+cookies.
+
+```bash
+# Login (Casdoor password grant) — cookies are set on the response
+curl -i -X POST http://localhost:3001/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"<your-password>"}'
+# Set-Cookie: access_token=eyJhbGciOi...; Path=/; HttpOnly
+# Set-Cookie: refresh_token=...; Path=/; HttpOnly
+
+# Call a protected endpoint with the access token
+curl http://localhost:3001/api/v1/entities/customer/list \
+  -H "Authorization: Bearer eyJhbGciOi..."
+```
+
+### 5. Browse the OpenAPI spec
+
+The OpenAPI JSON is served publicly (no auth) so clients can introspect the API
+during integration:
+
+```bash
+curl http://localhost:3001/api/v1/openapi/system.json
+curl http://localhost:3001/api/v1/openapi/mcp.json
+```
+
+The aggregated router (`/api/v1/openapi/aggregated.json`) merges the backend
+spec with specs from microservices registered via NATS.
+
+### 6. Error responses (RFC 7807)
+
+Every error response is a JSON Problem Details object (RFC 7807) with a stable
+`internal_code` and a `severity` field the frontend uses to pick the toast
+style. Validation errors include a `ZodError`-shaped `issues` array.
+
+```bash
+# Missing Bearer token → 401
+curl -i http://localhost:3001/api/v1/entities/customer/list
+```
+
+```json
+{
+  "type": "/errors/unauthorized",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Missing or invalid Authorization header",
+  "instance": "/api/v1/entities/customer/list",
+  "internal_code": "UNAUTHORIZED",
+  "severity": "MEDIUM"
+}
+```
+
+```bash
+# Insufficient permissions → 403 with the missing permissions in extra.issues
+curl -i http://localhost:3001/api/v1/entities/customer/list \
+  -H "Authorization: Bearer <token-of-a-guest-user>"
+```
+
+```json
+{
+  "type": "/errors/forbidden",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "Insufficient permissions to perform this action",
+  "instance": "/api/v1/entities/customer/list",
+  "internal_code": "RBAC_PERMISSION_DENIED",
+  "severity": "MEDIUM",
+  "extra": {
+    "issues": [{
+      "kind": "missing_any_of_permissions",
+      "required": ["customers.read.all"],
+      "missing": ["customers.read.all"],
+      "mode": "any",
+      "user_roles": ["guest"]
+    }]
+  }
+}
+```
+
+See [Architecture](./architecture) for the request-flow diagram and the HTTP
+layer internals, [Authentication](./authentication) for the full auth flow, and
+[RBAC](./rbac) for the permission system.
+
+## Next steps
+
+- [Architecture](./architecture) — module structure, request flow, and the HTTP layer internals.
+- [Authentication](./authentication) — Casdoor OIDC, JWT verification, passkeys, and the welcome flow.
+- [RBAC](./rbac) — the wildcard permission system, `rbacHandler`, and role mappings.
+- [Collaboration](./collaboration) — optimistic locking, audit trail, and clone.
