@@ -55,6 +55,26 @@ export class UserPasskeyEntity implements IAuditableEntity {
   @Column({ length: 100, nullable: true })
   label?: string;
 
+  /** Last time this credential was used to sign in (null until first signin after this feature ships). */
+  @Column({ nullable: true })
+  last_used_at?: Date;
+
+  /** WebAuthn AuthenticatorAttachment: "platform" | "cross-platform". */
+  @Column({ length: 32, nullable: true })
+  authenticator_attachment?: string;
+
+  /** navigator.userAgent captured at enrollment (truncated to 512 chars). */
+  @Column({ length: 512, nullable: true })
+  user_agent?: string;
+
+  /** OS inferred from UA at enrollment (e.g. Windows, macOS, iOS, Android, Linux). */
+  @Column({ length: 64, nullable: true })
+  os?: string;
+
+  /** Device model inferred from UA at enrollment (e.g. "Windows PC", "Mac", "iPhone"). */
+  @Column({ length: 128, nullable: true })
+  device_model?: string;
+
   @AuditableField(AuditableFieldType.CREATED_AT)
   created_at: Date;
 

@@ -95,6 +95,28 @@ describe("UserPasskeysDal", () => {
       expect(data.transports).toBeUndefined();
       expect(data.label).toBeUndefined();
     });
+
+    it("should insert a passkey with rich metadata fields", async () => {
+      mockRepo.add.mockResolvedValue({ uuid: "new-passkey-uuid" });
+      const when = new Date("2026-07-25T10:00:00Z");
+
+      await dal.create({
+        user_profile_id: 10n,
+        credential_id: "cred-123",
+        authenticator_attachment: "platform",
+        user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        os: "Windows",
+        device_model: "Windows PC",
+        last_used_at: when,
+      });
+
+      const [, data] = mockRepo.add.mock.calls[0];
+      expect(data.authenticator_attachment).toBe("platform");
+      expect(data.user_agent).toBe("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+      expect(data.os).toBe("Windows");
+      expect(data.device_model).toBe("Windows PC");
+      expect(data.last_used_at).toBe(when);
+    });
   });
 
   describe("findByCredentialId", () => {
@@ -218,6 +240,32 @@ describe("UserPasskeysDal", () => {
       expect(data.label).toBe("My New Label");
       expect(data.updated_by).toBe("test-actor-uuid");
       expect(options.actor).toBe("test-actor-uuid");
+    });
+  });
+
+  describe("updateLastUsed", () => {
+    it("should bump last_used_at for an existing credential", async () => {
+      const row = makePasskeyRow({ credential_id: "cred-abc", id: 77n });
+      mockRepo.find.mockResolvedValue(row);
+      const when = new Date("2026-07-25T12:00:00Z");
+
+      await dal.updateLastUsed("cred-abc", when);
+
+      expect(mockRepo.find).toHaveBeenCalledTimes(1);
+      expect(mockRepo.update).toHaveBeenCalledTimes(1);
+      const [, data, options] = mockRepo.update.mock.calls[0];
+      expect(data.id).toBe(77n);
+      expect(data.last_used_at).toBe(when);
+      expect(data.updated_by).toBe("test-actor-uuid");
+      expect(options.actor).toBe("test-actor-uuid");
+    });
+
+    it("should do nothing if credential ID not found", async () => {
+      mockRepo.find.mockResolvedValue(null);
+
+      await dal.updateLastUsed("nonexistent", new Date());
+
+      expect(mockRepo.update).not.toHaveBeenCalled();
     });
   });
 });

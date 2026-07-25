@@ -28,6 +28,11 @@ export class UserPasskeysDal {
     aaguid?: string;
     transports?: string[];
     label?: string;
+    last_used_at?: Date;
+    authenticator_attachment?: string;
+    user_agent?: string;
+    os?: string;
+    device_model?: string;
   }): Promise<string> {
     const actor = requireActor();
     const row = await this.repo.add<UserPasskeyEntity>(
@@ -38,6 +43,11 @@ export class UserPasskeysDal {
         aaguid: data.aaguid,
         transports: data.transports,
         label: data.label,
+        last_used_at: data.last_used_at,
+        authenticator_attachment: data.authenticator_attachment,
+        user_agent: data.user_agent,
+        os: data.os,
+        device_model: data.device_model,
         created_by: actor,
         updated_by: actor,
       },
@@ -145,6 +155,27 @@ export class UserPasskeysDal {
       {
         uuid,
         label,
+        updated_by: actor,
+      },
+      { actor },
+    );
+  }
+
+  /**
+   * Bump the last_used_at timestamp for a passkey by credential ID.
+   * Called after a successful WebAuthn signin to track when each
+   * credential was last used. Best-effort: callers should catch errors
+   * and log them without failing the signin.
+   */
+  async updateLastUsed(credentialId: string, when: Date): Promise<void> {
+    const existing = await this.findByCredentialId(credentialId);
+    if (!existing) return;
+    const actor = requireActor();
+    await this.repo.update(
+      UserPasskeyEntity,
+      {
+        id: existing.id,
+        last_used_at: when,
         updated_by: actor,
       },
       { actor },

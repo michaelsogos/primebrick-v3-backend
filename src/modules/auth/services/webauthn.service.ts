@@ -46,6 +46,8 @@ import { UserPasskeysDal } from "../user-passkeys-dal.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
 import { sendEmail } from "./email-sender.js";
 import { requireActor } from "@primebrick/sdk";
+import { parseUserAgent, truncateUserAgent } from "../utils/ua-parser.js";
+import { decodeAaguid, inferOsFromAaguid } from "../utils/aaguid-decoder.js";
 import {
   setAuthCookies,
   buildUserFromClaims,
@@ -134,7 +136,12 @@ export interface WebauthnCredentialInfo {
   aaguid?: string;
   transports?: string[];
   created_at?: string;
+  last_used_at?: string;
   label?: string | null;
+  authenticator_attachment?: string;
+  user_agent?: string;
+  os?: string;
+  device_model?: string;
 }
 
 // --- Session relay (in-memory, single-instance) ---------------------------
@@ -369,6 +376,20 @@ export class WebauthnService {
       });
     }
 
+    // Best-effort: bump last_used_at for the credential that was just used.
+    // The credential object from the browser contains `id` (base64url).
+    // Non-blocking — if this fails, the signin still succeeded.
+    try {
+      const cred = credential as { id?: string };
+      const credentialId = cred?.id;
+      if (credentialId) {
+        const passkeysDal = new UserPasskeysDal(this.pool);
+        await passkeysDal.updateLastUsed(credentialId, new Date());
+      }
+    } catch (lastUsedErr) {
+      console.error("[webauthn] Failed to bump last_used_at (non-critical):", lastUsedErr);
+    }
+
     return { success: true, user: buildUserFromClaims(claims) };
   }
 
@@ -424,12 +445,17 @@ export class WebauthnService {
   /**
    * Finish a WebAuthn signup (passkey enrollment) ceremony. Replays the Casdoor
    * session cookie and forwards the access token.
+   *
+   * `userAgent` and `authenticatorAttachment` are captured from the enrollment
+   * request and stored in PG for rich passkey display in the profile page.
    */
   async signupFinish(
     nonce: string,
     credential: unknown,
     accessToken: string,
     origin: string,
+    userAgent?: string,
+    authenticatorAttachment?: string,
   ): Promise<{ success: true }> {
     const cfg = await this.requireWebauthnEnabled();
     const cookie = popCasdoorSession(nonce);
@@ -509,6 +535,8 @@ export class WebauthnService {
             // Check if this credential is already tracked (idempotent)
             const existing = await passkeysDal.findByCredentialId(credentialId);
             if (!existing) {
+              // Parse OS / device model from the User-Agent for rich display.
+              const uaInfo = userAgent ? parseUserAgent(userAgent) : {};
               await passkeysDal.create({
                 user_profile_id: BigInt(profileId),
                 credential_id: credentialId,
@@ -518,6 +546,10 @@ export class WebauthnService {
                 // as undefined. The Casdoor user API has the full credential info.
                 aaguid: undefined,
                 transports: undefined,
+                authenticator_attachment: authenticatorAttachment,
+                user_agent: userAgent ? truncateUserAgent(userAgent) : undefined,
+                os: uaInfo.os,
+                device_model: uaInfo.device_model,
               });
             }
 
@@ -583,17 +615,36 @@ export class WebauthnService {
     const creds = (user as any).webauthnCredentials as
       | Array<{
           id: string;
-          aaguid?: string;
-          transports?: string[];
-          // go-webauthn Credential has more fields; we only expose the safe ones
+          // Casdoor's go-webauthn Credential structure:
+          //   - AAGUID is nested under `authenticator.AAGUID` as base64 (16 bytes)
+          //   - transport is singular (may be null or array of strings)
+          //   - attachment is nested under `authenticator.attachment`
+          transport?: string[] | null;
+          authenticator?: {
+            AAGUID?: string;
+            attachment?: string;
+          };
         }>
       | undefined;
 
     if (!creds || creds.length === 0) return [];
 
-    // Merge with PG passkey labels (best-effort — if PG lookup fails, return
-    // Casdoor data without labels)
-    let pgLabels: Map<string, { label: string | null; created_at?: string }> = new Map();
+    // Merge with PG passkey metadata (best-effort — if PG lookup fails, return
+    // Casdoor data without labels/metadata)
+    // NOTE: Casdoor returns credential ids as base64 (with `+`, `/`, `=` padding),
+    // while PG stores them as base64url (with `-`, `_`, no padding) as sent by the
+    // browser. We normalize BOTH to base64url-no-padding before matching.
+    const normalizeCredId = (id: string) =>
+      id.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    let pgMeta: Map<string, {
+      label: string | null;
+      created_at?: string;
+      last_used_at?: string;
+      authenticator_attachment?: string;
+      user_agent?: string;
+      os?: string;
+      device_model?: string;
+    }> = new Map();
     try {
       const passkeysDal = new UserPasskeysDal(this.pool);
       const profilesDal = new UserProfilesDal(this.pool);
@@ -603,20 +654,41 @@ export class WebauthnService {
       if (profile) {
         const pgPasskeys = await passkeysDal.findByUserProfileUuid(profile.uuid);
         for (const pk of pgPasskeys) {
-          pgLabels.set(pk.credential_id, { label: pk.label ?? null, created_at: pk.created_at?.toISOString() });
+          pgMeta.set(normalizeCredId(pk.credential_id), {
+            label: pk.label ?? null,
+            created_at: pk.created_at?.toISOString(),
+            last_used_at: pk.last_used_at?.toISOString(),
+            authenticator_attachment: pk.authenticator_attachment,
+            user_agent: pk.user_agent,
+            os: pk.os,
+            device_model: pk.device_model,
+          });
         }
       }
     } catch (pgErr) {
-      console.error("[webauthn] Failed to load PG passkey labels:", pgErr);
+      console.error("[webauthn] Failed to load PG passkey metadata:", pgErr);
     }
 
-    return creds.map((c) => ({
-      id: c.id,
-      aaguid: c.aaguid,
-      transports: c.transports,
-      label: pgLabels.get(c.id)?.label ?? null,
-      created_at: pgLabels.get(c.id)?.created_at,
-    }));
+    return creds.map((c) => {
+      const pg = pgMeta.get(normalizeCredId(c.id));
+      // Decode the base64 AAGUID from Casdoor's authenticator struct into a
+      // UUID string. Returns undefined for zero/missing AAGUIDs.
+      const aaguid = decodeAaguid(c.authenticator?.AAGUID);
+      // Casdoor's field is `transport` (singular) — may be null or an array.
+      const transports = c.transport ?? undefined;
+      return {
+        id: c.id,
+        aaguid,
+        transports,
+        label: pg?.label ?? null,
+        created_at: pg?.created_at,
+        last_used_at: pg?.last_used_at,
+        authenticator_attachment: pg?.authenticator_attachment ?? c.authenticator?.attachment,
+        user_agent: pg?.user_agent,
+        os: pg?.os,
+        device_model: pg?.device_model,
+      };
+    });
   }
 
   /**
@@ -657,9 +729,17 @@ export class WebauthnService {
     }
 
     const casdoorCreds = ((user as any).webauthnCredentials as
-      | Array<{ id: string; aaguid?: string; transports?: string[] }>
+      | Array<{
+          id: string;
+          transport?: string[] | null;
+          authenticator?: { AAGUID?: string; attachment?: string };
+        }>
       | undefined) ?? [];
-    const casdoorCredIds = new Set(casdoorCreds.map((c) => c.id));
+    // Normalize: PG stores base64url (no padding, `-`/`_`), Casdoor returns
+    // base64 (with `+`/`/`/`=` padding). Normalize BOTH to base64url-no-padding.
+    const normalizeCredId = (id: string) =>
+      id.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    const casdoorCredIds = new Set(casdoorCreds.map((c) => normalizeCredId(c.id)));
 
     // Look up the user profile in PG
     const profilesDal = new UserProfilesDal(this.pool);
@@ -674,7 +754,6 @@ export class WebauthnService {
 
     const passkeysDal = new UserPasskeysDal(this.pool);
     const pgPasskeys = await passkeysDal.findByUserProfileUuid(profile.uuid);
-    const pgCredIds = new Set(pgPasskeys.map((p) => p.credential_id));
 
     // Get the numeric profile ID for insertion
     const idResult = await this.pool.query(
@@ -691,22 +770,59 @@ export class WebauthnService {
     let inserted = 0;
     let deleted = 0;
 
-    // Insert Casdoor credentials not yet in PG
+    // Insert Casdoor credentials not yet in PG, and backfill missing
+    // aaguid/attachment/os/device_model on existing rows (best-effort).
+    const pgByCredId = new Map(
+      pgPasskeys.map((p) => [normalizeCredId(p.credential_id), p]),
+    );
     for (const cred of casdoorCreds) {
-      if (!pgCredIds.has(cred.id)) {
+      const aaguid = decodeAaguid(cred.authenticator?.AAGUID);
+      const attachment = cred.authenticator?.attachment;
+      const existing = pgByCredId.get(normalizeCredId(cred.id));
+      if (!existing) {
+        // New credential — insert with all available metadata
+        const osInfo = inferOsFromAaguid(aaguid);
         await passkeysDal.create({
           user_profile_id: BigInt(profileId),
           credential_id: cred.id,
-          aaguid: cred.aaguid,
-          transports: cred.transports,
+          aaguid,
+          transports: cred.transport ?? undefined,
+          authenticator_attachment: attachment,
+          os: osInfo.os,
+          device_model: osInfo.device_model,
         });
         inserted++;
+      } else {
+        // Existing — backfill missing metadata from Casdoor if needed
+        const needsAaguid = !existing.aaguid && aaguid;
+        const needsAttachment = !existing.authenticator_attachment && attachment;
+        const osInfo = (!existing.os || !existing.device_model) ? inferOsFromAaguid(aaguid ?? existing.aaguid ?? undefined) : {};
+        const needsOs = !existing.os && osInfo.os;
+        const needsDeviceModel = !existing.device_model && osInfo.device_model;
+        if (needsAaguid || needsAttachment || needsOs || needsDeviceModel) {
+          await this.pool.query(
+            `UPDATE user_passkeys SET
+              aaguid = COALESCE(aaguid, $2),
+              authenticator_attachment = COALESCE(authenticator_attachment, $3),
+              os = COALESCE(os, $4),
+              device_model = COALESCE(device_model, $5),
+              updated_at = now()
+            WHERE id = $1`,
+            [
+              existing.id,
+              needsAaguid ? aaguid : null,
+              needsAttachment ? attachment : null,
+              needsOs ? osInfo.os : null,
+              needsDeviceModel ? osInfo.device_model : null,
+            ],
+          );
+        }
       }
     }
 
     // Delete PG rows no longer in Casdoor (stale)
     for (const pgPasskey of pgPasskeys) {
-      if (!casdoorCredIds.has(pgPasskey.credential_id)) {
+      if (!casdoorCredIds.has(normalizeCredId(pgPasskey.credential_id))) {
         await passkeysDal.deleteByUuid(pgPasskey.uuid);
         deleted++;
       }

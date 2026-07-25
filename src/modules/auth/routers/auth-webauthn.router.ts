@@ -133,11 +133,20 @@ export function authWebauthnRouter() {
     const body = req.body as z.infer<typeof WebauthnSignupFinishSchema>;
     const accessToken = requireAccessToken(req);
     const origin = getBrowserOrigin(req);
+    // Capture the browser's User-Agent and the authenticator attachment for
+    // rich passkey display in the profile page. The FE already sends
+    // `authenticatorAttachment` inside the encoded credential object
+    // (see codec.ts:encodeAuthenticatorAttestation).
+    const userAgent = req.get("user-agent");
+    const cred = body.credential as { authenticatorAttachment?: string } | undefined;
+    const authenticatorAttachment = cred?.authenticatorAttachment;
     const result = await service.signupFinish(
       body.nonce,
       body.credential,
       accessToken,
       origin,
+      userAgent,
+      authenticatorAttachment,
     );
     res.json(result);
   });

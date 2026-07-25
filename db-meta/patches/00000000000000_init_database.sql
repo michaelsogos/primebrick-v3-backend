@@ -201,6 +201,11 @@ CREATE TABLE IF NOT EXISTS "public"."user_passkeys" (
   "aaguid" text,
   "transports" jsonb,
   "label" varchar(100),
+  "last_used_at" timestamptz,
+  "authenticator_attachment" text,
+  "user_agent" text,
+  "os" text,
+  "device_model" text,
   "created_at" timestamptz DEFAULT now(),
   "created_by" text,
   "updated_at" timestamptz DEFAULT now(),
@@ -218,6 +223,11 @@ COMMENT ON COLUMN public.user_passkeys.credential_id IS 'base64url credential ID
 COMMENT ON COLUMN public.user_passkeys.aaguid IS 'Authenticator model identifier';
 COMMENT ON COLUMN public.user_passkeys.transports IS 'JSON array of transports ["internal","hybrid","usb","nfc","ble"]';
 COMMENT ON COLUMN public.user_passkeys.label IS 'User-given name (e.g. "Windows Hello", "iPhone")';
+COMMENT ON COLUMN public.user_passkeys.last_used_at IS 'Last time this credential was used to sign in (null until first signin after this feature ships)';
+COMMENT ON COLUMN public.user_passkeys.authenticator_attachment IS 'platform | cross-platform (WebAuthn AuthenticatorAttachment)';
+COMMENT ON COLUMN public.user_passkeys.user_agent IS 'navigator.userAgent captured at enrollment (truncated to 512 chars)';
+COMMENT ON COLUMN public.user_passkeys.os IS 'OS inferred from UA at enrollment (e.g. Windows, macOS, iOS, Android, Linux)';
+COMMENT ON COLUMN public.user_passkeys.device_model IS 'Device model inferred from UA at enrollment (e.g. "Windows PC", "Mac", "iPhone", "Pixel")';
 
 -- role_mappings table
 CREATE TABLE IF NOT EXISTS "public"."role_mappings" (
