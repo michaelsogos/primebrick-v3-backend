@@ -54,7 +54,7 @@ export interface RefreshResult extends LoginResult {}
 export interface MeProfileResponse {
   profile: UserProfileDetailDto;
   has_passkey?: boolean;
-  passkey_prompt_dismissed?: boolean;
+  auth_method_enforcer_dismissed?: boolean;
 }
 
 // --- Service --------------------------------------------------------------
@@ -200,13 +200,13 @@ export class AuthSessionService {
       });
     }
 
-    // Include passkey info for the FE passkey prompt logic
+    // Include passkey info for the FE auth method enforcer prompt logic
     const idResult = await this.pool.query(
-      `SELECT id, passkey_prompt_dismissed FROM user_profiles WHERE uuid = $1`,
+      `SELECT id, auth_method_enforcer_dismissed FROM user_profiles WHERE uuid = $1`,
       [userUuid],
     );
     const profileId = idResult.rows[0]?.id;
-    const passkeyPromptDismissed = idResult.rows[0]?.passkey_prompt_dismissed ?? false;
+    const authMethodEnforcerDismissed = idResult.rows[0]?.auth_method_enforcer_dismissed ?? false;
 
     let hasPasskey = false;
     if (profileId) {
@@ -215,17 +215,17 @@ export class AuthSessionService {
       hasPasskey = count > 0;
     }
 
-    return { profile, has_passkey: hasPasskey, passkey_prompt_dismissed: passkeyPromptDismissed };
+    return { profile, has_passkey: hasPasskey, auth_method_enforcer_dismissed: authMethodEnforcerDismissed };
   }
 
   /**
-   * Dismiss the passkey enrollment prompt for the current user.
-   * Sets `passkey_prompt_dismissed = true` on the user_profile.
+   * Dismiss the auth method enforcer prompt for the current user.
+   * Sets `auth_method_enforcer_dismissed = true` on the user_profile.
    *
    * Refuses with 403 if `passkey_required` is enabled in auth config —
    * a mandatory passkey cannot be dismissed, even if the FE is bypassed.
    */
-  async dismissPasskeyPrompt(userUuid: string): Promise<{ success: true }> {
+  async dismissAuthMethodEnforcer(userUuid: string): Promise<{ success: true }> {
     const cfg = getAuthConfig();
     if (cfg.passkey_required) {
       throw new ApiError(
@@ -239,7 +239,7 @@ export class AuthSessionService {
 
     const actor = requireActor();
     await this.pool.query(
-      `UPDATE user_profiles SET passkey_prompt_dismissed = true, updated_at = now(), updated_by = $1 WHERE uuid = $2`,
+      `UPDATE user_profiles SET auth_method_enforcer_dismissed = true, updated_at = now(), updated_by = $1 WHERE uuid = $2`,
       [actor, userUuid],
     );
     return { success: true };

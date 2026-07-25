@@ -11,11 +11,12 @@
  *   one true, one false → 'going_live'
  */
 
-import { NatsClient, SERVICE_SUBJECTS, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload } from "@primebrick/sdk";
+import { NatsClient, SERVICE_SUBJECTS, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
 import { getPool } from "../../db/pool.js";
 import { ServiceRegistryRepo } from "./service-registry-repo.js";
 import { entityRegistry } from "../mcp/tools/entity-registry.js";
 import { discoverEntitiesFromService } from "../mcp/tools/openapi-discovery.js";
+import { serviceEventsBus } from "./service-events-bus.js";
 
 /**
  * Callback type for MCP entity registration when a service comes online.
@@ -46,7 +47,11 @@ export class ServiceLifecycleSubscriber {
       SERVICE_SUBJECTS.UNREGISTER,
       (payload) => this.handleUnregister(payload),
     );
-    console.log("[service-lifecycle] Subscribed to service.register, service.heartbeat, service.unregister");
+    await NatsClient.subscribe<ServiceStalePayload>(
+      SERVICE_SUBJECTS.STALE,
+      (payload) => this.handleStale(payload),
+    );
+    console.log("[service-lifecycle] Subscribed to service.register, service.heartbeat, service.unregister, service.stale");
 
     // Discover entities for services that are already online at startup.
     // This handles the case where the BE restarts while microservices are running.
@@ -106,6 +111,8 @@ export class ServiceLifecycleSubscriber {
           last_health_check_at: now,
         });
         this.logStatusChange(code, base_url, oldStatus, status);
+        const updated = await this.repo.findByCode(code);
+        if (updated) this.emitServiceEvent("service.register", updated);
       } else {
         await this.repo.insert({
           code,
@@ -124,6 +131,8 @@ export class ServiceLifecycleSubscriber {
           last_health_check_at: now,
         });
         console.log(`[service] ${code} registered (scaler mode) at ${base_url}`);
+        const inserted = await this.repo.findByCode(code);
+        if (inserted) this.emitServiceEvent("service.register", inserted);
       }
     } else {
       const existing = await this.repo.findByCodeAndBaseUrl(code, base_url);
@@ -142,6 +151,8 @@ export class ServiceLifecycleSubscriber {
           last_health_check_at: now,
         });
         this.logStatusChange(code, base_url, oldStatus, status);
+        const updated = await this.repo.findByCodeAndBaseUrl(code, base_url);
+        if (updated) this.emitServiceEvent("service.register", updated);
       } else {
         await this.repo.insert({
           code,
@@ -160,6 +171,8 @@ export class ServiceLifecycleSubscriber {
           last_health_check_at: now,
         });
         console.log(`[service] ${code} registered (direct mode) at ${base_url}`);
+        const inserted = await this.repo.findByCodeAndBaseUrl(code, base_url);
+        if (inserted) this.emitServiceEvent("service.register", inserted);
       }
     }
   }
@@ -184,6 +197,8 @@ export class ServiceLifecycleSubscriber {
           last_health_check_at: now,
         });
         this.logStatusChange(code, base_url, oldStatus, status);
+        const updated = await this.repo.findByCode(code);
+        if (updated) this.emitServiceEvent("service.heartbeat", updated);
       }
     } else {
       const existing = await this.repo.findByCodeAndBaseUrl(code, base_url);
@@ -195,6 +210,8 @@ export class ServiceLifecycleSubscriber {
           last_health_check_at: now,
         });
         this.logStatusChange(code, base_url, oldStatus, status);
+        const updated = await this.repo.findByCodeAndBaseUrl(code, base_url);
+        if (updated) this.emitServiceEvent("service.heartbeat", updated);
       }
     }
   }
@@ -222,6 +239,39 @@ export class ServiceLifecycleSubscriber {
       });
     }
     console.log(`[service] ${code} at ${base_url} unregistered → offline`);
+    this.emitServiceEvent("service.unregister", {
+      code,
+      base_url,
+      is_behind_scaler,
+    });
+  }
+
+  /**
+   * Handle service.stale events published by the stale-detection job.
+   * Fetches the updated service from the DB and emits it on the SSE bus.
+   */
+  private async handleStale(payload: ServiceStalePayload): Promise<void> {
+    const { code, is_behind_scaler, base_url } = payload;
+    const updated = is_behind_scaler
+      ? await this.repo.findByCode(code)
+      : await this.repo.findByCodeAndBaseUrl(code, base_url);
+    if (updated) {
+      this.emitServiceEvent("service.stale", updated);
+    }
+  }
+
+  /**
+   * Emit a service event on the SSE event bus.
+   * The event id is deterministic per service code + timestamp to allow
+   * FE-side deduplication.
+   */
+  private emitServiceEvent(eventType: string, data: unknown): void {
+    const code = (data as { code?: string })?.code ?? "unknown";
+    serviceEventsBus.emit({
+      id: `${eventType}:${code}:${Date.now()}`,
+      event: eventType,
+      data,
+    });
   }
 
   private logStatusChange(code: string, baseUrl: string, oldStatus: string, newStatus: string): void {

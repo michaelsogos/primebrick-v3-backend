@@ -12,9 +12,12 @@ import {
   getPasswordPolicyConfig,
   PASSWORD_SPECIAL_CHARS,
 } from "../auth/password-policy.js";
+import { servicesEventsRouter } from "./services-events-route.js";
 
 export function systemRouter() {
   const router = makeProtectedRouter();
+  // Mount the SSE events endpoint for service registry
+  router.use(servicesEventsRouter());
 
   // GET /api/v1/system/organizations/active - Active organizations for sidebar switcher
   router.get(

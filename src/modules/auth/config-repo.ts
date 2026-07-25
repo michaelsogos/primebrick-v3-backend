@@ -28,6 +28,7 @@ export interface AuthConfigDb {
   enable_webauthn: boolean; // parsed from "true"/"false"
   enable_formauth: boolean; // parsed from "true"/"false"
   passkey_required: boolean; // parsed from "true"/"false"
+  enable_mfa: boolean; // parsed from "true"/"false"
   password_policy?: string;
 
   // --- Auth mode + roles path ---
@@ -46,6 +47,12 @@ export interface AuthConfigDb {
   gateway_header_idp_code?: string;
   gateway_header_idp_org?: string;
   gateway_header_idp_username?: string;
+
+  // --- Redis cache (optional) ---
+  // Empty or undefined = cache disabled (best-effort, system valid without it).
+  // Set to a Redis URL (e.g. "redis://redis:6379" or "redis://external-redis:6379")
+  // to enable the cache layer. Configured by the admin in the auth_configurations table.
+  redis_url?: string;
 }
 
 /**
@@ -139,6 +146,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
   const enableWebauthn = settings.enable_webauthn === "true";
   const enableFormauth = settings.enable_formauth === "true";
   const passkeyRequired = settings.passkey_required === "true";
+  const enableMfa = settings.enable_mfa === "true";
 
   // At least one authentication method MUST be enabled — otherwise no user
   // can ever log in. This is a fatal configuration error, not a transient
@@ -156,6 +164,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
     enable_webauthn: enableWebauthn,
     enable_formauth: enableFormauth,
     passkey_required: passkeyRequired,
+    enable_mfa: enableMfa,
     auth_mode: mode, // normalized to uppercase, already validated above
   } as AuthConfigDb;
 }

@@ -57,6 +57,7 @@ import {
   ApiError,
   UnauthorizedError,
   NotFoundError,
+  RedisUnavailableError,
 } from "../../../http/api-errors.js";
 
 // --- fetchWithHost --------------------------------------------------------
@@ -80,8 +81,6 @@ function fetchWithHost(
   url: string,
   init: { method?: string; headers?: Record<string, string>; body?: string } & { hostOverride: string },
 ): Promise<FetchLikeResponse> {
-  // eslint-disable-next-line no-console
-  console.log(`[fetchWithHost] url=${url} hostOverride=${init.hostOverride}`);
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     const isTls = parsed.protocol === "https:";
@@ -144,37 +143,66 @@ export interface WebauthnCredentialInfo {
   device_model?: string;
 }
 
-// --- Session relay (in-memory, single-instance) ---------------------------
+// --- Session relay (Redis-backed, multi-instance) -------------------------
+//
+// Casdoor's WebAuthn begin/finish endpoints store the ceremony challenge in
+// the Beego server-side session, keyed by a session cookie. The BE captures
+// the `Set-Cookie` header from the `begin` response, stashes it in Redis
+// keyed by a random nonce, and replays it as the `Cookie` header on the
+// `finish` call. The nonce is returned to the FE, which sends it back on
+// `finish`. Entries expire after 5 minutes (matches Casdoor's challenge
+// timeout — if the user takes longer, the Casdoor challenge itself has
+// expired, so the ceremony would fail anyway).
+//
+// If Redis is disabled (redis_url empty or unreachable), WebAuthn ceremonies
+// fail — the session cookie cannot be shared across begin/finish calls in a
+// multi-instance deployment. This is a degraded state; password/form auth
+// still works. The error message is clear: "WebAuthn session expired or
+// cache unavailable."
 
-interface RelayEntry {
-  cookie: string;
-  expires_at: number;
+import { getCachePort } from "../../../cache/cache-port-holder.js";
+
+const SESSION_RELAY_TTL_MS = 5 * 60 * 1000; // 5 min — matches Casdoor's challenge expiry
+
+function sessionRelayKey(nonce: string): string {
+  return `webauthn:session:${nonce}`;
 }
 
-const SESSION_RELAY_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const sessionRelay = new Map<string, RelayEntry>();
-
-function stashCasdoorSession(cookie: string): string {
+async function stashCasdoorSession(cookie: string): Promise<string> {
   const nonce = randomUUID();
-  sessionRelay.set(nonce, { cookie, expires_at: Date.now() + SESSION_RELAY_TTL_MS });
+  const port = getCachePort();
+  if (port) {
+    try {
+      await port.set(sessionRelayKey(nonce), cookie, SESSION_RELAY_TTL_MS);
+    } catch (e) {
+      console.warn(`[cache] webauthn session stash failed: ${e}`);
+    }
+  }
   return nonce;
 }
 
-function popCasdoorSession(nonce: string): string | null {
-  const entry = sessionRelay.get(nonce);
-  if (!entry) return null;
-  sessionRelay.delete(nonce);
-  if (Date.now() > entry.expires_at) return null;
-  return entry.cookie;
-}
-
-// Periodic cleanup of expired entries (every 10 minutes)
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of sessionRelay) {
-    if (now > entry.expires_at) sessionRelay.delete(key);
+async function popCasdoorSession(nonce: string): Promise<string | null> {
+  const port = getCachePort();
+  if (!port) {
+    throw new RedisUnavailableError(
+      "Redis is required for WebAuthn session relay but is not available. " +
+      "Passkey signin cannot proceed without Redis. Form-based login still works.",
+    );
   }
-}, 10 * 60 * 1000).unref();
+  try {
+    const cookie = await port.get<string>(sessionRelayKey(nonce));
+    if (cookie) {
+      await port.del(sessionRelayKey(nonce)); // one-time use
+    }
+    return cookie;
+  } catch (e) {
+    console.warn(`[cache] webauthn session pop failed: ${e}`);
+    throw new RedisUnavailableError(
+      "Redis operation failed during WebAuthn session relay. " +
+      "Passkey signin cannot proceed at this time.",
+    );
+  }
+}
 
 // --- Service --------------------------------------------------------------
 
@@ -223,7 +251,7 @@ export class WebauthnService {
 
     const cookie = response.headers.get("set-cookie") ?? "";
     const options = await response.json();
-    const nonce = stashCasdoorSession(cookie);
+    const nonce = await stashCasdoorSession(cookie);
     return { nonce, options };
   }
 
@@ -242,7 +270,7 @@ export class WebauthnService {
     res: Response,
   ): Promise<WebauthnSigninFinishResult> {
     const cfg = await this.requireWebauthnEnabled();
-    const cookie = popCasdoorSession(nonce);
+    const cookie = await popCasdoorSession(nonce);
     if (!cookie) {
       throw new UnauthorizedError("WebAuthn session expired or not found", {
         internal_code: "webauthn_session_expired",
@@ -369,9 +397,15 @@ export class WebauthnService {
 
     // Best-effort: sync passkeys from Casdoor to PG so has_passkey is correct.
     // Non-blocking — if this fails, the signin still succeeded.
-    const casdoorUserId = (claims as any).Id || (claims as any).sub;
-    if (casdoorUserId) {
-      this.syncPasskeys(casdoorUserId, undefined, undefined).catch((err) => {
+    //
+    // Use the Casdoor username + organization from JWT claims (NOT the UUID in
+    // `sub`/`Id`) because Casdoor's /api/get-user?id=owner/name resolves by the
+    // (Owner, Name) primary key, not by the UUID in the indexed `Id` column.
+    // Passing the UUID as the `name` part yields `data: null` → CASDOOR_USER_NOT_FOUND.
+    const idpOrg = (claims as any).organization as string | undefined;
+    const idpUsername = (claims as any).name as string | undefined;
+    if (idpOrg && idpUsername) {
+      this.syncPasskeys(undefined, idpOrg, idpUsername).catch((err) => {
         console.error("[webauthn] Post-signin passkey sync failed (non-critical):", err);
       });
     }
@@ -438,7 +472,7 @@ export class WebauthnService {
 
     const cookie = response.headers.get("set-cookie") ?? "";
     const options = await response.json();
-    const nonce = stashCasdoorSession(cookie);
+    const nonce = await stashCasdoorSession(cookie);
     return { nonce, options };
   }
 
@@ -458,7 +492,7 @@ export class WebauthnService {
     authenticatorAttachment?: string,
   ): Promise<{ success: true }> {
     const cfg = await this.requireWebauthnEnabled();
-    const cookie = popCasdoorSession(nonce);
+    const cookie = await popCasdoorSession(nonce);
     if (!cookie) {
       throw new UnauthorizedError("WebAuthn session expired or not found", {
         internal_code: "webauthn_session_expired",
@@ -705,7 +739,7 @@ export class WebauthnService {
    * Returns the number of passkeys inserted and deleted.
    */
   async syncPasskeys(
-    idpCode: string,
+    idpCode: string | undefined,
     idpOrg: string | undefined,
     idpUsername: string | undefined,
   ): Promise<{ inserted: number; deleted: number; total: number }> {

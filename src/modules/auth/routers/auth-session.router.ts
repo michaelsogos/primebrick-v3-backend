@@ -122,8 +122,8 @@ export function authSessionRouter() {
 
   const getMe: RequestHandler = asyncHandler(async (req, res) => {
     const userId = requireUserId(req);
-    const { profile, has_passkey, passkey_prompt_dismissed } = await service.getMe(userId);
-    res.json({ success: true, profile, has_passkey, passkey_prompt_dismissed });
+    const { profile, has_passkey, auth_method_enforcer_dismissed } = await service.getMe(userId);
+    res.json({ success: true, profile, has_passkey, auth_method_enforcer_dismissed });
   });
 
   const getMeMeta: RequestHandler = asyncHandler(async (_req, res) => {
@@ -131,12 +131,12 @@ export function authSessionRouter() {
   });
 
   /**
-   * POST /api/v1/auth/me/dismiss-passkey-prompt
-   * Dismiss the passkey enrollment prompt for the current user.
+   * POST /api/v1/auth/me/dismiss-auth-method-enforcer
+   * Dismiss the auth method enforcer prompt for the current user.
    */
-  const dismissPasskeyPrompt: RequestHandler = asyncHandler(async (req, res) => {
+  const dismissAuthMethodEnforcer: RequestHandler = asyncHandler(async (req, res) => {
     const userId = requireUserId(req);
-    const result = await service.dismissPasskeyPrompt(userId);
+    const result = await service.dismissAuthMethodEnforcer(userId);
     res.json(result);
   });
 
@@ -219,9 +219,9 @@ export function authSessionRouter() {
     },
     {
       method: "post",
-      path: "/api/v1/auth/me/dismiss-passkey-prompt",
+      path: "/api/v1/auth/me/dismiss-auth-method-enforcer",
       permission: rbacHandler([Permission.AUTHENTICATED_USER]),
-      handler: dismissPasskeyPrompt,
+      handler: dismissAuthMethodEnforcer,
     },
     {
       method: "post",

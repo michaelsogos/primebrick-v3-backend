@@ -20,6 +20,7 @@ import { organizationsRouter } from "./auth/routers/organizations.router.js";
 import { systemRouter } from "./system/system-router.js";
 import { authRouter } from "./auth/router.js";
 import { proxyRouter } from "./proxy/proxy-router.js";
+import { collaborationRouter } from "./collaboration/router.js";
 
 export function mountModules(app: Express): void {
   app.use(customersRouter());
@@ -29,4 +30,6 @@ export function mountModules(app: Express): void {
   app.use(authRouter());
   // Generic microservice proxy (/ws/:serviceCode/* → microservice /api/*).
   app.use(proxyRouter());
+  // Collaboration (presence + entity-changed awareness for shared entities).
+  app.use(collaborationRouter());
 }

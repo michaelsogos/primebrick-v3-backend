@@ -18,6 +18,7 @@ import type { CustomerCreateBody, CustomerUpdateBody, CustomerListQuery } from "
 import { CUSTOMER_SEARCHABLE_KEYS, CUSTOMER_FILTERABLE_KEYS } from "./list-config.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
 import { requireActor } from "@primebrick/sdk";
+import { createRepository } from "../../db/repository-factory.js";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { findAuditPage } from "../../db/audit-query-helper.js";
 
@@ -215,7 +216,7 @@ export class CustomersDal {
   private auditPort: BeAuditPortAdapter;
 
   constructor(pool: Pool, _auditService?: AuditService) {
-    this.repo = new Repository(pool);
+    this.repo = createRepository(pool);
     this.pool = pool;
     this.auditPort = new BeAuditPortAdapter(this.repo);
   }

@@ -33,9 +33,11 @@ import {
   SynchronizableFieldType,
   AuditTrail,
 } from "@primebrick/dal-pg";
+import { Cached } from "@primebrick/sdk";
 
 @Entity("user_profiles")
 @AuditTrail()
+@Cached(300_000) // 5 min TTL — mutable (JIT provisioning, sync)
 export class UserProfileEntity implements IAuditableEntity {
   @Key()
   id: bigint;
@@ -112,9 +114,9 @@ export class UserProfileEntity implements IAuditableEntity {
   @DeletableField(DeletableFieldType.DELETED_BY)
   deleted_by?: string;
 
-  /** Whether the user dismissed the passkey enrollment prompt. */
+  /** Whether the user dismissed the auth method enforcer prompt (passkey/MFA). */
   @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
-  passkey_prompt_dismissed: boolean;
+  auth_method_enforcer_dismissed: boolean;
 
   /** Whether the user completed the welcome/onboarding flow. */
   @Column({ pgType: "boolean", defaultSql: "false", nullable: false })

@@ -16,6 +16,7 @@ import type { AuditService } from "../../lib/audit/audit-service.js";
 import { requireActor } from "@primebrick/sdk";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { findAuditPage } from "../../db/audit-query-helper.js";
+import { createRepository } from "../../db/repository-factory.js";
 
 export type UserProfileDetailRow = WithAuditableDisplayNames<{
   uuid: string;
@@ -75,7 +76,7 @@ export class UserProfilesDal {
   private auditPort: BeAuditPortAdapter;
 
   constructor(pool: Pool, _auditService?: AuditService) {
-    this.repo = new Repository(pool);
+    this.repo = createRepository(pool);
     this.auditPort = new BeAuditPortAdapter(this.repo);
   }
 
