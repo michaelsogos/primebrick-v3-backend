@@ -87,26 +87,22 @@ export class CasdoorApiClient {
     const finalOwner = owner ?? (userId.includes('/') ? userId.split('/')[0] : this.orgName);
     const finalName = name ?? (userId.includes('/') ? userId.slice(userId.indexOf('/') + 1) : userId);
     const queryId = `${finalOwner}/${finalName}`;
-    
-    console.log(`[CasdoorApi] getUser: userId=${userId}, owner=${finalOwner}, name=${finalName}, queryId=${queryId}`);
+
     const url = this.buildUrl(`/api/get-user?id=${encodeURIComponent(queryId)}`);
 
     const response = await fetch(url);
-    console.log(`[CasdoorApi] getUser response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.log(`[CasdoorApi] getUser response body: ${text}`);
+      console.error(`[CasdoorApi] getUser failed: ${response.status} ${text}`);
       if (response.status === 404) {
-        console.log(`[CasdoorApi] getUser: User not found (404): ${queryId}`);
+        console.error(`[CasdoorApi] getUser: User not found (404): ${queryId}`);
         return null;
       }
-      console.error(`[CasdoorApi] getUser failed: ${response.status}`);
       return null;
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] getUser response data:`, JSON.stringify(data, null, 2));
     if (data.status === "error" || (!data.data && !data.name)) {
       return null;
     }
@@ -119,8 +115,6 @@ export class CasdoorApiClient {
    * If user.owner and user.name are provided, they override the id splitting.
    */
   async updateUser(user: Partial<CasdoorUser> & { id: string }): Promise<boolean> {
-    console.log(`[CasdoorApi] updateUser: userId=${user.id}, fields=${JSON.stringify(Object.keys(user).filter(k => k !== 'id'))}`);
-    
     // Use explicitly passed owner/name if present, otherwise split id, otherwise use orgName
     const finalOwner = user.owner ?? (user.id.includes('/') ? user.id.split('/')[0] : this.orgName);
     const finalName = user.name ?? (user.id.includes('/') ? user.id.slice(user.id.indexOf('/') + 1) : user.id);
@@ -151,8 +145,6 @@ export class CasdoorApiClient {
     if (user.isVerified !== undefined) requestBody.isVerified = user.isVerified;
     if (user.emailVerified !== undefined) requestBody.emailVerified = user.emailVerified;
 
-    console.log(`[CasdoorApi] updateUser request: POST ${url}`);
-    console.log(`[CasdoorApi] updateUser request body:`, JSON.stringify(requestBody, null, 2));
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -160,17 +152,14 @@ export class CasdoorApiClient {
       },
       body: JSON.stringify(requestBody),
     });
-    console.log(`[CasdoorApi] updateUser response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.log(`[CasdoorApi] updateUser response body: ${text}`);
       console.error(`[CasdoorApi] updateUser failed: ${response.status} ${text}`);
       return false;
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] updateUser response data:`, JSON.stringify(data, null, 2));
     return data.status === "ok" || data.success === true;
   }
 
@@ -186,14 +175,12 @@ export class CasdoorApiClient {
 
     const url = this.buildUrl(`/api/set-password?id=${encodeURIComponent(queryId)}&newPassword=${encodeURIComponent(newPassword)}`);
 
-    console.log(`[CasdoorApi] changePassword request: POST ${url}`);
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
     });
-    console.log(`[CasdoorApi] changePassword response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
@@ -202,7 +189,6 @@ export class CasdoorApiClient {
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] changePassword response data:`, JSON.stringify(data, null, 2));
     return data;
   }
 
@@ -211,7 +197,6 @@ export class CasdoorApiClient {
    * Creates a new user in Casdoor.
    */
   async addUser(user: Partial<CasdoorUser>): Promise<CasdoorUser | null> {
-    console.log(`[CasdoorApi] addUser: username=${user.name}, email=${user.email}, roles=${JSON.stringify(user.roles?.map((r: any) => r.name))}`);
     const url = this.buildUrl("/api/add-user");
 
     const response = await fetch(url, {
@@ -221,17 +206,14 @@ export class CasdoorApiClient {
       },
       body: JSON.stringify(user),
     });
-    console.log(`[CasdoorApi] addUser response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.log(`[CasdoorApi] addUser response body: ${text}`);
       console.error(`[CasdoorApi] addUser failed: ${response.status} ${text}`);
       return null;
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] addUser response data:`, JSON.stringify(data, null, 2));
     if (data.status !== "ok" && data.success !== true) {
       console.error(`[CasdoorApi] addUser returned error:`, data);
       return null;
@@ -247,8 +229,6 @@ export class CasdoorApiClient {
    * If owner and name are provided, they override the userId splitting.
    */
   async deleteUser(userId: string, owner?: string, name?: string): Promise<boolean> {
-    console.log(`[CasdoorApi] deleteUser: userId=${userId}`);
-    
     // Use explicitly passed owner/name if provided, otherwise split userId, otherwise use orgName
     const finalOwner = owner ?? (userId.includes('/') ? userId.split('/')[0] : this.orgName);
     const finalName = name ?? (userId.includes('/') ? userId.slice(userId.indexOf('/') + 1) : userId);
@@ -267,17 +247,14 @@ export class CasdoorApiClient {
         name: finalName,
       }),
     });
-    console.log(`[CasdoorApi] deleteUser response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.log(`[CasdoorApi] deleteUser response body: ${text}`);
       console.error(`[CasdoorApi] deleteUser failed: ${response.status} ${text}`);
       return false;
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] deleteUser response data:`, JSON.stringify(data, null, 2));
     return data.status === "ok" || data.success === true;
   }
 
@@ -286,26 +263,22 @@ export class CasdoorApiClient {
    * Fetches an organization from Casdoor by name.
    */
   async getOrganization(name: string): Promise<CasdoorOrganization | null> {
-    console.log(`[CasdoorApi] getOrganization: name=${name}`);
     const orgId = `admin/${name}`;
     const url = this.buildUrl(`/api/get-organization?id=${encodeURIComponent(orgId)}`);
 
     const response = await fetch(url);
-    console.log(`[CasdoorApi] getOrganization response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.log(`[CasdoorApi] getOrganization response body: ${text}`);
+      console.error(`[CasdoorApi] getOrganization failed: ${response.status} ${text}`);
       if (response.status === 404) {
-        console.log(`[CasdoorApi] getOrganization: Organization not found (404): ${name}`);
+        console.error(`[CasdoorApi] getOrganization: Organization not found (404): ${name}`);
         return null;
       }
-      console.error(`[CasdoorApi] getOrganization failed: ${response.status}`);
       return null;
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] getOrganization response data:`, JSON.stringify(data, null, 2));
     if (data.status === "error" || (!data.data && !data.name)) {
       return null;
     }
@@ -317,12 +290,10 @@ export class CasdoorApiClient {
    * Updates an existing organization in Casdoor.
    */
   async updateOrganization(org: Partial<CasdoorOrganization> & { name: string }): Promise<boolean> {
-    console.log(`[CasdoorApi] updateOrganization: name=${org.name}, fields=${JSON.stringify(Object.keys(org).filter(k => k !== 'name'))}`);
-    
     // Split name into owner and name parts (format: owner/name)
     const finalOwner = org.name.includes('/') ? org.name.split('/')[0] : this.orgName;
     const finalName = org.name.includes('/') ? org.name.slice(org.name.indexOf('/') + 1) : org.name;
-    
+
     const url = this.buildUrl(`/api/update-organization?id=${encodeURIComponent(org.name)}`);
 
     const requestBody: any = {
@@ -332,8 +303,6 @@ export class CasdoorApiClient {
       websiteUrl: org.websiteUrl,
     };
 
-    console.log(`[CasdoorApi] updateOrganization request: POST ${url}`);
-    console.log(`[CasdoorApi] updateOrganization request body:`, JSON.stringify(requestBody, null, 2));
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -341,17 +310,14 @@ export class CasdoorApiClient {
       },
       body: JSON.stringify(requestBody),
     });
-    console.log(`[CasdoorApi] updateOrganization response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.log(`[CasdoorApi] updateOrganization response body: ${text}`);
       console.error(`[CasdoorApi] updateOrganization failed: ${response.status} ${text}`);
       return false;
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] updateOrganization response data:`, JSON.stringify(data, null, 2));
     return data.status === "ok" || data.success === true;
   }
 
@@ -360,7 +326,6 @@ export class CasdoorApiClient {
    * Creates a new organization in Casdoor.
    */
   async addOrganization(org: Partial<CasdoorOrganization>): Promise<CasdoorOrganization | null> {
-    console.log(`[CasdoorApi] addOrganization: name=${org.name}, displayName=${org.displayName}`);
     const url = this.buildUrl("/api/add-organization");
 
     const response = await fetch(url, {
@@ -370,17 +335,14 @@ export class CasdoorApiClient {
       },
       body: JSON.stringify(org),
     });
-    console.log(`[CasdoorApi] addOrganization response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.log(`[CasdoorApi] addOrganization response body: ${text}`);
       console.error(`[CasdoorApi] addOrganization failed: ${response.status} ${text}`);
       return null;
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] addOrganization response data:`, JSON.stringify(data, null, 2));
     if (data.status !== "ok" && data.success !== true) {
       console.error(`[CasdoorApi] addOrganization returned error:`, data);
       return null;
@@ -394,8 +356,6 @@ export class CasdoorApiClient {
    * Deletes an organization in Casdoor.
    */
   async deleteOrganization(name: string): Promise<boolean> {
-    console.log(`[CasdoorApi] deleteOrganization: name=${name}`);
-
     const url = this.buildUrl(`/api/delete-organization?id=${encodeURIComponent(name)}`);
 
     const response = await fetch(url, {
@@ -407,17 +367,14 @@ export class CasdoorApiClient {
         name: name,
       }),
     });
-    console.log(`[CasdoorApi] deleteOrganization response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.log(`[CasdoorApi] deleteOrganization response body: ${text}`);
       console.error(`[CasdoorApi] deleteOrganization failed: ${response.status} ${text}`);
       return false;
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] deleteOrganization response data:`, JSON.stringify(data, null, 2));
     return data.status === "ok" || data.success === true;
   }
 
@@ -438,7 +395,6 @@ export class CasdoorApiClient {
     const queryId = `${finalOwner}/${finalName}`;
 
     const url = this.buildUrl(`/api/check-user-password?id=${encodeURIComponent(queryId)}`);
-    console.log(`[CasdoorApi] checkUserPassword: userId=${queryId}`);
 
     const response = await fetch(url, {
       method: "POST",
@@ -453,7 +409,6 @@ export class CasdoorApiClient {
     }
 
     const data = (await response.json()) as { status?: string; msg?: string; data?: string };
-    console.log(`[CasdoorApi] checkUserPassword response:`, JSON.stringify(data, null, 2));
     return { status: (data.status as "ok" | "error") ?? "error", msg: data.msg ?? data.data };
   }
 
@@ -465,7 +420,6 @@ export class CasdoorApiClient {
   async getApplication(name: string, owner?: string): Promise<Record<string, unknown> | null> {
     const id = owner ? `${owner}/${name}` : name;
     const url = this.buildUrl(`/api/get-application?id=${encodeURIComponent(id)}`);
-    console.log(`[CasdoorApi] getApplication: id=${id}`);
 
     const response = await fetch(url, {
       method: "GET",
@@ -493,7 +447,6 @@ export class CasdoorApiClient {
   async updateApplication(application: Record<string, unknown>): Promise<boolean> {
     const id = `${application.owner}/${application.name}`;
     const url = this.buildUrl(`/api/update-application?id=${encodeURIComponent(String(id))}`);
-    console.log(`[CasdoorApi] updateApplication: id=${id}`);
 
     const response = await fetch(url, {
       method: "POST",
@@ -519,7 +472,6 @@ export class CasdoorApiClient {
    */
   async addApplication(application: Record<string, unknown>): Promise<Record<string, unknown> | null> {
     const url = this.buildUrl("/api/add-application");
-    console.log(`[CasdoorApi] addApplication: name=${application.name}, owner=${application.owner}`);
 
     const response = await fetch(url, {
       method: "POST",
@@ -578,25 +530,21 @@ export class CasdoorApiClient {
   async getRole(name: string, owner?: string): Promise<CasdoorRole | null> {
     const finalOwner = owner ?? this.orgName;
     const roleId = `${finalOwner}/${name}`;
-    console.log(`[CasdoorApi] getRole: id=${roleId}`);
     const url = this.buildUrl(`/api/get-role?id=${encodeURIComponent(roleId)}`);
 
     const response = await fetch(url);
-    console.log(`[CasdoorApi] getRole response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.log(`[CasdoorApi] getRole response body: ${text}`);
+      console.error(`[CasdoorApi] getRole failed: ${response.status} ${text}`);
       if (response.status === 404) {
-        console.log(`[CasdoorApi] getRole: Role not found (404): ${roleId}`);
+        console.error(`[CasdoorApi] getRole: Role not found (404): ${roleId}`);
         return null;
       }
-      console.error(`[CasdoorApi] getRole failed: ${response.status}`);
       return null;
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] getRole response data:`, JSON.stringify(data, null, 2));
     if (data.status === "error" || (!data.data && !data.name)) {
       return null;
     }
@@ -610,7 +558,6 @@ export class CasdoorApiClient {
    */
   async addRole(role: Partial<CasdoorRole> & { name: string; owner: string }): Promise<CasdoorRole | null> {
     const roleId = `${role.owner}/${role.name}`;
-    console.log(`[CasdoorApi] addRole: id=${roleId}, displayName=${role.displayName}`);
     const url = this.buildUrl(`/api/add-role?id=${encodeURIComponent(roleId)}`);
 
     const requestBody = {
@@ -621,24 +568,19 @@ export class CasdoorApiClient {
       isEnabled: role.isEnabled ?? true,
     };
 
-    console.log(`[CasdoorApi] addRole request: POST ${url}`);
-    console.log(`[CasdoorApi] addRole request body:`, JSON.stringify(requestBody, null, 2));
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
     });
-    console.log(`[CasdoorApi] addRole response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.log(`[CasdoorApi] addRole response body: ${text}`);
       console.error(`[CasdoorApi] addRole failed: ${response.status} ${text}`);
       return null;
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] addRole response data:`, JSON.stringify(data, null, 2));
     if (data.status !== "ok" && data.success !== true) {
       console.error(`[CasdoorApi] addRole returned error:`, data);
       return null;
@@ -654,7 +596,6 @@ export class CasdoorApiClient {
    */
   async updateRole(role: Partial<CasdoorRole> & { name: string; owner: string }): Promise<boolean> {
     const roleId = `${role.owner}/${role.name}`;
-    console.log(`[CasdoorApi] updateRole: id=${roleId}, fields=${JSON.stringify(Object.keys(role).filter(k => k !== 'name' && k !== 'owner'))}`);
     const url = this.buildUrl(`/api/update-role?id=${encodeURIComponent(roleId)}`);
 
     const requestBody: Record<string, unknown> = {
@@ -665,24 +606,19 @@ export class CasdoorApiClient {
     if (role.description !== undefined) requestBody.description = role.description;
     if (role.isEnabled !== undefined) requestBody.isEnabled = role.isEnabled;
 
-    console.log(`[CasdoorApi] updateRole request: POST ${url}`);
-    console.log(`[CasdoorApi] updateRole request body:`, JSON.stringify(requestBody, null, 2));
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
     });
-    console.log(`[CasdoorApi] updateRole response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.log(`[CasdoorApi] updateRole response body: ${text}`);
       console.error(`[CasdoorApi] updateRole failed: ${response.status} ${text}`);
       return false;
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] updateRole response data:`, JSON.stringify(data, null, 2));
     return data.status === "ok" || data.success === true;
   }
 
@@ -693,7 +629,6 @@ export class CasdoorApiClient {
    */
   async deleteRole(name: string, owner: string): Promise<boolean> {
     const roleId = `${owner}/${name}`;
-    console.log(`[CasdoorApi] deleteRole: id=${roleId}`);
     const url = this.buildUrl(`/api/delete-role?id=${encodeURIComponent(roleId)}`);
 
     const response = await fetch(url, {
@@ -701,17 +636,14 @@ export class CasdoorApiClient {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ owner, name }),
     });
-    console.log(`[CasdoorApi] deleteRole response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.log(`[CasdoorApi] deleteRole response body: ${text}`);
       console.error(`[CasdoorApi] deleteRole failed: ${response.status} ${text}`);
       return false;
     }
 
     const data = await response.json();
-    console.log(`[CasdoorApi] deleteRole response data:`, JSON.stringify(data, null, 2));
     return data.status === "ok" || data.success === true;
   }
 }

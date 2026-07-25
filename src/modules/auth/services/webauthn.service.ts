@@ -55,6 +55,7 @@ import {
   ApiError,
   UnauthorizedError,
   NotFoundError,
+  RedisUnavailableError,
 } from "../../../http/api-errors.js";
 
 // --- fetchWithHost --------------------------------------------------------
@@ -78,8 +79,6 @@ function fetchWithHost(
   url: string,
   init: { method?: string; headers?: Record<string, string>; body?: string } & { hostOverride: string },
 ): Promise<FetchLikeResponse> {
-  // eslint-disable-next-line no-console
-  console.log(`[fetchWithHost] url=${url} hostOverride=${init.hostOverride}`);
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     const isTls = parsed.protocol === "https:";
@@ -177,7 +176,12 @@ async function stashCasdoorSession(cookie: string): Promise<string> {
 
 async function popCasdoorSession(nonce: string): Promise<string | null> {
   const port = getCachePort();
-  if (!port) return null; // cache disabled — WebAuthn can't work multi-instance
+  if (!port) {
+    throw new RedisUnavailableError(
+      "Redis is required for WebAuthn session relay but is not available. " +
+      "Passkey signin cannot proceed without Redis. Form-based login still works.",
+    );
+  }
   try {
     const cookie = await port.get<string>(sessionRelayKey(nonce));
     if (cookie) {
@@ -186,7 +190,10 @@ async function popCasdoorSession(nonce: string): Promise<string | null> {
     return cookie;
   } catch (e) {
     console.warn(`[cache] webauthn session pop failed: ${e}`);
-    return null;
+    throw new RedisUnavailableError(
+      "Redis operation failed during WebAuthn session relay. " +
+      "Passkey signin cannot proceed at this time.",
+    );
   }
 }
 
@@ -383,9 +390,15 @@ export class WebauthnService {
 
     // Best-effort: sync passkeys from Casdoor to PG so has_passkey is correct.
     // Non-blocking — if this fails, the signin still succeeded.
-    const casdoorUserId = (claims as any).Id || (claims as any).sub;
-    if (casdoorUserId) {
-      this.syncPasskeys(casdoorUserId, undefined, undefined).catch((err) => {
+    //
+    // Use the Casdoor username + organization from JWT claims (NOT the UUID in
+    // `sub`/`Id`) because Casdoor's /api/get-user?id=owner/name resolves by the
+    // (Owner, Name) primary key, not by the UUID in the indexed `Id` column.
+    // Passing the UUID as the `name` part yields `data: null` → CASDOOR_USER_NOT_FOUND.
+    const idpOrg = (claims as any).organization as string | undefined;
+    const idpUsername = (claims as any).name as string | undefined;
+    if (idpOrg && idpUsername) {
+      this.syncPasskeys(undefined, idpOrg, idpUsername).catch((err) => {
         console.error("[webauthn] Post-signin passkey sync failed (non-critical):", err);
       });
     }
@@ -654,7 +667,7 @@ export class WebauthnService {
    * Returns the number of passkeys inserted and deleted.
    */
   async syncPasskeys(
-    idpCode: string,
+    idpCode: string | undefined,
     idpOrg: string | undefined,
     idpUsername: string | undefined,
   ): Promise<{ inserted: number; deleted: number; total: number }> {
