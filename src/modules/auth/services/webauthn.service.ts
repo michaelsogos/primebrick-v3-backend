@@ -45,7 +45,7 @@ import { InvitationService } from "./invitation.service.js";
 import { UserPasskeysDal } from "../user-passkeys-dal.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
 import { sendEmail } from "./email-sender.js";
-import { requireActor } from "@primebrick/sdk";
+import { requireActor, runAsSystem } from "@primebrick/sdk";
 import { parseUserAgent, truncateUserAgent } from "../utils/ua-parser.js";
 import { decodeAaguid, inferOsFromAaguid } from "../utils/aaguid-decoder.js";
 import {
@@ -411,16 +411,49 @@ export class WebauthnService {
     }
 
     // Best-effort: bump last_used_at for the credential that was just used.
-    // The credential object from the browser contains `id` (base64url).
+    // The credential object from the browser contains `id` (base64url, no
+    // padding) which matches the PG `credential_id` format directly.
+    //
+    // IMPORTANT: signinFinish is a PUBLIC endpoint (the user is authenticating
+    // right now), so the auth middleware has NOT populated the ALS session yet.
+    // `updateLastUsed` calls `requireActor()` for the audit `updated_by` column,
+    // which would throw "No session in scope". We wrap the call in
+    // `runAsSystem()` so the audit records `"system"` as the actor —
+    // semantically correct (the system bumps the timestamp on successful auth,
+    // the user is not editing their own passkey).
     // Non-blocking — if this fails, the signin still succeeded.
     try {
       const cred = credential as { id?: string };
       const credentialId = cred?.id;
+      const fs = await import("fs");
+      const debugLog = (msg: string) => {
+        const line = `[${new Date().toISOString()}] ${msg}\n`;
+        fs.appendFileSync("D:\\git\\primebrick\\temp\\webauthn-debug.log", line);
+      };
+      debugLog(`signinFinish called | credentialId=${JSON.stringify(credentialId)} | credential keys=${Object.keys(credential || {})}`);
       if (credentialId) {
         const passkeysDal = new UserPasskeysDal(this.pool);
-        await passkeysDal.updateLastUsed(credentialId, new Date());
+        const existing = await passkeysDal.findByCredentialId(credentialId);
+        debugLog(`findByCredentialId(credentialId) => ${existing ? `FOUND id=${existing.id} stored_cred=${existing.credential_id}` : "NOT FOUND"}`);
+        // Also try with all PG passkeys to find a match
+        const profile = await (async () => {
+          try {
+            const profilesDal = new (await import("../user-profiles-dal.js")).UserProfilesDal(this.pool);
+            const idpOrg2 = (claims as any).organization as string | undefined;
+            const idpUsername2 = (claims as any).name as string | undefined;
+            return idpOrg2 && idpUsername2 ? await profilesDal.getByIdpCode(`${idpOrg2}/${idpUsername2}`) : null;
+          } catch (e) { debugLog(`profile lookup error: ${e}`); return null; }
+        })();
+        if (profile) {
+          const allPks = await passkeysDal.findByUserProfileUuid(profile.uuid);
+          debugLog(`all PG passkeys for profile ${profile.uuid}: ${JSON.stringify(allPks.map(p => ({ id: p.id, cred: p.credential_id, last_used: p.last_used_at })))}`);
+        }
+        await runAsSystem(() => passkeysDal.updateLastUsed(credentialId, new Date()));
+        debugLog(`updateLastUsed DONE`);
       }
     } catch (lastUsedErr) {
+      const fs = await import("fs");
+      fs.appendFileSync("D:\\git\\primebrick\\temp\\webauthn-debug.log", `[${new Date().toISOString()}] ERROR: ${lastUsedErr}\n`);
       console.error("[webauthn] Failed to bump last_used_at (non-critical):", lastUsedErr);
     }
 

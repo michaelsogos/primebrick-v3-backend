@@ -35,6 +35,7 @@ function makePasskeyRow(overrides: Partial<{
   aaguid: string | null;
   transports: string[] | null;
   label: string | null;
+  version: number;
 }> = {}) {
   return {
     id: 1n,
@@ -44,6 +45,7 @@ function makePasskeyRow(overrides: Partial<{
     aaguid: "aaguid-uuid",
     transports: ["internal"],
     label: "Windows Hello",
+    version: 1,
     ...overrides,
   };
 }
@@ -245,7 +247,7 @@ describe("UserPasskeysDal", () => {
 
   describe("updateLastUsed", () => {
     it("should bump last_used_at for an existing credential", async () => {
-      const row = makePasskeyRow({ credential_id: "cred-abc", id: 77n });
+      const row = makePasskeyRow({ credential_id: "cred-abc", id: 77n, version: 1 });
       mockRepo.find.mockResolvedValue(row);
       const when = new Date("2026-07-25T12:00:00Z");
 
@@ -256,7 +258,12 @@ describe("UserPasskeysDal", () => {
       const [, data, options] = mockRepo.update.mock.calls[0];
       expect(data.id).toBe(77n);
       expect(data.last_used_at).toBe(when);
-      expect(data.updated_by).toBe("test-actor-uuid");
+      // version is required for optimistic locking (auditable entity)
+      expect(data.version).toBe(1);
+      // updated_by is NOT set in the body — the `{ actor }` option writes it
+      // automatically. Setting it in both places yields a PG error
+      // "multiple assignments to same column" (42601).
+      expect(data.updated_by).toBeUndefined();
       expect(options.actor).toBe("test-actor-uuid");
     });
 

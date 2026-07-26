@@ -176,7 +176,15 @@ export class UserPasskeysDal {
       {
         id: existing.id,
         last_used_at: when,
-        updated_by: actor,
+        // Required for optimistic locking — UserPasskeyEntity is auditable so
+        // the DAL rejects updates without a `version` field (MissingVersionError,
+        // code ERR02). We pass the version we just read; if another write
+        // happened in between, the guard will reject with a 409 — acceptable
+        // for a best-effort last_used_at bump.
+        // NOTE: do NOT set `updated_by` here — the `{ actor }` option below
+        // already writes it, and setting it in both places yields
+        // "multiple assignments to same column" (PG error 42601).
+        version: existing.version,
       },
       { actor },
     );
