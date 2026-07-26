@@ -151,5 +151,13 @@ export const WebauthnSignupFinishSchema = z.object({
   nonce: z.string().min(1),
   /** Serialized navigator.credentials.create() result (base64url-encoded fields). */
   credential: z.record(z.string(), z.unknown()),
+  /**
+   * Optional User-Agent Client Hints `platformVersion` (e.g. "15.0.0")
+   * captured by the FE via `navigator.userAgentData.getHighEntropyValues
+   * (["platformVersion"])`. Used to distinguish Windows 10 from Windows 11
+   * (the UA string alone reports "Windows NT 10.0" on both). Missing on
+   * Firefox/Safari — the BE falls back to the generic "Windows".
+   */
+  platform_version: z.string().optional(),
 });
 export type WebauthnSignupFinishBody = z.infer<typeof WebauthnSignupFinishSchema>;

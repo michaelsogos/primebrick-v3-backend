@@ -8,7 +8,7 @@
 import type { AuthUser } from "@primebrick/sdk";
 
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
+  // eslint-disable-next-line @typescript-eslint/no-namespace -- Express type augmentation requires namespace Express (official @types/express pattern)
   namespace Express {
     interface Request {
       user?: AuthUser;

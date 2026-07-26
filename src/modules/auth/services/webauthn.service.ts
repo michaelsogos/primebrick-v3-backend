@@ -523,6 +523,7 @@ export class WebauthnService {
     origin: string,
     userAgent?: string,
     authenticatorAttachment?: string,
+    platformVersion?: string,
   ): Promise<{ success: true }> {
     const cfg = await this.requireWebauthnEnabled();
     const cookie = await popCasdoorSession(nonce);
@@ -603,7 +604,9 @@ export class WebauthnService {
             const existing = await passkeysDal.findByCredentialId(credentialId);
             if (!existing) {
               // Parse OS / device model from the User-Agent for rich display.
-              const uaInfo = userAgent ? parseUserAgent(userAgent) : {};
+              // platformVersion (User-Agent Client Hints) lets us distinguish
+              // Windows 10 from Windows 11 on Chromium-based browsers.
+              const uaInfo = userAgent ? parseUserAgent(userAgent, platformVersion) : {};
               await passkeysDal.create({
                 user_profile_id: BigInt(profileId),
                 credential_id: credentialId,

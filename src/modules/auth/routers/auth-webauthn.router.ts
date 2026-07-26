@@ -140,6 +140,9 @@ export function authWebauthnRouter() {
     const userAgent = req.get("user-agent");
     const cred = body.credential as { authenticatorAttachment?: string } | undefined;
     const authenticatorAttachment = cred?.authenticatorAttachment;
+    // Optional User-Agent Client Hints platformVersion (Chrome/Edge only)
+    // lets us distinguish Windows 10 from Windows 11.
+    const platformVersion = body.platform_version;
     const result = await service.signupFinish(
       body.nonce,
       body.credential,
@@ -147,6 +150,7 @@ export function authWebauthnRouter() {
       origin,
       userAgent,
       authenticatorAttachment,
+      platformVersion,
     );
     res.json(result);
   });
