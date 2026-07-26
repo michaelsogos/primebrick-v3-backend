@@ -96,9 +96,20 @@ export function authSessionRouter() {
   const service = makeService();
 
   const login: RequestHandler = asyncHandler(async (req, res) => {
-    const { tokens, claims } = await service.login(req.body as z.infer<typeof LoginBodySchema>);
-    setAuthCookies(res as Response, tokens);
-    res.json({ success: true, user: buildUserFromClaims(claims) });
+    const outcome = await service.login(req.body as z.infer<typeof LoginBodySchema>);
+    if ("mfa_required" in outcome) {
+      // MFA challenge required — do NOT set cookies. The FE must present the
+      // MFA challenge UI and call POST /api/v1/auth/mfa/verify.
+      res.json({
+        success: false,
+        mfa_required: true,
+        mfa_challenge_token: outcome.mfa_challenge_token,
+        available_factors: outcome.available_factors,
+      });
+      return;
+    }
+    setAuthCookies(res as Response, outcome.tokens);
+    res.json({ success: true, user: buildUserFromClaims(outcome.claims) });
   });
 
   const refresh: RequestHandler = asyncHandler(async (req, res) => {
@@ -122,8 +133,8 @@ export function authSessionRouter() {
 
   const getMe: RequestHandler = asyncHandler(async (req, res) => {
     const userId = requireUserId(req);
-    const { profile, has_passkey, auth_method_enforcer_dismissed } = await service.getMe(userId);
-    res.json({ success: true, profile, has_passkey, auth_method_enforcer_dismissed });
+    const { profile, has_passkey, auth_method_enforcer_dismissed, has_mfa } = await service.getMe(userId);
+    res.json({ success: true, profile, has_passkey, auth_method_enforcer_dismissed, has_mfa });
   });
 
   const getMeMeta: RequestHandler = asyncHandler(async (_req, res) => {
@@ -132,7 +143,7 @@ export function authSessionRouter() {
 
   /**
    * POST /api/v1/auth/me/dismiss-auth-method-enforcer
-   * Dismiss the auth method enforcer prompt for the current user.
+   * Dismiss the auth method enforcer dialog (passkey/MFA prompt) for the current user.
    */
   const dismissAuthMethodEnforcer: RequestHandler = asyncHandler(async (req, res) => {
     const userId = requireUserId(req);
@@ -156,7 +167,7 @@ export function authSessionRouter() {
         "/errors/internal-error",
         "Password change failed",
         502,
-        result.msg || "Casdoor returned an error while changing the password",
+        result.msg || "Casdoor™ returned an error while changing the password",
         { internal_code: "CASDOOR_CHANGE_PASSWORD_FAILED", severity: "HIGH" },
       );
     }
@@ -175,6 +186,7 @@ export function authSessionRouter() {
       enable_formauth: cfg.enable_formauth,
       enable_webauthn: cfg.enable_webauthn,
       passkey_required: cfg.passkey_required,
+      enable_mfa: cfg.enable_mfa,
     });
   });
 

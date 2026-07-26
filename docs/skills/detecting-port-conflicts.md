@@ -24,7 +24,7 @@ lsof -i :<PORT> -P -n
 This shows the PID, process name, and user. Common culprits:
 - A previous dev server that didn't shut down cleanly
 - Another project's dev server
-- A Docker container
+- A Docker® container
 - A system service
 
 ## Resolution Options
@@ -65,5 +65,5 @@ Only suggest this if the user confirms — it kills everything.
 ## Tips
 
 - On macOS, ports below 1024 require root
-- Docker containers bind ports that persist even if the container is stopped — check `docker ps`
+- Docker® containers bind ports that persist even if the container is stopped — check `docker ps`
 - If `lsof` shows nothing, the port may be in TIME_WAIT state — just wait 30 seconds or use a different port

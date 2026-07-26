@@ -94,9 +94,9 @@ export class RoleService {
     if (!cd) {
       throw new ApiError(
         "/errors/service-unavailable",
-        "Casdoor not configured",
+        "Casdoor™ not configured",
         503,
-        "Casdoor is not configured; cannot create role via API. Configure casdoor_builtin_client_id and casdoor_builtin_client_secret to enable role management.",
+        "Casdoor™ is not configured; cannot create role via API. Configure casdoor_builtin_client_id and casdoor_builtin_client_secret to enable role management.",
         {
           instance: "/api/v1/system/role-mappings",
           internal_code: "CASDOOR_NOT_CONFIGURED",
@@ -110,9 +110,9 @@ export class RoleService {
     if (existingCasdoor) {
       throw new ApiError(
         "/errors/conflict",
-        "Role already exists in Casdoor",
+        "Role already exists in Casdoor™",
         409,
-        `A role with name "${idp_role}" already exists in Casdoor organization "${idp_org}".`,
+        `A role with name "${idp_role}" already exists in Casdoor™ organization "${idp_org}".`,
         {
           instance: "/api/v1/system/role-mappings",
           internal_code: "ROLE_ALREADY_EXISTS_CASDOOR",
@@ -147,9 +147,9 @@ export class RoleService {
     if (!created) {
       throw new ApiError(
         "/errors/internal-error",
-        "Casdoor role creation failed",
+        "Casdoor™ role creation failed",
         502,
-        `Casdoor addRole did not return a role for "${idp_role}" in organization "${idp_org}".`,
+        `Casdoor™ addRole did not return a role for "${idp_role}" in organization "${idp_org}".`,
         {
           instance: "/api/v1/system/role-mappings",
           internal_code: "CASDOOR_ADD_ROLE_FAILED",
@@ -195,9 +195,9 @@ export class RoleService {
     if (!cd) {
       throw new ApiError(
         "/errors/service-unavailable",
-        "Casdoor not configured",
+        "Casdoor™ not configured",
         503,
-        "Casdoor is not configured; cannot update role via API. Configure casdoor_builtin_client_id and casdoor_builtin_client_secret to enable role management.",
+        "Casdoor™ is not configured; cannot update role via API. Configure casdoor_builtin_client_id and casdoor_builtin_client_secret to enable role management.",
         {
           instance: `/api/v1/system/role-mappings/${idpRole}`,
           internal_code: "CASDOOR_NOT_CONFIGURED",
@@ -212,9 +212,9 @@ export class RoleService {
     if (!owner) {
       throw new ApiError(
         "/errors/internal-error",
-        "Cannot resolve Casdoor owner",
+        "Cannot resolve Casdoor™ owner",
         500,
-        `Role "${idpRole}" has no idp_org and casdoor_organization is not configured. Cannot sync to Casdoor.`,
+        `Role "${idpRole}" has no idp_org and casdoor_organization is not configured. Cannot sync to Casdoor™.`,
         {
           instance: `/api/v1/system/role-mappings/${idpRole}`,
           internal_code: "CASDOOR_OWNER_UNRESOLVED",
@@ -232,9 +232,9 @@ export class RoleService {
     if (!syncSuccess) {
       throw new ApiError(
         "/errors/internal-error",
-        "Casdoor sync failed",
+        "Casdoor™ sync failed",
         502,
-        `Failed to update role "${idpRole}" in Casdoor organization "${owner}".`,
+        `Failed to update role "${idpRole}" in Casdoor™ organization "${owner}".`,
         {
           instance: `/api/v1/system/role-mappings/${idpRole}`,
           internal_code: "CASDOOR_SYNC_FAILED",
@@ -284,9 +284,9 @@ export class RoleService {
     if (!cd) {
       throw new ApiError(
         "/errors/service-unavailable",
-        "Casdoor not configured",
+        "Casdoor™ not configured",
         503,
-        "Casdoor is not configured; cannot delete role via API. Configure casdoor_builtin_client_id and casdoor_builtin_client_secret to enable role management.",
+        "Casdoor™ is not configured; cannot delete role via API. Configure casdoor_builtin_client_id and casdoor_builtin_client_secret to enable role management.",
         {
           instance: `/api/v1/system/role-mappings/${idpRole}`,
           internal_code: "CASDOOR_NOT_CONFIGURED",
@@ -301,9 +301,9 @@ export class RoleService {
     if (!owner) {
       throw new ApiError(
         "/errors/internal-error",
-        "Cannot resolve Casdoor owner",
+        "Cannot resolve Casdoor™ owner",
         500,
-        `Role "${idpRole}" has no idp_org and casdoor_organization is not configured. Cannot sync to Casdoor.`,
+        `Role "${idpRole}" has no idp_org and casdoor_organization is not configured. Cannot sync to Casdoor™.`,
         {
           instance: `/api/v1/system/role-mappings/${idpRole}`,
           internal_code: "CASDOOR_OWNER_UNRESOLVED",
@@ -317,9 +317,9 @@ export class RoleService {
     if (!syncSuccess) {
       throw new ApiError(
         "/errors/internal-error",
-        "Casdoor delete failed",
+        "Casdoor™ delete failed",
         502,
-        `Failed to delete role "${idpRole}" in Casdoor organization "${owner}". The role may still be assigned to users — unassign it first in Casdoor.`,
+        `Failed to delete role "${idpRole}" in Casdoor™ organization "${owner}". The role may still be assigned to users — unassign it first in Casdoor™.`,
         {
           instance: `/api/v1/system/role-mappings/${idpRole}`,
           internal_code: "CASDOOR_DELETE_FAILED",

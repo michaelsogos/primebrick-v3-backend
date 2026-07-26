@@ -1,4 +1,4 @@
-# PostgreSQL migration draft (Primebrick)
+# PostgreSQL® migration draft (Primebrick)
 
 ## When to use
 
@@ -10,7 +10,7 @@
 
 The **michaelsogos** stack (**`pg-diff-cli`** + **`pg-diff-api`**) is explicitly designed for:
 
-- Comparing **two live PostgreSQL** instances (or equivalent connections).
+- Comparing **two live PostgreSQL®** instances (or equivalent connections).
 - Emitting a **timestamped SQL patch** with **WARN/ERROR hints** next to risky lines.
 - A team workflow: **`SOURCE`** = DB where you apply experimental changes; **`TARGET`** = baseline app DB; patch moves TARGET → SOURCE state.
 

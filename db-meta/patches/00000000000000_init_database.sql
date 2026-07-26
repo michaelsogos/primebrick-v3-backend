@@ -134,11 +134,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS "user_profiles_uuid_uq" ON "public"."user_prof
 CREATE UNIQUE INDEX IF NOT EXISTS "user_profiles_idp_code_uq" ON "public"."user_profiles" ("idp_code");
 
 COMMENT ON COLUMN public.user_profiles.avatar_color IS 'Avatar color hex code (e.g., #3b82f6) for user profile display';
-COMMENT ON COLUMN public.user_profiles.is_active IS 'Whether the user account is active (mirrors Casdoor isForbidden)';
-COMMENT ON COLUMN public.user_profiles.is_admin IS 'Whether the user has admin privileges (mirrors Casdoor isAdmin)';
-COMMENT ON COLUMN public.user_profiles.roles IS 'Array of role names assigned to the user (mirrors Casdoor roles)';
-COMMENT ON COLUMN public.user_profiles.last_synced_at IS 'Timestamp of last successful sync with Casdoor';
-COMMENT ON COLUMN public.user_profiles.auth_method_enforcer_dismissed IS 'Whether the user dismissed the auth method enforcer prompt (passkey/MFA)';
+COMMENT ON COLUMN public.user_profiles.is_active IS 'Whether the user account is active (mirrors Casdoor™ isForbidden)';
+COMMENT ON COLUMN public.user_profiles.is_admin IS 'Whether the user has admin privileges (mirrors Casdoor™ isAdmin)';
+COMMENT ON COLUMN public.user_profiles.roles IS 'Array of role names assigned to the user (mirrors Casdoor™ roles)';
+COMMENT ON COLUMN public.user_profiles.last_synced_at IS 'Timestamp of last successful sync with Casdoor™';
+COMMENT ON COLUMN public.user_profiles.auth_method_enforcer_dismissed IS 'Whether the user dismissed the auth method enforcer dialog (passkey/MFA prompt)';
 COMMENT ON COLUMN public.user_profiles.onboarding_completed IS 'Whether the user completed the welcome/onboarding flow';
 
 -- user_profiles_audit table
@@ -218,16 +218,77 @@ CREATE UNIQUE INDEX IF NOT EXISTS "user_passkeys_uuid_uq" ON "public"."user_pass
 CREATE UNIQUE INDEX IF NOT EXISTS "user_passkeys_credential_id_uq" ON "public"."user_passkeys" ("credential_id");
 CREATE INDEX IF NOT EXISTS "user_passkeys_user_profile_id_idx" ON "public"."user_passkeys" ("user_profile_id");
 
-COMMENT ON TABLE public.user_passkeys IS 'Passkey credentials tracked in PG (mirrors Casdoor webauthnCredentials)';
+COMMENT ON TABLE public.user_passkeys IS 'Passkey credentials tracked in PG (mirrors Casdoor™ webauthnCredentials)';
 COMMENT ON COLUMN public.user_passkeys.credential_id IS 'base64url credential ID from WebAuthn';
 COMMENT ON COLUMN public.user_passkeys.aaguid IS 'Authenticator model identifier';
 COMMENT ON COLUMN public.user_passkeys.transports IS 'JSON array of transports ["internal","hybrid","usb","nfc","ble"]';
-COMMENT ON COLUMN public.user_passkeys.label IS 'User-given name (e.g. "Windows Hello", "iPhone")';
+COMMENT ON COLUMN public.user_passkeys.label IS 'User-given name (e.g. "Windows Hello™", "iPhone")';
 COMMENT ON COLUMN public.user_passkeys.last_used_at IS 'Last time this credential was used to sign in (null until first signin after this feature ships)';
 COMMENT ON COLUMN public.user_passkeys.authenticator_attachment IS 'platform | cross-platform (WebAuthn AuthenticatorAttachment)';
 COMMENT ON COLUMN public.user_passkeys.user_agent IS 'navigator.userAgent captured at enrollment (truncated to 512 chars)';
 COMMENT ON COLUMN public.user_passkeys.os IS 'OS inferred from UA at enrollment (e.g. Windows, macOS, iOS, Android, Linux)';
 COMMENT ON COLUMN public.user_passkeys.device_model IS 'Device model inferred from UA at enrollment (e.g. "Windows PC", "Mac", "iPhone", "Pixel")';
+
+-- user_mfa_factors table (MFA factors tracked in PG, mirrors Casdoor™ MFA setup)
+CREATE TABLE IF NOT EXISTS "public"."user_mfa_factors" (
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "user_profile_id" bigint NOT NULL,
+  "factor_type" text NOT NULL,
+  "casdoor_mfa_type" text,
+  "totp_secret_encrypted" text NOT NULL,
+  "label" varchar(100),
+  "is_enabled" boolean NOT NULL DEFAULT true,
+  "is_preferred" boolean NOT NULL DEFAULT false,
+  "last_used_at" timestamptz,
+  "created_at" timestamptz DEFAULT now(),
+  "created_by" text,
+  "updated_at" timestamptz DEFAULT now(),
+  "updated_by" text,
+  "version" integer DEFAULT 1,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "user_mfa_factors_uuid_uq" ON "public"."user_mfa_factors" ("uuid");
+CREATE INDEX IF NOT EXISTS "user_mfa_factors_user_profile_id_idx" ON "public"."user_mfa_factors" ("user_profile_id");
+
+COMMENT ON TABLE public.user_mfa_factors IS 'MFA factors tracked in PG (mirrors Casdoor™ MFA setup)';
+COMMENT ON COLUMN public.user_mfa_factors.factor_type IS 'Factor type: "totp" (v1 only)';
+COMMENT ON COLUMN public.user_mfa_factors.casdoor_mfa_type IS 'Casdoor™ mfaType value: "app" for TOTP';
+COMMENT ON COLUMN public.user_mfa_factors.label IS 'User-given name (e.g. "Google Authenticator™", "Authy™")';
+COMMENT ON COLUMN public.user_mfa_factors.is_enabled IS 'Whether the factor is enabled';
+COMMENT ON COLUMN public.user_mfa_factors.is_preferred IS 'Whether this is the preferred factor (shown first in challenge UI)';
+COMMENT ON COLUMN public.user_mfa_factors.last_used_at IS 'When the factor was last used for verification';
+
+-- mfa_action_authorizations table (single-use action authorization tokens for step-up MFA)
+CREATE TABLE IF NOT EXISTS "public"."mfa_action_authorizations" (
+  "id" bigint generated always as identity NOT NULL,
+  "jti" text NOT NULL,
+  "user_profile_id" bigint NOT NULL,
+  "action" text NOT NULL,
+  "target_resource" text NOT NULL,
+  "token_hash" text NOT NULL,
+  "expires_at" timestamptz NOT NULL,
+  "used_at" timestamptz,
+  "created_at" timestamptz DEFAULT now(),
+  "created_by" text,
+  "updated_at" timestamptz DEFAULT now(),
+  "updated_by" text,
+  "version" integer DEFAULT 1,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "mfa_action_authorizations_jti_uq" ON "public"."mfa_action_authorizations" ("jti");
+CREATE INDEX IF NOT EXISTS "mfa_action_authorizations_user_profile_id_idx" ON "public"."mfa_action_authorizations" ("user_profile_id");
+CREATE INDEX IF NOT EXISTS "mfa_action_authorizations_expires_at_idx" ON "public"."mfa_action_authorizations" ("expires_at");
+
+COMMENT ON TABLE public.mfa_action_authorizations IS 'Single-use action authorization tokens for step-up MFA';
+COMMENT ON COLUMN public.mfa_action_authorizations.jti IS 'JWT jti claim — unique identifier of the action authorization token';
+COMMENT ON COLUMN public.mfa_action_authorizations.action IS 'The action being authorized (create, update, delete, restore)';
+COMMENT ON COLUMN public.mfa_action_authorizations.target_resource IS 'The target resource being acted upon (e.g. "organizations", "user_profiles")';
+COMMENT ON COLUMN public.mfa_action_authorizations.token_hash IS 'SHA-256 hash of the JWT token (for lookup, never store the token itself)';
+COMMENT ON COLUMN public.mfa_action_authorizations.expires_at IS 'When the token expires';
+COMMENT ON COLUMN public.mfa_action_authorizations.used_at IS 'When the token was consumed by the middleware. NULL = not yet used';
 
 -- role_mappings table
 CREATE TABLE IF NOT EXISTS "public"."role_mappings" (
@@ -419,14 +480,14 @@ AND NOT EXISTS (
 
 -- Seed initial auth configuration values
 INSERT INTO "public"."auth_configurations" ("key", "value", "description", "created_by") VALUES
-('casdoor_endpoint', 'http://localhost:8000', 'URL base del server Casdoor', 'system'),
+('casdoor_endpoint', 'http://localhost:8000', 'URL base del server Casdoor™', 'system'),
 ('casdoor_organization', 'ACME', 'Nome dell organization di riferimento', 'system'),
 ('casdoor_client_id', 'primebrick-api', 'Client ID della nostra applicazione', 'system'),
 ('casdoor_admin_username', 'admin', 'Username dell utente amministratore standard', 'system'),
 ('casdoor_admin_role', 'administrators', 'Nome del ruolo amministrativo', 'system'),
 ('oidc_issuer_url', 'http://localhost:8000', 'OIDC issuer URL per validazione token', 'system'),
 ('oidc_issuer_type', 'casdoor', 'Tipo di IDP (casdoor, keycloak, auth0)', 'system'),
-('oidc_client_id', '', 'OIDC client ID reale generato da Casdoor', 'system'),
+('oidc_client_id', '', 'OIDC client ID reale generato da Casdoor™', 'system'),
 ('enable_email_verification_check', 'false', 'Abilita il controllo emailVerified sul JWT durante il login (true/false)', 'system'),
 ('enable_formauth', 'true', 'Abilita il login con form username/password (true/false). Almeno uno tra enable_formauth e enable_webauthn deve essere true.', 'system'),
 ('enable_webauthn', 'true', 'Abilita il login passwordless con WebAuthn / passkey (true/false). Almeno uno tra enable_formauth e enable_webauthn deve essere true.', 'system'),
@@ -434,12 +495,15 @@ INSERT INTO "public"."auth_configurations" ("key", "value", "description", "crea
 ('enable_mfa', 'false', 'Abilita MFA / 2FA (login MFA + step-up MFA). Quando false, il login non brancha su MFA e il middleware step-up passa through (true/false).', 'system'),
 ('password_policy', 'letter_number_special', 'Active password complexity policy (alpha_numeric | letter_and_number | letter_number_special | mixed_case_special)', 'system'),
 ('auth_mode', 'STANDALONE', 'Authentication operating mode (STANDALONE | GATEWAY). STANDALONE = API validates JWT via OIDC discovery; GATEWAY = trusted reverse proxy forwards user identity via headers.', 'system'),
-('auth_roles_path', 'roles', 'Dotted path to extract the roles array from a JWT payload (e.g. "roles" for Casdoor/Entra, "realm_access.roles" for Keycloak realm roles).', 'system'),
+('auth_roles_path', 'roles', 'Dotted path to extract the roles array from a JWT payload (e.g. "roles" for Casdoor™/Entra™, "realm_access.roles" for Keycloak™ realm roles).', 'system'),
 ('invitation_expiry_days', '7', 'Invitation token expiry in days', 'system'),
 ('admin_contact_email', '', 'Admin email for unauthorized action alerts and mailto: links. If empty, BE falls back to first user with is_admin=true.', 'system'),
 ('notification_alert_secret', '', 'HMAC secret for unauthorized-action alert links in emails. Auto-generated (32 random bytes hex) on first use if empty.', 'system'),
 ('frontend_url', 'http://localhost:5173', 'Frontend application base URL (used for email links, e.g. welcome page). In production, set to the public HTTPS URL.', 'system'),
-('redis_url', 'redis://redis:6379', 'Redis cache URL. Empty = cache disabled (best-effort, system valid without it). Default: dockerized Redis (Docker network name). Change to external Redis URL if needed.', 'system')
+('redis_url', 'redis://redis:6379', 'Redis cache URL. Empty = cache disabled (best-effort, system valid without it). Default: dockerized Redis (Docker network name). Change to external Redis URL if needed.', 'system'),
+('enable_mfa', 'true', 'Abilita il sistema MFA / 2FA (login MFA + step-up MFA). Se false, il login non richiede mai MFA e il middleware step-up passa attraverso (true/false).', 'system'),
+('mfa_challenge_token_ttl_seconds', '300', 'TTL in secondi per i token di challenge MFA (login, step-up, action authorization). Default 300 = 5 minuti.', 'system'),
+('mfa_challenge_signing_secret', '', 'HMAC secret per firmare i JWT di challenge MFA. Auto-generato (32 random bytes hex) al primo utilizzo se vuoto.', 'system')
 ON CONFLICT ("key") DO NOTHING;
 
 -- === Patch Registry Table ===

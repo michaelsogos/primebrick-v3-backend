@@ -87,7 +87,7 @@ export class UserService {
           "/errors/internal-error",
           "Failed to create user",
           500,
-          "Casdoor user creation did not return a UUID",
+          "Casdoor™ user creation did not return a UUID",
           { internal_code: "USER_CREATE_FAILED", severity: "HIGH" },
         );
       }
@@ -204,9 +204,9 @@ export class UserService {
       if (!syncSuccess) {
         throw new ApiError(
           "/errors/internal-error",
-          "Casdoor sync failed",
+          "Casdoor™ sync failed",
           502,
-          "Failed to sync user to Casdoor",
+          "Failed to sync user to Casdoor™",
           {
             instance: "/api/v1/auth/users/:uuid",
             internal_code: "CASDOOR_SYNC_FAILED",
@@ -343,9 +343,9 @@ export class UserService {
       if (!syncSuccess) {
         throw new ApiError(
           "/errors/internal-error",
-          "Casdoor sync failed",
+          "Casdoor™ sync failed",
           502,
-          "Failed to sync profile to Casdoor",
+          "Failed to sync profile to Casdoor™",
           {
             instance: "/api/v1/entities/user_profiles/:uuid",
             internal_code: "CASDOOR_SYNC_FAILED",
@@ -388,9 +388,9 @@ export class UserService {
     if (!cdClient) {
       throw new ApiError(
         "/errors/internal-error",
-        "Casdoor client unavailable",
+        "Casdoor™ client unavailable",
         502,
-        "Cannot change password: Casdoor is not configured or unreachable",
+        "Cannot change password: Casdoor™ is not configured or unreachable",
         { internal_code: "CASDOOR_UNAVAILABLE", severity: "HIGH" },
       );
     }
@@ -403,9 +403,9 @@ export class UserService {
     if (result.status !== "ok") {
       throw new ApiError(
         "/errors/internal-error",
-        "Casdoor password change failed",
+        "Casdoor™ password change failed",
         502,
-        result.msg || "Casdoor returned an error",
+        result.msg || "Casdoor™ returned an error",
         { internal_code: "CASDOOR_PASSWORD_CHANGE_FAILED", severity: "HIGH" },
       );
     }
@@ -456,9 +456,9 @@ export class UserService {
     if (!cdClient) {
       throw new ApiError(
         "/errors/internal-error",
-        "Casdoor client unavailable",
+        "Casdoor™ client unavailable",
         502,
-        "Cannot change password: Casdoor is not configured or unreachable",
+        "Cannot change password: Casdoor™ is not configured or unreachable",
         { internal_code: "CASDOOR_UNAVAILABLE", severity: "HIGH" },
       );
     }
@@ -488,9 +488,9 @@ export class UserService {
     if (result.status !== "ok") {
       throw new ApiError(
         "/errors/internal-error",
-        "Casdoor password change failed",
+        "Casdoor™ password change failed",
         502,
-        result.msg || "Casdoor returned an error",
+        result.msg || "Casdoor™ returned an error",
         { internal_code: "CASDOOR_PASSWORD_CHANGE_FAILED", severity: "HIGH" },
       );
     }

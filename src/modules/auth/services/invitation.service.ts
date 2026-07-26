@@ -454,9 +454,9 @@ export class InvitationService {
     if (!cdClient) {
       throw new ApiError(
         "/errors/internal-error",
-        "Casdoor client unavailable",
+        "Casdoor™ client unavailable",
         502,
-        "Cannot set password: Casdoor is not configured or unreachable",
+        "Cannot set password: Casdoor™ is not configured or unreachable",
         { internal_code: "CASDOOR_UNAVAILABLE", severity: "HIGH" },
       );
     }
@@ -469,9 +469,9 @@ export class InvitationService {
     if (result.status !== "ok") {
       throw new ApiError(
         "/errors/internal-error",
-        "Casdoor password change failed",
+        "Casdoor™ password change failed",
         502,
-        result.msg || "Casdoor returned an error while setting the password",
+        result.msg || "Casdoor™ returned an error while setting the password",
         { internal_code: "CASDOOR_SET_PASSWORD_FAILED", severity: "HIGH" },
       );
     }

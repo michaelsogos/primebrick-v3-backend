@@ -55,6 +55,31 @@ export interface CasdoorApiClientConfig {
   clientSecret: string;
 }
 
+/**
+ * Casdoor MFA factor state (returned by setPreferred / delete).
+ * camelCase field names are dictated by the Casdoor REST API — external
+ * adapter boundary exception per the BE data-model rule.
+ */
+export interface CasdoorMfaFactor {
+  enabled: boolean;
+  isPreferred: boolean;
+  mfaType: string;
+  mfaRememberInHours?: number;
+}
+
+/**
+ * Result of mfaSetupInitiate — mapped to snake_case for internal use.
+ * The Casdoor API returns `data.url` (not `qr_code_url`); the client maps it.
+ */
+export interface CasdoorMfaInitiateResult {
+  enabled: boolean;
+  is_preferred: boolean;
+  mfa_type: string;
+  secret: string;
+  qr_code_url: string;
+  recovery_codes: string[];
+}
+
 export class CasdoorApiClient {
   private endpoint: string;
   private orgName: string;
@@ -645,5 +670,206 @@ export class CasdoorApiClient {
 
     const data = await response.json();
     return data.status === "ok" || data.success === true;
+  }
+
+  // ─── MFA (TOTP) management ────────────────────────────────────────────────
+  //
+  // Casdoor MFA endpoints are stateless when called with admin credentials
+  // (clientId/clientSecret as query params). The BE acts as an admin proxy:
+  //   - initiate: returns a TOTP secret + QR code URL + recovery codes
+  //   - verify: validates a TOTP code against the secret (no session needed)
+  //   - enable: persists the MFA factor on the Casdoor user (requires passcode)
+  //   - setPreferred: marks the factor as preferred
+  //   - delete: removes the MFA factor from the Casdoor user
+  //
+  // Verified working statelessly with Casdoor v3.118.0 (see spike notes).
+  // camelCase field names (mfaType, passcode, recoveryCodes) are dictated by
+  // the Casdoor REST API — external adapter boundary exception.
+
+  /**
+   * POST /api/mfa/setup/initiate?owner=<org>&name=<username>
+   * Begin TOTP enrollment. Returns the secret, QR code URL, and recovery codes.
+   * The secret must be shown to the user (QR code) and verified before enabling.
+   */
+  async mfaSetupInitiate(
+    owner: string,
+    name: string,
+    mfaType: string = "app",
+  ): Promise<CasdoorMfaInitiateResult> {
+    const url = this.buildUrl(
+      `/api/mfa/setup/initiate?owner=${encodeURIComponent(owner)}&name=${encodeURIComponent(name)}`,
+    );
+    const form = new URLSearchParams();
+    form.append("mfaType", mfaType);
+
+    console.log(`[CasdoorApi] mfaSetupInitiate: owner=${owner}, name=${name}`);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    console.log(`[CasdoorApi] mfaSetupInitiate response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[CasdoorApi] mfaSetupInitiate failed: ${response.status} ${text}`);
+      throw new Error(`Casdoor mfaSetupInitiate failed: ${response.status} ${text}`);
+    }
+
+    const data = await response.json();
+    if (data.status === "error") {
+      throw new Error(`Casdoor mfaSetupInitiate error: ${data.msg}`);
+    }
+    // Casdoor returns data.data with camelCase-ish fields; map to snake_case
+    const d = data.data;
+    return {
+      enabled: d.enabled,
+      is_preferred: d.isPreferred,
+      mfa_type: d.mfaType,
+      secret: d.secret,
+      qr_code_url: d.url, // Casdoor uses "url", not "qr_code_url"
+      recovery_codes: d.recoveryCodes || [],
+    };
+  }
+
+  /**
+   * POST /api/mfa/setup/verify
+   * Validate a TOTP code against the secret. Stateless — no owner/name needed.
+   * Returns true if the code is valid.
+   */
+  async mfaSetupVerify(
+    mfaType: string,
+    secret: string,
+    passcode: string,
+  ): Promise<boolean> {
+    const url = this.buildUrl(`/api/mfa/setup/verify`);
+    const form = new URLSearchParams();
+    form.append("mfaType", mfaType);
+    form.append("secret", secret);
+    form.append("passcode", passcode);
+
+    console.log(`[CasdoorApi] mfaSetupVerify: mfaType=${mfaType}`);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    console.log(`[CasdoorApi] mfaSetupVerify response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[CasdoorApi] mfaSetupVerify failed: ${response.status} ${text}`);
+      return false;
+    }
+
+    const data = await response.json();
+    return data.status === "ok";
+  }
+
+  /**
+   * POST /api/mfa/setup/enable?owner=<org>&name=<username>
+   * Persist the MFA factor on the Casdoor user. Requires a fresh TOTP passcode
+   * (not just the secret + recovery codes). The passcode must be generated from
+   * the secret at the current time step.
+   */
+  async mfaSetupEnable(
+    owner: string,
+    name: string,
+    mfaType: string,
+    secret: string,
+    passcode: string,
+    recoveryCode: string,
+  ): Promise<boolean> {
+    const url = this.buildUrl(
+      `/api/mfa/setup/enable?owner=${encodeURIComponent(owner)}&name=${encodeURIComponent(name)}`,
+    );
+    const form = new URLSearchParams();
+    form.append("mfaType", mfaType);
+    form.append("secret", secret);
+    form.append("passcode", passcode);
+    form.append("recoveryCodes", recoveryCode);
+
+    console.log(`[CasdoorApi] mfaSetupEnable: owner=${owner}, name=${name}`);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    console.log(`[CasdoorApi] mfaSetupEnable response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[CasdoorApi] mfaSetupEnable failed: ${response.status} ${text}`);
+      return false;
+    }
+
+    const data = await response.json();
+    return data.status === "ok";
+  }
+
+  /**
+   * POST /api/set-preferred-mfa?owner=<org>&name=<username>
+   * Mark an MFA factor as preferred (shown first in challenge UI).
+   */
+  async setPreferredMfa(
+    owner: string,
+    name: string,
+    mfaType: string,
+  ): Promise<boolean> {
+    const url = this.buildUrl(
+      `/api/set-preferred-mfa?owner=${encodeURIComponent(owner)}&name=${encodeURIComponent(name)}`,
+    );
+    const form = new URLSearchParams();
+    form.append("mfaType", mfaType);
+
+    console.log(`[CasdoorApi] setPreferredMfa: owner=${owner}, name=${name}, mfaType=${mfaType}`);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    console.log(`[CasdoorApi] setPreferredMfa response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[CasdoorApi] setPreferredMfa failed: ${response.status} ${text}`);
+      return false;
+    }
+
+    const data = await response.json();
+    return data.status === "ok";
+  }
+
+  /**
+   * POST /api/delete-mfa?owner=<org>&name=<username>
+   * Remove an MFA factor from the Casdoor user.
+   */
+  async deleteMfa(
+    owner: string,
+    name: string,
+    mfaType: string,
+  ): Promise<boolean> {
+    const url = this.buildUrl(
+      `/api/delete-mfa?owner=${encodeURIComponent(owner)}&name=${encodeURIComponent(name)}`,
+    );
+    const form = new URLSearchParams();
+    form.append("mfaType", mfaType);
+
+    console.log(`[CasdoorApi] deleteMfa: owner=${owner}, name=${name}, mfaType=${mfaType}`);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    console.log(`[CasdoorApi] deleteMfa response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[CasdoorApi] deleteMfa failed: ${response.status} ${text}`);
+      return false;
+    }
+
+    const data = await response.json();
+    return data.status === "ok";
   }
 }

@@ -340,7 +340,7 @@ export class WebauthnService {
         "/errors/webauthn-no-code",
         "WebAuthn signin succeeded but no authorization code was returned",
         502,
-        "Casdoor did not return an authorization code after WebAuthn signin",
+        "Casdoor™ did not return an authorization code after WebAuthn signin",
         {
           internal_code: "webauthn_no_code",
           severity: "HIGH",
@@ -566,7 +566,7 @@ export class WebauthnService {
         "/errors/webauthn-enrollment-failed",
         "Passkey enrollment failed",
         400,
-        data.msg || "Casdoor rejected the passkey attestation",
+        data.msg || "Casdoor™ rejected the passkey attestation",
         {
           internal_code: "webauthn_ceremony_failed",
           severity: "HIGH",
@@ -667,9 +667,9 @@ export class WebauthnService {
     if (!cdClient) {
       throw new ApiError(
         "/errors/webauthn-not-configured",
-        "Casdoor is not configured",
+        "Casdoor™ is not configured",
         503,
-        "Casdoor admin client is not configured; cannot list passkeys",
+        "Casdoor™ admin client is not configured; cannot list passkeys",
         { internal_code: "webauthn_not_configured", severity: "HIGH" },
       );
     }
@@ -677,7 +677,7 @@ export class WebauthnService {
     const casdoorUserId = idpCode || `${idpOrg}/${idpUsername}`;
     const user = await cdClient.getUser(casdoorUserId, idpOrg, idpUsername);
     if (!user) {
-      throw new NotFoundError("Casdoor user not found", {
+      throw new NotFoundError("Casdoor™ user not found", {
         internal_code: "CASDOOR_USER_NOT_FOUND",
       });
     }
@@ -783,9 +783,9 @@ export class WebauthnService {
     if (!cdClient) {
       throw new ApiError(
         "/errors/webauthn-not-configured",
-        "Casdoor is not configured",
+        "Casdoor™ is not configured",
         503,
-        "Casdoor admin client is not configured; cannot sync passkeys",
+        "Casdoor™ admin client is not configured; cannot sync passkeys",
         { internal_code: "webauthn_not_configured", severity: "HIGH" },
       );
     }
@@ -793,7 +793,7 @@ export class WebauthnService {
     const casdoorUserId = idpCode || `${idpOrg}/${idpUsername}`;
     const user = await cdClient.getUser(casdoorUserId, idpOrg, idpUsername);
     if (!user) {
-      throw new NotFoundError("Casdoor user not found", {
+      throw new NotFoundError("Casdoor™ user not found", {
         internal_code: "CASDOOR_USER_NOT_FOUND",
       });
     }
@@ -921,9 +921,9 @@ export class WebauthnService {
     if (!cdClient) {
       throw new ApiError(
         "/errors/webauthn-not-configured",
-        "Casdoor is not configured",
+        "Casdoor™ is not configured",
         503,
-        "Casdoor admin client is not configured; cannot delete passkey",
+        "Casdoor™ admin client is not configured; cannot delete passkey",
         { internal_code: "webauthn_not_configured", severity: "HIGH" },
       );
     }
@@ -931,7 +931,7 @@ export class WebauthnService {
     const casdoorUserId = idpCode || `${idpOrg}/${idpUsername}`;
     const user = await cdClient.getUser(casdoorUserId, idpOrg, idpUsername);
     if (!user) {
-      throw new NotFoundError("Casdoor user not found", {
+      throw new NotFoundError("Casdoor™ user not found", {
         internal_code: "CASDOOR_USER_NOT_FOUND",
       });
     }
@@ -963,7 +963,7 @@ export class WebauthnService {
         "/errors/webauthn-delete-failed",
         "Failed to delete passkey",
         502,
-        "Casdoor API returned non-success status when updating user credentials",
+        "Casdoor™ API returned non-success status when updating user credentials",
         { internal_code: "webauthn_delete_failed", severity: "HIGH" },
       );
     }
@@ -1024,9 +1024,9 @@ export class WebauthnService {
     if (!cfg.casdoor_endpoint || !cfg.casdoor_organization) {
       throw new ApiError(
         "/errors/webauthn-not-configured",
-        "Casdoor is not configured",
+        "Casdoor™ is not configured",
         503,
-        "Casdoor endpoint or organization is missing in auth config",
+        "Casdoor™ endpoint or organization is missing in auth config",
         { internal_code: "webauthn_not_configured", severity: "HIGH" },
       );
     }

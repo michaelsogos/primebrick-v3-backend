@@ -28,8 +28,12 @@ export interface AuthConfigDb {
   enable_webauthn: boolean; // parsed from "true"/"false"
   enable_formauth: boolean; // parsed from "true"/"false"
   passkey_required: boolean; // parsed from "true"/"false"
-  enable_mfa: boolean; // parsed from "true"/"false"
   password_policy?: string;
+
+  // --- MFA / 2FA config ---
+  enable_mfa: boolean; // parsed from "true"/"false"
+  mfa_challenge_token_ttl_seconds: number; // parsed from string → number
+  mfa_challenge_signing_secret?: string; // auto-generated if empty
 
   // --- Auth mode + roles path ---
   auth_mode: AuthMode; // validated + normalized to uppercase
@@ -147,6 +151,9 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
   const enableFormauth = settings.enable_formauth === "true";
   const passkeyRequired = settings.passkey_required === "true";
   const enableMfa = settings.enable_mfa === "true";
+  const mfaTtl = settings.mfa_challenge_token_ttl_seconds
+    ? parseInt(settings.mfa_challenge_token_ttl_seconds, 10)
+    : 300;
 
   // At least one authentication method MUST be enabled — otherwise no user
   // can ever log in. This is a fatal configuration error, not a transient
@@ -165,6 +172,8 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
     enable_formauth: enableFormauth,
     passkey_required: passkeyRequired,
     enable_mfa: enableMfa,
+    mfa_challenge_token_ttl_seconds: mfaTtl,
+    mfa_challenge_signing_secret: settings.mfa_challenge_signing_secret ?? undefined,
     auth_mode: mode, // normalized to uppercase, already validated above
   } as AuthConfigDb;
 }

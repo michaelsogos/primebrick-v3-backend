@@ -35,10 +35,10 @@ a version tag. There is no CI pipeline that auto-deploys on push.
 | **primebrick-v3-backend** (this repo) | No auto-deploy CI | GitFlow: create release branch → close → merge to `main` + tag |
 | **primebrick-v3-frontend** (FE) | No auto-deploy CI | GitFlow: create release branch → close → merge to `main` + tag |
 | **primebrick-v3-microservices** (US) | No auto-deploy CI | GitFlow: create release branch → close → merge to `main` + tag |
-| **primebrick-v3-sdk** (SDK) | GitHub Actions | GitFlow: create release → close → merge to `main` + tag → CI publishes to npm |
-| **primebrick-v3-dal** (DAL) | GitHub Actions | GitFlow: create release → close → merge to `main` + tag → CI publishes to npm |
-| **primebrick-v3-docs** | Cloudflare Worker CI | Push to `main` — auto-deploys |
-| **primebrick-v3-website** | Cloudflare Worker CI | Push to `main` — auto-deploys |
+| **primebrick-v3-sdk** (SDK) | GitHub™ Actions | GitFlow: create release → close → merge to `main` + tag → CI publishes to npm |
+| **primebrick-v3-dal** (DAL) | GitHub™ Actions | GitFlow: create release → close → merge to `main` + tag → CI publishes to npm |
+| **primebrick-v3-docs** | Cloudflare® Worker CI | Push to `main` — auto-deploys |
+| **primebrick-v3-website** | Cloudflare® Worker CI | Push to `main` — auto-deploys |
 
 ## Commands
 
@@ -51,7 +51,7 @@ a version tag. There is no CI pipeline that auto-deploys on push.
 | Apply DB patches (migrations registry) | `pnpm run db:migrate` |
 | Seed demo customers | `pnpm run db:seed:customers` |
 
-### Postgres (Docker)
+### Postgres (Docker®)
 
 - Up: `docker compose -f infra/docker-compose.postgres.yml up -d`
 - Down: `docker compose -f infra/docker-compose.postgres.yml down`
@@ -158,9 +158,9 @@ Examples:
 - `customers.read.*` matches all customer read permissions
 - `*` matches everything (equivalent to admin)
 
-### Role Mappings (Casdoor Integration)
+### Role Mappings (Casdoor™ Integration)
 
-The system is integrated with Casdoor IDP. Role names must match Casdoor roles (snake_case):
+The system is integrated with Casdoor™ IDP. Role names must match Casdoor™ roles (snake_case):
 
 - `administrators` - Admin role (`is_admin=true`, bypasses all checks)
 - `collaborator` - Full access to customers (`permissions: ["customers.*"]`)

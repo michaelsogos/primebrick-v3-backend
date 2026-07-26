@@ -339,6 +339,8 @@ async function main(): Promise<void> {
     await updateAuthConfig(pbPool, "enable_formauth", "true", "setup-casdoor");
     await updateAuthConfig(pbPool, "enable_webauthn", "true", "setup-casdoor");
     await updateAuthConfig(pbPool, "passkey_required", "true", "setup-casdoor");
+    await updateAuthConfig(pbPool, "enable_mfa", "true", "setup-casdoor");
+    await updateAuthConfig(pbPool, "mfa_challenge_token_ttl_seconds", "300", "setup-casdoor");
     console.log("  ↳ ✅ Chiavi consolidate sul database Primebrick.");
 
     // Create user profile in Primebrick DB

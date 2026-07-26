@@ -161,3 +161,43 @@ export const WebauthnSignupFinishSchema = z.object({
   platform_version: z.string().optional(),
 });
 export type WebauthnSignupFinishBody = z.infer<typeof WebauthnSignupFinishSchema>;
+
+// --- MFA (TOTP enrollment + management) -----------------------------------
+
+export const MfaEnrollFinishSchema = z.object({
+  /** Enrollment token from enrollBegin (single-use, 5-minute TTL). */
+  enrollment_token: z.string().min(1),
+  /** 6-digit TOTP code from the user's authenticator app. */
+  passcode: z.string().regex(/^\d{6}$/, "passcode must be 6 digits"),
+  /** Optional user-given label (e.g. "Google Authenticator"). */
+  label: z.string().max(100).optional(),
+});
+export type MfaEnrollFinishBody = z.infer<typeof MfaEnrollFinishSchema>;
+
+export const MfaLoginVerifySchema = z.object({
+  /** MFA challenge token from the login response (mfa_required branch). */
+  mfa_challenge_token: z.string().min(1),
+  /** UUID of the factor to use (from available_factors in the login response). */
+  factor_id: z.string().min(1),
+  /** 6-digit TOTP code from the user's authenticator app. */
+  code: z.string().regex(/^\d{6}$/, "code must be 6 digits"),
+});
+export type MfaLoginVerifyBody = z.infer<typeof MfaLoginVerifySchema>;
+
+export const MfaStepUpInitiateSchema = z.object({
+  /** The action being authorized (e.g. "delete", "change_password"). */
+  action: z.string().min(1).max(50),
+  /** The target resource being acted upon (e.g. "organizations", "user_profiles"). */
+  target_resource: z.string().min(1).max(100),
+});
+export type MfaStepUpInitiateBody = z.infer<typeof MfaStepUpInitiateSchema>;
+
+export const MfaStepUpVerifySchema = z.object({
+  /** Step-up challenge token from the initiate response. */
+  mfa_challenge_token: z.string().min(1),
+  /** UUID of the factor to use. */
+  factor_id: z.string().min(1),
+  /** 6-digit TOTP code from the user's authenticator app. */
+  code: z.string().regex(/^\d{6}$/, "code must be 6 digits"),
+});
+export type MfaStepUpVerifyBody = z.infer<typeof MfaStepUpVerifySchema>;

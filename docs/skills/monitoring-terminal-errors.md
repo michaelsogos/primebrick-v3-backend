@@ -19,12 +19,12 @@ Look for terminals running dev servers (`npm run dev`, `pnpm dev`, `python manag
 Read the full terminal file content. Search for error patterns:
 
 - **Stack traces**: `at (::)`
-- **Node.js**: `Error:`, `TypeError:`, `ReferenceError:`, `ENOENT`, `ECONNREFUSED`
+- **Node.js®**: `Error:`, `TypeError:`, `ReferenceError:`, `ENOENT`, `ECONNREFUSED`
 - **Python**: `Traceback (most recent call last):` followed by `File " ", line `
 - **React/Next.js**: `Unhandled Runtime Error`, `Error: ...`, `Module not found`
 - **Build errors**: `ERROR in`, `Failed to compile`, `SyntaxError`
 - **Vite**: `[vite] Internal server error:`
-- **TypeScript**: `error TS\\d+:`
+- **TypeScript®**: `error TS\\d+:`
 
 ### 3. Extract the Source Location
 
@@ -33,7 +33,7 @@ From the stack trace, extract:
 - Line number
 - Error message
 
-For Node.js: `at functionName (/path/to/file.ts:42:10)`
+For Node.js®: `at functionName (/path/to/file.ts:42:10)`
 For Python: `File "/path/to/file.py", line 42, in function_name`
 
 ### 4. Navigate and Fix

@@ -114,7 +114,7 @@ export class UserProfileEntity implements IAuditableEntity {
   @DeletableField(DeletableFieldType.DELETED_BY)
   deleted_by?: string;
 
-  /** Whether the user dismissed the auth method enforcer prompt (passkey/MFA). */
+  /** Whether the user dismissed the auth method enforcer dialog (passkey/MFA prompt). */
   @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
   auth_method_enforcer_dismissed: boolean;
 
