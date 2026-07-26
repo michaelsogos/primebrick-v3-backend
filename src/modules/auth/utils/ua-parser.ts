@@ -8,6 +8,19 @@
  *
  * Covers the common cases: Windows, macOS, iOS, Android, Linux, ChromeOS.
  * Returns `{ os: undefined, device_model: undefined }` for unrecognized UAs.
+ *
+ * Windows version detection (10 vs 11):
+ *   `navigator.userAgent` reports "Windows NT 10.0" on BOTH Windows 10 and
+ *   Windows 11, so the UA alone cannot distinguish them. Chromium-based
+ *   browsers (Chrome, Edge) expose `navigator.userAgentData.getHighEntropyValues
+ *   (["platformVersion"])` which returns a version string where:
+ *     - `0.x.x`        = Windows 7/8/8.1
+ *     - `1.x.x`–`10.x.x` = Windows 10
+ *     - `13.x.x`+      = Windows 11
+ *   The FE captures this and sends it as `platform_version` in the signup
+ *   body. We use it to refine `os` ("Windows 11" / "Windows 10" / "Windows").
+ *   When `platform_version` is missing (Firefox, Safari, or older browsers),
+ *   we fall back to the generic "Windows".
  */
 
 export interface UaParseResult {
@@ -19,8 +32,16 @@ export interface UaParseResult {
  * Parse a User-Agent string into `{ os, device_model }`.
  * Both fields are `undefined` when the UA doesn't match a known pattern.
  * `userAgent` is truncated to 512 chars by the caller before storage.
+ *
+ * `platformVersion` is the optional User-Agent Client Hints value
+ * (`navigator.userAgentData.getHighEntropyValues(["platformVersion"])`)
+ * that lets us distinguish Windows 10 from Windows 11. Ignored for non-
+ * Windows OSes.
  */
-export function parseUserAgent(userAgent: string): UaParseResult {
+export function parseUserAgent(
+  userAgent: string,
+  platformVersion?: string,
+): UaParseResult {
   const ua = userAgent.trim();
   if (ua.length === 0) return {};
 
@@ -54,9 +75,14 @@ export function parseUserAgent(userAgent: string): UaParseResult {
     return { os: "ChromeOS", device_model: "Chromebook" };
   }
 
-  // Windows
+  // Windows — distinguish 10 vs 11 via Client Hints platformVersion when
+  // available. The UA string alone reports "Windows NT 10.0" on both.
   if (/Windows/i.test(ua)) {
-    return { os: "Windows", device_model: "Windows PC" };
+    const winVersion = windowsVersionFromPlatformVersion(platformVersion);
+    return {
+      os: winVersion ?? "Windows",
+      device_model: "Windows PC",
+    };
   }
 
   // macOS — must come after iOS checks. iPadOS 13+ may report "Macintosh"
@@ -72,6 +98,29 @@ export function parseUserAgent(userAgent: string): UaParseResult {
 
   // Unknown — return undefined for both, per data-model-conventions rule.
   return {};
+}
+
+/**
+ * Map a User-Agent Client Hints `platformVersion` string to a Windows
+ * version label. Returns `undefined` when the version is missing or does
+ * not map to a known Windows version (caller falls back to "Windows").
+ *
+ * Source: Microsoft's specification for User-Agent Client Hints on Windows.
+ *   - "0.x.x"        → Windows 7/8/8.1 (we label as "Windows" — too old to
+ *                     bother distinguishing, and Win 7/8 are EOL)
+ *   - "1.x.x"–"10.x.x" → Windows 10
+ *   - "13.x.x"+      → Windows 11
+ *   - "11.x.x"/"12.x.x" are skipped by Microsoft (jump from 10 → 13)
+ */
+function windowsVersionFromPlatformVersion(
+  platformVersion?: string,
+): string | undefined {
+  if (!platformVersion) return undefined;
+  const major = parseInt(platformVersion.split(".")[0], 10);
+  if (Number.isNaN(major)) return undefined;
+  if (major >= 13) return "Windows 11";
+  if (major >= 1 && major <= 10) return "Windows 10";
+  return undefined; // 0.x.x or unknown — fall back to generic "Windows"
 }
 
 /**
