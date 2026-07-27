@@ -184,6 +184,12 @@ function renderFilterExpr(w: ParamWriter, f: FilterExpr): string {
       if (f.op === "ILIKE" || f.op === "LIKE") {
         return `${left} ${f.op} ${w.add(f.right)} ESCAPE '#'`;
       }
+      // @> (jsonb contains): value is a JSON array, cast to jsonb.
+      // Used for roles @> ["administrators"] style queries on jsonb columns.
+      if (f.op === "@>") {
+        const jsonValue = typeof f.right === "string" ? f.right : JSON.stringify(f.right);
+        return `${left} @> ${w.add(jsonValue)}::jsonb`;
+      }
       // For != and <> operators, include NULL values (NULL is considered "different from" any specific value)
       if (f.op === "!=" || f.op === "<>") {
         return `(${left} IS NULL OR ${left} ${f.op} ${w.add(f.right)})`;

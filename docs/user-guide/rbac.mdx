@@ -1,0 +1,313 @@
+---
+title: RBAC
+description: "Wildcard-based RBAC permission system with role mappings and admin bypass."
+---
+
+# RBAC Permission System
+
+The backend uses a wildcard-based RBAC (Role-Based Access Control) system
+with pattern matching. Permissions are defined in code and mapped to
+Casdoor roles via the `role_mappings` table.
+
+## Permission format
+
+Permissions follow the pattern: `module.action.granularity`
+
+| Permission | Description |
+|-----------|-------------|
+| `customers.read.all` | List all customers |
+| `customers.read.single` | Read a single customer |
+| `customers.read.audit` | Read customer audit trail |
+| `customers.create.single` | Create a single customer |
+| `customers.create.bulk` | Bulk create customers |
+| `customers.update.single` | Update a single customer |
+| `customers.update.bulk` | Bulk update customers |
+| `customers.delete.single` | Delete a single customer |
+| `customers.delete.bulk` | Bulk delete customers |
+| `customers.restore.single` | Restore a soft-deleted customer |
+| `customers.restore.bulk` | Bulk restore customers |
+| `customers.duplicate.bulk` | Bulk duplicate customers |
+| `customers.export` | Export customers |
+| `modules.read.all` | List all registered modules |
+
+## Wildcard support
+
+Wildcards use `*` to match any segment:
+
+| Pattern | Matches |
+|---------|---------|
+| `customers.*` | All customer permissions |
+| `customers.read.*` | All customer read permissions |
+| `*` | Everything (equivalent to admin) |
+
+The wildcard matching converts the pattern to a regex at runtime
+(`matchesWildcard(pattern, permission)` in `permissions.ts`).
+
+## Role mappings
+
+Role mappings link Casdoor roles to Primebrick permissions. They are
+stored in the `role_mappings` table:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `idp_role` | `text` | Casdoor role name (snake_case) |
+| `permissions` | `text[]` | Array of permission patterns |
+| `is_admin` | `boolean` | If true, bypasses all permission checks |
+
+### Default roles
+
+| Role | Permissions | Admin |
+|------|------------|-------|
+| `administrators` | (bypass) | `true` |
+| `collaborator` | `["customers.*"]` | `false` |
+| `guest` | `["customers.read.*"]` | `false` |
+
+## Implementation
+
+The `Permission` registry, wildcard matching, role expansion, and RBAC
+evaluation all live in `@primebrick/sdk` (the single source of truth shared by
+the BE and microservices). The BE's `rbac.middleware.ts` is a thin Express
+wrapper that calls the SDK's `checkRbac()`.
+
+**Key files (SDK — source of truth):**
+
+| File | Purpose |
+|------|---------|
+| `@primebrick/sdk` → `auth/permissions.ts` | `Permission` registry, `matchesWildcard`, `isPermissionGranted`, `expandPermissions` |
+| `@primebrick/sdk` → `auth/rbac.ts` | `checkRbac(user, requiredPerms, mode)` — framework-agnostic evaluation |
+| `@primebrick/sdk` → `auth/types.ts` | `AuthUser` type with `isAdmin` / `isSystem` / `permissions` |
+
+**Key files (BE — Express integration):**
+
+| File | Purpose |
+|------|---------|
+| `src/modules/auth/rbac.middleware.ts` | `rbacHandler(...)` / `rbacHandler.all(...)` factory + gateway-secret + auth delegation |
+| `src/modules/auth/auth.middleware.ts` | `authMiddleware()` — populates `req.user` via SDK `verifyAuth()` |
+| `src/modules/auth/sdk-auth-ports.ts` | `BeUserResolverPort` / `BeRoleMappingPort` — DB-backed ports for the SDK |
+| `src/modules/auth/role-mapping-repo.ts` | Role mapping repository (reads `role_mappings` table) |
+| `src/http/protected-router.ts` | `makeProtectedRouter()` — secure-first factory, default-deny on missing declaration |
+
+**Key functions:**
+
+- `checkRbac(user, requiredPermissions, mode)` — returns `{ allowed: boolean, missing?: string[] }`
+- `expandPermissions(roles, getRoleMappingFn)` — returns `{ patterns, isAdmin }`
+- `isPermissionGranted(userPermissions, requiredPermission)` — exact match or wildcard
+- `matchesWildcard(pattern, permission)` — converts `*` to regex (`customers.read.*` → `/^customers\.read\..*$/`)
+- `isPermissionSentinel(p)` — `true` for `PUBLIC` / `AUTHENTICATED_USER` / `AUTHENTICATED_ADMIN`
+- `listNonSentinelPermissions()` — all real permissions (used by the FE role-management UI)
+
+## The `rbacHandler(...)` declaration
+
+Every protected route MUST attach a handler produced by `rbacHandler(...)` as
+the **first** handler in the chain. The handler:
+
+1. In GATEWAY mode, validates the gateway-secret header (PUBLIC routes use the
+   public secret; authenticated routes use the regular secret).
+2. For non-PUBLIC declarations, delegates to `authMiddleware()` to populate
+   `req.user` and the AsyncLocalStorage session.
+3. Evaluates `checkRbac(req.user, declaredPerms, mode)` — OR (any-of) by
+   default, AND (all-of) via `rbacHandler.all([...])`.
+
+The handler is tagged with a `PERMISSION_DECLARED` symbol so
+`makeProtectedRouter()` can detect routes that forgot the declaration and
+inject a 403 default-deny (see
+[Architecture: secure-first policy](./architecture#makeprotectedrouter--secure-first-router-factory)).
+
+### OR semantics (default) — any-of
+
+The user passes if they hold **at least one** of the declared permissions. This
+is the common case for read endpoints that accept either a list-all or a
+read-single permission.
+
+```typescript
+import { rbacHandler } from "../auth/rbac.middleware.js";
+import { Permission } from "@primebrick/sdk";
+
+// The user passes with EITHER customers.read.all OR customers.read.single.
+registerRoutes(router, [
+  {
+    method: "get",
+    path: "/api/v1/entities/customer/meta",
+    permission: rbacHandler([Permission.CUSTOMERS_READ_ALL, Permission.CUSTOMERS_READ_SINGLE]),
+    handler: getMeta,
+  },
+]);
+```
+
+### AND semantics — all-of
+
+Use `rbacHandler.all([...])` when the user must hold **every** declared
+permission. Useful for high-risk operations that combine two concerns (e.g.
+"can delete AND can export").
+
+```typescript
+// The user must hold BOTH customers.delete.bulk AND customers.export.
+registerRoutes(router, [
+  {
+    method: "post",
+    path: "/api/v1/entities/customer/bulk-delete-and-export",
+    permission: rbacHandler.all([
+      Permission.CUSTOMERS_DELETE_BULK,
+      Permission.CUSTOMERS_EXPORT,
+    ]),
+    handler: bulkDeleteAndExport,
+  },
+]);
+```
+
+### Sentinels — `PUBLIC`, `AUTHENTICATED_USER`, `AUTHENTICATED_ADMIN`
+
+Three pseudo-permissions are handled directly by the middleware (they are NOT
+stored in `role_mappings`). They must appear **alone** in the permission array
+— combining a sentinel with CRUD perms throws at route-registration time.
+
+```typescript
+// Public — reachable without a JWT. STILL requires gateway-secret in GATEWAY mode.
+rbacHandler([Permission.PUBLIC])
+
+// Any authenticated caller passes, regardless of roles.
+rbacHandler([Permission.AUTHENTICATED_USER])
+
+// Only callers with isAdmin === true pass. Use for high-risk non-CRUD admin-only
+// operations (e.g. admin change-password). System API keys (isSystem === true)
+// also bypass.
+rbacHandler([Permission.AUTHENTICATED_ADMIN])
+```
+
+### Bypass rules
+
+The SDK's `checkRbac()` applies these bypasses in order, before pattern matching:
+
+1. `Permission.PUBLIC` → always allowed.
+2. `Permission.AUTHENTICATED_USER` → allowed if user is authenticated.
+3. `user.isAdmin === true` → bypasses all checks (admin role).
+4. `user.isSystem === true` → bypasses all checks (system API key; actor = `"system"`).
+5. `Permission.AUTHENTICATED_ADMIN` → allowed only for admins (after the bypasses above).
+
+## 403 response shape
+
+When `checkRbac()` returns `{ allowed: false }`, the middleware throws a
+`ForbiddenError` (or `UnauthorizedError` for the admin-only sentinel) with the
+missing permissions in `extra.issues`. The frontend reads `extra.issues` to
+show a precise "you need X" message.
+
+```json
+{
+  "type": "/errors/forbidden",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "Insufficient permissions to perform this action",
+  "instance": "/api/v1/entities/customer/list",
+  "internal_code": "RBAC_PERMISSION_DENIED",
+  "severity": "MEDIUM",
+  "extra": {
+    "issues": [{
+      "kind": "missing_any_of_permissions",
+      "required": ["customers.read.all"],
+      "missing": ["customers.read.all"],
+      "mode": "any",
+      "user_roles": ["guest"]
+    }]
+  }
+}
+```
+
+For `rbacHandler.all([...])`, `kind` is `"missing_permissions"` and `missing`
+lists the specific perms the user doesn't hold. For `AUTHENTICATED_ADMIN`, the
+middleware throws `UnauthorizedError` with `internal_code: "RBAC_ADMIN_ONLY"`
+and `extra.issues[0].kind === "missing_admin"`.
+
+## Adding a new permission
+
+### 1. Add the constant to the `Permission` registry
+
+The `Permission` object in `@primebrick/sdk` → `src/auth/permissions.ts` is the
+single source of truth. Add a new entry following the `module.action.granularity`
+convention.
+
+```typescript
+// @primebrick/sdk → src/auth/permissions.ts
+export const Permission = {
+  // ...existing entries...
+  CUSTOMERS_IMPORT: "customers.import",          // new!
+  CUSTOMERS_IMPORT_BULK: "customers.import.bulk", // new!
+} as const;
+```
+
+### 2. Declare it on the route
+
+```typescript
+// src/modules/customers/router.ts
+import { Permission } from "@primebrick/sdk";
+
+registerRoutes(router, [
+  {
+    method: "post",
+    path: "/api/v1/entities/customer/import",
+    permission: rbacHandler([Permission.CUSTOMERS_IMPORT]),
+    middlewares: [validateBody(CustomerImportBodySchema)],
+    handler: importCustomers,
+  },
+]);
+```
+
+### 3. Grant it via a role mapping (SQL)
+
+Insert a row into `role_mappings` (or update an existing one) to grant the new
+permission to a role. Wildcards work — `customers.*` already covers
+`customers.import` and `customers.import.bulk`.
+
+```sql
+-- Grant the new permission to the "collaborator" role.
+UPDATE role_mappings
+SET permissions = array_append(permissions, 'customers.import')
+WHERE idp_role = 'collaborator';
+
+-- Or grant both new permissions at once:
+UPDATE role_mappings
+SET permissions = permissions || ARRAY['customers.import', 'customers.import.bulk']
+WHERE idp_role = 'collaborator';
+```
+
+### 4. Reload the role mapping cache
+
+Role mappings are loaded into memory at startup. After a DB update, restart the
+backend so `loadRoleMappings()` re-reads the table:
+
+```bash
+# In dev: tsx watch picks up the change automatically on the next restart.
+# In prod: restart the primebrick-api process.
+pnpm run dev
+```
+
+There is no need to update `listNonSentinelPermissions()` — it iterates
+`Object.values(Permission)` at runtime, so the FE role-management UI picks up
+the new permission automatically on the next permissions-catalog fetch.
+
+## Testing RBAC changes
+
+After updating role mappings in the database, restart the backend server to
+reload the role mapping cache. In dev, `tsx watch` restarts on file changes but
+NOT on DB changes — restart it manually after a `UPDATE role_mappings`.
+
+A quick sanity check with curl:
+
+```bash
+# Login as the user whose role you updated
+curl -X POST http://localhost:3001/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"<user>","password":"<password>"}' -c cookies.txt
+
+# Call the endpoint that requires the new permission
+curl http://localhost:3001/api/v1/entities/customer/import \
+  -X POST -H "Content-Type: application/json" \
+  -d '{"rows":[]}' -b cookies.txt -i
+# 200 → permission granted. 403 RBAC_PERMISSION_DENIED → role mapping not applied.
+```
+
+## Next steps
+
+- [Authentication](./authentication) — the auth middleware that populates `req.user` before RBAC runs.
+- [Architecture](./architecture) — the secure-first `makeProtectedRouter()` and the request-flow diagram.
+- [Collaboration](./collaboration) — how the actor context feeds audit fields.
+- [SDK API reference](/sdk/guide/api-reference) — `checkRbac`, `expandPermissions`, `Permission` registry.

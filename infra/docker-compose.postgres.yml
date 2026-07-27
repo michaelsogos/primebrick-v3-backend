@@ -28,7 +28,12 @@
 
 services:
   postgres:
-    image: postgres:18-bookworm
+    # Custom image: pgvector/pgvector:0.8.5-pg18-bookworm + pg_partman compiled from source.
+    # See infra/postgres-custom/Dockerfile for build details.
+    # Volume compatible with the previous postgres:18-bookworm image (same base, same layout).
+    build:
+      context: ./postgres-custom
+      dockerfile: Dockerfile
     container_name: primebrick-postgres-18
     environment:
       POSTGRES_USER: primebrick
@@ -42,15 +47,13 @@ services:
       # PG 18+ requires this path so data lives in a versioned subdir (see postgres Docker README).
       - primebrick_pg18_data:/var/lib/postgresql
 
-    # --- TRUCCO DI BOOTSTRAP PER INSTALARE ED AVVIARE PG_PARTMAN ---
-    entrypoint: >
-      bash -c "
-      echo '=== Aggiornamento e Installazione pg_partman ===' &&
-      apt-get update && apt-get install -y postgresql-18-partman &&
-      echo '=== Avvio di PostgreSQL con le librerie condivise ===' &&
-      exec docker-entrypoint.sh postgres -c shared_preload_libraries=pg_partman_bgw
-      "
-            
+    # pg_partman_bgw must be preloaded at startup. pgvector does not require
+    # preloading (it's a normal extension). Extensions are activated per-DB
+    # via CREATE EXTENSION in the init patch.
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_partman_bgw
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U primebrick -d primebrick"]
       interval: 5s
@@ -60,7 +63,7 @@ services:
       - primebrick-infra-net
 
   casdoor:
-    image: casbin/casdoor:3.75.0
+    image: casbin/casdoor:3.118.0
     container_name: primebrick-casdoor
     environment:
       driverName: postgres
@@ -68,12 +71,22 @@ services:
       dataSourceName: "user=primebrick password=primebrick_dev host=postgres port=5432 sslmode=disable dbname=casdoor"
       runmode: dev
       httpport: "8000"
+      # Redis per Casdoor session storage. Uses the dockerized Redis service
+      # (Docker network name "redis"). The admin can point Primebrick BE to a
+      # different Redis via the `redis_url` config key in auth_configurations,
+      # but Casdoor always uses this one (Casdoor cannot be reconfigured at
+      # runtime — restart required to change redisEndpoint).
+      redisEndpoint: "redis:6379"
     ports:
       - "127.0.0.1:${CASDOOR_HOST_PORT:-8000}:8000"
     volumes:
       # Named volume for Casdoor static data (uploaded files, configs).
       # Survives container restarts.
       - primebrick_casdoor_data:/data
+      # Bind-mount app.conf from host so custom edits (origin=, originFrontend=)
+      # survive image upgrades. Env vars in this compose file still override
+      # DB-related keys at runtime.
+      - ./casdoor-conf/app.conf:/conf/app.conf
     # Casdoor will create the database automatically if it doesn't exist
     entrypoint: /bin/sh -c "./server --createDatabase=true"
     depends_on:
@@ -88,7 +101,7 @@ services:
       - primebrick-infra-net
 
   nats:
-    image: nats:latest
+    image: nats:2.14.3
     container_name: primebrick-nats
     command: "-js"
     ports:
@@ -105,6 +118,37 @@ services:
     networks:
       - primebrick-infra-net
 
+  redis:
+    # Redis 8.8.0 — tri-licensed (RSALv2 / SSPLv1 / AGPLv3).
+    # Used by:
+    #   - Casdoor: session storage (redisEndpoint env var, always points here)
+    #   - Primebrick BE: cache layer (redis_url in auth_configurations, admin-configurable)
+    #
+    # The BE's redis_url defaults to "redis://redis:6379" (this service) but the
+    # admin can change it to an external Redis instance via the config API.
+    # If redis_url is empty, the BE cache is disabled (best-effort — the system
+    # is fully valid without it). Casdoor always uses this service regardless.
+    #
+    # License note: Redis 8+ is AGPLv3 (OSI-approved, network copyleft). For
+    # self-hosted internal use this is fine. Users who prefer BSD-licensed
+    # alternatives can swap this image to valkey/valkey:9.1.0 (Linux Foundation,
+    # BSD-3-Clause, wire-compatible).
+    image: redis:8.8.0-trixie
+    container_name: primebrick-redis
+    command: redis-server --appendonly yes
+    ports:
+      # Bind only on loopback; avoids some IPv6/localhost quirks on Windows.
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - primebrick_redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - primebrick-infra-net
+
 volumes:
   primebrick_pg18_data:
     # Fixed name so the volume is easy to spot and is not tied to the compose project prefix.
@@ -115,6 +159,9 @@ volumes:
   primebrick_nats_data:
     # Named volume for NATS JetStream persistence across container restarts.
     name: primebrick_nats_data
+  primebrick_redis_data:
+    # Named volume for Redis AOF persistence across container restarts.
+    name: primebrick_redis_data
 
 networks:
   primebrick-infra-net:

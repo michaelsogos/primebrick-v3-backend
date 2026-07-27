@@ -8,6 +8,7 @@
 
 export const organizationMeta = {
   entity: "organization",
+  translationKey: "organization",
   titleKey: "entities.organization.title",
   updatePageTitle: "${display_name}",
   uid: "uuid",

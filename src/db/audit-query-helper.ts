@@ -106,3 +106,39 @@ export async function findAuditPage(repo: Repository, opts: AuditPageOptions): P
     },
   };
 }
+
+/**
+ * Fetch a single audit log entry by its ID from a specific audit table.
+ * Used by the collaboration module's `GET /audit/:auditLogId` endpoint
+ * to return a field-level diff for the FE merge / conflict UI.
+ *
+ * Returns `null` if the audit log entry is not found.
+ */
+export async function findAuditById(
+  repo: Repository,
+  tableName: string,
+  auditLogId: bigint,
+): Promise<AuditRow | null> {
+  const row = await repo.find<AuditLogEntity>(
+    AuditLogEntity,
+    AUDIT_PROJECTIONS,
+    {
+      tableName,
+      joins,
+      filters: [Filter.fieldValue(field(AuditLogEntity, "id"), "=", auditLogId)],
+    },
+  );
+  if (!row) return null;
+  return {
+    id: row.id,
+    entity_id: row.entity_id,
+    entity_uuid: row.entity_uuid,
+    action: row.action,
+    changed_at: entityDateToApiIso(row.changed_at),
+    changed_by: row.changed_by,
+    changed_by_display_name: (row as any).changed_by_display_name ?? null,
+    changed_by_idp_code: (row as any).changed_by_idp_code ?? null,
+    version: row.version,
+    delta: row.delta ?? {},
+  };
+}

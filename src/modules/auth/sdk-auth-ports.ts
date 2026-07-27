@@ -26,6 +26,14 @@ import {
 import { loadAuthConfigFromDb } from "./config-repo.js";
 import { resolveInternalUuid } from "./user-profile-repo.js";
 import { RoleMappingRepo } from "./role-mapping-repo.js";
+import { getCachePort } from "../../cache/cache-port-holder.js";
+
+// ─── Cache keys + TTLs (BE custom logic — not entity-level @Cached) ──────────
+
+const ROLE_MAPPINGS_CACHE_KEY = "be:role_mappings:all";
+const ROLE_MAPPINGS_TTL_MS = 5 * 60 * 1000; // 5 min
+
+const API_KEY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
 
 // ─── AuthConfigPort ───────────────────────────────────────────────────────────
 
@@ -62,6 +70,11 @@ export class BeAuthConfigPort implements AuthConfigPort {
       casdoor_endpoint: db.casdoor_endpoint,
       casdoor_organization: db.casdoor_organization,
       enable_email_verification_check: db.enable_email_verification_check,
+      enable_webauthn: db.enable_webauthn,
+      enable_formauth: db.enable_formauth,
+      passkey_required: db.passkey_required,
+      enable_mfa: db.enable_mfa,
+      redis_url: db.redis_url,
     };
   }
 }
@@ -79,7 +92,6 @@ export class BeUserResolverPort implements UserResolverPort {
 // ─── RoleMappingPort ──────────────────────────────────────────────────────────
 
 export class BeRoleMappingPort implements RoleMappingPort {
-  private cache: Map<string, RoleMappingEntry> | null = null;
   private repo: RoleMappingRepo;
 
   constructor(pool: Pool) {
@@ -87,23 +99,35 @@ export class BeRoleMappingPort implements RoleMappingPort {
   }
 
   async loadAllMappings(): Promise<Map<string, RoleMappingEntry>> {
-    const raw = await this.repo.loadAllMappings();
-    this.cache = new Map();
-    for (const [role, entry] of raw) {
-      this.cache.set(role, {
-        permissions: entry.permissions,
-        is_admin: entry.is_admin,
-        label_key: entry.label_key,
-      });
+    const port = getCachePort();
+    if (port) {
+      try {
+        const cached = await port.get<{ role: string; entry: RoleMappingEntry }[]>(
+          ROLE_MAPPINGS_CACHE_KEY,
+        );
+        if (cached) {
+          return new Map(cached.map(({ role, entry }) => [role, entry]));
+        }
+      } catch (e) {
+        console.warn(`[cache] role_mappings get failed: ${e}`);
+      }
     }
-    return this.cache;
+    // Cache miss or disabled — load from DB
+    const raw = await this.repo.loadAllMappings();
+    if (port) {
+      try {
+        const serialized = [...raw.entries()].map(([role, entry]) => ({ role, entry }));
+        await port.set(ROLE_MAPPINGS_CACHE_KEY, serialized, ROLE_MAPPINGS_TTL_MS);
+      } catch (e) {
+        console.warn(`[cache] role_mappings set failed: ${e}`);
+      }
+    }
+    return raw;
   }
 
   async getRoleMapping(role: string): Promise<RoleMappingEntry | null> {
-    if (!this.cache) {
-      await this.loadAllMappings();
-    }
-    return this.cache?.get(role) ?? null;
+    const all = await this.loadAllMappings();
+    return all.get(role) ?? null;
   }
 }
 
@@ -113,6 +137,16 @@ export class BeApiKeyPort implements ApiKeyPort {
   constructor(private pool: Pool) {}
 
   async findByHash(hash: string): Promise<ApiKeyRecord | null> {
+    const cacheKey = `be:api_keys:hash:${hash}`;
+    const port = getCachePort();
+    if (port) {
+      try {
+        const cached = await port.get<ApiKeyRecord>(cacheKey);
+        if (cached) return cached;
+      } catch (e) {
+        console.warn(`[cache] api_keys get failed: ${e}`);
+      }
+    }
     const result = await this.pool.query(
       `SELECT uuid, name, permissions, is_system, is_active, expires_at
        FROM public.api_keys
@@ -121,7 +155,7 @@ export class BeApiKeyPort implements ApiKeyPort {
     );
     if (result.rows.length === 0) return null;
     const row = result.rows[0];
-    return {
+    const record: ApiKeyRecord = {
       uuid: row.uuid,
       name: row.name,
       permissions: row.permissions || [],
@@ -129,5 +163,13 @@ export class BeApiKeyPort implements ApiKeyPort {
       is_active: row.is_active !== false,
       expires_at: row.expires_at ? new Date(row.expires_at) : null,
     };
+    if (port) {
+      try {
+        await port.set(cacheKey, record, API_KEY_CACHE_TTL_MS);
+      } catch (e) {
+        console.warn(`[cache] api_keys set failed: ${e}`);
+      }
+    }
+    return record;
   }
 }

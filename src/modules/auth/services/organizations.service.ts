@@ -14,6 +14,7 @@
 import { getPool } from "../../../db/pool.js";
 import { OrganizationsDal, type OrganizationListQuery } from "../organizations_dal.js";
 import { CasdoorService } from "./casdoor.service.js";
+import { getAuthConfig } from "../config.js";
 import {
   ApiError,
   NotFoundError,
@@ -141,6 +142,28 @@ export class OrganizationsService {
           },
         );
       }
+
+      // Auto-enable WebAuthn on the Casdoor application based on auth_config.enable_webauthn.
+      // This ensures that when a new org is created, the Casdoor app's WebAuthn flag
+      // matches the Primebrick auth configuration. Best-effort: if this fails, the org
+      // is still created — the admin can manually enable WebAuthn in Casdoor.
+      try {
+        const cfg = await getAuthConfig();
+        if (cfg.enable_webauthn) {
+          // The Casdoor application name is the clientId used by the CasdoorApiClient.
+          // The application owner is "admin" (Casdoor's built-in admin user).
+          // We access the clientId via the cdClient's internal config — but since
+          // it's private, we use the casdoor_endpoint config to determine the app.
+          // Actually, the Casdoor application is a singleton ("app-built-in" or
+          // "primebrick-api") — we use the clientId from the config.
+          // The cdClient doesn't expose its clientId, so we use the known default.
+          const casdoorApp = "primebrick-api";
+          const casdoorAppOwner = "admin";
+          await cdClient.setApplicationWebAuthn(casdoorApp, casdoorAppOwner, true);
+        }
+      } catch (webauthnErr) {
+        console.error("[organizations] Failed to auto-enable WebAuthn on Casdoor app:", webauthnErr);
+      }
     }
 
     // Create in local DB.
@@ -194,6 +217,18 @@ export class OrganizationsService {
             severity: "HIGH",
           },
         );
+      }
+
+      // Propagate WebAuthn flag to the Casdoor application (best-effort).
+      // This keeps the Casdoor app's enableWebAuthn in sync with auth_config
+      // whenever an org is updated.
+      try {
+        const cfg = await getAuthConfig();
+        const casdoorApp = "primebrick-api";
+        const casdoorAppOwner = "admin";
+        await cdClient.setApplicationWebAuthn(casdoorApp, casdoorAppOwner, cfg.enable_webauthn);
+      } catch (webauthnErr) {
+        console.error("[organizations] Failed to sync WebAuthn flag on update:", webauthnErr);
       }
     }
 

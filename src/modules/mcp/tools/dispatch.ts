@@ -331,6 +331,8 @@ function buildProxyPath(module: string, entity: string, operation: Operation, uu
       return `/ws/${module}/api/v1/entities/${entity}/${uuid}/audit`;
     case "meta":
       return `/ws/${module}/api/v1/entities/${entity}/meta`;
+    case "aggregate":
+      return `/ws/${module}/api/v1/entities/${entity}/aggregate`;
   }
 }
 
@@ -504,6 +506,166 @@ export async function dispatchProxyMeta(
 ): Promise<unknown> {
   const path = buildProxyPath(module, entity, "meta");
   return proxyToMicroservice(authInfo, "GET", path);
+}
+
+// ─── Aggregate ────────────────────────────────────────────────────────────────
+
+/**
+ * Aggregate spec passed to dispatchBeAggregate / dispatchProxyAggregate.
+ * Computes COUNT/SUM/AVG/MIN/MAX with optional GROUP BY.
+ */
+export interface AggregateSpec {
+  type: "count" | "sum" | "avg" | "min" | "max";
+  /** Field to aggregate (required for sum/avg/min/max; ignored for count). */
+  field?: string;
+  /** GROUP BY fields. If empty, a single aggregate row is returned. */
+  group_by?: string[];
+}
+
+/**
+ * Dispatch an aggregate operation to the BE service layer.
+ *
+ * For `auth_events` (the only BE entity supporting aggregate in v1), this
+ * builds a raw SQL query against the auth_events table. Other entities could
+ * be added here in the future.
+ *
+ * Returns: { results: [{ group: {...}, value: number }], total: number }
+ */
+export async function dispatchBeAggregate(
+  entity: string,
+  params: {
+    aggregate: AggregateSpec;
+    filters?: Record<string, unknown>;
+    sort_key?: string;
+    sort_dir?: "asc" | "desc";
+    page?: number;
+    page_size?: number;
+  },
+): Promise<unknown> {
+  if (entity !== "auth_events") {
+    throw new EntityNotFoundError("be", entity);
+  }
+
+  const pool = getPool();
+  const { aggregate, filters, sort_key, sort_dir, page, page_size } = params;
+
+  // Build SELECT clause
+  const aggExpr =
+    aggregate.type === "count"
+      ? "COUNT(*)"
+      : `${aggregate.type.toUpperCase()}(${quoteIdent(aggregate.field!)})`;
+
+  const groupBy = aggregate.group_by ?? [];
+  const selectClause =
+    groupBy.length > 0
+      ? `${groupBy.map((f) => quoteIdent(f)).join(", ")}, ${aggExpr} AS agg_value`
+      : `${aggExpr} AS agg_value`;
+
+  // Build WHERE clause from filters (simple equality for now — auth_events
+  // supports event_type, success, user_profile_uuid, event_at BETWEEN).
+  const whereParts: string[] = [];
+  const queryParams: unknown[] = [];
+  let paramIdx = 1;
+
+  if (filters) {
+    for (const [field, value] of Object.entries(filters)) {
+      if (value === null || value === undefined) continue;
+
+      // Handle BETWEEN: { op: "BETWEEN", value: [start, end] }
+      if (typeof value === "object" && !Array.isArray(value) && "op" in (value as Record<string, unknown>)) {
+        const v = value as { op: string; value: unknown[] };
+        if (v.op === "BETWEEN" && Array.isArray(v.value) && v.value.length === 2) {
+          whereParts.push(`${quoteIdent(field)} BETWEEN $${paramIdx} AND $${paramIdx + 1}`);
+          queryParams.push(v.value[0], v.value[1]);
+          paramIdx += 2;
+          continue;
+        }
+      }
+
+      // Handle IN: array of values
+      if (Array.isArray(value)) {
+        const placeholders = value.map((_, i) => `$${paramIdx + i}`).join(", ");
+        whereParts.push(`${quoteIdent(field)} IN (${placeholders})`);
+        queryParams.push(...value);
+        paramIdx += value.length;
+        continue;
+      }
+
+      // Simple equality
+      whereParts.push(`${quoteIdent(field)} = $${paramIdx}`);
+      queryParams.push(value);
+      paramIdx += 1;
+    }
+  }
+
+  const whereClause = whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
+
+  // Build GROUP BY clause
+  const groupByClause = groupBy.length > 0 ? `GROUP BY ${groupBy.map((f) => quoteIdent(f)).join(", ")}` : "";
+
+  // Build ORDER BY clause
+  // sort_key can be a group_by field or "agg_value" (the aggregate result)
+  const sortField = sort_key === "count" || sort_key === aggregate.type ? "agg_value" : quoteIdent(sort_key ?? "");
+  const sortDir = (sort_dir ?? "desc").toUpperCase() === "ASC" ? "ASC" : "DESC";
+  const orderBy = sortField ? `ORDER BY ${sortField} ${sortDir}` : "";
+
+  // Pagination
+  const limit = Math.min(page_size ?? 25, 100);
+  const offset = ((page ?? 1) - 1) * limit;
+
+  // Count total groups (for pagination metadata)
+  const countSql = `SELECT COUNT(*) AS total FROM (SELECT 1 FROM auth_events ${whereClause} ${groupByClause}) AS grouped`;
+  const countResult = await pool.query<{ total: string }>(countSql, queryParams);
+  const total = BigInt(countResult.rows[0]?.total ?? 0);
+
+  // Main query
+  const sql = `SELECT ${selectClause} FROM auth_events ${whereClause} ${groupByClause} ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
+  const result = await pool.query(sql, queryParams);
+
+  const results = result.rows.map((row) => {
+    const group: Record<string, unknown> = {};
+    for (const f of groupBy) {
+      group[f] = row[f];
+    }
+    return {
+      group,
+      value: typeof row.agg_value === "bigint" ? row.agg_value : BigInt(row.agg_value ?? 0),
+    };
+  });
+
+  return { results, total };
+}
+
+/**
+ * Dispatch an aggregate operation to a microservice via proxy.
+ * Microservices implement their own aggregate endpoint at the standard path.
+ */
+export async function dispatchProxyAggregate(
+  authInfo: AuthInfo,
+  module: string,
+  entity: string,
+  params: {
+    aggregate: AggregateSpec;
+    filters?: Record<string, unknown>;
+    sort_key?: string;
+    sort_dir?: "asc" | "desc";
+    page?: number;
+    page_size?: number;
+  },
+): Promise<unknown> {
+  const path = buildProxyPath(module, entity, "aggregate");
+  return proxyToMicroservice(authInfo, "POST", path, params);
+}
+
+/**
+ * Quote a SQL identifier (column name) to prevent injection.
+ * Double-quotes are escaped by doubling.
+ */
+function quoteIdent(name: string): string {
+  if (!/^[a-z_][a-z0-9_]*$/.test(name)) {
+    throw new Error(`Invalid SQL identifier: ${name}`);
+  }
+  return `"${name}"`;
 }
 
 // ─── Service Registry (manage_service tool) ──────────────────────────────────

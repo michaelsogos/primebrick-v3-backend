@@ -28,6 +28,8 @@ import { UserProfilesDal, type UserListQuery } from "../user-profiles-dal.js";
 import { CasdoorService } from "../services/casdoor.service.js";
 import { UserService } from "../services/user.service.js";
 import { userProfileMeta } from "../user-profiles.meta.js";
+import { UserProfileEntity } from "../user_profile_entity.js";
+import { assembleMeta } from "../../../http/meta-assembler.js";
 import {
   UuidParamSchema,
   UserProfileAuditQuerySchema,
@@ -51,7 +53,7 @@ export function userProfilesRouter() {
   const service = makeUserService();
 
   const getMeta: RequestHandler = asyncHandler(async (_req, res) => {
-    res.json(userProfileMeta);
+    res.json(assembleMeta(userProfileMeta, UserProfileEntity));
   });
 
   const list: RequestHandler = asyncHandler(async (req, res) => {
@@ -179,7 +181,7 @@ export function userProfilesRouter() {
     {
       method: "post",
       path: "/api/v1/entities/user_profiles/:uuid/change-password",
-      permission: rbacHandler([Permission.USERS_UPDATE_SINGLE]),
+      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       handler: changePassword,
     },
   ]);

@@ -12,6 +12,7 @@
  * DB-only — no HTTP probing.
  */
 
+import { NatsClient, SERVICE_SUBJECTS, type ServiceStalePayload } from "@primebrick/sdk";
 import { getPool } from "../../db/pool.js";
 import { ServiceRegistryRepo } from "./service-registry-repo.js";
 
@@ -70,6 +71,23 @@ export class StaleDetectionJob {
         await this.repo.updateByCodeAndBaseUrl(s.code, s.base_url, { status: "going_live" });
       }
       console.log(`[health] ${s.code} ${s.base_url} changed: ${oldStatus} → going_live (stale)`);
+
+      // Publish service.stale on NATS so all BE instances (and their SSE clients)
+      // learn about the stale service in real time.
+      const stalePayload: ServiceStalePayload = {
+        code: s.code,
+        base_url: s.base_url,
+        is_behind_scaler: s.is_behind_scaler,
+        last_health_check_at: s.last_health_check_at
+          ? new Date(s.last_health_check_at).toISOString()
+          : new Date().toISOString(),
+      };
+      try {
+        await NatsClient.publish(SERVICE_SUBJECTS.STALE, stalePayload);
+      } catch (err) {
+        // NATS publish failure is non-critical — the DB is already updated.
+        console.warn(`[stale-detection] Failed to publish service.stale for ${s.code}:`, err);
+      }
     }
   }
 }

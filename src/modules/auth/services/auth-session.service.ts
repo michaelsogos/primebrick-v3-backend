@@ -4,8 +4,13 @@
  * Owns:
  *   - Casdoor OAuth token exchange (login + refresh)
  *   - JWT payload decoding + claim extraction
- *   - Casdoor→Primebrick profile sync on refresh
  *   - "me" profile fetch + "me" profile update (self-service)
+ *
+ * Note: /auth/refresh is a pure OAuth token exchange — it does NOT sync the
+ * user_profile from Casdoor. Profile freshness is handled by resolveInternalUuid
+ * (auth middleware, every authed request), UserService.updateUser (admin sync),
+ * and /auth/me (FE reload after refresh). See
+ * ai-plans/bugfix-refresh-sync-requires-actor.md for the rationale.
  *
  * The service is request-context-free. It returns plain result objects; the
  * controller is responsible for setting cookies on `res` and shaping the JSON
@@ -21,6 +26,8 @@ import type { Pool } from "pg";
 
 import { getAuthConfig } from "../config.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
+import { UserPasskeysDal } from "../user-passkeys-dal.js";
+import { UserMfaFactorsDal } from "../user_mfa_factors_dal.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { requireActor } from "@primebrick/sdk";
 import {
@@ -48,10 +55,26 @@ export interface LoginResult {
   claims: Record<string, unknown>;
 }
 
+/**
+ * Result of login() when MFA is required.
+ * The FE must present the MFA challenge UI and call POST /api/v1/auth/mfa/verify
+ * with the challenge token + a TOTP code. No cookies are set in this case.
+ */
+export interface LoginMfaRequiredResult {
+  mfa_required: true;
+  mfa_challenge_token: string;
+  available_factors: Array<{ factor_id: string; factor_type: string; label: string | null }>;
+}
+
+export type LoginOutcome = LoginResult | LoginMfaRequiredResult;
+
 export interface RefreshResult extends LoginResult {}
 
 export interface MeProfileResponse {
   profile: UserProfileDetailDto;
+  has_passkey?: boolean;
+  auth_method_enforcer_dismissed?: boolean;
+  has_mfa?: boolean;
 }
 
 // --- Service --------------------------------------------------------------
@@ -65,7 +88,7 @@ export class AuthSessionService {
 
   // --- Login ---------------------------------------------------------------
 
-  async login(input: LoginBody): Promise<LoginResult> {
+  async login(input: LoginBody): Promise<LoginOutcome> {
     const cfg = await getAuthConfig();
     const tokenUrl = `${cfg.casdoor_endpoint}/api/login/oauth/access_token`;
     const formData = new URLSearchParams();
@@ -110,6 +133,51 @@ export class AuthSessionService {
         "User doesn't have permission",
         { internal_code: "user_no_permission", severity: "HIGH" },
       );
+    }
+
+    // MFA branch: if MFA is enabled and the user has enrolled factors, mint a
+    // challenge token and return mfa_required instead of setting cookies.
+    // The Casdoor tokens are stashed server-side (keyed by jti) and released
+    // only after the user verifies a TOTP code via POST /api/v1/auth/mfa/verify.
+    if (cfg.enable_mfa) {
+      // The Casdoor JWT `sub` is the idp_code. Resolve it to the internal
+      // user_profiles.uuid before checking MFA factors (same resolution the
+      // auth middleware does via resolveInternalUuid).
+      const idpCode = claims.sub as string;
+      if (idpCode) {
+        const { resolveInternalUuid } = await import("../user-profile-repo.js");
+        const userUuid = await resolveInternalUuid({
+          idp_code: idpCode,
+          email: (claims.email as string) ?? null,
+          display_name: (claims.displayName as string) ?? (claims.name as string) ?? null,
+          idp_org: (claims.owner as string) || undefined,
+          idp_username: (claims.name as string) || undefined,
+        }, this.pool);
+
+        const { MfaService } = await import("./mfa.service.js");
+        const mfaService = new MfaService(this.pool, this.casdoor);
+        const hasMfa = await mfaService.hasMfa(userUuid);
+        if (hasMfa) {
+          const idpOrg = (claims.owner as string) || cfg.casdoor_organization || "";
+          const idpUsername = (claims.name as string) || input.username || "";
+          const challenge = await mfaService.mintLoginChallenge(
+            userUuid,
+            idpCode,
+            idpOrg,
+            idpUsername,
+            {
+              access_token: data.access_token,
+              refresh_token: data.refresh_token,
+              expires_in: data.expires_in,
+            },
+          );
+          return {
+            mfa_required: true,
+            mfa_challenge_token: challenge.mfa_challenge_token,
+            available_factors: challenge.available_factors,
+          };
+        }
+      }
     }
 
     return {
@@ -171,10 +239,16 @@ export class AuthSessionService {
     };
     const claims = this.decodeJwtPayload(data.access_token);
 
-    // Best-effort Casdoor→Primebrick profile sync (non-critical).
-    await this.syncProfileFromCasdoor(claims, cfg.casdoor_organization!).catch((syncError) => {
-      console.error("[AuthSessionService] Casdoor→Primebrick sync failed (non-critical):", syncError);
-    });
+    // NOTE: /auth/refresh is a pure OAuth token exchange. It must NOT sync the
+    // user_profile from Casdoor — that would require a DB write on a PUBLIC
+    // route (no authenticated actor → requireActor() throws) and would add an
+    // extra Casdoor HTTP call per refresh. Profile freshness is handled by:
+    //   - resolveInternalUuid() in the auth middleware (every authed request,
+    //     keeps idp_org / idp_username / JIT provisioning fresh)
+    //   - UserService.updateUser() (admin-driven explicit Casdoor→Primebrick
+    //     sync, sets last_synced_at under an authenticated actor)
+    //   - /auth/me (FE reloads the profile after refresh; pure READ)
+    // See ai-plans/bugfix-refresh-sync-requires-actor.md for the full rationale.
 
     return {
       tokens: {
@@ -196,7 +270,63 @@ export class AuthSessionService {
         internal_code: "USER_PROFILE_NOT_FOUND",
       });
     }
-    return { profile };
+
+    // Include passkey info for the FE auth method enforcer dialog logic
+    const idResult = await this.pool.query(
+      `SELECT id, auth_method_enforcer_dismissed FROM user_profiles WHERE uuid = $1`,
+      [userUuid],
+    );
+    const profileId = idResult.rows[0]?.id;
+    const authMethodEnforcerDismissed = idResult.rows[0]?.auth_method_enforcer_dismissed ?? false;
+
+    let hasPasskey = false;
+    if (profileId) {
+      const passkeysDal = new UserPasskeysDal(this.pool);
+      const count = await passkeysDal.countByUserProfileId(BigInt(profileId));
+      hasPasskey = count > 0;
+    }
+
+    // Include MFA info for the FE auth method enforcer dialog logic
+    let hasMfa = false;
+    if (profileId && getAuthConfig().enable_mfa) {
+      const mfaDal = new UserMfaFactorsDal(this.pool);
+      const mfaCount = await mfaDal.countEnabledByUserProfileId(BigInt(profileId));
+      hasMfa = mfaCount > 0;
+    }
+
+    return {
+      profile,
+      has_passkey: hasPasskey,
+      auth_method_enforcer_dismissed: authMethodEnforcerDismissed,
+      has_mfa: hasMfa,
+    };
+  }
+
+  /**
+   * Dismiss the auth method enforcer dialog for the current user.
+   * Sets `auth_method_enforcer_dismissed = true` on the user_profile.
+   *
+   * Refuses with 403 if `passkey_required` is enabled in auth config —
+   * a mandatory passkey cannot be dismissed, even if the FE is bypassed.
+   */
+  async dismissAuthMethodEnforcer(userUuid: string): Promise<{ success: true }> {
+    const cfg = getAuthConfig();
+    if (cfg.passkey_required) {
+      throw new ApiError(
+        "/errors/passkey-required",
+        "Passkey enrollment is mandatory",
+        403,
+        "This server requires all users to enroll a passkey. The dismissal request was refused.",
+        { internal_code: "PASSKEY_REQUIRED", severity: "HIGH" },
+      );
+    }
+
+    const actor = requireActor();
+    await this.pool.query(
+      `UPDATE user_profiles SET auth_method_enforcer_dismissed = true, updated_at = now(), updated_by = $1 WHERE uuid = $2`,
+      [actor, userUuid],
+    );
+    return { success: true };
   }
 
   async updateMe(userUuid: string, input: ProfileUpdate): Promise<MeProfileResponse> {
@@ -252,9 +382,9 @@ export class AuthSessionService {
       if (!syncSuccess) {
         throw new ApiError(
           "/errors/internal-error",
-          "Casdoor sync failed",
+          "Casdoor™ sync failed",
           502,
-          "Failed to sync profile to Casdoor",
+          "Failed to sync profile to Casdoor™",
           {
             instance: "/api/v1/auth/me",
             internal_code: "CASDOOR_SYNC_FAILED",
@@ -339,60 +469,6 @@ export class AuthSessionService {
       errorDetail,
       { instance, internal_code: errorCode, severity: "HIGH" },
     );
-  }
-
-  /**
-   * Best-effort Casdoor→Primebrick profile sync on token refresh.
-   * Mirrors the original inline logic but without the verbose debug logs.
-   */
-  private async syncProfileFromCasdoor(claims: Record<string, any>, orgName: string): Promise<void> {
-    const cdClient = await this.casdoor.getClient();
-    if (!cdClient) return;
-
-    const casdoorUserId = `${orgName}/${claims.name}`;
-    const casdoorUser = await cdClient.getUser(casdoorUserId);
-    if (!casdoorUser) return;
-
-    const idpCode = casdoorUser.id || casdoorUserId;
-    const existing = await this.dal.getByIdpCode(idpCode);
-    if (!existing) return;
-
-    const roleNames = (casdoorUser.roles || []).map((r: any) => r.name);
-    const updateData: Record<string, unknown> = {
-      display_name: casdoorUser.displayName || existing.display_name,
-      email: casdoorUser.email || existing.email,
-      is_active: !casdoorUser.isForbidden,
-      is_admin: casdoorUser.isAdmin || false,
-      is_verified: casdoorUser.isVerified || false,
-      email_verified: casdoorUser.emailVerified || false,
-      issuer: claims.iss || null,
-      roles: roleNames.length > 0 ? roleNames : undefined,
-      last_synced_at: new Date(),
-    };
-    if (existing.idp_code !== idpCode) {
-      updateData.idp_code = idpCode;
-    }
-    await this.dal.updateProfile(existing.uuid, updateData as any);
-
-    // Defensive sync of immutable idp_org / idp_username from JWT claims.
-    const jwtIdpOrg = claims.organization || claims.owner || null;
-    const jwtIdpUsername = claims.name || claims.username || claims.preferred_username || null;
-    if (jwtIdpOrg || jwtIdpUsername) {
-      await this.pool
-        .query(
-          `UPDATE public.user_profiles
-           SET idp_org = COALESCE($2, idp_org),
-               idp_username = COALESCE($3, idp_username),
-               updated_at = now(),
-               updated_by = $4,
-               version = version + 1
-           WHERE uuid = $1`,
-          [existing.uuid, jwtIdpOrg, jwtIdpUsername, existing.uuid],
-        )
-        .catch((e) => {
-          console.error("[AuthSessionService] Failed to sync idp_org/idp_username:", e);
-        });
-    }
   }
 }
 

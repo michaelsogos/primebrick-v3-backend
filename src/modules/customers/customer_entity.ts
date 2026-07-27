@@ -6,23 +6,25 @@
  * vengono assegnati dal layer di hydration / DAL, non alla dichiarazione della classe.
  */
 import type { IAuditableEntity, IExposableEntity, IClonableEntity } from "@primebrick/dal-pg";
-import { 
-  Column, 
-  Entity, 
-  Key, 
-  Unique, 
-  AuditableField, 
-  DeletableField, 
+import {
+  Column,
+  Entity,
+  Key,
+  Unique,
+  AuditableField,
+  DeletableField,
   CloneField,
   AuditableFieldType,
   DeletableFieldType,
   AuditTrail
 } from "@primebrick/dal-pg";
+import { Cached } from "@primebrick/sdk";
 
 export type CustomerStatus = "ACTIVE" | "INACTIVE";
 
 @Entity("customers")
 @AuditTrail()
+@Cached(300_000) // 5 min TTL — mutable business data
 export class CustomerEntity implements IAuditableEntity, IExposableEntity, IClonableEntity {
   @Key()
   id: bigint;

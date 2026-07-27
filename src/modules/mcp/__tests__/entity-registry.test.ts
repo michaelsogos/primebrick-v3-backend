@@ -275,12 +275,27 @@ describe("EntityRegistry", () => {
       expect(userProfiles?.supported_operations).toContain("update");
     });
 
+    it("registers auth_events with list + aggregate (no CRUD)", () => {
+      registerBeEntities();
+
+      const authEvents = entityRegistry.get("be", "auth_events");
+      expect(authEvents).toBeDefined();
+      expect(authEvents?.label).toBe("Auth Events");
+      expect(authEvents?.supported_operations).toContain("list");
+      expect(authEvents?.supported_operations).toContain("aggregate");
+      expect(authEvents?.supported_operations).toContain("meta");
+      // auth_events is read-only via MCP — no create/update/delete
+      expect(authEvents?.supported_operations).not.toContain("create");
+      expect(authEvents?.supported_operations).not.toContain("update");
+      expect(authEvents?.supported_operations).not.toContain("delete");
+    });
+
     it("is idempotent (calling twice does not duplicate entries)", () => {
       registerBeEntities();
       registerBeEntities();
 
       const beEntries = entityRegistry.listByModule("be");
-      expect(beEntries).toHaveLength(3);
+      expect(beEntries).toHaveLength(4);
     });
   });
 });

@@ -11,11 +11,13 @@
  * `res.status(...).json({...})` blocks that used to live in the router.
  */
 
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import type { Pool } from "pg";
 
 import { UserProfilesDal, type UserListQuery, type UserListResponse } from "../user-profiles-dal.js";
 import { CasdoorService } from "./casdoor.service.js";
+import { InvitationService } from "./invitation.service.js";
+import { sendEmail } from "./email-sender.js";
 import { getAuthConfig } from "../config.js";
 import { requireActor } from "@primebrick/sdk";
 import { ApiError, NotFoundError, ValidationError } from "../../../http/api-errors.js";
@@ -28,6 +30,7 @@ import type { UserProfileDetailDto } from "../user-profiles-dal.js";
  */
 export interface CreateUserResult {
   profile: UserProfileDetailDto;
+  invitation_uuid?: string;
 }
 
 export class UserService {
@@ -41,7 +44,7 @@ export class UserService {
 
   async createUser(input: CreateUserBody): Promise<CreateUserResult> {
     const actor = requireActor();
-    const { username, password, display_name, email, roles, avatar_initials, avatar_color, idp_org, is_active, is_admin, is_verified, email_verified } = input;
+    const { username, password, display_name, email, roles, avatar_initials, avatar_color, idp_org, is_active, is_admin, is_verified, email_verified, send_invitation } = input;
 
     const defaultColor = avatar_color || "#4f46e5";
     const calculatedInitials = avatar_initials || computeInitials(display_name);
@@ -62,7 +65,11 @@ export class UserService {
         name: username,
         displayName: display_name,
         email,
-        password,
+        // When send_invitation is true, password is optional — Casdoor will
+        // create the user without a password, and the user will set it via
+        // the welcome page. We pass a random placeholder if no password is
+        // provided, because Casdoor requires a non-empty password field.
+        password: password || (send_invitation ? randomBytes(16).toString("hex") : undefined),
         roles: (roles || []).map((r) => ({ name: r })),
         customFields: {
           app_avatar_color: defaultColor,
@@ -80,7 +87,7 @@ export class UserService {
           "/errors/internal-error",
           "Failed to create user",
           500,
-          "Casdoor user creation did not return a UUID",
+          "Casdoor™ user creation did not return a UUID",
           { internal_code: "USER_CREATE_FAILED", severity: "HIGH" },
         );
       }
@@ -123,7 +130,37 @@ export class UserService {
         { internal_code: "USER_CREATE_FAILED", severity: "HIGH" },
       );
     }
-    return { profile };
+
+    // 3. Create invitation if send_invitation is true
+    let invitation_uuid: string | undefined;
+    if (send_invitation) {
+      // Get the internal bigint id of the profile (not exposed in the DTO)
+      const idResult = await this.pool.query(
+        `SELECT id FROM user_profiles WHERE uuid = $1`,
+        [newUuid],
+      );
+      const profileId = idResult.rows[0]?.id;
+      if (!profileId) {
+        throw new ApiError(
+          "/errors/internal-error",
+          "Failed to create invitation",
+          500,
+          "Could not resolve user profile id after insert",
+          { internal_code: "INVITATION_CREATE_FAILED", severity: "HIGH" },
+        );
+      }
+
+      const invitationService = new InvitationService(this.pool, this.casdoor);
+      const result = await invitationService.createInvitation(
+        BigInt(profileId),
+        profile.uuid,
+        email,
+        display_name,
+      );
+      invitation_uuid = result.invitation_uuid;
+    }
+
+    return { profile, invitation_uuid };
   }
 
   // --- Update ---------------------------------------------------------------
@@ -167,9 +204,9 @@ export class UserService {
       if (!syncSuccess) {
         throw new ApiError(
           "/errors/internal-error",
-          "Casdoor sync failed",
+          "Casdoor™ sync failed",
           502,
-          "Failed to sync user to Casdoor",
+          "Failed to sync user to Casdoor™",
           {
             instance: "/api/v1/auth/users/:uuid",
             internal_code: "CASDOOR_SYNC_FAILED",
@@ -306,9 +343,9 @@ export class UserService {
       if (!syncSuccess) {
         throw new ApiError(
           "/errors/internal-error",
-          "Casdoor sync failed",
+          "Casdoor™ sync failed",
           502,
-          "Failed to sync profile to Casdoor",
+          "Failed to sync profile to Casdoor™",
           {
             instance: "/api/v1/entities/user_profiles/:uuid",
             internal_code: "CASDOOR_SYNC_FAILED",
@@ -351,9 +388,9 @@ export class UserService {
     if (!cdClient) {
       throw new ApiError(
         "/errors/internal-error",
-        "Casdoor client unavailable",
+        "Casdoor™ client unavailable",
         502,
-        "Cannot change password: Casdoor is not configured or unreachable",
+        "Cannot change password: Casdoor™ is not configured or unreachable",
         { internal_code: "CASDOOR_UNAVAILABLE", severity: "HIGH" },
       );
     }
@@ -366,14 +403,122 @@ export class UserService {
     if (result.status !== "ok") {
       throw new ApiError(
         "/errors/internal-error",
-        "Casdoor password change failed",
+        "Casdoor™ password change failed",
         502,
-        result.msg || "Casdoor returned an error",
+        result.msg || "Casdoor™ returned an error",
         { internal_code: "CASDOOR_PASSWORD_CHANGE_FAILED", severity: "HIGH" },
       );
     }
 
-    // TODO(future): send email notification to the user about the password change.
+    // Send password_changed notification email (best-effort)
+    if (existing.email) {
+      try {
+        const invitationService = new InvitationService(this.pool, this.casdoor);
+        const alertLink = await invitationService.generateAlertLink(existing.uuid, "password-change");
+        const adminMailto = await invitationService.generateAdminMailto(
+          existing.display_name ?? "",
+          existing.email ?? "",
+        );
+        await sendEmail({
+          template_code: "password_changed",
+          language_iso: "en",
+          to: [existing.email],
+          variables: {
+            display_name: existing.display_name ?? "",
+            alert_link: alertLink,
+            admin_mailto: adminMailto,
+          },
+        });
+      } catch (emailErr) {
+        console.error("[UserService] Failed to send password_changed email:", emailErr);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Self-service password change for the authenticated user.
+   * Verifies the current password against Casdoor before allowing the change.
+   * Sends a `password_changed` notification email on success.
+   */
+  async changeOwnPassword(
+    userProfileUuid: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ status: string; success?: boolean; msg?: string }> {
+    const existing = await this.dal.getByUuid(userProfileUuid);
+    if (!existing) {
+      throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
+    }
+
+    const cdClient = await this.casdoor.getClient();
+    if (!cdClient) {
+      throw new ApiError(
+        "/errors/internal-error",
+        "Casdoor™ client unavailable",
+        502,
+        "Cannot change password: Casdoor™ is not configured or unreachable",
+        { internal_code: "CASDOOR_UNAVAILABLE", severity: "HIGH" },
+      );
+    }
+
+    // Step 1: verify current password
+    const checkResult = await cdClient.checkUserPassword(
+      { id: existing.idp_code, owner: existing.idp_org || undefined, name: existing.idp_username || undefined },
+      currentPassword,
+    );
+
+    if (checkResult.status !== "ok") {
+      throw new ApiError(
+        "/errors/wrong-password",
+        "Current password is incorrect",
+        400,
+        "The current password verification failed",
+        { internal_code: "WRONG_PASSWORD", severity: "LOW" },
+      );
+    }
+
+    // Step 2: change the password
+    const result = await cdClient.changePassword(
+      { id: existing.idp_code, owner: existing.idp_org || undefined, name: existing.idp_username || undefined },
+      newPassword,
+    );
+
+    if (result.status !== "ok") {
+      throw new ApiError(
+        "/errors/internal-error",
+        "Casdoor™ password change failed",
+        502,
+        result.msg || "Casdoor™ returned an error",
+        { internal_code: "CASDOOR_PASSWORD_CHANGE_FAILED", severity: "HIGH" },
+      );
+    }
+
+    // Step 3: send notification email (best-effort)
+    if (existing.email) {
+      try {
+        const invitationService = new InvitationService(this.pool, this.casdoor);
+        const alertLink = await invitationService.generateAlertLink(existing.uuid, "password-change");
+        const adminMailto = await invitationService.generateAdminMailto(
+          existing.display_name ?? "",
+          existing.email ?? "",
+        );
+        await sendEmail({
+          template_code: "password_changed",
+          language_iso: "en",
+          to: [existing.email],
+          variables: {
+            display_name: existing.display_name ?? "",
+            alert_link: alertLink,
+            admin_mailto: adminMailto,
+          },
+        });
+      } catch (emailErr) {
+        console.error("[UserService] Failed to send password_changed email:", emailErr);
+      }
+    }
+
     return result;
   }
 

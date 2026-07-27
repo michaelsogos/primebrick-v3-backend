@@ -56,16 +56,16 @@ GATEWAY_SECRET=change-me-too
 # GATEWAY_HEADER_IDP_CODE=x-user-idp-code
 ```
 
-## Bootstrapping Casdoor (local dev)
+## Bootstrapping Casdoor™ (local dev)
 
 1. Start the stack:
    ```bash
    docker compose -f infra/docker-compose.postgres.yml up -d
    ```
-   Casdoor will be reachable at <http://localhost:8000>. Data is persisted in the
+   Casdoor™ will be reachable at <http://localhost:8000>. Data is persisted in the
    named volume `primebrick_casdoor_data`, so restarts do **not** wipe it.
 
-2. Open the Casdoor admin UI (`admin / 123` on a fresh install), create an
+2. Open the Casdoor™ admin UI (`admin / 123` on a fresh install), create an
    application named `primebrick-api`, register the roles (e.g. `Administrators`,
    `CustomersManager`, `CustomersReader` to match `permissions.ts`), and add a user.
 
@@ -129,6 +129,16 @@ router.get("/api/v1/health", rbacHandler([Permission.PUBLIC]), asyncHandler(asyn
 router.get("/api/v1/user/profile", rbacHandler([Permission.AUTHENTICATED_USER]), asyncHandler(async (req, res) => {
   res.json({ id: req.user!.id, email: req.user!.email });
 }));
+
+// Admin-only endpoint (only callers with isAdmin === true pass)
+// Use for high-risk non-CRUD operations like admin change-password.
+router.post(
+  "/api/v1/entities/user_profiles/:uuid/change-password",
+  rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+  asyncHandler(async (req, res) => {
+    // ... handler ...
+  })
+);
 
 // Role-based endpoint (default OR semantics: user needs AT LEAST ONE of the listed permissions)
 router.get("/api/v1/entities/customer/list", rbacHandler([Permission.CUSTOMERS_LIST]), asyncHandler(async (req, res) => {

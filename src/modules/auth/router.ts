@@ -21,12 +21,25 @@ import { authSessionRouter } from "./routers/auth-session.router.js";
 import { authCheckRouter } from "./routers/auth-check.router.js";
 import { usersRouter } from "./routers/users.router.js";
 import { userProfilesRouter } from "./routers/user-profiles.router.js";
+import { authWebauthnRouter } from "./routers/auth-webauthn.router.js";
+import { authMfaRouter } from "./routers/auth-mfa.router.js";
+import { authInvitationRouter } from "./routers/auth-invitation.router.js";
+import { roleMappingsRouter } from "./routers/role-mappings.router.js";
 
 export function authRouter() {
   const router = Router();
 
   // Auth session endpoints (login / refresh / me / me/meta).
   router.use(authSessionRouter());
+
+  // WebAuthn / passkey endpoints (signin / signup / credential management).
+  router.use(authWebauthnRouter());
+
+  // MFA / 2FA endpoints (TOTP enrollment / list / delete).
+  router.use(authMfaRouter());
+
+  // Invitation / welcome flow (verify / send-otp / verify-otp / complete / revoke / resend / login-alert).
+  router.use(authInvitationRouter());
 
   // User availability checks (check-email / check-username).
   router.use(authCheckRouter());
@@ -36,6 +49,9 @@ export function authRouter() {
 
   // user_profiles entity CRUD (meta / list / get / restore / audit / put).
   router.use(userProfilesRouter());
+
+  // Role mappings CRUD (Casdoor-synced, non-best-effort).
+  router.use(roleMappingsRouter());
 
   return router;
 }

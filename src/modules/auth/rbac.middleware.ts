@@ -17,7 +17,7 @@
  *      and a Session in `AsyncLocalStorage`.
  *
  *   3. **RBAC check** (only when the declaration is NOT `PUBLIC` /
- *      `AUTHENTICATED_USER`)
+ *      `AUTHENTICATED_USER` / `AUTHENTICATED_ADMIN`)
  *      Evaluates `req.user.permissions` against the declared permissions using
  *      the SDK's `checkRbac()` function. Default semantics is **OR** (any-of):
  *      the user passes if they hold AT LEAST ONE of the permissions in the
@@ -26,6 +26,7 @@
  * Sentinels:
  *   - `Permission.PUBLIC`             → endpoint reachable anonymously.
  *   - `Permission.AUTHENTICATED_USER` → any caller with a valid identity passes.
+ *   - `Permission.AUTHENTICATED_ADMIN`→ only callers with `isAdmin === true` pass.
  *
  * Admin bypass: `req.user.isAdmin` skips all permission checks (handled by SDK checkRbac).
  * System bypass: `req.user.isSystem` skips all permission checks (system API keys).
@@ -75,12 +76,15 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
 
   const isPublic = perms.includes(Permission.PUBLIC);
   const isAuthenticatedOnly = perms.includes(Permission.AUTHENTICATED_USER);
+  const isAdminOnly = perms.includes(Permission.AUTHENTICATED_ADMIN);
 
-  // Sanity: PUBLIC and AUTHENTICATED_USER must appear alone.
-  if ((isPublic || isAuthenticatedOnly) && perms.length > 1) {
+  // Sanity: sentinels (PUBLIC, AUTHENTICATED_USER, AUTHENTICATED_ADMIN) must
+  // appear alone. Combining a sentinel with CRUD perms is semantically
+  // meaningless and hides intent.
+  if ((isPublic || isAuthenticatedOnly || isAdminOnly) && perms.length > 1) {
     throw new Error(
-      "[rbac] PUBLIC and AUTHENTICATED_USER are sentinels; they must be the " +
-        "ONLY element of the permission array."
+      "[rbac] PUBLIC, AUTHENTICATED_USER and AUTHENTICATED_ADMIN are sentinels; " +
+        "they must be the ONLY element of the permission array."
     );
   }
 
@@ -131,6 +135,32 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
 
         if (isAuthenticatedOnly) {
           next();
+          return;
+        }
+
+        // AUTHENTICATED_ADMIN short-circuit — admin-only gate.
+        // The BE is the authoritative security gate: even if the FE fails to
+        // hide the menu item, the API returns 403 for non-admins.
+        // System API keys (isSystem === true) bypass all permission checks.
+        if (isAdminOnly) {
+          if (req.user?.isAdmin === true || req.user?.isSystem === true) {
+            next();
+            return;
+          }
+          next(
+            new UnauthorizedError("Admin privileges required to perform this action", {
+              internal_code: "RBAC_ADMIN_ONLY",
+              extra: {
+                issues: [
+                  {
+                    kind: "missing_admin",
+                    required: [Permission.AUTHENTICATED_ADMIN],
+                    user_roles: req.user!.roles,
+                  },
+                ],
+              },
+            })
+          );
           return;
         }
 

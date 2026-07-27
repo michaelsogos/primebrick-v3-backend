@@ -1,0 +1,456 @@
+---
+title: Architecture
+description: "Primebrick Backend architecture — module structure, HTTP layer, and database access."
+---
+
+# Architecture
+
+The Primebrick Backend is an Express.js application structured around
+domain modules. Each module owns its entities, DAL, routers, and
+business logic.
+
+## Source layout
+
+```
+src/
+  db/           Database connection and patch runner
+  domain/       Shared domain types and utilities
+  http/         HTTP layer: error handling, validation, route helpers
+  i18n/         Internationalization
+  lib/          Shared library utilities
+  modules/      Domain modules (auth, customers, mcp, proxy, system)
+  openapi/      OpenAPI spec generation and aggregated router
+```
+
+## Module structure
+
+Each module under `src/modules/` follows the same pattern:
+
+| Layer | Responsibility |
+|-------|---------------|
+| **Entity** | TypeScript class defining the DB table shape (`*_entity.ts`) |
+| **Metadata** | Entity metadata for the DAL (`*.meta.ts`) |
+| **DAL** | Data access layer repository (`*_dal.ts`) |
+| **Router** | Express router with endpoint definitions (`router.ts`) |
+| **Service** | Business logic (request-context-free services) |
+| **Middleware** | Auth and RBAC middleware (`*.middleware.ts`) |
+
+## HTTP layer
+
+The `src/http/` directory provides shared HTTP infrastructure:
+
+- **`define-route.ts`** — typed route definition helper with Zod validation
+- **`async-handler.ts`** — wraps async route handlers for error propagation
+- **`error-handler.ts`** — global error handler producing RFC 7807 responses
+- **`api-errors.ts`** — stable error codes with `impact` field for the frontend
+- **`validation.ts`** — request body and query parameter validation
+- **`protected-router.ts`** — router factory that enforces auth + RBAC
+
+### Request flow
+
+Every request to a protected endpoint passes through the same chain. The
+`makeProtectedRouter()` factory enforces a **secure-first policy**: any route
+registered without an `rbacHandler(...)` declaration is automatically prepended
+with a `defaultDeny` handler that returns 403 with
+`ROUTE_PERMISSION_NOT_DECLARED`. A route that exists in code but forgot to
+declare its permission is never accidentally exposed.
+
+<Mermaid chart={`sequenceDiagram
+  participant C as Client
+  participant R as makeProtectedRouter()
+  participant RBAC as rbacHandler(...)
+  participant Auth as authMiddleware()
+  participant SDK as @primebrick/sdk verifyAuth()
+  participant H as Route handler
+  participant S as Service + DAL
+  participant DB as PostgreSQL
+  participant EH as errorHandler
+  C->>R: GET /api/v1/entities/customer/list
+  Note over R: secure-first: no rbacHandler?<br/>→ 403 ROUTE_PERMISSION_NOT_DECLARED
+  R->>RBAC: declared handler runs first
+  alt GATEWAY mode
+    RBAC->>RBAC: validate gateway-secret header
+  end
+  RBAC->>Auth: (skip for PUBLIC)
+  Auth->>SDK: verifyAuth(HeaderProvider, cfg, ports)
+  SDK->>SDK: verify JWT (STANDALONE) or read headers (GATEWAY)
+  SDK-->>Auth: AuthUser { id, roles, permissions, isAdmin }
+  Auth->>Auth: runWithSession(session, () => next())
+  RBAC->>SDK: checkRbac(user, perms, mode)
+  alt not allowed
+    SDK-->>RBAC: { allowed: false, missing }
+    RBAC-->>EH: next(ForbiddenError)
+    EH-->>C: 403 RFC 7807
+  else allowed
+    SDK-->>RBAC: { allowed: true }
+    RBAC->>H: next()
+    H->>S: service.listCustomers(query)
+    S->>DB: SELECT ... FROM customers
+    DB-->>S: rows
+    S-->>H: { rows, page, total }
+    H-->>C: 200 res.json(result)
+  end
+`} />
+
+### `makeProtectedRouter()` — secure-first router factory
+
+```typescript
+import { makeProtectedRouter } from "../../http/protected-router.js";
+import { rbacHandler } from "../auth/rbac.middleware.js";
+import { Permission } from "@primebrick/sdk";
+
+const router = makeProtectedRouter();
+
+// Declared route — rbacHandler tags the handler with PERMISSION_DECLARED.
+router.get(
+  "/api/v1/health-check",
+  rbacHandler([Permission.PUBLIC]),
+  (_req, res) => res.json({ ok: true }),
+);
+
+// Forgotten declaration — the factory injects defaultDenyHandler → 403.
+router.get("/api/v1/whoops", (_req, res) => res.json({ leak: true }));
+// → 403 { internal_code: "ROUTE_PERMISSION_NOT_DECLARED" }
+```
+
+### `registerRoutes()` — declarative route table
+
+For controllers with many endpoints, `registerRoutes()` lets you describe the
+whole router as a single scannable table at the top of the file instead of a
+sequence of `router.&lt;verb&gt;(...)` calls. Each entry chains
+`permission → middlewares → handler` in that fixed order.
+
+```typescript
+import { registerRoutes } from "../../http/define-route.js";
+import { validateBody, validateQuery } from "../../http/validation.js";
+import { rbacHandler } from "../auth/rbac.middleware.js";
+import { Permission } from "@primebrick/sdk";
+import { z } from "zod";
+
+registerRoutes(router, [
+  {
+    method: "get",
+    path: "/api/v1/entities/customer/list",
+    permission: rbacHandler([Permission.CUSTOMERS_READ_ALL]),
+    middlewares: [validateQuery(CustomerListQuerySchema)],
+    handler: list,
+  },
+  {
+    method: "post",
+    path: "/api/v1/entities/customer",
+    permission: rbacHandler([Permission.CUSTOMERS_CREATE_SINGLE]),
+    middlewares: [validateBody(CustomerCreateBodySchema)],
+    handler: create,
+  },
+]);
+```
+
+### `asyncHandler()` — async error propagation
+
+Express 4 does not catch rejected promises from async handlers. `asyncHandler`
+wraps the handler so a rejected promise (or a thrown `ApiError`) is forwarded to
+`next` and reaches the centralized `errorHandler`.
+
+```typescript
+import { asyncHandler } from "../../http/async-handler.js";
+
+const list = asyncHandler(async (req, res) => {
+  const result = await service.listCustomers(req.query);
+  res.json(result);
+});
+```
+
+### `validateBody()` / `validateQuery()` — Zod validation
+
+Both helpers parse the request body/query against a Zod schema. On failure they
+respond 400 with a RFC 7807 body whose `extra.issues` mirrors Zod's issue shape
+(`path`, `code`, `message`). On success they replace `req.body`/`req.query`
+with the parsed (and coerced) value.
+
+```typescript
+import { z } from "zod";
+import { validateBody } from "../../http/validation.js";
+
+const CustomerCreateBodySchema = z.object({
+  code: z.string().min(1).max(20),
+  email: z.string().email().optional(),
+  status: z.enum(["ACTIVE", "INACTIVE"]),
+});
+
+// In the route definition:
+//   middlewares: [validateBody(CustomerCreateBodySchema)]
+```
+
+### `ApiError` — RFC 7807 error base class
+
+Every error thrown in a route handler or service extends `ApiError`. The
+centralized `errorHandler` calls `err.toResponse()` and emits the JSON body with
+the matching HTTP status. The `internal_code` is the stable string the frontend
+branches on; `severity` drives the toast style.
+
+```typescript
+import { NotFoundError, ValidationError, ForbiddenError, UnauthorizedError } from "../../http/api-errors.js";
+
+// 404 — Resource not found
+throw new NotFoundError(`Customer ${uuid} not found`);
+
+// 400 — Validation error (with a custom internal_code)
+throw new ValidationError("Request validation failed", { internal_code: "VALIDATION_ERROR" });
+
+// 403 — Forbidden (extra.issues is read by the FE)
+throw new ForbiddenError("Insufficient permissions", {
+  internal_code: "RBAC_PERMISSION_DENIED",
+  extra: { issues: [{ kind: "missing_any_of_permissions", required: ["customers.read.all"] }] },
+});
+
+// 401 — Unauthorized
+throw new UnauthorizedError("Missing or invalid Authorization header");
+```
+
+| Class | Status | Default `internal_code` | `severity` |
+|-------|--------|-------------------------|------------|
+| `NotFoundError` | 404 | `NOT_FOUND` | MEDIUM |
+| `ValidationError` | 400 | `VALIDATION_ERROR` | MEDIUM |
+| `UnprocessableEntityError` | 422 | `UNPROCESSABLE_ENTITY` | MEDIUM |
+| `UnauthorizedError` | 401 | `UNAUTHORIZED` | MEDIUM |
+| `ForbiddenError` | 403 | `FORBIDDEN` | MEDIUM |
+| `AuthConfigNotLoadedError` | 500 | `AUTH_CONFIG_NOT_LOADED` | CRITICAL |
+| `ApiError` (base) | (caller-set) | (caller-set) | HIGH |
+
+The `errorHandler` also maps database-unavailable errors (ECONNREFUSED, PG
+`57P03` cannot_connect_now, etc.) to 503 with `severity: CRITICAL`, and any
+other uncaught error to 500 with `severity: HIGH`.
+
+## A complete module walkthrough
+
+The `customers` module is the canonical reference for a domain module. It owns
+its entity, DAL, service, router, DTOs, and metadata — and contains no business
+logic in the router. Every layer has a single responsibility.
+
+<Mermaid chart={`flowchart LR
+  subgraph "src/modules/customers/"
+    E[customer_entity.ts<br/>@Entity + decorators]
+    M[customers.meta.ts<br/>entity metadata for FE]
+    DAL[customers_dal.ts<br/>Repository wrappers]
+    S[customers.service.ts<br/>business logic]
+    R[router.ts<br/>thin controller]
+    DTO[dto.ts<br/>Zod schemas]
+  end
+  subgraph "src/http/"
+    PR[makeProtectedRouter]
+    RR[registerRoutes]
+    AH[asyncHandler]
+    V[validateBody/Query]
+    EH[errorHandler]
+  end
+  subgraph "src/modules/auth/"
+    RBAC[rbacHandler]
+    AUTH[authMiddleware]
+  end
+  E --> DAL
+  DAL --> S
+  S --> R
+  DTO --> V
+  V --> R
+  PR --> R
+  RR --> R
+  AH --> R
+  RBAC --> R
+  AUTH --> RBAC
+  R --> EH
+`} />
+
+### 1. Entity (`customer_entity.ts`)
+
+A plain TypeScript class decorated with `@Entity`, `@Key`, `@Unique`,
+`@AuditableField`, `@DeletableField`, `@CloneField`, and `@AuditTrail`. The
+class IS the DB schema — there is no separate SQL file to keep in sync. See
+the [DAL entities guide](/dal/guide/entities) for every decorator.
+
+```typescript
+import type { IAuditableEntity, IExposableEntity, IClonableEntity } from "@primebrick/dal-pg";
+import {
+  Entity, Column, Key, Unique, AuditableField, DeletableField, CloneField,
+  AuditableFieldType, DeletableFieldType, AuditTrail,
+} from "@primebrick/dal-pg";
+
+@Entity("customers")
+@AuditTrail()
+export class CustomerEntity implements IAuditableEntity, IExposableEntity, IClonableEntity {
+  @Key() id: bigint;
+  @Unique() uuid: string;
+  @Column({ length: 20, nullable: false }) code: string;
+  first_name?: string;
+  last_name?: string;
+  @Column({ length: 320 }) email?: string;
+  @Column({ nullable: false }) status: "ACTIVE" | "INACTIVE";
+
+  @AuditableField(AuditableFieldType.CREATED_AT) created_at: Date;
+  @AuditableField(AuditableFieldType.CREATED_BY) created_by: string;
+  @AuditableField(AuditableFieldType.UPDATED_AT) updated_at: Date;
+  @AuditableField(AuditableFieldType.UPDATED_BY) updated_by: string;
+  @AuditableField(AuditableFieldType.VERSION)    version: number;
+
+  @DeletableField(DeletableFieldType.DELETED_AT) deleted_at?: Date;
+  @DeletableField(DeletableFieldType.DELETED_BY) deleted_by?: string;
+
+  @CloneField() cloned_from?: string;
+}
+```
+
+### 2. Service (`customers.service.ts`)
+
+The service owns the business logic. It is **request-context-free**: it takes
+plain parameters and reads the actor from `AsyncLocalStorage` (`requireActor()`
+via the DAL) — it never touches `req`/`res`. Errors are thrown as `ApiError`
+subclasses so the centralized `errorHandler` can convert them to RFC 7807.
+
+```typescript
+import { getPool } from "../../db/pool.js";
+import { CustomersDal } from "./customers_dal.js";
+import { NotFoundError } from "../../http/api-errors.js";
+
+export class CustomersService {
+  private dal: CustomersDal | null = null;
+
+  private getDal(): CustomersDal {
+    if (this.dal) return this.dal;
+    this.dal = new CustomersDal(getPool());
+    return this.dal;
+  }
+
+  async getCustomer(uuid: string) {
+    const found = await this.getDal().findByUUID(CustomerEntity, uuid);
+    if (!found) throw new NotFoundError(`Customer ${uuid} not found`);
+    return found;
+  }
+
+  async createCustomer(body: CustomerCreateBody) {
+    // The actor is read from ALS inside the DAL — no need to pass req.user.
+    return await this.getDal().add(CustomerEntity, body, { actor: requireActor() });
+  }
+}
+```
+
+### 3. Router (`router.ts`)
+
+The router is a thin controller. It contains NO business logic — it wires
+Zod-validated request data into the service and shapes the HTTP response. Every
+route declares its permission via `rbacHandler(...)`; the secure-first
+`makeProtectedRouter()` would otherwise inject a 403 default-deny.
+
+```typescript
+import { makeProtectedRouter } from "../../http/protected-router.js";
+import { registerRoutes } from "../../http/define-route.js";
+import { asyncHandler } from "../../http/async-handler.js";
+import { validateBody, validateQuery } from "../../http/validation.js";
+import { rbacHandler } from "../auth/rbac.middleware.js";
+import { Permission } from "@primebrick/sdk";
+import { CustomersService } from "./customers.service.js";
+import { CustomerCreateBodySchema, CustomerListQuerySchema } from "./dto.js";
+
+export function customersRouter() {
+  const router = makeProtectedRouter();
+  const service = new CustomersService();
+
+  const list = asyncHandler(async (req, res) => {
+    const result = await service.listCustomers(req.query as any);
+    res.json(result);
+  });
+
+  const create = asyncHandler(async (req, res) => {
+    const created = await service.createCustomer(req.body as any);
+    res.status(201).json(created);
+  });
+
+  registerRoutes(router, [
+    {
+      method: "get",
+      path: "/api/v1/entities/customer/list",
+      permission: rbacHandler([Permission.CUSTOMERS_READ_ALL]),
+      middlewares: [validateQuery(CustomerListQuerySchema)],
+      handler: list,
+    },
+    {
+      method: "post",
+      path: "/api/v1/entities/customer",
+      permission: rbacHandler([Permission.CUSTOMERS_CREATE_SINGLE]),
+      middlewares: [validateBody(CustomerCreateBodySchema)],
+      handler: create,
+    },
+  ]);
+
+  return router;
+}
+```
+
+### 4. Mounting (`src/index.ts`)
+
+Module routers are mounted by `mountModules(app)` at startup. The
+`/api/v1/health` endpoint and the OpenAPI docs router are mounted **before**
+the guard so they stay public.
+
+```typescript
+import express from "express";
+import { mountModules } from "./modules/index.js";
+import { errorHandler } from "./http/error-handler.js";
+import { openApiRouter } from "./openapi/router.js";
+
+const app = express();
+app.use(express.json());
+
+// Public — mounted before the guard.
+app.get("/api/v1/health", async (_req, res) => { /* ... */ });
+app.use(openApiRouter());
+
+// Protected — every route under /api/v1/* declares its permission.
+mountModules(app);
+
+// Centralized error handler — converts ApiError to RFC 7807.
+app.use(errorHandler);
+
+app.listen(3001, () => console.log("API listening on http://localhost:3001"));
+```
+
+## OpenAPI
+
+The backend generates its OpenAPI spec from code:
+
+- **`src/openapi/openapi.ts`** — defines the system API spec
+- **`src/openapi/router.ts`** — mounts the OpenAPI JSON endpoint
+- **`src/openapi/aggregated-router.ts`** — aggregates the backend spec with
+  microservice specs registered via NATS
+
+The docs site fetches these specs at build time to populate the API Catalog.
+
+## Service registry
+
+The backend subscribes to microservice lifecycle events over NATS:
+
+<Mermaid chart={`sequenceDiagram
+  participant US as Microservice
+  participant NATS as NATS
+  participant BE as Backend
+  participant DB as Database
+
+  US->>NATS: service.register(name, version, endpoints)
+  NATS->>BE: register event
+  BE->>DB: INSERT INTO registered_services
+  US->>NATS: heartbeat (every 30s)
+  NATS->>BE: heartbeat event
+  BE->>DB: UPDATE last_heartbeat_at
+  alt Heartbeat timeout
+    BE->>DB: Mark service as stale
+  end
+`} />
+
+When a microservice registers, the backend persists its metadata and
+exposes its endpoints through the aggregated OpenAPI router and the
+reverse proxy module.
+
+## Next steps
+
+- [Authentication](./authentication) — the Casdoor OIDC flow, JWT verification, passkeys, and invitations.
+- [RBAC](./rbac) — the wildcard permission system, `rbacHandler`, and role mappings.
+- [Collaboration](./collaboration) — optimistic locking, field-level audit, and visual merge.
+- [DAL entities & decorators](/dal/guide/entities) — the entity decorators used by every module.

@@ -40,8 +40,10 @@ import {
   CustomerAuditQuerySchema,
 } from "./dto.js";
 import { customerMeta } from "./customers.meta.js";
+import { CustomerEntity } from "./customer_entity.js";
 import { CustomersService } from "./customers.service.js";
 import { ValidationError } from "../../http/api-errors.js";
+import { assembleMeta } from "../../http/meta-assembler.js";
 
 const BulkUuidsSchema = z.object({
   uuids: z.array(z.string().uuid()).min(1).max(100),
@@ -62,7 +64,7 @@ export function customersRouter() {
   const service = new CustomersService();
 
   const getMeta: RequestHandler = (_req, res) => {
-    res.json(customerMeta);
+    res.json(assembleMeta(customerMeta, CustomerEntity));
   };
 
   const list: RequestHandler = asyncHandler(async (req, res) => {

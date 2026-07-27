@@ -1,0 +1,131 @@
+# AI LLM runtime — mistral.rs server with Qwen3-4B-Instruct-2507 (Q4_K_M).
+#
+# This compose file is SEPARATE from docker-compose.postgres.yml because:
+#   1. The LLM is optional — users can configure a cloud LLM (OpenAI, Anthropic, etc.)
+#      via LLM_BASE_URL and skip this container entirely.
+#   2. The LLM has high RAM requirements (~4GB for Qwen3-4B Q4_K_M) that not all
+#      dev machines can afford during regular development.
+#   3. Production deployments may use a dedicated GPU node for the LLM.
+#
+# Usage:
+#   docker compose -f infra/docker-compose.ai-llm.yml up -d
+#   docker compose -f infra/docker-compose.ai-llm.yml down
+#
+# Model download (AUTOMATIC):
+#   The model is downloaded automatically from Hugging Face Hub on first start.
+#   mistral.rs fetches the GGUF file from `bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF`
+#   and caches it in the persistent volume `primebrick_ai_llm_cache` (mounted at /data,
+#   which is HF_HOME). On subsequent starts, the cached model is reused — no re-download.
+#
+#   First start: ~2-5 minutes download (depending on bandwidth) + ~10s load.
+#   Subsequent starts: ~10s load (cache hit).
+#
+#   To force a re-download: `docker volume rm primebrick_ai_llm_cache` then restart.
+#
+#   For air-gapped/offline use after first download: set HF_HUB_OFFLINE=1 in env.
+#
+# The AI microservice connects to this container via LLM_BASE_URL=http://ai-llm:1234/v1
+# (configured in the ai.config table or .env).
+#
+# Fallback: llama.cpp (swap image + command — see commented block below).
+# Cloud: skip this container, set LLM_BASE_URL to the cloud provider URL.
+
+services:
+  ai-llm:
+    # Custom build — fixes GLIBC mismatch in official image (issue #1948).
+    # The official ghcr.io/ericlbuehler/mistral.rs:latest is based on Debian 12
+    # (GLIBC 2.36) but the mistralrs binary requires GLIBC 2.38+.
+    # This build uses Ubuntu 24.04 (GLIBC 2.39) + pre-built CPU binary from
+    # the v0.9.0 GitHub release. When the official image is fixed, switch back
+    # to `image: ghcr.io/ericlbuehler/mistral.rs:latest` and remove the build
+    # section + infra/mistralrs-custom/ directory.
+    build:
+      context: ./mistralrs-custom
+      dockerfile: Dockerfile
+    image: primebrick/mistral.rs:cpu-0.9.0
+    container_name: primebrick-ai-llm
+    ports:
+      # Bind only on loopback for security (LLM is internal infra).
+      # Override port: create .env with AI_LLM_HOST_PORT=8083
+      - "127.0.0.1:${AI_LLM_HOST_PORT:-8080}:1234"
+    volumes:
+      # Persistent volume for Hugging Face cache.
+      # mistral.rs downloads the GGUF here on first start (HF_HOME=/data).
+      # On subsequent starts, the cached model is reused — no re-download.
+      - primebrick_ai_llm_cache:/data
+    command: >
+      serve --cpu
+      --format gguf
+      -m bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF
+      -f Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+      --port 1234
+    environment:
+      # Hugging Face cache root — must match the volume mount.
+      # mistral.rs downloads model weights here on first start.
+      HF_HOME: /data
+      # Uncomment after first download for air-gapped/offline use:
+      # HF_HUB_OFFLINE: "1"
+      # Optional: set HF_TOKEN if the model repo is gated (not needed for bartowski/Qwen3).
+      # HF_TOKEN: ${HF_TOKEN:-}
+    restart: unless-stopped
+    # RAM: ~4GB recommended (2.5GB model Q4_K_M + overhead)
+    # CPU: 4+ cores for acceptable latency
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+    healthcheck:
+      # mistral.rs /health endpoint returns 200 when the server is ready.
+      # start_period is long (120s) to allow for first-time model download.
+      test: ["CMD-SHELL", "wget -qO- http://localhost:1234/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 10
+    networks:
+      - primebrick-infra-net
+
+# ─── Fallback: llama.cpp (swap if mistral.rs has issues) ────────────────────
+# Uncomment this block and comment the ai-llm service above to switch runtime.
+# llama.cpp can also download from HF Hub automatically (hf_repo + hf_file flags).
+# Swap requires also updating LLM_BASE_URL in ai.config (http://ai-llm:8080/v1).
+# Note: llama.cpp official image is based on Ubuntu 22.04 (GLIBC 2.35) which
+# may have the same GLIBC issue. If so, build a custom image similar to
+# infra/mistralrs-custom/ using Ubuntu 24.04.
+#
+#  ai-llm:
+#    image: ghcr.io/ggml-org/llama.cpp:server
+#    container_name: primebrick-ai-llm
+#    ports:
+#      - "127.0.0.1:${AI_LLM_HOST_PORT:-8080}:8080"
+#    volumes:
+#      - primebrick_ai_llm_cache:/models
+#    command: >
+#      --hf-repo bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF
+#      --hf-file Qwen_Qwen3-4B-Instruct-2507-Q8_0.gguf
+#      --host 0.0.0.0 --port 8080
+#      -t 4 -c 8192 --jinja
+#    environment:
+#      HF_HOME: /models
+#    restart: unless-stopped
+#    deploy:
+#      resources:
+#        limits:
+#          memory: 8G
+#    healthcheck:
+#      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+#      interval: 30s
+#      timeout: 10s
+#      start_period: 120s
+#      retries: 10
+#    networks:
+#      - primebrick-infra-net
+
+volumes:
+  primebrick_ai_llm_cache:
+    name: primebrick_ai_llm_cache
+
+networks:
+  primebrick-infra-net:
+    name: primebrick-infra-net
+    driver: bridge

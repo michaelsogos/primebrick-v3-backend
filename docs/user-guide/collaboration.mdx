@@ -1,0 +1,435 @@
+---
+title: Collaboration & Visual Merge
+description: "Real-time co-editing with field-level merge, conflict resolution, and live presence — automatic for all auditable entities."
+---
+
+## Overview
+
+The collaboration module provides real-time co-editing awareness for any entity
+that is auditable. When two or more users open the same record, each user sees
+who else is viewing or editing, which field they are focused on, and receives a
+live notification when the other user saves. The frontend can then fetch the
+field-level diff and either silently merge non-overlapping changes or surface a
+conflict resolution UI when both users edited the same field.
+
+The module provides four capabilities:
+
+- **Real-time presence** — see who is currently reading or editing an entity,
+  including which field they are focused on and the value they are typing.
+- **Entity-changed awareness** — when any user saves an auditable entity, every
+  other connected user receives an `entity-changed` event over SSE within
+  milliseconds.
+- **Field-level merge** — the audit diff endpoint returns the exact `{ old, new }`
+  delta per field, so the frontend can merge non-overlapping changes without a
+  full reload.
+- **Conflict resolution** — optimistic locking (`version` column) guarantees that
+  if two users save conflicting changes, the second save returns a `409` with a
+  stable `ERR01` code. The frontend uses this to trigger the conflict UI.
+
+No WebSockets are required. The entire transport layer is HTTP-based.
+
+## Architecture
+
+The collaboration module uses three transports, each with a clear role:
+
+| Transport | Role | Best-effort? |
+|-----------|------|--------------|
+| **SSE** (Server-Sent Events) | Push real-time updates to connected browsers | No — core feature |
+| **Redis** | Presence state + entity-changed marker cache (5-min TTL) | Yes — system works without it |
+| **NATS** | Fan-out across multiple BE instances | Yes — same-instance SSE still works |
+
+```
+Browser ──HTTP──▶ BE instance ──SSE──▶ Browser
+                     │
+          ┌──────────┴──────────┐
+          ▼                     ▼
+       Redis                 NATS
+   (presence state)    (cross-instance fanout)
+```
+
+SSE works over standard HTTP/1.1 or HTTP/2. The browser opens a long-lived
+`GET` connection to `/presence/events` and receives a stream of named events
+(`snapshot`, `presence-update`, `entity-changed`, `error`). A keep-alive comment
+is sent every 15 seconds to keep proxies from closing the connection.
+
+Redis stores the presence state (who is reading, who is editing, which field)
+and the most recent entity-changed marker. The marker has a 5-minute TTL so that
+users who open the record shortly after a save see the latest change without
+needing to scan the audit log.
+
+NATS provides cross-instance fanout. When multiple BE instances are behind a
+load balancer, User A might be connected to instance 1 and User B to instance 2.
+NATS ensures the `entity-changed` event published on instance 1 reaches the SSE
+stream on instance 2. Each BE instance bridges the NATS subject for an entity
+into its local SSE bus only while at least one SSE client is subscribed
+(refcounted via `collaborationBusRegistry`).
+
+## How it's automatic
+
+Any entity decorated with `@AuditTrail()` gets collaboration automatically.
+There is no separate registration, no per-entity wiring, and no feature flag to
+flip.
+
+The audit hook (`BeAuditPortAdapter`) fires after every `UPDATE`, `SOFT_DELETE`,
+`RESTORE`, and `HARD_DELETE` on an auditable entity. It publishes the
+`EntityChangedMarker` that drives the `entity-changed` SSE event. Because the
+hook is part of the audit port — which only runs for `@AuditTrail()` entities —
+collaboration is implicitly enabled for exactly those entities.
+
+The frontend discovers this via the entity meta response. `assembleMeta()`
+injects a `collaboration` fragment into every entity's meta payload:
+
+```json
+{
+  "collaboration": {
+    "enabled": true,
+    "expose_editing_value": true
+  }
+}
+```
+
+When `collaboration.enabled` is `true`, the frontend activates the presence
+avatars, SSE subscription, and merge/conflict UI for that entity. When `false`,
+the frontend treats the entity as a standard CRUD form with no collaboration
+features.
+
+## Endpoints
+
+All endpoints require authentication (`Permission.AUTHENTICATED_USER`) via
+cookie-based session. The SSE client must send `credentials: 'include'`.
+
+### POST `/api/v1/entities/:entity/:uuid/presence`
+
+Send a presence signal. Returns `204 No Content`.
+
+```json
+{
+  "action": "EDITING",
+  "field": "company_name",
+  "value": "Acme Corp",
+  "loaded_version": 42,
+  "session_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | `"READING"` \| `"EDITING"` \| `"LEAVE"` \| `"HEARTBEAT"` | Yes | The presence signal type |
+| `field` | `string` | No | The field the user is focused on (sent with `EDITING`) |
+| `value` | `unknown` | No | The in-progress value being typed (sent with `EDITING`) |
+| `loaded_version` | `integer` | No | The entity version the user loaded (for stale-check) |
+| `session_id` | `string` (UUID) | No | Tab session identifier for multi-tab heartbeats |
+
+The four actions:
+
+- **`READING`** — user opened the record in read mode. Adds the user to the
+  `readers` list in the presence snapshot.
+- **`EDITING`** — user started editing, optionally focused on a specific field.
+  Adds the user to the `editors` list and publishes a presence delta so other
+  clients show the editing avatar and field focus indicator.
+- **`LEAVE`** — user closed the tab or navigated away. Removes the user from both
+  lists and publishes a `LEAVE` delta.
+- **`HEARTBEAT`** — keep the user's presence alive. Resets the Redis TTL. Does
+  not publish a NATS delta (no state change for other clients).
+
+### GET `/api/v1/entities/:entity/:uuid/presence`
+
+Returns the current presence snapshot.
+
+```json
+{
+  "readers": [
+    {
+      "user_uuid": "abc-123",
+      "user_name": "Alice",
+      "status": "READING",
+      "field": null,
+      "value": null,
+      "last_seen_at": 1718000000000,
+      "tab_count": 1
+    }
+  ],
+  "editors": [
+    {
+      "user_uuid": "def-456",
+      "user_name": "Bob",
+      "status": "EDITING",
+      "field": "company_name",
+      "value": "Acme Corp",
+      "last_seen_at": 1718000001000,
+      "tab_count": 1
+    }
+  ],
+  "changed": {
+    "entity_type": "customers",
+    "entity_uuid": "550e8400-...",
+    "version": 43,
+    "audit_log_id": 99,
+    "changed_by": "def-456",
+    "changed_at": 1718000002000
+  },
+  "current_version": 43
+}
+```
+
+The `changed` field is `null` when no change has been published within the
+5-minute TTL window.
+
+### GET `/api/v1/entities/:entity/:uuid/presence/events`
+
+Opens an SSE stream. The response has `Content-Type: text/event-stream`. Events
+are sent as named SSE events with JSON data payloads.
+
+| Event | Description |
+|-------|-------------|
+| `snapshot` | Sent once on connect. Contains the full presence snapshot. |
+| `presence-update` | Sent when a user joins, leaves, or changes field focus. Contains the presence delta. |
+| `entity-changed` | Sent when another user saves the entity. Contains the `EntityChangedMarker`. |
+| `error` | Sent when the initial snapshot could not be loaded. The stream stays open. |
+
+The stream excludes `presence-update` events that originate from the same user
+(no self-echo). A keep-alive comment (`: keep-alive`) is sent every 15 seconds.
+
+### GET `/api/v1/entities/:entity/:uuid/audit/:auditLogId`
+
+Returns the field-level diff for a specific audit log entry. The frontend uses
+this after receiving an `entity-changed` event to fetch the exact `{ old, new }`
+delta per field and decide whether to silently merge or surface a conflict.
+
+```json
+{
+  "audit_log_id": 99,
+  "entity_type": "customers",
+  "entity_uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "version": 43,
+  "changed_by": "def-456",
+  "changed_at": 1718000002000,
+  "delta": {
+    "company_name": { "old": "Acme Inc", "new": "Acme Corp" },
+    "email": { "old": "old@acme.com", "new": "new@acme.com" }
+  }
+}
+```
+
+Returns `404` if the audit log entry does not exist or does not belong to the
+requested entity UUID.
+
+## The audit hook
+
+`BeAuditPortAdapter` implements the `AuditPort` interface from the DAL. After
+writing the audit log row to the per-entity audit table (`{tableName}_audit`),
+it publishes an `EntityChangedMarker` for every `UPDATE`, `SOFT_DELETE`,
+`RESTORE`, and `HARD_DELETE` action.
+
+`INSERT` is excluded — a newly created entity has no concurrent viewers to
+notify.
+
+The marker is published through two channels:
+
+1. **Redis** — `store.setChanged(marker, 300_000)` stores the marker with a
+   5-minute TTL. This serves late-joining SSE clients: when a user opens the
+   record 2 minutes after a save, the initial snapshot includes the `changed`
+   field without scanning the audit log.
+2. **NATS** — `publishEntityChanged(NatsClient, marker)` publishes to the
+   `entity.{entityType}.{entityUuid}.changed` subject. Connected SSE clients on
+   any BE instance receive the `entity-changed` event in real time.
+
+Both are best-effort. If Redis or NATS is unavailable, the marker is simply not
+published — the audit log row itself is always written, because that is the
+primary responsibility of the adapter.
+
+```ts
+const marker: EntityChangedMarker = {
+  entity_type: params.tableName,
+  entity_uuid: params.entityUuid,
+  version: params.version,
+  audit_log_id: Number(inserted.id),
+  changed_by: params.changedBy,
+  changed_at: params.changedAt.getTime(),
+};
+```
+
+## Keyspace notifications
+
+When a user closes their browser without sending an explicit `LEAVE` signal,
+their presence entry in Redis expires after the TTL (30 seconds without a
+heartbeat). The keyspace listener detects this expiry and publishes a `LEAVE`
+delta on NATS so connected SSE clients remove the stale user from their presence
+UI.
+
+### Requirements
+
+Redis must be configured with keyspace notifications for expired and generic
+events:
+
+```bash
+redis-cli CONFIG SET notify-keyspace-events Exg
+```
+
+Or in `redis.conf`:
+
+```conf
+notify-keyspace-events Exg
+```
+
+- `E` — keyevent events (events triggered by keyspace operations)
+- `x` — expired events
+- `g` — generic events (DEL, EXPIRE, etc.)
+
+The listener subscribes to the `__keyevent@0__:expired` channel on a dedicated
+Redis client (Redis requires a separate connection for pub/sub). It parses the
+expired key name and only processes keys matching `presence:*:users` or
+`presence:*:editors`.
+
+### Fallback sweep
+
+If keyspace notifications are not enabled, the listener silently no-ops. The
+system still works: the next time any client fetches the presence snapshot, the
+expired user is no longer in Redis, so the snapshot reflects the correct state.
+The SSE clients will reconcile on the next snapshot fetch or heartbeat cycle.
+
+## Error mapping
+
+The global error handler maps three DAL error codes to HTTP responses with
+stable `internal_code` values. The frontend uses these codes to trigger the
+appropriate UI flow.
+
+| Code | HTTP | Title | Severity | Frontend action |
+|------|------|-------|----------|-----------------|
+| `ERR01` | `409` | Optimistic concurrency violation | `HIGH` | Show conflict resolution UI |
+| `ERR02` | `400` | Missing version field | `MEDIUM` | Show "refresh required" message |
+| `ERR03` | `404` | Record vanished | `MEDIUM` | Show "deleted by another user" message |
+
+All three follow RFC 7807 (`application/problem+json`):
+
+```json
+{
+  "type": "urn:primebrick:err01",
+  "title": "Optimistic concurrency violation",
+  "status": 409,
+  "detail": "The record was modified by another user. Please refresh and try again.",
+  "instance": "/api/v1/entities/customers/550e8400-...",
+  "internal_code": "ERR01",
+  "severity": "HIGH"
+}
+```
+
+- **`ERR01`** — the `version` column did not match the expected value. Another
+  user saved the record between the time this user loaded it and tried to save.
+  The DAL raises this via `RAISE EXCEPTION ... USING ERRCODE = 'ERR01'` in
+  PostgreSQL.
+- **`ERR02`** — the request body did not include a `version` field, but the
+  entity is auditable and requires optimistic locking.
+- **`ERR03`** — the row was hard-deleted by another writer between the read and
+  the write. The record no longer exists.
+
+## Meta auto-inject
+
+`assembleMeta()` wraps each entity's static meta object with a `collaboration`
+fragment before returning it to the frontend. The `enabled` flag is derived from
+the entity's persistence metadata — specifically `getEntityPersistenceMeta(ctor).isAuditable`.
+
+```ts
+export function assembleMeta<T extends Record<string, unknown>>(
+  meta: T,
+  entityClass: new () => unknown,
+): T & { collaboration: { enabled: boolean; expose_editing_value: boolean } } {
+  const persistenceMeta = getEntityPersistenceMeta(entityClass);
+  const isAuditable = persistenceMeta.isAuditable === true;
+
+  return {
+    ...meta,
+    collaboration: {
+      enabled: isAuditable,
+      expose_editing_value: true,
+    },
+  };
+}
+```
+
+The `expose_editing_value` flag controls whether the frontend shows the
+in-progress value being typed by another user in the avatar tooltip. When
+`false`, only the field name is shown, not the value.
+
+## Infrastructure requirements
+
+| Component | Required? | Purpose |
+|-----------|-----------|---------|
+| **PostgreSQL** | Yes | Audit tables (`{entity}_audit`) store the field-level deltas |
+| **Redis** | Best-effort | Presence state + entity-changed marker cache |
+| **NATS** | Best-effort | Cross-instance fanout for SSE events |
+
+### Redis
+
+Redis is best-effort. The system is fully valid without it — presence is simply
+disabled and all presence endpoints return empty snapshots or `204`. The audit
+log and optimistic locking work independently of Redis.
+
+When Redis is available, configure keyspace notifications for presence expiry
+cleanup:
+
+```bash
+redis-cli CONFIG SET notify-keyspace-events Exg
+```
+
+The presence store reuses the same `redis_url` as the cache port (loaded from
+`auth_configurations`). It creates a separate Redis client because node-redis
+does not support concurrent command queuing on a shared connection safely across
+modules.
+
+### NATS
+
+NATS is best-effort. When unavailable, SSE still works for clients connected to
+the same BE instance (the local bus delivers events directly). Cross-instance
+fanout is lost — a user on instance 2 will not see a save that happened on
+instance 1 until they refresh.
+
+### PostgreSQL
+
+PostgreSQL is required. The audit tables (`{entity}_audit`) are created by the
+standard migration flow and store every `INSERT`, `UPDATE`, `SOFT_DELETE`,
+`RESTORE`, and `HARD_DELETE` with a field-level `delta` JSON column. The audit
+diff endpoint reads from these tables.
+
+## End-to-end flow
+
+The following sequence diagram shows the full flow when User A saves a change
+and User B is concurrently viewing the same record.
+
+<Mermaid chart={`
+sequenceDiagram
+    participant FE_A as User A (Browser)
+    participant BE as BE Instance
+    participant Redis as Redis
+    participant NATS as NATS
+    participant FE_B as User B (Browser)
+
+    Note over FE_A, FE_B: Both users have the same record open
+
+    FE_A->>BE: PUT /api/v1/entities/customers/:uuid (version=42)
+    BE->>BE: Optimistic lock check (version matches)
+    BE->>BE: Write audit row to customers_audit
+    BE->>Redis: setChanged(marker, 5min TTL)
+    BE->>NATS: publish entity.customers.:uuid.changed
+    NATS->>BE: Fanout to all instances
+    BE->>FE_B: SSE event: entity-changed (marker)
+    FE_B->>BE: GET /api/v1/entities/customers/:uuid/audit/:auditLogId
+    BE->>FE_B: 200 OK (field-level delta)
+    FE_B->>FE_B: Compare delta with local edits
+
+    alt Non-overlapping fields
+        FE_B->>FE_B: Silent merge — apply remote changes locally
+    else Overlapping fields
+        FE_B->>FE_B: Show conflict resolution UI
+        FE_B->>BE: PUT /api/v1/entities/customers/:uuid (version=43)
+        BE->>BE: Optimistic lock check (version matches)
+        BE->>FE_B: 200 OK (merged)
+    end
+`} />
+
+## Next steps
+
+- [Optimistic Locking](./optimistic-locking) — how the `version` column prevents
+  lost updates and drives the `ERR01` conflict response.
+- [Audit Trail](./audit-trail) — how `@AuditTrail()` captures field-level deltas
+  and powers the audit diff endpoint.

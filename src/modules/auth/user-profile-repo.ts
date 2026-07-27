@@ -3,13 +3,15 @@
  *
  * The auth middleware calls `resolveInternalUuid()` on every authenticated
  * request to map the IDP `sub` to our internal Primebrick UUID. The first
- * time a user appears we INSERT a new row; subsequent calls hit a small
- * in-memory LRU and never touch the DB.
+ * time a user appears we INSERT a new row; subsequent calls hit the Redis
+ * cache and never touch the DB.
  *
- * The cache is intentionally tiny and time-bounded: we want changes to
- * email / display_name on the IDP side to propagate within a few minutes.
  * The cache only stores the `idp_code → uuid` mapping (never claims), so
- * stale values are not a security risk.
+ * stale values are not a security risk. TTL is 5 minutes — we want changes
+ * to email / display_name on the IDP side to propagate within a few minutes.
+ *
+ * If Redis is disabled (redis_url empty or unreachable), every call hits
+ * the DB — best-effort, the system is fully valid without Redis.
  */
 
 import { randomUUID } from "node:crypto";
@@ -18,33 +20,12 @@ import { Repository, field, Filter } from "@primebrick/dal-pg";
 import { getPool } from "../../db/pool.js";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
+import { getCachePort } from "../../cache/cache-port-holder.js";
 
-interface CacheEntry {
-  uuid: string;
-  expiresAt: number;
-}
+const USER_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
 
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const CACHE_MAX_ENTRIES = 1000;
-const cache = new Map<string, CacheEntry>();
-
-function cacheGet(idpCode: string): string | null {
-  const entry = cache.get(idpCode);
-  if (!entry) return null;
-  if (entry.expiresAt < Date.now()) {
-    cache.delete(idpCode);
-    return null;
-  }
-  return entry.uuid;
-}
-
-function cacheSet(idpCode: string, uuid: string): void {
-  if (cache.size >= CACHE_MAX_ENTRIES) {
-    // Drop the oldest entry (insertion order on Map iterators).
-    const firstKey = cache.keys().next().value;
-    if (firstKey !== undefined) cache.delete(firstKey);
-  }
-  cache.set(idpCode, { uuid, expiresAt: Date.now() + CACHE_TTL_MS });
+function idpCodeCacheKey(idpCode: string): string {
+  return `be:user_profiles:idp_code:${idpCode}`;
 }
 
 export interface ResolveInput {
@@ -69,13 +50,21 @@ export async function resolveInternalUuid(
   input: ResolveInput,
   pool: Pool = getPool()
 ): Promise<string> {
-  const cached = cacheGet(input.idp_code);
-  if (cached) return cached;
+  // 1. Check Redis cache
+  const port = getCachePort();
+  if (port) {
+    try {
+      const cached = await port.get<string>(idpCodeCacheKey(input.idp_code));
+      if (cached) return cached;
+    } catch (e) {
+      console.warn(`[cache] user_profiles get failed: ${e}`);
+    }
+  }
 
   const repo = new Repository(pool);
   const auditPort = new BeAuditPortAdapter(repo);
 
-  // Try a fast SELECT first — most requests hit existing users.
+  // 2. Try a fast SELECT first — most requests hit existing users.
   const row = await repo.find<UserProfileEntity, { uuid: string; idp_org?: string; idp_username?: string }>(
     UserProfileEntity,
     [
@@ -108,11 +97,18 @@ export async function resolveInternalUuid(
         { actor: row.uuid, matchBy: "idp_code", audit: auditPort }
       );
     }
-    cacheSet(input.idp_code, row.uuid);
+    // 3. Cache the result in Redis
+    if (port) {
+      try {
+        await port.set(idpCodeCacheKey(input.idp_code), row.uuid, USER_PROFILE_CACHE_TTL_MS);
+      } catch (e) {
+        console.warn(`[cache] user_profiles set failed: ${e}`);
+      }
+    }
     return row.uuid;
   }
 
-  // Not found → just-in-time provisioning. The user that performs the very
+  // 4. Not found → just-in-time provisioning. The user that performs the very
   // first auth bootstraps their own profile, hence `actor = newUuid`.
   const newUuid = randomUUID();
 
@@ -130,11 +126,36 @@ export async function resolveInternalUuid(
   );
 
   const uuid = (upserted as any)?.uuid ?? newUuid;
-  cacheSet(input.idp_code, uuid);
+  // 5. Cache the result in Redis
+  if (port) {
+    try {
+      await port.set(idpCodeCacheKey(input.idp_code), uuid, USER_PROFILE_CACHE_TTL_MS);
+    } catch (e) {
+      console.warn(`[cache] user_profiles set failed: ${e}`);
+    }
+  }
   return uuid;
 }
 
-/** Test helper: clear the in-memory mapping cache. */
+/**
+ * Invalidate the Redis cache for a specific idp_code.
+ * Called when a user profile is updated via the users API.
+ * Best-effort — if Redis is down, the cache TTL (5 min) bounds staleness.
+ */
+export async function invalidateUserProfileCache(idpCode: string): Promise<void> {
+  const port = getCachePort();
+  if (port) {
+    try {
+      await port.del(idpCodeCacheKey(idpCode));
+    } catch (e) {
+      console.warn(`[cache] user_profiles invalidate failed: ${e}`);
+    }
+  }
+}
+
+/** Test helper: clear the user profile cache. With Redis, this is a no-op
+ * (tests should use a FakeCachePort or mock). Kept for backward compat. */
 export function resetUserProfileCacheForTest(): void {
-  cache.clear();
+  // No-op — the in-memory Map is gone. Tests that need cache isolation should
+  // either disable Redis (no redis_url) or use a FakeCachePort.
 }

@@ -25,7 +25,15 @@ export interface AuthConfigDb {
   oidc_client_secret?: string;
   oidc_audience?: string;
   enable_email_verification_check: boolean; // parsed from "true"/"false"
+  enable_webauthn: boolean; // parsed from "true"/"false"
+  enable_formauth: boolean; // parsed from "true"/"false"
+  passkey_required: boolean; // parsed from "true"/"false"
   password_policy?: string;
+
+  // --- MFA / 2FA config ---
+  enable_mfa: boolean; // parsed from "true"/"false"
+  mfa_challenge_token_ttl_seconds: number; // parsed from string → number
+  mfa_challenge_signing_secret?: string; // auto-generated if empty
 
   // --- Auth mode + roles path ---
   auth_mode: AuthMode; // validated + normalized to uppercase
@@ -43,6 +51,12 @@ export interface AuthConfigDb {
   gateway_header_idp_code?: string;
   gateway_header_idp_org?: string;
   gateway_header_idp_username?: string;
+
+  // --- Redis cache (optional) ---
+  // Empty or undefined = cache disabled (best-effort, system valid without it).
+  // Set to a Redis URL (e.g. "redis://redis:6379" or "redis://external-redis:6379")
+  // to enable the cache layer. Configured by the admin in the auth_configurations table.
+  redis_url?: string;
 }
 
 /**
@@ -127,14 +141,39 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
     }
   }
 
-  // Spread the key/value map AS-IS. Override ONLY the field that needs a
-  // real TYPE transformation: enable_email_verification_check (string DB →
-  // bool TS). auth_mode is normalized to uppercase for enum comparison.
+  // Spread the key/value map AS-IS. Override ONLY the fields that need a
+  // real TYPE transformation: enable_email_verification_check, enable_webauthn,
+  // enable_formauth (string DB → bool TS). auth_mode is normalized to uppercase
+  // for enum comparison.
   // NO lowercasing — data quality is enforced at the upsert path.
   // NO field-by-field DTO mapping. NO fallback defaults.
+  const enableWebauthn = settings.enable_webauthn === "true";
+  const enableFormauth = settings.enable_formauth === "true";
+  const passkeyRequired = settings.passkey_required === "true";
+  const enableMfa = settings.enable_mfa === "true";
+  const mfaTtl = settings.mfa_challenge_token_ttl_seconds
+    ? parseInt(settings.mfa_challenge_token_ttl_seconds, 10)
+    : 300;
+
+  // At least one authentication method MUST be enabled — otherwise no user
+  // can ever log in. This is a fatal configuration error, not a transient
+  // DB-unavailable issue. The error is thrown here (during loadAuthConfigFromDb)
+  // so it surfaces through the standard startup config-load path.
+  if (!enableWebauthn && !enableFormauth) {
+    throw new Error(
+      "[auth] At least one authentication method must be enabled: set 'enable_formauth' or 'enable_webauthn' to 'true' in auth_configurations table.",
+    );
+  }
+
   return {
     ...settings,
     enable_email_verification_check: settings.enable_email_verification_check === "true",
+    enable_webauthn: enableWebauthn,
+    enable_formauth: enableFormauth,
+    passkey_required: passkeyRequired,
+    enable_mfa: enableMfa,
+    mfa_challenge_token_ttl_seconds: mfaTtl,
+    mfa_challenge_signing_secret: settings.mfa_challenge_signing_secret ?? undefined,
     auth_mode: mode, // normalized to uppercase, already validated above
   } as AuthConfigDb;
 }
