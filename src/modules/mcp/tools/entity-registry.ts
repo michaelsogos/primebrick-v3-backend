@@ -26,7 +26,8 @@ export type Operation =
   | "delete"
   | "restore"
   | "audit"
-  | "meta";
+  | "meta"
+  | "aggregate";
 
 /** Bulk operations (separate from single-record CRUD). */
 export type BulkOperation = "bulk_delete" | "bulk_restore";
@@ -222,6 +223,18 @@ export function registerBeEntities(): void {
       restore: [Permission.USERS_RESTORE_SINGLE],
       audit: [Permission.USER_PROFILE_READ_AUDIT],
       meta: [Permission.USERS_READ_ALL, Permission.USERS_READ_SINGLE],
+    },
+  });
+
+  // Auth events (audit log entity — read-only via MCP, no CRUD)
+  entityRegistry.registerBeEntity("be", {
+    entity: "auth_events",
+    label: "Auth Events",
+    supported_operations: ["list", "aggregate", "meta"],
+    permissions: {
+      list: [Permission.AUTH_EVENTS_READ_ALL],
+      aggregate: [Permission.AUTH_EVENTS_READ_ALL],
+      meta: [Permission.AUTH_EVENTS_READ_ALL],
     },
   });
 }

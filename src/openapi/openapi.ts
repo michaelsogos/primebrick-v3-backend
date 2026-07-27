@@ -342,7 +342,7 @@ export const openapi = {
                 type: "object",
                 properties: {
                   field: { type: "string" },
-                  op: { type: "string", enum: ["=", "!=", "<>", "<", "<=", ">", ">=", "ILIKE", "LIKE", "IN", "NOT IN", "IS", "IS NOT"] },
+                  op: { type: "string", enum: ["=", "!=", "<>", "<", "<=", ">", ">=", "ILIKE", "LIKE", "IN", "NOT IN", "IS", "IS NOT", "@>"] },
                   value: { oneOf: [{ type: "string" }, { type: "number" }, { type: "boolean" }, { type: "null" }] },
                   connector: { type: "string", enum: ["AND", "OR"] },
                 },
@@ -459,7 +459,7 @@ export const openapi = {
                 type: "object",
                 properties: {
                   field: { type: "string" },
-                  op: { type: "string", enum: ["=", "!=", "<>", "<", "<=", ">", ">=", "ILIKE", "LIKE", "IN", "NOT IN", "IS", "IS NOT"] },
+                  op: { type: "string", enum: ["=", "!=", "<>", "<", "<=", ">", ">=", "ILIKE", "LIKE", "IN", "NOT IN", "IS", "IS NOT", "@>"] },
                   value: { oneOf: [{ type: "string" }, { type: "number" }, { type: "boolean" }, { type: "null" }] },
                   connector: { type: "string", enum: ["AND", "OR"] },
                 },

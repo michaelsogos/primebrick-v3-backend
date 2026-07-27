@@ -72,3 +72,38 @@ Summarize in chat:
 - Which doc pages were updated and why (added/fixed/created)
 - Which doc pages were skipped (already accurate)
 - That changes are NOT committed — wait for user instruction to commit
+
+### 7. Auto-generated reference docs (AI knowledge base)
+
+The docs repo (`primebrick-v3-docs`) has a script `scripts/generate-reference-docs.mjs`
+that auto-generates 4 critical reference MDX files for the AI chat knowledge base:
+
+1. `entity-field-reference.mdx` — extracted from BE `src/modules/**/*.meta.ts`
+2. `filter-operator-reference.mdx` — extracted from BE `src/db/repository/dsl.ts`
+3. `filter-syntax-guide.mdx` — filter examples per operator + filterable fields per entity
+4. `navigation-map.mdx` — FE routes + entity associations
+
+These docs are regenerated automatically by the docs CI on every push to `main`
+and on a 6-hour cron. They are committed to the docs repo by the CI.
+
+**When to regenerate locally:**
+- After adding/removing entity meta files (`*.meta.ts`)
+- After changing the `SqlOperator` enum in `dsl.ts`
+- After adding/removing FE routes that associate with entities
+- To validate the generated content before a release
+
+**How to regenerate locally:**
+```
+cd <primebrick-v3-docs repo>
+node scripts/generate-reference-docs.mjs
+```
+This requires `.tmp-repo-sync/` to exist (run `node scripts/sync-repo-docs.mjs`
+first if it doesn't). The script overwrites the 4 MDX files in
+`pages/backend/guide/` and updates `_order.json`.
+
+**Do NOT hand-edit** the 4 generated MDX files — they have
+`<!-- AUTO-GENERATED -->` markers and will be overwritten on the next run.
+
+If the diff touched meta files or `dsl.ts`, mention in the report that the
+auto-generated reference docs should be regenerated in the docs repo (the CI
+will do this automatically, but local validation is recommended before a release).

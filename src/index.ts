@@ -42,7 +42,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(extJsonMiddleware());
 
-type HealthCheckResult = { ok: boolean; version?: string; type?: string; error?: string };
+type HealthCheckResult = { ok: boolean; version?: string; type?: string; model?: string; error?: string };
 
 function readBackendVersion(): string {
   const here = dirname(fileURLToPath(import.meta.url)); // backend/src
@@ -145,6 +145,48 @@ function checkNats(): HealthCheckResult {
   return { ok: true, version };
 }
 
+/**
+ * LLM health check — calls the AI microservice health endpoint to get
+ * LLM connectivity + model + version info for the version panel.
+ *
+ * The AI microservice must be registered in service_registry with code='AI'.
+ * If the AI microservice is not registered or not running, the LLM check
+ * returns ok:false (the BE itself stays healthy — LLM is optional infra).
+ */
+async function checkLlm(): Promise<HealthCheckResult> {
+  try {
+    const repo = new ServiceRegistryRepo(getPool());
+    const service = await repo.findByCode("AI");
+    if (!service || !service.base_url) {
+      return { ok: false, error: "AI microservice not registered in service_registry" };
+    }
+
+    const healthUrl = `${service.base_url}/api/v1/ai/health`;
+    const res = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) {
+      return { ok: false, error: `AI microservice health failed: HTTP ${res.status}` };
+    }
+
+    const json = (await res.json()) as {
+      ok: boolean;
+      llm?: { ok: boolean; model?: string; version?: string; error?: string };
+    };
+
+    if (!json.llm) {
+      return { ok: false, error: "AI microservice did not return LLM health info" };
+    }
+
+    return {
+      ok: json.llm.ok,
+      model: json.llm.model,
+      version: json.llm.version,
+      ...(json.llm.ok ? {} : { error: json.llm.error ?? "LLM check failed" }),
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "LLM check error" };
+  }
+}
+
 async function healthPayload(): Promise<HealthResponse> {
   const pool = getPool();
   const checks: Record<string, HealthCheckResult> = {
@@ -152,8 +194,13 @@ async function healthPayload(): Promise<HealthResponse> {
     idp: await checkIdp(pool),
     redis: await checkRedis(),
     nats: checkNats(),
+    // LLM is optional infrastructure — included for the version panel but
+    // does NOT affect the overall health status (BE stays 200 even if LLM is down).
+    llm: await checkLlm(),
   };
-  const isHealthy = Object.values(checks).every((c) => c.ok);
+  // Only core infra (db, idp, redis, nats) determines overall health.
+  // LLM is reported but does not cause 503.
+  const isHealthy = ["db", "idp", "redis", "nats"].every((k) => checks[k].ok);
   return {
     ok: isHealthy,
     service: "primebrick-api",

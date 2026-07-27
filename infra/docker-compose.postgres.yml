@@ -28,7 +28,12 @@
 
 services:
   postgres:
-    image: postgres:18-bookworm
+    # Custom image: pgvector/pgvector:0.8.5-pg18-bookworm + pg_partman compiled from source.
+    # See infra/postgres-custom/Dockerfile for build details.
+    # Volume compatible with the previous postgres:18-bookworm image (same base, same layout).
+    build:
+      context: ./postgres-custom
+      dockerfile: Dockerfile
     container_name: primebrick-postgres-18
     environment:
       POSTGRES_USER: primebrick
@@ -42,15 +47,13 @@ services:
       # PG 18+ requires this path so data lives in a versioned subdir (see postgres Docker README).
       - primebrick_pg18_data:/var/lib/postgresql
 
-    # --- TRUCCO DI BOOTSTRAP PER INSTALARE ED AVVIARE PG_PARTMAN ---
-    entrypoint: >
-      bash -c "
-      echo '=== Aggiornamento e Installazione pg_partman ===' &&
-      apt-get update && apt-get install -y postgresql-18-partman &&
-      echo '=== Avvio di PostgreSQL con le librerie condivise ===' &&
-      exec docker-entrypoint.sh postgres -c shared_preload_libraries=pg_partman_bgw
-      "
-            
+    # pg_partman_bgw must be preloaded at startup. pgvector does not require
+    # preloading (it's a normal extension). Extensions are activated per-DB
+    # via CREATE EXTENSION in the init patch.
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_partman_bgw
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U primebrick -d primebrick"]
       interval: 5s

@@ -14,7 +14,8 @@ export type SqlOperator =
   | "NOT IN"
   | "BETWEEN"
   | "IS"
-  | "IS NOT";
+  | "IS NOT"
+  | "@>";
 
 export type SqlSortDirection = "ASC" | "DESC";
 export type SqlJoinType = "INNER" | "LEFT" | "RIGHT";

@@ -41,6 +41,7 @@ import {
   dispatchBeAudit,
   dispatchBeMeta,
   dispatchBeBulk,
+  dispatchBeAggregate,
   dispatchProxyList,
   dispatchProxyGet,
   dispatchProxyCreate,
@@ -49,6 +50,7 @@ import {
   dispatchProxyRestore,
   dispatchProxyAudit,
   dispatchProxyMeta,
+  dispatchProxyAggregate,
   listServices,
   getService,
   activateService,
@@ -162,7 +164,8 @@ export function registerGenericTools(server: McpServer): void {
       description:
         "List records of a given entity type with pagination, search, filtering, and sorting. " +
         "Returns a paginated response with items and metadata. " +
-        "Use list_available_entities first to discover valid (module, entity) combinations.",
+        "Use list_available_entities first to discover valid (module, entity) combinations. " +
+        "When `aggregate` is provided, returns aggregated results (COUNT/SUM/AVG/MIN/MAX with optional GROUP BY) instead of row listing.",
       inputSchema: z.object({
         ...moduleEntitySchema,
         search: z
@@ -173,7 +176,7 @@ export function registerGenericTools(server: McpServer): void {
           .array(z.string())
           .optional()
           .describe("Restrict full-text search to these specific fields."),
-        sort_key: z.string().optional().describe("Field name to sort by."),
+        sort_key: z.string().optional().describe("Field name to sort by. For aggregate queries, use 'count' or the aggregate type to sort by the aggregated value."),
         sort_dir: z
           .enum(["asc", "desc"])
           .optional()
@@ -193,18 +196,55 @@ export function registerGenericTools(server: McpServer): void {
         filters: z
           .record(z.string(), z.unknown())
           .optional()
-          .describe("Field-level filters as a JSON object (e.g. {status: 'active'})."),
+          .describe("Field-level filters as a JSON object (e.g. {status: 'active'}). For BETWEEN, use {field: {op: 'BETWEEN', value: [start, end]}}."),
         deleted_records: z
           .enum(["EXCLUDED", "ONLY", "INCLUDED"])
           .optional()
           .describe(
             "Filter by deletion status: EXCLUDED (default, only active), ONLY (only soft-deleted), INCLUDED (both).",
           ),
+        aggregate: z
+          .object({
+            type: z
+              .enum(["count", "sum", "avg", "min", "max"])
+              .describe("Aggregation function."),
+            field: z
+              .string()
+              .optional()
+              .describe("Field to aggregate (required for sum/avg/min/max; ignored for count)."),
+            group_by: z
+              .array(z.string())
+              .optional()
+              .describe("GROUP BY fields. If omitted, returns a single aggregate row."),
+          })
+          .optional()
+          .describe(
+            "Aggregate spec. When provided, the tool returns aggregated results " +
+            "({ results: [{ group: {...}, value: number }], total: number }) instead of row listing. " +
+            "Example: { type: 'count', group_by: ['user_profile_uuid'] } for 'who logged in most'.",
+          ),
       }),
     },
     withErrorHandling(async (args, ctx) => {
       const authInfo = getAuthInfo(ctx);
-      const { module, entity, ...params } = args;
+      const { module, entity, aggregate, ...params } = args;
+
+      // If aggregate is provided, dispatch to aggregate path
+      if (aggregate) {
+        validateEntity(module, entity, "aggregate");
+        checkRbac(authInfo, module, entity, "aggregate");
+
+        const entry = entityRegistry.get(module, entity)!;
+        let result: unknown;
+        if (entry.handler_type === "in-process") {
+          result = await dispatchBeAggregate(entity, { aggregate, ...params });
+        } else {
+          result = await dispatchProxyAggregate(authInfo, module, entity, { aggregate, ...params });
+        }
+        return textResult(result);
+      }
+
+      // Standard list path
       validateEntity(module, entity, "list");
       checkRbac(authInfo, module, entity, "list");
 

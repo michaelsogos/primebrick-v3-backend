@@ -19,6 +19,13 @@ BEGIN
   END IF;
 END $$;
 
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
+    CREATE EXTENSION vector;
+  END IF;
+END $$;
+
 -- === Schemas ===
 CREATE SCHEMA IF NOT EXISTS emailsender;
 
@@ -452,6 +459,77 @@ CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_uq_scaler"
 CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_base_url_uq"
   ON "public"."service_registry" ("code", "base_url") WHERE is_behind_scaler = false;
 
+-- === AI Chat tables ===
+
+-- docs_kb: Knowledge base docs (chunked + embedded for RAG)
+CREATE TABLE IF NOT EXISTS "public"."docs_kb" (
+  "id" bigint generated always as identity PRIMARY KEY,
+  "repo" text NOT NULL,
+  "path" text NOT NULL,
+  "title" text NOT NULL,
+  "chunk_idx" int NOT NULL,
+  "content" text NOT NULL,
+  "embedding" vector(384) NOT NULL,
+  "metadata" jsonb NOT NULL DEFAULT '{}'::jsonb,
+  "content_hash" text NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  UNIQUE ("repo", "path", "chunk_idx")
+);
+
+CREATE INDEX IF NOT EXISTS "docs_kb_embedding_idx" ON "public"."docs_kb"
+  USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS "docs_kb_repo_idx" ON "public"."docs_kb" ("repo");
+CREATE INDEX IF NOT EXISTS "docs_kb_content_hash_idx" ON "public"."docs_kb" ("content_hash");
+
+-- ai_conversations: AI chat conversations
+CREATE TABLE IF NOT EXISTS "public"."ai_conversations" (
+  "uuid" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "user_uuid" uuid NOT NULL,
+  "title" text,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS "ai_conversations_user_uuid_updated_at_idx"
+  ON "public"."ai_conversations" ("user_uuid", "updated_at" DESC);
+
+-- ai_messages: AI chat messages (user, assistant, tool_call, tool_result)
+CREATE TABLE IF NOT EXISTS "public"."ai_messages" (
+  "uuid" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "conversation_uuid" uuid NOT NULL REFERENCES "public"."ai_conversations"("uuid") ON DELETE CASCADE,
+  "role" text NOT NULL,
+  "content" jsonb NOT NULL,
+  "tokens_in" int,
+  "tokens_out" int,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS "ai_messages_conversation_uuid_created_at_idx"
+  ON "public"."ai_messages" ("conversation_uuid", "created_at");
+
+-- auth_events: Audit auth events (login, logout, mfa_verify, passkey_signin, login_failed)
+-- user_profile_uuid is NULLABLE: for failed login attempts there is no JWT and
+-- no resolvable user UUID. attempted_username captures the username that was tried.
+CREATE TABLE IF NOT EXISTS "public"."auth_events" (
+  "id" bigint generated always as identity PRIMARY KEY,
+  "user_profile_uuid" uuid,
+  "attempted_username" text,
+  "event_type" text NOT NULL,
+  "event_at" timestamptz NOT NULL DEFAULT now(),
+  "ip_address" inet,
+  "user_agent" text,
+  "success" boolean NOT NULL,
+  "failure_reason" text
+);
+
+CREATE INDEX IF NOT EXISTS "auth_events_user_profile_uuid_event_at_idx"
+  ON "public"."auth_events" ("user_profile_uuid", "event_at" DESC);
+CREATE INDEX IF NOT EXISTS "auth_events_event_type_event_at_idx"
+  ON "public"."auth_events" ("event_type", "event_at" DESC);
+CREATE INDEX IF NOT EXISTS "auth_events_attempted_username_event_at_idx"
+  ON "public"."auth_events" ("attempted_username", "event_at" DESC);
+
 -- === Seed Data ===
 
 -- Seed the only auto-created role mapping: 'administrators' (is_admin=true).
@@ -477,6 +555,15 @@ AND NOT EXISTS (
   WHERE a.entity_uuid = (SELECT uuid FROM public.role_mappings WHERE idp_role = 'administrators')
     AND a.action = 'INSERT'
 );
+
+-- Seed the 'auth_auditor' role mapping (read-only auth events audit).
+-- Dedicated role for security/compliance team to inspect login logs.
+-- Admin (is_admin=true) bypasses all checks; this role is for non-admin users.
+-- Note: no audit trail seed for role_mappings because the table has no uuid column
+-- (pre-existing schema limitation — administrators seed has the same gap).
+INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
+VALUES ('auth_auditor', '["auth_events.read.all"]'::jsonb, false, '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1)
+ON CONFLICT (idp_role) DO NOTHING;
 
 -- Seed initial auth configuration values
 INSERT INTO "public"."auth_configurations" ("key", "value", "description", "created_by") VALUES

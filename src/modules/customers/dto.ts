@@ -25,6 +25,7 @@ const allowedOperators = [
   "BETWEEN",
   "IS",
   "IS NOT",
+  "@>",
 ] as const;
 export type SqlOperator = (typeof allowedOperators)[number];
 

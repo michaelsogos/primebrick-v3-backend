@@ -31,6 +31,7 @@ export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
         is_reserved: true,
         nav: [
           { id: "profile", label_key: "shell.settings.tabs.profile", href: "/system/settings/profile", icon: "square-user" },
+          { id: "credentials", label_key: "shell.settings.tabs.credentials", href: "/system/settings/credentials", icon: "key-round" },
           { id: "organizations", label_key: "shell.settings.tabs.organizations", href: "/system/settings/organizations", icon: "building-2" },
           { id: "users", label_key: "shell.settings.tabs.users", href: "/system/settings/users", icon: "users" },
           { id: "roles", label_key: "shell.settings.tabs.roles", href: "/system/settings/roles", icon: "user-key" },
