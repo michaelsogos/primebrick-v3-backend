@@ -59,6 +59,10 @@ services:
       -m bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF
       -f Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf
       --port 1234
+      --dtype f16
+      --prefix-cache-n 0
+      --max-seqs 1
+      --max-seq-len 2048
     environment:
       # Hugging Face cache root — must match the volume mount.
       # mistral.rs downloads model weights here on first start.
@@ -73,7 +77,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6G
+          memory: 8G
     healthcheck:
       # mistral.rs /health endpoint returns 200 when the server is ready.
       # start_period is long (120s) to allow for first-time model download.
