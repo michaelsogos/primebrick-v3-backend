@@ -128,6 +128,8 @@ export interface WebauthnBeginResult {
 export interface WebauthnSigninFinishResult {
   success: true;
   user: ReturnType<typeof buildUserFromClaims>;
+  /** Resolved user_profiles.uuid (for auth event logging). */
+  user_uuid?: string;
 }
 
 export interface WebauthnCredentialInfo {
@@ -457,7 +459,28 @@ export class WebauthnService {
       console.error("[webauthn] Failed to bump last_used_at (non-critical):", lastUsedErr);
     }
 
-    return { success: true, user: buildUserFromClaims(claims) };
+    // Resolve the user UUID for the auth event log.
+    // The Casdoor JWT `sub` is the idp_code — resolve it to the internal
+    // user_profiles.uuid (same resolution the auth middleware does).
+    const idpCode = (claims as any).sub as string | undefined;
+    let userUuid: string | undefined;
+    if (idpCode) {
+      try {
+        const { resolveInternalUuid } = await import("../user-profile-repo.js");
+        userUuid = await resolveInternalUuid({
+          idp_code: idpCode,
+          email: (claims as any).email ?? null,
+          display_name: (claims as any).displayName ?? (claims as any).name ?? null,
+          idp_org: (claims as any).organization || undefined,
+          idp_username: (claims as any).name || undefined,
+        }, this.pool);
+      } catch {
+        // resolveInternalUuid may throw if the user doesn't exist yet —
+        // the auth middleware will JIT-provision on the next authed request.
+      }
+    }
+
+    return { success: true, user: buildUserFromClaims(claims), user_uuid: userUuid };
   }
 
   // --- Signup (enrollment) -------------------------------------------------

@@ -96,7 +96,11 @@ export function authSessionRouter() {
   const service = makeService();
 
   const login: RequestHandler = asyncHandler(async (req, res) => {
-    const outcome = await service.login(req.body as z.infer<typeof LoginBodySchema>);
+    const request_ctx = {
+      ip_address: (req.headers["x-forwarded-for"] as string) || req.ip,
+      user_agent: req.headers["user-agent"],
+    };
+    const outcome = await service.login(req.body as z.infer<typeof LoginBodySchema>, request_ctx);
     if ("mfa_required" in outcome) {
       // MFA challenge required — do NOT set cookies. The FE must present the
       // MFA challenge UI and call POST /api/v1/auth/mfa/verify.
