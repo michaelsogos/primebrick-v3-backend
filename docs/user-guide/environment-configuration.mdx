@@ -1,0 +1,148 @@
+---
+title: Environment Configuration
+description: "Environment variables, .env setup, and configuration reference for the Primebrick Backend."
+---
+
+# Environment Configuration
+
+The Primebrick Backend reads configuration from two sources:
+
+1. **Environment variables** (`.env` file) — connection strings, ports, URLs
+2. **`auth_configurations` database table** — runtime auth settings (OIDC, Redis, gateway)
+
+Environment variables are loaded once at startup via `dotenv/config`. The
+`auth_configurations` table is read at runtime and can be updated via the
+admin API without restarting.
+
+## Quick start
+
+Copy the example file and adjust the values for your environment:
+
+```bash
+cp .env.example .env
+```
+
+The defaults in `.env.example` work out-of-the-box with the dockerized
+infrastructure from `infra/docker-compose.postgres.yml`.
+
+## Required variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | **(none — required)** |
+
+The backend will throw on startup if `DATABASE_URL` is not set.
+
+## Server variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | HTTP port for the API server | `3001` |
+| `NODE_ENV` | Set to `production` to enable secure cookies | `development` |
+| `PUBLIC_BASE_URL` | Public base URL of the backend (OAuth/MCP metadata) | Derived from request host |
+| `PUBLIC_FE_URL` | Public base URL of the frontend (OAuth consent redirect) | `http://localhost:5173` |
+
+## Infrastructure variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NATS_URL` | NATS message broker URL | `nats://127.0.0.1:4222` |
+| `CASDOOR_ENDPOINT` | Casdoor IDP endpoint URL (health check fallback) | `http://localhost:8000` |
+| `CASDOOR_BUILTIN_CLIENT_ID` | Casdoor client ID (health check auth) | `cb05577e2097c31af3c7` |
+| `CASDOOR_BUILTIN_CLIENT_SECRET` | Casdoor client secret (health check auth) | `47b2e05673a5307ccf0552e32ba45a18f6627f21` |
+
+## Database variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PB_UUID_DEFAULT_PROVIDER` | UUID generation function: `pgcrypto` or `uuid-ossp` | `pgcrypto` |
+
+## Debug toggles
+
+These are development-only variables. Do not enable in production.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PB_SEED_CUSTOMERS` | Seed demo customers on startup (`0` to disable) | `1` |
+| `PB_CUSTOMERS_FORCE_EMPTY` | Force empty customer list (`1` to enable) | `0` |
+| `PB_CUSTOMERS_FORCE_ERROR` | Force error on customer list (`1` to enable) | `0` |
+
+## Database-stored configuration
+
+Most auth-related configuration is stored in the `auth_configurations`
+table, not in environment variables. This allows runtime updates via the
+admin API without restarting the server.
+
+| Config key | Description |
+|------------|-------------|
+| `redis_url` | Redis connection URL for caching and sessions |
+| `oidc_issuer_url` | OIDC issuer URL (defaults to Casdoor endpoint) |
+| `oidc_client_id` | OIDC client ID |
+| `oidc_client_secret` | OIDC client secret |
+| `gateway_secret` | Shared secret for microservice gateway auth |
+
+To update a config value, use the admin API:
+
+```bash
+curl -X PUT http://localhost:3001/api/v1/auth/configurations \
+  -H "Authorization: Bearer <admin-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "redis_url", "value": "redis://redis:6379"}'
+```
+
+## Local development setup
+
+<Mermaid chart={`flowchart LR
+  ENV[".env file"] -->|loaded by dotenv| BE[Backend API]
+  DB["auth_configurations table"] -->|read at runtime| BE
+  BE -->|connects| PG[(PostgreSQL)]
+  BE -->|connects| NATS[NATS]
+  BE -->|health check| CASDOOR[Casdoor IDP]
+`} />
+
+### Prerequisites
+
+1. **Docker Desktop** running
+2. **PostgreSQL + pgvector** — start with:
+   ```bash
+   docker compose -f infra/docker-compose.postgres.yml up -d
+   ```
+3. **Casdoor** — included in the same compose file, starts automatically
+
+### Steps
+
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Apply database migrations:
+   ```bash
+   pnpm run db:migrate
+   ```
+
+3. Set up Casdoor (creates the builtin client, admin user, and roles):
+   ```bash
+   pnpm run setup:casdoor
+   ```
+
+4. Start the dev server:
+   ```bash
+   pnpm run dev
+   ```
+
+5. Verify health:
+   ```bash
+   curl http://localhost:3001/api/v1/health
+   ```
+
+## Production checklist
+
+- [ ] Set `NODE_ENV=production`
+- [ ] Set `DATABASE_URL` to the production Postgres instance
+- [ ] Set `NATS_URL` to the production NATS cluster
+- [ ] Set `PUBLIC_BASE_URL` and `PUBLIC_FE_URL` to the public domains
+- [ ] Set `CASDOOR_*` variables to the production Casdoor instance
+- [ ] Update `auth_configurations` table with production Redis, OIDC, and gateway settings
+- [ ] Set `PB_SEED_CUSTOMERS=0` to disable demo data
+- [ ] Remove or disable all debug toggles

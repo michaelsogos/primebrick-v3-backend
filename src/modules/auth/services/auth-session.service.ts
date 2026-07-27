@@ -38,6 +38,10 @@ import {
 } from "../../../http/api-errors.js";
 import type { LoginBody, ProfileUpdate } from "../dto.js";
 import type { UserProfileDetailDto } from "../user-profiles-dal.js";
+import {
+  insertAuthEvent,
+  type AuthRequestContext,
+} from "../auth-event-logger.js";
 
 // --- Result types ---------------------------------------------------------
 
@@ -88,7 +92,7 @@ export class AuthSessionService {
 
   // --- Login ---------------------------------------------------------------
 
-  async login(input: LoginBody): Promise<LoginOutcome> {
+  async login(input: LoginBody, request_ctx?: AuthRequestContext): Promise<LoginOutcome> {
     const cfg = await getAuthConfig();
     const tokenUrl = `${cfg.casdoor_endpoint}/api/login/oauth/access_token`;
     const formData = new URLSearchParams();
@@ -108,6 +112,17 @@ export class AuthSessionService {
 
     if (!response.ok) {
       const errorText = await response.text();
+      // Insert FAILED login auth event (best-effort, non-blocking).
+      // No JWT → no resolvable user UUID → user_profile_uuid is null,
+      // attempted_username captures the username that was tried.
+      await insertAuthEvent({
+        pool: this.pool,
+        event_type: "login_failed",
+        success: false,
+        attempted_username: input.username,
+        failure_reason: errorText.slice(0, 500),
+        request_ctx,
+      });
       throw this.casdoorAuthError(errorText, response.status, "/api/v1/auth/login");
     }
 
@@ -179,6 +194,38 @@ export class AuthSessionService {
         }
       }
     }
+
+    // Resolve the user UUID for the SUCCESS login auth event.
+    // The Casdoor JWT `sub` is the idp_code — resolve it to the internal
+    // user_profiles.uuid (same resolution the auth middleware does).
+    const idpCode = claims.sub as string;
+    let userUuid: string | undefined;
+    if (idpCode) {
+      try {
+        const { resolveInternalUuid } = await import("../user-profile-repo.js");
+        userUuid = await resolveInternalUuid({
+          idp_code: idpCode,
+          email: (claims.email as string) ?? null,
+          display_name: (claims.displayName as string) ?? (claims.name as string) ?? null,
+          idp_org: (claims.owner as string) || undefined,
+          idp_username: (claims.name as string) || undefined,
+        }, this.pool);
+      } catch {
+        // resolveInternalUuid may throw if the user doesn't exist yet —
+        // the auth middleware will JIT-provision on the next authed request.
+        // For the auth event, we log with user_profile_uuid = null.
+      }
+    }
+
+    // Insert SUCCESS login auth event (best-effort, non-blocking).
+    await insertAuthEvent({
+      pool: this.pool,
+      event_type: "login",
+      success: true,
+      user_profile_uuid: userUuid,
+      attempted_username: input.username,
+      request_ctx,
+    });
 
     return {
       tokens: {

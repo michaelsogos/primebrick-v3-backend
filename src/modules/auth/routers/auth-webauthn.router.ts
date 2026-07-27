@@ -38,6 +38,7 @@ import {
   WebauthnSignupFinishSchema,
 } from "../dto.js";
 import { UnauthorizedError } from "../../../http/api-errors.js";
+import { insertAuthEvent } from "../auth-event-logger.js";
 
 function makeService(): WebauthnService {
   const pool = getPool();
@@ -119,6 +120,17 @@ export function authWebauthnRouter() {
       origin,
       res as Response,
     );
+    // Insert passkey signin auth event (best-effort, non-blocking).
+    await insertAuthEvent({
+      pool: getPool(),
+      event_type: "passkey_signin",
+      success: true,
+      user_profile_uuid: result.user_uuid,
+      request_ctx: {
+        ip_address: (req.headers["x-forwarded-for"] as string) || req.ip,
+        user_agent: req.headers["user-agent"],
+      },
+    });
     res.json(result);
   });
 

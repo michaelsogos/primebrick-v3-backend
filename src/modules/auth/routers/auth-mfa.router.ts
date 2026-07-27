@@ -32,6 +32,7 @@ import {
 import { UnauthorizedError } from "../../../http/api-errors.js";
 import { setAuthCookies } from "../services/auth-session.service.js";
 import { buildUserFromClaims } from "../services/auth-session.service.js";
+import { insertAuthEvent } from "../auth-event-logger.js";
 
 function makeService(): MfaService {
   const pool = getPool();
@@ -102,6 +103,18 @@ export function authMfaRouter() {
       body.factor_id,
       body.code,
     );
+    // Insert MFA verify auth event (best-effort, non-blocking).
+    // The user is authenticated at the first factor → we have their UUID.
+    await insertAuthEvent({
+      pool: getPool(),
+      event_type: "mfa_verify",
+      success: true,
+      user_profile_uuid: result.user_uuid,
+      request_ctx: {
+        ip_address: (req.headers["x-forwarded-for"] as string) || req.ip,
+        user_agent: req.headers["user-agent"],
+      },
+    });
     setAuthCookies(res as Response, result.tokens);
     res.json({ success: true, user: buildUserFromClaims(result.claims as Record<string, any>) });
   });

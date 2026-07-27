@@ -75,7 +75,7 @@ async function main(): Promise<void> {
       SELECT EXISTS (
         SELECT FROM information_schema.tables
         WHERE table_schema = 'public'
-        AND table_name = 'primebrick_database_patch'
+        AND table_name = 'primebrick_database_patches'
       )
     `);
     if (!checkTable.rows[0].exists) {
@@ -85,14 +85,14 @@ async function main(): Promise<void> {
 
     // Read current sha256
     const current = await pool.query(
-      "SELECT patch_id, content_sha256 FROM public.primebrick_database_patch WHERE patch_id = $1",
+      "SELECT patch_id, content_sha256 FROM public.primebrick_database_patches WHERE patch_id = $1",
       [patchId],
     );
 
     if (current.rows.length === 0) {
       // Patch not registered yet — insert it (fresh database or registry missing)
       await pool.query(
-        "INSERT INTO public.primebrick_database_patch (patch_id, content_sha256) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        "INSERT INTO public.primebrick_database_patches (patch_id, content_sha256) VALUES ($1, $2) ON CONFLICT DO NOTHING",
         [patchId, newSha],
       );
       console.log(`Patch '${patchId}' was not in registry. Inserted with new sha256: ${newSha}`);
@@ -107,7 +107,7 @@ async function main(): Promise<void> {
 
     // Update sha256
     await pool.query(
-      "UPDATE public.primebrick_database_patch SET content_sha256 = $2 WHERE patch_id = $1",
+      "UPDATE public.primebrick_database_patches SET content_sha256 = $2 WHERE patch_id = $1",
       [patchId, newSha],
     );
     console.log(`Patch '${patchId}' sha256 updated:`);
