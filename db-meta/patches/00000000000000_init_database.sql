@@ -341,13 +341,17 @@ END $$;
 CREATE INDEX IF NOT EXISTS "role_mappings_audit_entity_uuid_idx" ON "public"."role_mappings_audit" ("entity_uuid");
 CREATE INDEX IF NOT EXISTS "role_mappings_audit_action_idx" ON "public"."role_mappings_audit" ("action");
 
--- auth_configurations table
+-- auth_configurations table (Config Table standard: type/type_config/label_key/description_key/reserved)
 CREATE TABLE IF NOT EXISTS "public"."auth_configurations" (
   "id" bigint generated always as identity NOT NULL,
   "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
-  "key" varchar(50) NOT NULL,
-  "value" text NOT NULL,
-  "description" text,
+  "key" varchar(100) NOT NULL,
+  "value" text,
+  "type" varchar(50) NOT NULL DEFAULT 'string',
+  "type_config" text,
+  "label_key" varchar(100),
+  "description_key" varchar(100),
+  "reserved" boolean NOT NULL DEFAULT false,
   "created_at" timestamptz DEFAULT now(),
   "created_by" text,
   "updated_at" timestamptz DEFAULT now(),
@@ -518,31 +522,29 @@ VALUES ('auth_auditor', '["auth_events.read.all"]'::jsonb, false, '2026-05-18T14
 ON CONFLICT (idp_role) DO NOTHING;
 
 -- Seed initial auth configuration values
-INSERT INTO "public"."auth_configurations" ("key", "value", "description", "created_by") VALUES
-('casdoor_endpoint', 'http://localhost:8000', 'URL base del server Casdoor™', 'system'),
-('casdoor_organization', 'ACME', 'Nome dell organization di riferimento', 'system'),
-('casdoor_client_id', 'primebrick-api', 'Client ID della nostra applicazione', 'system'),
-('casdoor_admin_username', 'admin', 'Username dell utente amministratore standard', 'system'),
-('casdoor_admin_role', 'administrators', 'Nome del ruolo amministrativo', 'system'),
-('oidc_issuer_url', 'http://localhost:8000', 'OIDC issuer URL per validazione token', 'system'),
-('oidc_issuer_type', 'casdoor', 'Tipo di IDP (casdoor, keycloak, auth0)', 'system'),
-('oidc_client_id', '', 'OIDC client ID reale generato da Casdoor™', 'system'),
-('enable_email_verification_check', 'false', 'Abilita il controllo emailVerified sul JWT durante il login (true/false)', 'system'),
-('enable_formauth', 'true', 'Abilita il login con form username/password (true/false). Almeno uno tra enable_formauth e enable_webauthn deve essere true.', 'system'),
-('enable_webauthn', 'true', 'Abilita il login passwordless con WebAuthn / passkey (true/false). Almeno uno tra enable_formauth e enable_webauthn deve essere true.', 'system'),
-('passkey_required', 'true', 'Se true, la passkey e obbligatoria: il prompt di enrollment non puo essere saltato e il checkbox Non mostrare piu e nascosto (true/false).', 'system'),
-('enable_mfa', 'false', 'Abilita MFA / 2FA (login MFA + step-up MFA). Quando false, il login non brancha su MFA e il middleware step-up passa through (true/false).', 'system'),
-('password_policy', 'letter_number_special', 'Active password complexity policy (alpha_numeric | letter_and_number | letter_number_special | mixed_case_special)', 'system'),
-('auth_mode', 'STANDALONE', 'Authentication operating mode (STANDALONE | GATEWAY). STANDALONE = API validates JWT via OIDC discovery; GATEWAY = trusted reverse proxy forwards user identity via headers.', 'system'),
-('auth_roles_path', 'roles', 'Dotted path to extract the roles array from a JWT payload (e.g. "roles" for Casdoor™/Entra™, "realm_access.roles" for Keycloak™ realm roles).', 'system'),
-('invitation_expiry_days', '7', 'Invitation token expiry in days', 'system'),
-('admin_contact_email', '', 'Admin email for unauthorized action alerts and mailto: links. If empty, BE falls back to first user with is_admin=true.', 'system'),
-('notification_alert_secret', '', 'HMAC secret for unauthorized-action alert links in emails. Auto-generated (32 random bytes hex) on first use if empty.', 'system'),
-('frontend_url', 'http://localhost:5173', 'Frontend application base URL (used for email links, e.g. welcome page). In production, set to the public HTTPS URL.', 'system'),
-('redis_url', 'redis://redis:6379', 'Redis cache URL. Empty = cache disabled (best-effort, system valid without it). Default: dockerized Redis (Docker network name). Change to external Redis URL if needed.', 'system'),
-('enable_mfa', 'true', 'Abilita il sistema MFA / 2FA (login MFA + step-up MFA). Se false, il login non richiede mai MFA e il middleware step-up passa attraverso (true/false).', 'system'),
-('mfa_challenge_token_ttl_seconds', '300', 'TTL in secondi per i token di challenge MFA (login, step-up, action authorization). Default 300 = 5 minuti.', 'system'),
-('mfa_challenge_signing_secret', '', 'HMAC secret per firmare i JWT di challenge MFA. Auto-generato (32 random bytes hex) al primo utilizzo se vuoto.', 'system')
+INSERT INTO "public"."auth_configurations" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "created_by") VALUES
+('casdoor_endpoint', 'http://localhost:8000', 'url', NULL, 'config.auth.casdoor_endpoint.label', 'config.auth.casdoor_endpoint.description', true, 'system'),
+('casdoor_organization', 'ACME', 'string', NULL, 'config.auth.casdoor_organization.label', 'config.auth.casdoor_organization.description', true, 'system'),
+('casdoor_client_id', 'primebrick-api', 'string', NULL, 'config.auth.casdoor_client_id.label', 'config.auth.casdoor_client_id.description', true, 'system'),
+('casdoor_admin_username', 'admin', 'string', NULL, 'config.auth.casdoor_admin_username.label', 'config.auth.casdoor_admin_username.description', true, 'system'),
+('casdoor_admin_role', 'administrators', 'string', NULL, 'config.auth.casdoor_admin_role.label', 'config.auth.casdoor_admin_role.description', true, 'system'),
+('oidc_issuer_url', 'http://localhost:8000', 'url', NULL, 'config.auth.oidc_issuer_url.label', 'config.auth.oidc_issuer_url.description', true, 'system'),
+('oidc_issuer_type', 'casdoor', 'badge', '{"values":{"casdoor":{"label_key":"config.auth.oidc_issuer_type.casdoor"},"keycloak":{"label_key":"config.auth.oidc_issuer_type.keycloak"},"auth0":{"label_key":"config.auth.oidc_issuer_type.auth0"}}}', 'config.auth.oidc_issuer_type.label', 'config.auth.oidc_issuer_type.description', true, 'system'),
+('oidc_client_id', '', 'string', NULL, 'config.auth.oidc_client_id.label', 'config.auth.oidc_client_id.description', true, 'system'),
+('enable_email_verification_check', 'false', 'boolean', NULL, 'config.auth.enable_email_verification_check.label', 'config.auth.enable_email_verification_check.description', true, 'system'),
+('enable_webauthn', 'true', 'boolean', NULL, 'config.auth.enable_webauthn.label', 'config.auth.enable_webauthn.description', true, 'system'),
+('passkey_required', 'true', 'boolean', NULL, 'config.auth.passkey_required.label', 'config.auth.passkey_required.description', true, 'system'),
+('enable_mfa', 'false', 'boolean', NULL, 'config.auth.enable_mfa.label', 'config.auth.enable_mfa.description', true, 'system'),
+('password_policy', 'letter_number_special', 'badge', '{"values":{"alpha_numeric":{"label_key":"config.auth.password_policy.alpha_numeric"},"letter_and_number":{"label_key":"config.auth.password_policy.letter_and_number"},"letter_number_special":{"label_key":"config.auth.password_policy.letter_number_special"},"mixed_case_special":{"label_key":"config.auth.password_policy.mixed_case_special"}}}', 'config.auth.password_policy.label', 'config.auth.password_policy.description', true, 'system'),
+('auth_mode', 'STANDALONE', 'badge', '{"values":{"STANDALONE":{"label_key":"config.auth.auth_mode.standalone","color":"sky-300"},"GATEWAY":{"label_key":"config.auth.auth_mode.gateway","color":"amber-300"}}}', 'config.auth.auth_mode.label', 'config.auth.auth_mode.description', true, 'system'),
+('auth_roles_path', 'roles', 'string', NULL, 'config.auth.auth_roles_path.label', 'config.auth.auth_roles_path.description', true, 'system'),
+('invitation_expiry_days', '7', 'integer', NULL, 'config.auth.invitation_expiry_days.label', 'config.auth.invitation_expiry_days.description', true, 'system'),
+('admin_contact_email', '', 'string', NULL, 'config.auth.admin_contact_email.label', 'config.auth.admin_contact_email.description', true, 'system'),
+('notification_alert_secret', '', 'secret', NULL, 'config.auth.notification_alert_secret.label', 'config.auth.notification_alert_secret.description', true, 'system'),
+('frontend_url', 'http://localhost:5173', 'url', NULL, 'config.auth.frontend_url.label', 'config.auth.frontend_url.description', true, 'system'),
+('redis_url', 'redis://redis:6379', 'url', NULL, 'config.auth.redis_url.label', 'config.auth.redis_url.description', true, 'system'),
+('mfa_challenge_token_ttl_seconds', '300', 'integer', NULL, 'config.auth.mfa_challenge_token_ttl_seconds.label', 'config.auth.mfa_challenge_token_ttl_seconds.description', true, 'system'),
+('mfa_challenge_signing_secret', '', 'secret', NULL, 'config.auth.mfa_challenge_signing_secret.label', 'config.auth.mfa_challenge_signing_secret.description', true, 'system')
 ON CONFLICT ("key") DO NOTHING;
 
 -- === Patch Registry Table ===
