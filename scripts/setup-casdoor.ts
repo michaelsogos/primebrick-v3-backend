@@ -336,7 +336,6 @@ async function main(): Promise<void> {
     await updateAuthConfig(pbPool, "casdoor_builtin_client_id", liveClientId, "setup-casdoor");
     await updateAuthConfig(pbPool, "casdoor_builtin_client_secret", liveClientSecret, "setup-casdoor");
     await updateAuthConfig(pbPool, "casdoor_organization", ORG_NAME, "setup-casdoor");
-    await updateAuthConfig(pbPool, "enable_formauth", "true", "setup-casdoor");
     await updateAuthConfig(pbPool, "enable_webauthn", "true", "setup-casdoor");
     await updateAuthConfig(pbPool, "passkey_required", "true", "setup-casdoor");
     await updateAuthConfig(pbPool, "enable_mfa", "true", "setup-casdoor");

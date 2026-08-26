@@ -71,7 +71,6 @@ export class BeAuthConfigPort implements AuthConfigPort {
       casdoor_organization: db.casdoor_organization,
       enable_email_verification_check: db.enable_email_verification_check,
       enable_webauthn: db.enable_webauthn,
-      enable_formauth: db.enable_formauth,
       passkey_required: db.passkey_required,
       enable_mfa: db.enable_mfa,
       redis_url: db.redis_url,
