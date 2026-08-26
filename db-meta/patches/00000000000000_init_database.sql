@@ -352,6 +352,7 @@ CREATE TABLE IF NOT EXISTS "public"."auth_configurations" (
   "label_key" varchar(100),
   "description_key" varchar(100),
   "reserved" boolean NOT NULL DEFAULT false,
+  "group_key" varchar(100),
   "created_at" timestamptz DEFAULT now(),
   "created_by" text,
   "updated_at" timestamptz DEFAULT now(),
@@ -522,29 +523,27 @@ VALUES ('auth_auditor', '["auth_events.read.all"]'::jsonb, false, '2026-05-18T14
 ON CONFLICT (idp_role) DO NOTHING;
 
 -- Seed initial auth configuration values
-INSERT INTO "public"."auth_configurations" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "created_by") VALUES
-('casdoor_endpoint', 'http://localhost:8000', 'url', NULL, 'config.auth.casdoor_endpoint.label', 'config.auth.casdoor_endpoint.description', true, 'system'),
-('casdoor_organization', 'ACME', 'string', NULL, 'config.auth.casdoor_organization.label', 'config.auth.casdoor_organization.description', true, 'system'),
-('casdoor_client_id', 'primebrick-api', 'string', NULL, 'config.auth.casdoor_client_id.label', 'config.auth.casdoor_client_id.description', true, 'system'),
-('casdoor_admin_username', 'admin', 'string', NULL, 'config.auth.casdoor_admin_username.label', 'config.auth.casdoor_admin_username.description', true, 'system'),
-('casdoor_admin_role', 'administrators', 'string', NULL, 'config.auth.casdoor_admin_role.label', 'config.auth.casdoor_admin_role.description', true, 'system'),
-('oidc_issuer_url', 'http://localhost:8000', 'url', NULL, 'config.auth.oidc_issuer_url.label', 'config.auth.oidc_issuer_url.description', true, 'system'),
-('oidc_issuer_type', 'casdoor', 'badge', '{"values":{"casdoor":{"label_key":"config.auth.oidc_issuer_type.casdoor"},"keycloak":{"label_key":"config.auth.oidc_issuer_type.keycloak"},"auth0":{"label_key":"config.auth.oidc_issuer_type.auth0"}}}', 'config.auth.oidc_issuer_type.label', 'config.auth.oidc_issuer_type.description', true, 'system'),
-('oidc_client_id', '', 'string', NULL, 'config.auth.oidc_client_id.label', 'config.auth.oidc_client_id.description', true, 'system'),
-('enable_email_verification_check', 'false', 'boolean', NULL, 'config.auth.enable_email_verification_check.label', 'config.auth.enable_email_verification_check.description', true, 'system'),
-('enable_webauthn', 'true', 'boolean', NULL, 'config.auth.enable_webauthn.label', 'config.auth.enable_webauthn.description', true, 'system'),
-('passkey_required', 'true', 'boolean', NULL, 'config.auth.passkey_required.label', 'config.auth.passkey_required.description', true, 'system'),
-('enable_mfa', 'false', 'boolean', NULL, 'config.auth.enable_mfa.label', 'config.auth.enable_mfa.description', true, 'system'),
-('password_policy', 'letter_number_special', 'badge', '{"values":{"alpha_numeric":{"label_key":"config.auth.password_policy.alpha_numeric"},"letter_and_number":{"label_key":"config.auth.password_policy.letter_and_number"},"letter_number_special":{"label_key":"config.auth.password_policy.letter_number_special"},"mixed_case_special":{"label_key":"config.auth.password_policy.mixed_case_special"}}}', 'config.auth.password_policy.label', 'config.auth.password_policy.description', true, 'system'),
-('auth_mode', 'STANDALONE', 'badge', '{"values":{"STANDALONE":{"label_key":"config.auth.auth_mode.standalone","color":"sky-300"},"GATEWAY":{"label_key":"config.auth.auth_mode.gateway","color":"amber-300"}}}', 'config.auth.auth_mode.label', 'config.auth.auth_mode.description', true, 'system'),
-('auth_roles_path', 'roles', 'string', NULL, 'config.auth.auth_roles_path.label', 'config.auth.auth_roles_path.description', true, 'system'),
-('invitation_expiry_days', '7', 'integer', NULL, 'config.auth.invitation_expiry_days.label', 'config.auth.invitation_expiry_days.description', true, 'system'),
-('admin_contact_email', '', 'string', NULL, 'config.auth.admin_contact_email.label', 'config.auth.admin_contact_email.description', true, 'system'),
-('notification_alert_secret', '', 'secret', NULL, 'config.auth.notification_alert_secret.label', 'config.auth.notification_alert_secret.description', true, 'system'),
-('frontend_url', 'http://localhost:5173', 'url', NULL, 'config.auth.frontend_url.label', 'config.auth.frontend_url.description', true, 'system'),
-('redis_url', 'redis://redis:6379', 'url', NULL, 'config.auth.redis_url.label', 'config.auth.redis_url.description', true, 'system'),
-('mfa_challenge_token_ttl_seconds', '300', 'integer', NULL, 'config.auth.mfa_challenge_token_ttl_seconds.label', 'config.auth.mfa_challenge_token_ttl_seconds.description', true, 'system'),
-('mfa_challenge_signing_secret', '', 'secret', NULL, 'config.auth.mfa_challenge_signing_secret.label', 'config.auth.mfa_challenge_signing_secret.description', true, 'system')
+INSERT INTO "public"."auth_configurations" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "group_key", "created_by") VALUES
+('idp_endpoint', 'http://localhost:8000', 'url', NULL, 'config.auth.idp_endpoint.label', 'config.auth.idp_endpoint.description', true, 'idp_parameters', 'system'),
+('idp_organization', 'ACME', 'string', NULL, 'config.auth.idp_organization.label', 'config.auth.idp_organization.description', true, 'idp_parameters', 'system'),
+('oidc_issuer_url', 'http://localhost:8000', 'url', NULL, 'config.auth.oidc_issuer_url.label', 'config.auth.oidc_issuer_url.description', true, 'oidc_parameters', 'system'),
+('idp_type', 'casdoor', 'badge', '{"values":{"casdoor":{"label_key":"config.auth.idp_type.casdoor"},"keycloak":{"label_key":"config.auth.idp_type.keycloak"},"entra":{"label_key":"config.auth.idp_type.entra"},"okta":{"label_key":"config.auth.idp_type.okta"}}}', 'config.auth.idp_type.label', 'config.auth.idp_type.description', true, 'idp_parameters', 'system'),
+('oidc_client_id', '', 'string', NULL, 'config.auth.oidc_client_id.label', 'config.auth.oidc_client_id.description', true, 'oidc_parameters', 'system'),
+('oidc_client_secret', '', 'secret', NULL, 'config.auth.oidc_client_secret.label', 'config.auth.oidc_client_secret.description', true, 'oidc_parameters', 'system'),
+('enable_email_verification_check', 'false', 'boolean', NULL, 'config.auth.enable_email_verification_check.label', 'config.auth.enable_email_verification_check.description', true, 'security_parameters', 'system'),
+('enable_webauthn', 'true', 'boolean', NULL, 'config.auth.enable_webauthn.label', 'config.auth.enable_webauthn.description', true, 'security_parameters', 'system'),
+('passkey_required', 'true', 'boolean', NULL, 'config.auth.passkey_required.label', 'config.auth.passkey_required.description', true, 'security_parameters', 'system'),
+('enable_mfa', 'false', 'boolean', NULL, 'config.auth.enable_mfa.label', 'config.auth.enable_mfa.description', true, 'security_parameters', 'system'),
+('password_policy', 'letter_number_special', 'badge', '{"values":{"alpha_numeric":{"label_key":"config.auth.password_policy.alpha_numeric"},"letter_and_number":{"label_key":"config.auth.password_policy.letter_and_number"},"letter_number_special":{"label_key":"config.auth.password_policy.letter_number_special"},"mixed_case_special":{"label_key":"config.auth.password_policy.mixed_case_special"}}}', 'config.auth.password_policy.label', 'config.auth.password_policy.description', true, 'security_parameters', 'system'),
+('auth_mode', 'STANDALONE', 'badge', '{"values":{"STANDALONE":{"label_key":"config.auth.auth_mode.standalone","color":"sky-300"},"GATEWAY":{"label_key":"config.auth.auth_mode.gateway","color":"amber-300"}}}', 'config.auth.auth_mode.label', 'config.auth.auth_mode.description', true, 'idp_parameters', 'system'),
+('auth_roles_path', 'roles', 'string', NULL, 'config.auth.auth_roles_path.label', 'config.auth.auth_roles_path.description', true, 'oidc_parameters', 'system'),
+('invitation_expiry_days', '7', 'integer', NULL, 'config.auth.invitation_expiry_days.label', 'config.auth.invitation_expiry_days.description', true, 'advanced_features', 'system'),
+('admin_contact_email', '', 'string', NULL, 'config.auth.admin_contact_email.label', 'config.auth.admin_contact_email.description', true, 'system_settings', 'system'),
+('notification_alert_secret', '', 'secret', NULL, 'config.auth.notification_alert_secret.label', 'config.auth.notification_alert_secret.description', true, 'system_settings', 'system'),
+('frontend_url', 'http://localhost:5173', 'url', NULL, 'config.auth.frontend_url.label', 'config.auth.frontend_url.description', true, 'system_settings', 'system'),
+('redis_url', 'redis://redis:6379', 'url', NULL, 'config.auth.redis_url.label', 'config.auth.redis_url.description', true, 'advanced_features', 'system'),
+('mfa_challenge_token_ttl_seconds', '300', 'integer', NULL, 'config.auth.mfa_challenge_token_ttl_seconds.label', 'config.auth.mfa_challenge_token_ttl_seconds.description', true, 'security_parameters', 'system'),
+('mfa_challenge_signing_secret', '', 'secret', NULL, 'config.auth.mfa_challenge_signing_secret.label', 'config.auth.mfa_challenge_signing_secret.description', true, 'security_parameters', 'system')
 ON CONFLICT ("key") DO NOTHING;
 
 -- === Patch Registry Table ===

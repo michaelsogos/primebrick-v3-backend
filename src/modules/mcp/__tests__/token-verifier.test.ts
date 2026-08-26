@@ -132,8 +132,8 @@ describe("MCP Token Verifier — tokenVerifier.verifyAccessToken", () => {
     vi.clearAllMocks();
     setAuthPorts(fakePorts);
     mockGetAuthConfig.mockResolvedValue({
-      casdoor_endpoint: "http://localhost:8000",
-      casdoor_organization: "acme",
+      idp_endpoint: "http://localhost:8000",
+      idp_organization: "acme",
       oidc: { client_id: "test-client", client_secret: "test-secret" },
     });
   });

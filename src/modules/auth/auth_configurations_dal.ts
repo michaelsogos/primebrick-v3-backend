@@ -6,8 +6,9 @@
  */
 
 import type { Pool } from "pg";
-import { Repository, field, Filter } from "@primebrick/dal-pg";
+import { Repository, field, Filter, Sort, buildAuditableJoinsSelective } from "@primebrick/dal-pg";
 import { AuthConfigurationEntity } from "./auth_configuration_entity.js";
+import { UserProfileEntity } from "./user_profile_entity.js";
 
 export class AuthConfigurationsDal {
   private repo: Repository;
@@ -28,6 +29,15 @@ export class AuthConfigurationsDal {
       null,
       {
         deletedRecords: "EXCLUDED",
+        sorting: [
+          Sort.by(field(AuthConfigurationEntity, "group_key" as any), "ASC"),
+          Sort.by(field(AuthConfigurationEntity, "key" as any), "ASC"),
+        ],
+        joins: buildAuditableJoinsSelective(AuthConfigurationEntity, UserProfileEntity, {
+          includeCreator: false,
+          includeUpdater: true,
+          includeDeleter: false,
+        }),
       }
     );
     return rows as AuthConfigurationEntity[];

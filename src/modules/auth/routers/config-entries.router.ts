@@ -62,15 +62,17 @@ function maskSecretValue(row: AuthConfigurationEntity): Record<string, unknown> 
   return {
     uuid: row.uuid,
     key: row.key,
-    value: row.type === "secret" ? null : row.value,
+    value: row.value,
     type: row.type,
     type_config: row.type_config ?? null,
     label_key: row.label_key ?? null,
     description_key: row.description_key ?? null,
+    group_key: row.group_key ?? null,
     reserved: row.reserved,
     version: row.version,
     updated_at: row.updated_at,
     updated_by: row.updated_by,
+    updated_by_name: (row as any).updated_by_name ?? null,
   };
 }
 

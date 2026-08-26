@@ -298,7 +298,7 @@ export class MfaService {
     }
     const row = result.rows[0];
     const cfg = getAuthConfig();
-    const owner = row.idp_org || cfg.casdoor_organization || "";
+    const owner = row.idp_org || cfg.idp_organization || "";
     const name = row.idp_username || row.idp_code || "";
     if (!owner || !name) {
       throw new ApiError(
@@ -346,7 +346,7 @@ export class MfaService {
         "/errors/casdoor-not-configured",
         "Casdoor™ is not configured",
         503,
-        "The Casdoor™ API client is not configured. MFA management requires Casdoor™ builtin credentials.",
+        "The Casdoor™ API client is not configured. MFA management requires Casdoor™ admin credentials.",
         { internal_code: "CASDOOR_NOT_CONFIGURED", severity: "HIGH" },
       );
     }
@@ -399,7 +399,7 @@ export class MfaService {
         "/errors/casdoor-not-configured",
         "Casdoor™ is not configured",
         503,
-        "The Casdoor™ API client is not configured. MFA management requires Casdoor™ builtin credentials.",
+        "The Casdoor™ API client is not configured. MFA management requires Casdoor™ admin credentials.",
         { internal_code: "CASDOOR_NOT_CONFIGURED", severity: "HIGH" },
       );
     }
@@ -518,7 +518,7 @@ export class MfaService {
         "/errors/casdoor-not-configured",
         "Casdoor™ is not configured",
         503,
-        "The Casdoor™ API client is not configured. MFA management requires Casdoor™ builtin credentials.",
+        "The Casdoor™ API client is not configured. MFA management requires Casdoor™ admin credentials.",
         { internal_code: "CASDOOR_NOT_CONFIGURED", severity: "HIGH" },
       );
     }

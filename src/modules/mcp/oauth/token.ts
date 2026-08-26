@@ -96,7 +96,7 @@ export function tokenRouter(): Router {
       }
 
       const cfg = await getAuthConfig();
-      if (!cfg.casdoor_endpoint) {
+      if (!cfg.idp_endpoint) {
         return sendJson(res, 500, {
           error: "server_error",
           error_description: "Casdoor endpoint not configured",
@@ -113,7 +113,7 @@ export function tokenRouter(): Router {
       }
 
       // Proxy to Casdoor's token endpoint
-      const casdoorTokenUrl = `${cfg.casdoor_endpoint}/api/login/oauth/access_token`;
+      const casdoorTokenUrl = `${cfg.idp_endpoint}/api/login/oauth/access_token`;
       const formData = new URLSearchParams();
 
       if (params.grant_type === "authorization_code") {

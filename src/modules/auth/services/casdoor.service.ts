@@ -18,7 +18,7 @@
  * Lifecycle:
  *   One instance per router factory (lazy singleton, same pattern the routers
  *   already used). The underlying `CasdoorApiClient` is created on first access
- *   and reused. If the DB config is missing the builtin credentials, the
+ *   and reused. If the DB config is missing the admin credentials, the
  *   service returns `null` and logs a single warning (no spam on every call).
  */
 
@@ -34,7 +34,7 @@ export class CasdoorService {
 
   /**
    * Returns the lazily-initialized `CasdoorApiClient`, or `null` when Casdoor
-   * builtin credentials are not configured (e.g. dev setups without IDP).
+   * admin credentials are not configured (e.g. dev setups without IDP).
    *
    * Reads from the cached auth config (loaded at startup). The camelCase field
    * names passed to `CasdoorApiClient` are dictated by Casdoor's REST API
@@ -46,28 +46,28 @@ export class CasdoorService {
 
     try {
       const cfg = await getAuthConfig();
-      // casdoor_builtin_client_id / casdoor_builtin_client_secret are NOT in the
+      // idp_client_id / idp_client_secret are NOT in the
       // AuthConfig shape (they're only in AuthConfigDb). Read them via the DAL
-      // directly when needed. For now, the cached config exposes casdoor_endpoint
-      // and casdoor_organization; the builtin credentials are read from DB on
+      // directly when needed. For now, the cached config exposes idp_endpoint
+      // and idp_organization; the admin credentials are read from DB on
       // first init.
       const { AuthConfigurationsDal } = await import("../auth_configurations_dal.js");
       const dal = new AuthConfigurationsDal(this.pool);
       const [clientIdRow, clientSecretRow] = await Promise.all([
-        dal.findByKey("casdoor_builtin_client_id"),
-        dal.findByKey("casdoor_builtin_client_secret"),
+        dal.findByKey("idp_client_id"),
+        dal.findByKey("idp_client_secret"),
       ]);
-      const builtinClientId = clientIdRow?.value;
-      const builtinClientSecret = clientSecretRow?.value;
-      if (!builtinClientId || !builtinClientSecret) {
-        console.warn("[CasdoorService] Builtin credentials not configured; skipping Casdoor sync");
+      const adminClientId = clientIdRow?.value;
+      const adminClientSecret = clientSecretRow?.value;
+      if (!adminClientId || !adminClientSecret) {
+        console.warn("[CasdoorService] Admin credentials not configured; skipping Casdoor sync");
         return null;
       }
       this.client = new CasdoorApiClient({
-        endpoint: cfg.casdoor_endpoint!,
-        orgName: cfg.casdoor_organization!,
-        clientId: builtinClientId,
-        clientSecret: builtinClientSecret,
+        endpoint: cfg.idp_endpoint!,
+        orgName: cfg.idp_organization!,
+        clientId: adminClientId,
+        clientSecret: adminClientSecret,
       });
       return this.client;
     } catch (error) {

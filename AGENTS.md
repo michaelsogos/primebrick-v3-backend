@@ -129,6 +129,7 @@ both BE validation and FE widget selection.
 | `label_key` | varchar(100) nullable | i18n key for the setting title |
 | `description_key` | varchar(100) nullable | i18n key for the explanatory description |
 | `reserved` | boolean NOT NULL DEFAULT false | If true, the row is system-critical: editable but not deletable |
+| `group_key` | varchar(100) nullable | UI grouping key (null/empty = ungrouped, top of list). DAL sorts by `group_key ASC, key ASC`. |
 | audit + soft-delete fields | — | Standard `@AuditTrail()` + `@DeletableField()` columns |
 
 ### Config types

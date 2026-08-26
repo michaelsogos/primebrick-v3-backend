@@ -68,6 +68,9 @@ export class AuthConfigurationEntity implements IAuditableEntity {
   @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   reserved: boolean;
 
+  @Column({ length: 100, nullable: true })
+  group_key?: string | null;
+
   @AuditableField(AuditableFieldType.CREATED_AT)
   created_at: Date;
 

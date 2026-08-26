@@ -11,16 +11,13 @@ import { AuthMode } from "@primebrick/sdk";
  * NO fallback defaults — mandatory-field checks throw in `loadAuthConfigFromDb`.
  */
 export interface AuthConfigDb {
-  // --- Casdoor / OIDC config ---
-  casdoor_endpoint?: string;
-  casdoor_organization?: string;
-  casdoor_client_id?: string;
-  casdoor_admin_username?: string;
-  casdoor_admin_password?: string;
-  casdoor_builtin_client_id?: string;
-  casdoor_builtin_client_secret?: string;
+  // --- IDP / OIDC config ---
+  idp_endpoint?: string;
+  idp_organization?: string;
+  idp_client_id?: string;
+  idp_client_secret?: string;
   oidc_issuer_url?: string;
-  oidc_issuer_type?: string;
+  idp_type?: string;
   oidc_client_id?: string;
   oidc_client_secret?: string;
   oidc_audience?: string;
@@ -129,7 +126,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
       "oidc_issuer_url",
       "oidc_client_id",
       "oidc_client_secret",
-      "oidc_issuer_type",
+      "idp_type",
     ];
     for (const key of requiredOidcFields) {
       if (!settings[key]) {
