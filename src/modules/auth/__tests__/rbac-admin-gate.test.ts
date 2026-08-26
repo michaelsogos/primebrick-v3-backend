@@ -13,7 +13,6 @@ vi.mock("@primebrick/sdk", async (importOriginal) => {
       oidc: {},
       gateway: {},
       enable_webauthn: true,
-      enable_formauth: true,
       enable_email_verification_check: false,
       passkey_required: false,
     }),
