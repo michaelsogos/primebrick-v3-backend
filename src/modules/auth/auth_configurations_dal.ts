@@ -138,10 +138,12 @@ export class AuthConfigurationsDal {
 
   /**
    * Update a config row's value by uuid.
-   * Validates the incoming string against `type` / `type_config` before writing.
    * For `secret` type, an empty string means "leave unchanged" → skip write.
    * Invalidates + reloads the in-memory auth config cache.
-   * Throws if the row is not found or the value fails type validation.
+   * Throws if the row is not found.
+   *
+   * NOTE: Validation is handled by the router layer using the SDK's
+   * `validateConfigValue`. The DAL is a data I/O concern — it does not validate.
    */
   async update(
     uuid: string,
@@ -158,8 +160,6 @@ export class AuthConfigurationsDal {
       return;
     }
 
-    validateConfigValue(existing.type, existing.type_config, value);
-
     await this.repo.update(
       AuthConfigurationEntity,
       {
@@ -168,6 +168,34 @@ export class AuthConfigurationsDal {
       },
       { actor: updatedBy }
     );
+    await this.reloadCache();
+  }
+
+  /**
+   * Bulk update multiple config rows in a single transaction.
+   * Uses `Repository.updateMany` (TEMP TABLE strategy: CREATE TEMP TABLE →
+   * batch INSERT → UPDATE FROM → COMMIT). Auto-batches to stay under PG's
+   * 65535 parameter limit. Handles audit columns (updated_at, updated_by,
+   * version increment).
+   *
+   * Pure data I/O — no validation. The router layer validates before calling.
+   * Invalidates + reloads the in-memory auth config cache.
+   *
+   * @param updates Array of { id, value } — already validated by the router.
+   * @param updatedBy User UUID performing the update.
+   */
+  async bulkUpdate(
+    updates: Array<{ id: bigint; value: string }>,
+    updatedBy: string
+  ): Promise<void> {
+    if (updates.length === 0) return;
+
+    await this.repo.updateMany(
+      AuthConfigurationEntity,
+      updates.map((u) => ({ id: u.id, value: u.value })),
+      { actor: updatedBy, matchBy: "id" }
+    );
+
     await this.reloadCache();
   }
 
@@ -280,71 +308,5 @@ export class ReservedConfigError extends Error {
     super(`Config key "${key}" is reserved and cannot be deleted`);
     this.name = "ReservedConfigError";
     this.key = key;
-  }
-}
-
-/**
- * Validate a config value string against its type / type_config.
- * Throws on invalid values. Used by the DAL `update` method.
- */
-export function validateConfigValue(
-  type: string,
-  type_config: string | null | undefined,
-  value: string
-): void {
-  switch (type) {
-    case "boolean":
-      if (value !== "true" && value !== "false") {
-        throw new Error(`Invalid boolean value: "${value}" (expected "true" or "false")`);
-      }
-      break;
-    case "integer": {
-      const n = Number(value);
-      if (!Number.isInteger(n)) {
-        throw new Error(`Invalid integer value: "${value}"`);
-      }
-      break;
-    }
-    case "number": {
-      const n = Number(value);
-      if (isNaN(n)) {
-        throw new Error(`Invalid number value: "${value}"`);
-      }
-      break;
-    }
-    case "badge": {
-      if (!type_config) {
-        throw new Error(`badge type requires type_config`);
-      }
-      const config = JSON.parse(type_config);
-      if (!config.values || typeof config.values !== "object") {
-        throw new Error(`badge type_config must contain a "values" object`);
-      }
-      if (!(value in config.values)) {
-        throw new Error(`Invalid badge value: "${value}" (not in type_config.values)`);
-      }
-      break;
-    }
-    case "url": {
-      try {
-        new URL(value);
-      } catch {
-        throw new Error(`Invalid URL value: "${value}"`);
-      }
-      break;
-    }
-    case "json": {
-      try {
-        JSON.parse(value);
-      } catch {
-        throw new Error(`Invalid JSON value: "${value}"`);
-      }
-      break;
-    }
-    // string, text, secret, list, date, datetime, time: no validation at write path
-    // (list is validated by the BE's own catalog code; date/datetime/time format
-    // validation is handled by the FE wheel datepicker + SDK coercion).
-    default:
-      break;
   }
 }

@@ -24,7 +24,7 @@ import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../rbac.middleware.js";
-import { Permission } from "@primebrick/sdk";
+import { Permission, validateConfigValue, ConfigValidationError, type ConfigType } from "@primebrick/sdk";
 import { getPool } from "../../../db/pool.js";
 import { AuthConfigurationsDal, ReservedConfigError } from "../auth_configurations_dal.js";
 import { AuthConfigurationEntity } from "../auth_configuration_entity.js";
@@ -89,6 +89,16 @@ const BulkDeleteBodySchema = z.object({
   uuids: z.array(z.string().min(1)).min(1),
 });
 
+const BulkUpdateBodySchema = z.object({
+  updates: z.array(
+    z.object({
+      uuid: z.string().min(1),
+      value: z.string(),
+      version: z.number().int().min(1),
+    })
+  ).min(1),
+});
+
 export function configEntriesRouter() {
   const router = makeProtectedRouter();
 
@@ -123,6 +133,37 @@ export function configEntriesRouter() {
     const body = req.body as z.infer<typeof UpdateBodySchema>;
     const userUuid = requireUserUuid(req);
     const dal = makeDal();
+
+    // 1. Fetch existing row for validation
+    const existing = await dal.findByUuid(uuid as string);
+    if (!existing) {
+      throw new ApiError(
+        "/errors/not-found",
+        "Config entry not found",
+        404,
+        `Config entry with uuid ${uuid} not found`,
+        { internal_code: "NOT_FOUND" },
+      );
+    }
+
+    // 2. Validate using SDK validateConfigValue (router layer, not DAL)
+    //    secret: empty string = "leave unchanged" → skip validation
+    if (!(existing.type === "secret" && body.value === "")) {
+      try {
+        validateConfigValue(existing.type as ConfigType, existing.type_config, body.value, existing.key);
+      } catch (err) {
+        if (err instanceof ConfigValidationError) {
+          throw new ValidationError(err.error_label_key, {
+            internal_code: "VALIDATION_ERROR",
+          });
+        }
+        throw new ValidationError(err instanceof Error ? err.message : "Invalid value", {
+          internal_code: "VALIDATION_ERROR",
+        });
+      }
+    }
+
+    // 3. DAL update (pure data I/O)
     try {
       await dal.update(uuid as string, body.value, userUuid);
     } catch (err) {
@@ -135,12 +176,95 @@ export function configEntriesRouter() {
           { internal_code: "NOT_FOUND" },
         );
       }
-      // Type validation errors → 400
-      throw new ValidationError(err instanceof Error ? err.message : "Invalid value", {
-        internal_code: "VALIDATION_ERROR",
-      });
+      throw err;
     }
     res.json({ success: true });
+  });
+
+  const bulkUpdate: RequestHandler = asyncHandler(async (req, res) => {
+    const body = req.body as z.infer<typeof BulkUpdateBodySchema>;
+    const userUuid = requireUserUuid(req);
+    const dal = makeDal();
+
+    // 1. Fetch all existing rows, validate each value, check optimistic concurrency
+    const validUpdates: Array<{ id: bigint; value: string }> = [];
+    for (const item of body.updates) {
+      const existing = await dal.findByUuid(item.uuid);
+      if (!existing) {
+        throw new ApiError(
+          "/errors/not-found",
+          "Config entry not found",
+          404,
+          `Config entry with uuid ${item.uuid} not found`,
+          { internal_code: "NOT_FOUND" },
+        );
+      }
+
+      // secret: empty string = "leave unchanged" → skip
+      if (existing.type === "secret" && item.value === "") continue;
+
+      // Optimistic concurrency check
+      if (existing.version !== item.version) {
+        throw new ValidationError(
+          `Version mismatch for config key "${existing.key}": expected ${item.version}, got ${existing.version}`,
+          { internal_code: "VERSION_MISMATCH" },
+        );
+      }
+
+      // Validate using SDK
+      try {
+        validateConfigValue(existing.type as ConfigType, existing.type_config, item.value, existing.key);
+      } catch (err) {
+        if (err instanceof ConfigValidationError) {
+          throw new ValidationError(err.error_label_key, {
+            internal_code: "VALIDATION_ERROR",
+          });
+        }
+        throw new ValidationError(err instanceof Error ? err.message : "Invalid value", {
+          internal_code: "VALIDATION_ERROR",
+        });
+      }
+
+      validUpdates.push({ id: existing.id!, value: item.value });
+    }
+
+    // 2. Single transactional bulk write via DAL (TEMP TABLE strategy)
+    if (validUpdates.length > 0) {
+      await dal.bulkUpdate(validUpdates, userUuid);
+    }
+    res.json({ success: true, updated: validUpdates.length });
+  });
+
+  const getAudit: RequestHandler = asyncHandler(async (req, res) => {
+    const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
+    const page = parseInt(String(req.query.page ?? "1"), 10);
+    const limit = parseInt(String(req.query.limit ?? "50"), 10);
+
+    // Verify the config entry exists
+    const dal = makeDal();
+    const existing = await dal.findByUuid(uuid);
+    if (!existing) {
+      throw new ApiError(
+        "/errors/not-found",
+        "Config entry not found",
+        404,
+        `Config entry with uuid ${uuid} not found`,
+        { internal_code: "NOT_FOUND" },
+      );
+    }
+
+    // Use the shared audit query helper
+    const { findAuditPage } = await import("../../../db/audit-query-helper.js");
+    const { Repository } = await import("@primebrick/dal-pg");
+    const pool = getPool();
+    const repo = new Repository(pool);
+    const result = await findAuditPage(repo, {
+      tableName: "auth_configurations_audit",
+      entityUuid: uuid,
+      page,
+      limit,
+    });
+    res.json(result);
   });
 
   const softDelete: RequestHandler = asyncHandler(async (req, res) => {
@@ -257,6 +381,19 @@ export function configEntriesRouter() {
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       middlewares: [validateBody(UpdateBodySchema)],
       handler: update,
+    },
+    {
+      method: "put",
+      path: "/api/v1/entities/config_entries/bulk-update",
+      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+      middlewares: [validateBody(BulkUpdateBodySchema)],
+      handler: bulkUpdate,
+    },
+    {
+      method: "get",
+      path: "/api/v1/entities/config_entries/:uuid/audit",
+      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+      handler: getAudit,
     },
     {
       method: "delete",

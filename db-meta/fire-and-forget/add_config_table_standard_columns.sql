@@ -19,7 +19,9 @@
 --   5. Deletes removed keys (casdoor_client_id, casdoor_admin_username, casdoor_admin_role, casdoor_admin_password)
 --   6. Seeds type/type_config/label_key/description_key for all existing rows
 --   7. Sets group_key for all rows
---   8. Updates the patch registry hash so db:migrate skips the modified init patch
+--   8. Adds validation rules to type_config for all config keys
+--   9. Creates auth_configurations_audit table (partitioned, with pg_partman)
+--  10. Updates the patch registry hash so db:migrate skips the modified init patch
 --
 -- Run this ONCE on the existing live database. Idempotent.
 --
@@ -82,7 +84,7 @@ WHERE "key" = 'oidc_issuer_url';
 
 UPDATE "public"."auth_configurations" SET
   "type" = 'badge',
-  "type_config" = '{"values":{"casdoor":{"label_key":"config.auth.idp_type.casdoor"},"keycloak":{"label_key":"config.auth.idp_type.keycloak"},"entra":{"label_key":"config.auth.idp_type.entra"},"okta":{"label_key":"config.auth.idp_type.okta"}}}',
+  "type_config" = '{"values":{"casdoor":{"label_key":"config.auth.idp_type.casdoor"},"keycloak":{"label_key":"config.auth.idp_type.keycloak"},"entra":{"label_key":"config.auth.idp_type.entra"},"okta":{"label_key":"config.auth.idp_type.okta"}},"validation":{"required":true,"required_error_label_key":"config.auth.idp_type.errors.required","rules":{}}}',
   "label_key" = 'config.auth.idp_type.label',
   "description_key" = 'config.auth.idp_type.description'
 WHERE "key" = 'idp_type';
@@ -222,5 +224,92 @@ UPDATE "public"."auth_configurations" SET "group_key" = 'security_parameters' WH
 UPDATE "public"."auth_configurations" SET "group_key" = 'advanced_features' WHERE "key" IN ('redis_url', 'invitation_expiry_days');
 UPDATE "public"."auth_configurations" SET "group_key" = 'system_settings' WHERE "key" IN ('admin_contact_email', 'frontend_url', 'notification_alert_secret');
 UPDATE "public"."auth_configurations" SET "group_key" = 'idp_parameters' WHERE "key" IN ('idp_client_id', 'idp_client_secret');
+
+-- 8. Add validation rules to type_config for all config keys.
+--    Each key gets a validation sub-object with rules specific to its type.
+--    Error label keys are i18n translation keys resolved by the FE.
+
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"url":{"protocols":["http","https"],"error_label_key":"config.auth.idp_endpoint.errors.invalidUrl"}}}}' WHERE "key" = 'idp_endpoint';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"min":{"value":1,"error_label_key":"config.auth.idp_organization.errors.min"},"max":{"value":100,"error_label_key":"config.auth.idp_organization.errors.max"}}}}' WHERE "key" = 'idp_organization';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"url":{"protocols":["http","https"],"error_label_key":"config.auth.oidc_issuer_url.errors.invalidUrl"}}}}' WHERE "key" = 'oidc_issuer_url';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"min":{"value":6,"error_label_key":"config.auth.oidc_client_id.errors.min"},"max":{"value":100,"error_label_key":"config.auth.oidc_client_id.errors.max"}}}}' WHERE "key" = 'oidc_client_id';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"min":{"value":32,"error_label_key":"config.auth.oidc_client_secret.errors.min"},"max":{"value":256,"error_label_key":"config.auth.oidc_client_secret.errors.max"}}}}' WHERE "key" = 'oidc_client_secret';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"min":{"value":6,"error_label_key":"config.auth.idp_client_id.errors.min"},"max":{"value":100,"error_label_key":"config.auth.idp_client_id.errors.max"}}}}' WHERE "key" = 'idp_client_id';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"min":{"value":32,"error_label_key":"config.auth.idp_client_secret.errors.min"},"max":{"value":256,"error_label_key":"config.auth.idp_client_secret.errors.max"}}}}' WHERE "key" = 'idp_client_secret';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"min":{"value":3,"error_label_key":"config.auth.auth_roles_path.errors.min"},"max":{"value":255,"error_label_key":"config.auth.auth_roles_path.errors.max"},"regex":{"pattern":"^[a-zA-Z0-9._-]+$","error_label_key":"config.auth.auth_roles_path.errors.invalidFormat"}}}}' WHERE "key" = 'auth_roles_path';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"min":{"value":1,"error_label_key":"config.auth.invitation_expiry_days.errors.min"},"max":{"value":90,"error_label_key":"config.auth.invitation_expiry_days.errors.max"}}}}' WHERE "key" = 'invitation_expiry_days';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"email":{"error_label_key":"config.auth.admin_contact_email.errors.invalidEmail"}}}}' WHERE "key" = 'admin_contact_email';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"min":{"value":32,"error_label_key":"config.auth.notification_alert_secret.errors.min"},"max":{"value":256,"error_label_key":"config.auth.notification_alert_secret.errors.max"}}}}' WHERE "key" = 'notification_alert_secret';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"url":{"protocols":["http","https"],"error_label_key":"config.auth.frontend_url.errors.invalidUrl"}}}}' WHERE "key" = 'frontend_url';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"url":{"protocols":["redis","rediss","tcp","http","https"],"error_label_key":"config.auth.redis_url.errors.invalidUrl"}}}}' WHERE "key" = 'redis_url';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"min":{"value":30,"error_label_key":"config.auth.mfa_challenge_token_ttl_seconds.errors.min"},"max":{"value":600,"error_label_key":"config.auth.mfa_challenge_token_ttl_seconds.errors.max"}}}}' WHERE "key" = 'mfa_challenge_token_ttl_seconds';
+UPDATE "public"."auth_configurations" SET "type_config" = '{"validation":{"required":true,"rules":{"min":{"value":32,"error_label_key":"config.auth.mfa_challenge_signing_secret.errors.min"},"max":{"value":256,"error_label_key":"config.auth.mfa_challenge_signing_secret.errors.max"}}}}' WHERE "key" = 'mfa_challenge_signing_secret';
+
+-- 9. Create auth_configurations_audit table (partitioned, with pg_partman)
+CREATE TABLE IF NOT EXISTS "public"."auth_configurations_audit" (
+  "id" bigint generated always as identity NOT NULL,
+  "entity_id" bigint NOT NULL,
+  "entity_uuid" uuid NOT NULL,
+  "action" text NOT NULL,
+  "changed_at" timestamptz NOT NULL,
+  "changed_by" text NOT NULL DEFAULT 'system',
+  "version" integer NOT NULL,
+  "delta" jsonb NOT NULL,
+  PRIMARY KEY ("id", "changed_at")
+) PARTITION BY RANGE ("changed_at");
+
+COMMENT ON COLUMN public.auth_configurations_audit.changed_by IS 'Identifier of the principal that produced the audit entry (falls back to "system" when no authenticated context is available).';
+
+CREATE INDEX IF NOT EXISTS "auth_configurations_audit_entity_uuid_idx" ON "public"."auth_configurations_audit" ("entity_uuid");
+CREATE INDEX IF NOT EXISTS "auth_configurations_audit_action_idx" ON "public"."auth_configurations_audit" ("action");
+
+-- pg_partman setup for auth_configurations_audit (idempotent)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'partman' 
+    AND table_name = 'part_config'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM partman.part_config 
+    WHERE parent_table = 'public.auth_configurations_audit'
+  ) THEN
+    PERFORM partman.create_parent('public.auth_configurations_audit', 'changed_at', '1 month');
+  END IF;
+EXCEPTION WHEN others THEN
+  NULL;
+END $$;
+
+-- 10. Seed audit trail for existing auth_configurations rows (INSERT record, version 1).
+--     Uses 'initial-setup' as changed_by to distinguish seed/system inserts from user actions.
+--     changed_at uses the actual created_at of each row (not a hardcoded timestamp).
+--     Delta includes ALL columns to match the DAL's INSERT audit behavior.
+INSERT INTO public.auth_configurations_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+SELECT id, uuid, 'INSERT', created_at, 'initial-setup', 1,
+  jsonb_strip_nulls(jsonb_build_object(
+    'id', jsonb_build_object('old', null, 'new', id),
+    'uuid', jsonb_build_object('old', null, 'new', uuid),
+    'key', jsonb_build_object('old', null, 'new', key),
+    'value', jsonb_build_object('old', null, 'new', value),
+    'type', jsonb_build_object('old', null, 'new', type),
+    'type_config', jsonb_build_object('old', null, 'new', type_config),
+    'label_key', jsonb_build_object('old', null, 'new', label_key),
+    'description_key', jsonb_build_object('old', null, 'new', description_key),
+    'reserved', jsonb_build_object('old', null, 'new', reserved),
+    'group_key', jsonb_build_object('old', null, 'new', group_key),
+    'created_at', jsonb_build_object('old', null, 'new', created_at),
+    'created_by', jsonb_build_object('old', null, 'new', COALESCE(created_by, 'system')),
+    'updated_at', jsonb_build_object('old', null, 'new', updated_at),
+    'updated_by', jsonb_build_object('old', null, 'new', COALESCE(updated_by, created_by, 'system')),
+    'version', jsonb_build_object('old', null, 'new', version),
+    'deleted_at', jsonb_build_object('old', null, 'new', deleted_at),
+    'deleted_by', jsonb_build_object('old', null, 'new', deleted_by)
+  ))
+FROM public.auth_configurations
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.auth_configurations_audit a
+  WHERE a.entity_uuid = auth_configurations.uuid
+    AND a.action = 'INSERT'
+);
 
 COMMIT;
