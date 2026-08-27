@@ -229,10 +229,10 @@ export class WebauthnService {
   ): Promise<WebauthnBeginResult> {
     const cfg = await this.requireWebauthnEnabled();
     const params = new URLSearchParams();
-    params.set("owner", cfg.casdoor_organization!);
+    params.set("owner", cfg.idp_organization!);
     if (username) params.set("name", username);
 
-    const url = `${cfg.casdoor_endpoint}/api/webauthn/signin/begin?${params}`;
+    const url = `${cfg.idp_endpoint}/api/webauthn/signin/begin?${params}`;
     // Send the browser's Host header so Casdoor derives the correct WebAuthn
     // RPOrigin from the request Host (Casdoor's `origin` config is empty —
     // it derives RP origin from the Host header per-request).
@@ -284,7 +284,7 @@ export class WebauthnService {
       clientId: cfg.oidc.client_id!,
       redirectUri: `${origin}/callback`,
     });
-    const url = `${cfg.casdoor_endpoint}/api/webauthn/signin/finish?${params}`;
+    const url = `${cfg.idp_endpoint}/api/webauthn/signin/finish?${params}`;
     const browserHost = new URL(origin).host;
     const response = await fetchWithHost(url, {
       method: "POST",
@@ -499,7 +499,7 @@ export class WebauthnService {
     origin: string,
   ): Promise<WebauthnBeginResult> {
     const cfg = await this.requireWebauthnEnabled();
-    const url = `${cfg.casdoor_endpoint}/api/webauthn/signup/begin`;
+    const url = `${cfg.idp_endpoint}/api/webauthn/signup/begin`;
     // Send the browser's Host header so Casdoor derives the correct WebAuthn
     // RPOrigin from the request Host (Casdoor's `origin` config is empty —
     // it derives RP origin from the Host header per-request).
@@ -556,7 +556,7 @@ export class WebauthnService {
       });
     }
 
-    const url = `${cfg.casdoor_endpoint}/api/webauthn/signup/finish`;
+    const url = `${cfg.idp_endpoint}/api/webauthn/signup/finish`;
     // Send the browser's Host header so Casdoor derives the correct WebAuthn
     // RPOrigin from the request Host (matches the browser origin in the
     // attestation). Casdoor's `origin` config is empty — it derives RP origin
@@ -1044,7 +1044,7 @@ export class WebauthnService {
         { internal_code: "webauthn_not_configured", severity: "MEDIUM" },
       );
     }
-    if (!cfg.casdoor_endpoint || !cfg.casdoor_organization) {
+    if (!cfg.idp_endpoint || !cfg.idp_organization) {
       throw new ApiError(
         "/errors/webauthn-not-configured",
         "Casdoor™ is not configured",
@@ -1066,7 +1066,7 @@ export class WebauthnService {
     cfg: Awaited<ReturnType<typeof getAuthConfig>>,
     redirectUri: string,
   ): Promise<TokenSet> {
-    const tokenUrl = `${cfg.casdoor_endpoint}/api/login/oauth/access_token`;
+    const tokenUrl = `${cfg.idp_endpoint}/api/login/oauth/access_token`;
     const formData = new URLSearchParams();
     formData.append("grant_type", "authorization_code");
     formData.append("client_id", cfg.oidc.client_id!);
@@ -1136,14 +1136,14 @@ export class WebauthnService {
     refreshToken: string,
     cfg: Awaited<ReturnType<typeof getAuthConfig>>,
   ): Promise<TokenSet> {
-    const tokenUrl = `${cfg.casdoor_endpoint}/api/login/oauth/access_token`;
+    const tokenUrl = `${cfg.idp_endpoint}/api/login/oauth/access_token`;
     const formData = new URLSearchParams();
     formData.append("grant_type", "refresh_token");
     formData.append("client_id", cfg.oidc.client_id!);
     formData.append("client_secret", cfg.oidc.client_secret!);
     formData.append("refresh_token", refreshToken);
     formData.append("scope", "openid profile email");
-    formData.append("organization", cfg.casdoor_organization!);
+    formData.append("organization", cfg.idp_organization!);
 
     const response = await fetch(tokenUrl, {
       method: "POST",

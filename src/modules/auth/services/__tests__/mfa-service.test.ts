@@ -68,9 +68,8 @@ vi.mock("@primebrick/sdk", () => ({
     gateway: {},
     enable_mfa: true,
     enable_webauthn: true,
-    enable_formauth: true,
     enable_email_verification_check: false,
-    casdoor_organization: "acme",
+    idp_organization: "acme",
   }),
   invalidateAuthConfig: vi.fn(),
 }));
@@ -107,9 +106,8 @@ vi.mock("../../config.js", () => ({
     gateway: {},
     enable_mfa: true,
     enable_webauthn: true,
-    enable_formauth: true,
     enable_email_verification_check: false,
-    casdoor_organization: "acme",
+    idp_organization: "acme",
   }),
 }));
 

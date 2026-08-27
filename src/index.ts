@@ -79,10 +79,10 @@ async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
     if (pool) {
       try {
         const dbConfig = await loadAuthConfigFromDb(pool);
-        casdoorEndpoint = dbConfig.casdoor_endpoint || casdoorEndpoint;
-        clientId = dbConfig.casdoor_builtin_client_id || clientId;
-        clientSecret = dbConfig.casdoor_builtin_client_secret || clientSecret;
-        orgName = dbConfig.casdoor_organization || orgName;
+        casdoorEndpoint = dbConfig.idp_endpoint || casdoorEndpoint;
+        clientId = dbConfig.idp_client_id || clientId;
+        clientSecret = dbConfig.idp_client_secret || clientSecret;
+        orgName = dbConfig.idp_organization || orgName;
       } catch (error) {
         console.warn("[IDP Health Check] Could not load configuration from database, using fallback:", error);
       }

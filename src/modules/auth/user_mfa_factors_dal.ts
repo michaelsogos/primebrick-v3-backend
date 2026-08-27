@@ -112,8 +112,9 @@ export class UserMfaFactorsDal {
 
   /**
    * Update a factor (e.g. set last_used_at, is_preferred, is_enabled).
+   * `version` is required for optimistic concurrency (auditable entity).
    */
-  async update(uuid: string, data: Partial<Pick<UserMfaFactorEntity, "label" | "is_enabled" | "is_preferred" | "last_used_at">>): Promise<void> {
+  async update(uuid: string, data: Partial<Pick<UserMfaFactorEntity, "label" | "is_enabled" | "is_preferred" | "last_used_at" | "version">>): Promise<void> {
     const actor = requireActor();
     await this.repo.update(
       UserMfaFactorEntity,

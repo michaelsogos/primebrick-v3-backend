@@ -128,7 +128,7 @@ export function authorizeRouter(): Router {
 
       // ─── Consent approved → proceed to Casdoor ──────────────────────────
       const cfg = await getAuthConfig();
-      if (!cfg.casdoor_endpoint) {
+      if (!cfg.idp_endpoint) {
         return sendJson(res, 500, {
           error: "server_error",
           error_description: "Casdoor endpoint not configured",
@@ -144,7 +144,7 @@ export function authorizeRouter(): Router {
       }
 
       // The Casdoor authorize endpoint
-      const casdoorAuthorizeUrl = `${cfg.casdoor_endpoint}/login/oauth/authorize`;
+      const casdoorAuthorizeUrl = `${cfg.idp_endpoint}/login/oauth/authorize`;
 
       // Build the redirect to Casdoor.
       // The redirect_uri is the BE's own callback endpoint, NOT the client's redirect_uri.

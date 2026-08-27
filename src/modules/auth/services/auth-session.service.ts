@@ -94,7 +94,7 @@ export class AuthSessionService {
 
   async login(input: LoginBody, request_ctx?: AuthRequestContext): Promise<LoginOutcome> {
     const cfg = await getAuthConfig();
-    const tokenUrl = `${cfg.casdoor_endpoint}/api/login/oauth/access_token`;
+    const tokenUrl = `${cfg.idp_endpoint}/api/login/oauth/access_token`;
     const formData = new URLSearchParams();
     formData.append("grant_type", "password");
     formData.append("client_id", cfg.oidc.client_id!);
@@ -102,7 +102,7 @@ export class AuthSessionService {
     formData.append("username", input.username);
     formData.append("password", input.password);
     formData.append("scope", "openid profile email");
-    formData.append("organization", cfg.casdoor_organization!);
+    formData.append("organization", cfg.idp_organization!);
 
     const response = await fetch(tokenUrl, {
       method: "POST",
@@ -173,7 +173,7 @@ export class AuthSessionService {
         const mfaService = new MfaService(this.pool, this.casdoor);
         const hasMfa = await mfaService.hasMfa(userUuid);
         if (hasMfa) {
-          const idpOrg = (claims.owner as string) || cfg.casdoor_organization || "";
+          const idpOrg = (claims.owner as string) || cfg.idp_organization || "";
           const idpUsername = (claims.name as string) || input.username || "";
           const challenge = await mfaService.mintLoginChallenge(
             userUuid,
@@ -233,7 +233,7 @@ export class AuthSessionService {
         refresh_token: data.refresh_token,
         expires_in: data.expires_in,
       },
-      orgName: cfg.casdoor_organization!,
+      orgName: cfg.idp_organization!,
       claims,
     };
   }
@@ -248,14 +248,14 @@ export class AuthSessionService {
     }
 
     const cfg = await getAuthConfig();
-    const tokenUrl = `${cfg.casdoor_endpoint}/api/login/oauth/access_token`;
+    const tokenUrl = `${cfg.idp_endpoint}/api/login/oauth/access_token`;
     const formData = new URLSearchParams();
     formData.append("grant_type", "refresh_token");
     formData.append("client_id", cfg.oidc.client_id!);
     formData.append("client_secret", cfg.oidc.client_secret!);
     formData.append("refresh_token", refreshToken);
     formData.append("scope", "openid profile email");
-    formData.append("organization", cfg.casdoor_organization!);
+    formData.append("organization", cfg.idp_organization!);
 
     let response: Response;
     try {
@@ -303,7 +303,7 @@ export class AuthSessionService {
         refresh_token: data.refresh_token,
         expires_in: data.expires_in,
       },
-      orgName: cfg.casdoor_organization!,
+      orgName: cfg.idp_organization!,
       claims,
     };
   }

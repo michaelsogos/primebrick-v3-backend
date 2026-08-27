@@ -298,7 +298,7 @@ export class MfaService {
     }
     const row = result.rows[0];
     const cfg = getAuthConfig();
-    const owner = row.idp_org || cfg.casdoor_organization || "";
+    const owner = row.idp_org || cfg.idp_organization || "";
     const name = row.idp_username || row.idp_code || "";
     if (!owner || !name) {
       throw new ApiError(
@@ -346,7 +346,7 @@ export class MfaService {
         "/errors/casdoor-not-configured",
         "Casdoor™ is not configured",
         503,
-        "The Casdoor™ API client is not configured. MFA management requires Casdoor™ builtin credentials.",
+        "The Casdoor™ API client is not configured. MFA management requires Casdoor™ admin credentials.",
         { internal_code: "CASDOOR_NOT_CONFIGURED", severity: "HIGH" },
       );
     }
@@ -399,7 +399,7 @@ export class MfaService {
         "/errors/casdoor-not-configured",
         "Casdoor™ is not configured",
         503,
-        "The Casdoor™ API client is not configured. MFA management requires Casdoor™ builtin credentials.",
+        "The Casdoor™ API client is not configured. MFA management requires Casdoor™ admin credentials.",
         { internal_code: "CASDOOR_NOT_CONFIGURED", severity: "HIGH" },
       );
     }
@@ -518,7 +518,7 @@ export class MfaService {
         "/errors/casdoor-not-configured",
         "Casdoor™ is not configured",
         503,
-        "The Casdoor™ API client is not configured. MFA management requires Casdoor™ builtin credentials.",
+        "The Casdoor™ API client is not configured. MFA management requires Casdoor™ admin credentials.",
         { internal_code: "CASDOOR_NOT_CONFIGURED", severity: "HIGH" },
       );
     }
@@ -708,7 +708,11 @@ export class MfaService {
     // Update last_used_at on the factor.
     // The verify endpoint is PUBLIC (no auth middleware), so there's no session
     // context — wrap in runAsSystem to provide the system actor for audit fields.
-    await runAsSystem(() => factorsDal.update(factor.uuid, { last_used_at: new Date() }));
+    // Pass the current version for optimistic concurrency (auditable entity).
+    await runAsSystem(() => factorsDal.update(factor.uuid, {
+      last_used_at: new Date(),
+      version: factor.version,
+    }));
 
     // Decode the access token to get claims for building the user response
     const claims = decodeJwtPayload(tokens.access_token);
@@ -864,8 +868,11 @@ export class MfaService {
       });
     }
 
-    // Update last_used_at
-    await runAsSystem(() => factorsDal.update(factor.uuid, { last_used_at: new Date() }));
+    // Update last_used_at (pass version for optimistic concurrency — auditable entity)
+    await runAsSystem(() => factorsDal.update(factor.uuid, {
+      last_used_at: new Date(),
+      version: factor.version,
+    }));
 
     // Issue a single-use action authorization token (JWT, short TTL)
     const actionJti = randomUUID();

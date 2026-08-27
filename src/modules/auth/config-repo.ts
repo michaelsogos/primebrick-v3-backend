@@ -11,22 +11,18 @@ import { AuthMode } from "@primebrick/sdk";
  * NO fallback defaults — mandatory-field checks throw in `loadAuthConfigFromDb`.
  */
 export interface AuthConfigDb {
-  // --- Casdoor / OIDC config ---
-  casdoor_endpoint?: string;
-  casdoor_organization?: string;
-  casdoor_client_id?: string;
-  casdoor_admin_username?: string;
-  casdoor_admin_password?: string;
-  casdoor_builtin_client_id?: string;
-  casdoor_builtin_client_secret?: string;
+  // --- IDP / OIDC config ---
+  idp_endpoint?: string;
+  idp_organization?: string;
+  idp_client_id?: string;
+  idp_client_secret?: string;
   oidc_issuer_url?: string;
-  oidc_issuer_type?: string;
+  idp_type?: string;
   oidc_client_id?: string;
   oidc_client_secret?: string;
   oidc_audience?: string;
   enable_email_verification_check: boolean; // parsed from "true"/"false"
   enable_webauthn: boolean; // parsed from "true"/"false"
-  enable_formauth: boolean; // parsed from "true"/"false"
   passkey_required: boolean; // parsed from "true"/"false"
   password_policy?: string;
 
@@ -130,7 +126,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
       "oidc_issuer_url",
       "oidc_client_id",
       "oidc_client_secret",
-      "oidc_issuer_type",
+      "idp_type",
     ];
     for (const key of requiredOidcFields) {
       if (!settings[key]) {
@@ -142,34 +138,24 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
   }
 
   // Spread the key/value map AS-IS. Override ONLY the fields that need a
-  // real TYPE transformation: enable_email_verification_check, enable_webauthn,
-  // enable_formauth (string DB → bool TS). auth_mode is normalized to uppercase
-  // for enum comparison.
+  // real TYPE transformation: enable_email_verification_check, enable_webauthn
+  // (string DB → bool TS). auth_mode is normalized to uppercase for enum
+  // comparison.
   // NO lowercasing — data quality is enforced at the upsert path.
   // NO field-by-field DTO mapping. NO fallback defaults.
+  // Form auth (username/password) is an invariant — always available, not
+  // configurable. There is no enable_formauth flag.
   const enableWebauthn = settings.enable_webauthn === "true";
-  const enableFormauth = settings.enable_formauth === "true";
   const passkeyRequired = settings.passkey_required === "true";
   const enableMfa = settings.enable_mfa === "true";
   const mfaTtl = settings.mfa_challenge_token_ttl_seconds
     ? parseInt(settings.mfa_challenge_token_ttl_seconds, 10)
     : 300;
 
-  // At least one authentication method MUST be enabled — otherwise no user
-  // can ever log in. This is a fatal configuration error, not a transient
-  // DB-unavailable issue. The error is thrown here (during loadAuthConfigFromDb)
-  // so it surfaces through the standard startup config-load path.
-  if (!enableWebauthn && !enableFormauth) {
-    throw new Error(
-      "[auth] At least one authentication method must be enabled: set 'enable_formauth' or 'enable_webauthn' to 'true' in auth_configurations table.",
-    );
-  }
-
   return {
     ...settings,
     enable_email_verification_check: settings.enable_email_verification_check === "true",
     enable_webauthn: enableWebauthn,
-    enable_formauth: enableFormauth,
     passkey_required: passkeyRequired,
     enable_mfa: enableMfa,
     mfa_challenge_token_ttl_seconds: mfaTtl,

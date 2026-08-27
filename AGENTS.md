@@ -112,6 +112,98 @@ rebuild gets the exact same dependency tree that was tested during UAT.
 See [.devin/rules/package-versioning.md](./.devin/rules/package-versioning.md)
 for the full rule and upgrade procedure.
 
+## Config Table Standard (`auth_configurations`)
+
+The `auth_configurations` table is the canonical Config Table standard for
+Primebrick. It stores key/value configuration rows with metadata that drives
+both BE validation and FE widget selection.
+
+### Schema
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `key` | varchar(100) NOT NULL | Unique config key (e.g. `oidc_issuer_url`) |
+| `value` | text nullable | Config value (always TEXT — type conversion at read time) |
+| `type` | varchar(50) NOT NULL | Config value type (see `ConfigType` in SDK) |
+| `type_config` | text nullable | JSONB-text extra per-type config (badge inline values, list API URL, etc.) |
+| `label_key` | varchar(100) nullable | i18n key for the setting title |
+| `description_key` | varchar(100) nullable | i18n key for the explanatory description |
+| `reserved` | boolean NOT NULL DEFAULT false | If true, the row is system-critical: editable but not deletable |
+| `group_key` | varchar(100) nullable | UI grouping key (null/empty = ungrouped, top of list). DAL sorts by `group_key ASC, key ASC`. |
+| audit + soft-delete fields | — | Standard `@AuditTrail()` + `@DeletableField()` columns |
+
+### Config types
+
+| Type | FE widget | BE validation |
+|------|-----------|---------------|
+| `string` | text input | none |
+| `text` | textarea | none |
+| `boolean` | switch | must be `"true"` or `"false"` |
+| `integer` | numeric input | must be an integer |
+| `number` | numeric input | must be a number |
+| `badge` | ComboSelect (inline values from `type_config.values`) | must be in `type_config.values` |
+| `list` | ComboSelect (options loaded from `type_config.api_url`) | none (validated by the BE catalog code) |
+| `url` | URL input | must be a valid URL |
+| `secret` | password input (masked) | none (empty string = "leave unchanged") |
+| `json` | textarea | must be valid JSON |
+| `date` | DateWheelPicker | none (format validated by FE) |
+| `datetime` | DateWheelPicker (includeTime) | none (format validated by FE) |
+| `time` | native time input | none (format validated by FE) |
+
+### `type_config` JSON shapes
+
+**badge:**
+```json
+{
+  "values": {
+    "value1": { "label_key": "i18n.key.for.value1", "color": "primary" },
+    "value2": { "label_key": "i18n.key.for.value2", "color": "destructive" }
+  }
+}
+```
+
+**list:**
+```json
+{
+  "api_url": "/api/v1/system/roles/active",
+  "api_verb": "GET",
+  "value_field": "idp_role",
+  "label_field": "label_key"
+}
+```
+
+### CRUD endpoints
+
+All endpoints are admin-only (`AUTHENTICATED_ADMIN`):
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/entities/config_entries/meta` | Entity metadata |
+| GET | `/api/v1/entities/config_entries/list` | All rows (secrets masked to `null`) |
+| GET | `/api/v1/entities/config_entries/:uuid` | Single row (secret masked) |
+| PUT | `/api/v1/entities/config_entries/:uuid` | Update value (validates type) |
+| DELETE | `/api/v1/entities/config_entries/:uuid` | Soft-delete (reserved rejected, step-up MFA) |
+| POST | `/api/v1/entities/config_entries/bulk-delete` | Bulk soft-delete (reserved rejected, step-up MFA) |
+| POST | `/api/v1/entities/config_entries/:uuid/restore` | Restore soft-deleted row |
+
+### Security
+
+- **Reserved rows** are editable but cannot be deleted (returns 403 with
+  `internal_code: "reserved_config_cannot_be_deleted"`).
+- **Delete and bulk-delete** require step-up MFA (X-MFA-Action-Authorization header).
+- **Secret values** are masked to `null` in API responses. An empty PUT body
+  for a secret means "leave unchanged".
+- **Writes** invalidate and reload the in-memory auth configuration cache.
+
+### Files
+
+- Entity: `src/modules/auth/auth_configuration_entity.ts`
+- DAL: `src/modules/auth/auth_configurations_dal.ts`
+- Router: `src/modules/auth/routers/config-entries.router.ts`
+- Meta: `src/modules/auth/config-entries.meta.ts`
+- DB patch: `db-meta/patches/00000000000000_init_database.sql`
+- Migration: `db-meta/fire-and-forget/add_config_table_standard_columns.sql`
+
 ## Further documentation
 
 See `docs/ai/` for skills selection and suggested workflows.

@@ -153,7 +153,7 @@ export class OrganizationsService {
           // The Casdoor application name is the clientId used by the CasdoorApiClient.
           // The application owner is "admin" (Casdoor's built-in admin user).
           // We access the clientId via the cdClient's internal config — but since
-          // it's private, we use the casdoor_endpoint config to determine the app.
+          // it's private, we use the idp_endpoint config to determine the app.
           // Actually, the Casdoor application is a singleton ("app-built-in" or
           // "primebrick-api") — we use the clientId from the config.
           // The cdClient doesn't expose its clientId, so we use the known default.

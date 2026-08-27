@@ -25,6 +25,7 @@ import { authWebauthnRouter } from "./routers/auth-webauthn.router.js";
 import { authMfaRouter } from "./routers/auth-mfa.router.js";
 import { authInvitationRouter } from "./routers/auth-invitation.router.js";
 import { roleMappingsRouter } from "./routers/role-mappings.router.js";
+import { configEntriesRouter } from "./routers/config-entries.router.js";
 
 export function authRouter() {
   const router = Router();
@@ -52,6 +53,9 @@ export function authRouter() {
 
   // Role mappings CRUD (Casdoor-synced, non-best-effort).
   router.use(roleMappingsRouter());
+
+  // Config entries CRUD (auth_configurations — Config Table standard).
+  router.use(configEntriesRouter());
 
   return router;
 }

@@ -49,7 +49,6 @@ vi.mock("../config.js", () => ({
     oidc: {},
     gateway: {},
     enable_webauthn: true,
-    enable_formauth: true,
     enable_email_verification_check: false,
   }),
 }));

@@ -56,8 +56,8 @@ export async function buildAuthorizationServerMetadata(baseUrl: string, cfg: Aut
     token_endpoint_auth_methods_supported: ["client_secret_post", "none"],
     code_challenge_methods_supported: ["S256"],
     scopes_supported: ["mcp:tools", "openid", "profile", "email"],
-    revocation_endpoint: cfg.casdoor_endpoint
-      ? `${cfg.casdoor_endpoint}/api/login/oauth/revoke`
+    revocation_endpoint: cfg.idp_endpoint
+      ? `${cfg.idp_endpoint}/api/login/oauth/revoke`
       : undefined,
     service_documentation: `${baseUrl}/api/v1/openapi.json`,
   };

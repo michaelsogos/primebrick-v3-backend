@@ -4,7 +4,7 @@
  * Endpoints:
  *   POST   /api/v1/auth/login    → Casdoor OAuth password grant, sets cookies
  *   POST   /api/v1/auth/refresh  → Casdoor OAuth refresh grant, sets cookies
- *   GET    /api/v1/auth/config   → public auth flags (enable_formauth, enable_webauthn)
+ *   GET    /api/v1/auth/config   → public auth flags (enable_webauthn, passkey_required, enable_mfa)
  *   PATCH  /api/v1/auth/me       → self-service profile update
  *   GET    /api/v1/auth/me       → fetch own profile
  *   GET    /api/v1/auth/me/meta  → metadata for the self-service profile form
@@ -187,7 +187,6 @@ export function authSessionRouter() {
   const getAuthConfigPublic: RequestHandler = asyncHandler(async (_req, res) => {
     const cfg = getAuthConfig();
     res.json({
-      enable_formauth: cfg.enable_formauth,
       enable_webauthn: cfg.enable_webauthn,
       passkey_required: cfg.passkey_required,
       enable_mfa: cfg.enable_mfa,

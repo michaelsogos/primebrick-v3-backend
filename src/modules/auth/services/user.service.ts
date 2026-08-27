@@ -53,7 +53,7 @@ export class UserService {
     const cdClient = await this.casdoor.getClient();
     const cfg = await getAuthConfig();
     let casdoorUserId: string | null = null;
-    let idpOrg = idp_org || cfg.casdoor_organization!;
+    let idpOrg = idp_org || cfg.idp_organization!;
     let idpUsername = username;
 
     if (cdClient) {
@@ -92,14 +92,14 @@ export class UserService {
         );
       }
       casdoorUserId = newUser.id;
-      idpOrg = newUser.owner || cfg.casdoor_organization!;
+      idpOrg = newUser.owner || cfg.idp_organization!;
       idpUsername = newUser.name || username;
     }
 
     // 2. Create local profile via DAL (repo.add — no manual audit field setting)
     const idpCode = casdoorUserId;
     const newUuid = randomUUID();
-    const issuer = cfg.casdoor_endpoint || null;
+    const issuer = cfg.idp_endpoint || null;
 
     await this.dal.createProfile({
       uuid: newUuid,

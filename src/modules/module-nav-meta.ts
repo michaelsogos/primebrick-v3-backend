@@ -35,7 +35,7 @@ export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
           { id: "organizations", label_key: "shell.settings.tabs.organizations", href: "/system/settings/organizations", icon: "building-2" },
           { id: "users", label_key: "shell.settings.tabs.users", href: "/system/settings/users", icon: "users" },
           { id: "roles", label_key: "shell.settings.tabs.roles", href: "/system/settings/roles", icon: "user-key" },
-          { id: "security", label_key: "shell.settings.tabs.security", href: "/system/settings/security", icon: "shield-check" },
+          { id: "security", label_key: "shell.settings.tabs.security", href: "/system/settings/security", icon: "settings-2" },
           { id: "modules", label_key: "shell.settings.tabs.modules", href: "/system/settings/modules", icon: "package" },
           { id: "templates", label_key: "shell.settings.tabs.templates", href: "/system/settings/templates", icon: "file-text" },
           { id: "email-providers", label_key: "shell.settings.tabs.emailProviders", href: "/system/settings/email-providers", icon: "mail" },

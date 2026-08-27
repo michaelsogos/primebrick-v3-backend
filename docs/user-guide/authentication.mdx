@@ -42,7 +42,7 @@ cookie automatically; the auth middleware also accepts an explicit
 |--------|------|------------|---------|
 | `POST` | `/api/v1/auth/login` | `PUBLIC` | Casdoor password grant; sets cookies |
 | `POST` | `/api/v1/auth/refresh` | `PUBLIC` | Casdoor refresh grant; rotates cookies |
-| `GET`  | `/api/v1/auth/config` | `PUBLIC` | Public auth flags (`enable_formauth`, `enable_webauthn`, `enable_mfa`) |
+| `GET`  | `/api/v1/auth/config` | `PUBLIC` | Public auth flags (`enable_webauthn`, `passkey_required`, `enable_mfa`) |
 | `GET`  | `/api/v1/auth/me` | `AUTHENTICATED_USER` | Fetch own profile + permissions |
 | `PATCH`| `/api/v1/auth/me` | `AUTHENTICATED_USER` | Self-service profile update |
 
