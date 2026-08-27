@@ -78,26 +78,44 @@ export class AuthConfigurationsDal {
   }
 
   /**
-   * Insert a new config row.
+   * Insert a new config row with full metadata.
    * Invalidates + reloads the in-memory auth config cache so the change
    * is visible immediately to all hot-path readers (getAuthConfig()).
+   *
+   * NOTE: Validation is handled by the router layer using the SDK's
+   * `validateConfigValue`. The DAL is a data I/O concern — it does not validate.
    */
   async add(
-    key: string,
-    value: string,
+    params: {
+      key: string;
+      value: string;
+      type: string;
+      type_config?: string | null;
+      label_key?: string | null;
+      description_key?: string | null;
+      group_key?: string | null;
+      reserved?: boolean;
+    },
     updatedBy: string
-  ): Promise<void> {
-    await this.repo.add(
+  ): Promise<AuthConfigurationEntity> {
+    const row = await this.repo.add(
       AuthConfigurationEntity,
       {
-        key,
-        value,
+        key: params.key,
+        value: params.value,
+        type: params.type,
+        type_config: params.type_config ?? null,
+        label_key: params.label_key ?? null,
+        description_key: params.description_key ?? null,
+        group_key: params.group_key ?? null,
+        reserved: params.reserved ?? false,
         created_by: updatedBy,
         updated_by: updatedBy,
       },
       { actor: updatedBy }
     );
     await this.reloadCache();
+    return row as AuthConfigurationEntity;
   }
 
   /**

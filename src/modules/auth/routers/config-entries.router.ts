@@ -7,6 +7,7 @@
  *   GET    /api/v1/entities/config_entries/meta              → entity metadata
  *   GET    /api/v1/entities/config_entries/list              → all rows (secrets masked)
  *   GET    /api/v1/entities/config_entries/:uuid             → single row (secret masked)
+ *   POST   /api/v1/entities/config_entries                   → create new config row (validates value)
  *   PUT    /api/v1/entities/config_entries/:uuid             → update value (validates type)
  *   DELETE /api/v1/entities/config_entries/:uuid             → soft-delete (reserved rejected, step-up MFA)
  *   POST   /api/v1/entities/config_entries/bulk-delete       → bulk soft-delete (reserved rejected, step-up MFA)
@@ -99,6 +100,17 @@ const BulkUpdateBodySchema = z.object({
   ).min(1),
 });
 
+const CreateBodySchema = z.object({
+  key: z.string().min(1).max(100),
+  value: z.string(),
+  type: z.string().min(1).max(50),
+  type_config: z.string().nullable().optional(),
+  label_key: z.string().max(100).nullable().optional(),
+  description_key: z.string().max(100).nullable().optional(),
+  group_key: z.string().max(100).nullable().optional(),
+  reserved: z.boolean().optional(),
+});
+
 export function configEntriesRouter() {
   const router = makeProtectedRouter();
 
@@ -126,6 +138,52 @@ export function configEntriesRouter() {
       );
     }
     res.json(maskSecretValue(row));
+  });
+
+  const create: RequestHandler = asyncHandler(async (req, res) => {
+    const body = req.body as z.infer<typeof CreateBodySchema>;
+    const userUuid = requireUserUuid(req);
+    const dal = makeDal();
+
+    // 1. Check for duplicate key
+    const existing = await dal.findByKey(body.key);
+    if (existing) {
+      throw new ValidationError(
+        `Config key "${body.key}" already exists`,
+        { internal_code: "DUPLICATE_KEY" },
+      );
+    }
+
+    // 2. Validate the value using SDK validateConfigValue
+    try {
+      validateConfigValue(body.type as ConfigType, body.type_config ?? undefined, body.value, body.key);
+    } catch (err) {
+      if (err instanceof ConfigValidationError) {
+        throw new ValidationError(err.error_label_key, {
+          internal_code: "VALIDATION_ERROR",
+        });
+      }
+      throw new ValidationError(err instanceof Error ? err.message : "Invalid value", {
+        internal_code: "VALIDATION_ERROR",
+      });
+    }
+
+    // 3. DAL insert (pure data I/O)
+    const row = await dal.add(
+      {
+        key: body.key,
+        value: body.value,
+        type: body.type,
+        type_config: body.type_config ?? null,
+        label_key: body.label_key ?? null,
+        description_key: body.description_key ?? null,
+        group_key: body.group_key ?? null,
+        reserved: body.reserved ?? false,
+      },
+      userUuid,
+    );
+
+    res.status(201).json(maskSecretValue(row));
   });
 
   const update: RequestHandler = asyncHandler(async (req, res) => {
@@ -374,6 +432,13 @@ export function configEntriesRouter() {
       path: "/api/v1/entities/config_entries/:uuid",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       handler: getSingle,
+    },
+    {
+      method: "post",
+      path: "/api/v1/entities/config_entries",
+      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+      middlewares: [validateBody(CreateBodySchema)],
+      handler: create,
     },
     {
       method: "put",
