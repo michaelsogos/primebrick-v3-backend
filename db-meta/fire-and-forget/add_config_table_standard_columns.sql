@@ -169,7 +169,7 @@ UPDATE "public"."auth_configurations" SET
 WHERE "key" = 'auth_roles_path';
 
 UPDATE "public"."auth_configurations" SET
-  "type" = 'integer',
+  "type" = 'bigint',
   "type_config" = NULL,
   "label_key" = 'config.auth.invitation_expiry_days.label',
   "description_key" = 'config.auth.invitation_expiry_days.description'
@@ -204,7 +204,7 @@ UPDATE "public"."auth_configurations" SET
 WHERE "key" = 'redis_url';
 
 UPDATE "public"."auth_configurations" SET
-  "type" = 'integer',
+  "type" = 'bigint',
   "type_config" = NULL,
   "label_key" = 'config.auth.mfa_challenge_token_ttl_seconds.label',
   "description_key" = 'config.auth.mfa_challenge_token_ttl_seconds.description'

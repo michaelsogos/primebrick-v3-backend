@@ -1,7 +1,7 @@
 import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
-import { extJsonMiddleware, Permission, NatsClient, subscribeSharedConfig, logModuleStartup, logServiceStartup, type HealthResponse } from "@primebrick/sdk";
+import { extJsonMiddleware, extJsonBodyParser, Permission, NatsClient, subscribeSharedConfig, logModuleStartup, logServiceStartup, type HealthResponse } from "@primebrick/sdk";
 import { mountModules } from "./modules/index.js";
 import { Pool } from "pg";
 import CasdoorSDK from "casdoor-nodejs-sdk";
@@ -38,7 +38,11 @@ const app = express();
 const port = Number(process.env.PORT) || 3001;
 
 app.use(cors({ origin: true }));
-app.use(express.json());
+// Use ext-json body parser instead of native express.json() to preserve
+// BigInt precision in request bodies (e.g. config values for bigint type).
+// ext-json is a superset of JSON: standard JSON is parsed correctly, and
+// all integers are returned as native `bigint` (not just large ones).
+app.use(extJsonBodyParser({ limit: "1mb" }));
 app.use(cookieParser());
 app.use(extJsonMiddleware());
 

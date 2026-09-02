@@ -73,6 +73,17 @@ Most auth-related configuration is stored in the `auth_configurations`
 table, not in environment variables. This allows runtime updates via the
 admin API without restarting the server.
 
+Each config row has a `type` column that drives typed coercion at the
+API boundary and Frontend widget selection. The type vocabulary includes
+`string`, `text`, `boolean`, `bigint`, `number`, `money`, `badge`, `list`,
+`url`, `secret`, `json`, `date`, `datetime`, and `time`. See the
+[Config tables](sdk/guide/config-tables) guide for the full vocabulary.
+
+Config rows marked `reserved = true` cannot have their `type` or
+`type_config` changed — only the `value` is editable. This protects
+built-in settings from being re-typed in a way that would break the
+system. Non-reserved rows allow `value`, `type`, and `type_config` updates.
+
 | Config key | Description |
 |------------|-------------|
 | `redis_url` | Redis connection URL for caching and sessions |
@@ -80,14 +91,16 @@ admin API without restarting the server.
 | `oidc_client_id` | OIDC client ID |
 | `oidc_client_secret` | OIDC client secret |
 | `gateway_secret` | Shared secret for microservice gateway auth |
+| `invitation_expiry_days` | Invitation expiry in days (type: `bigint`) |
+| `mfa_challenge_token_ttl_seconds` | MFA token TTL in seconds (type: `bigint`) |
 
 To update a config value, use the admin API:
 
 ```bash
-curl -X PUT http://localhost:3001/api/v1/auth/configurations \
+curl -X PUT http://localhost:3001/api/v1/entities/config_entries/<uuid> \
   -H "Authorization: Bearer <admin-jwt>" \
   -H "Content-Type: application/json" \
-  -d '{"key": "redis_url", "value": "redis://redis:6379"}'
+  -d '{"value": "redis://redis:6379", "version": 1}'
 ```
 
 ## Local development setup

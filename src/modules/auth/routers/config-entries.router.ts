@@ -25,9 +25,9 @@ import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../rbac.middleware.js";
-import { Permission, validateConfigValue, ConfigValidationError, type ConfigType } from "@primebrick/sdk";
+import { Permission, validateConfigValue, coerceConfigValue, serializeConfigValue, ConfigValidationError, type ConfigType } from "@primebrick/sdk";
 import { getPool } from "../../../db/pool.js";
-import { AuthConfigurationsDal, ReservedConfigError } from "../auth_configurations_dal.js";
+import { AuthConfigurationsDal, ReservedConfigError, ReservedConfigTypeError } from "../auth_configurations_dal.js";
 import { AuthConfigurationEntity } from "../auth_configuration_entity.js";
 import { configEntriesMeta } from "../config-entries.meta.js";
 import { assembleMeta } from "../../../http/meta-assembler.js";
@@ -58,12 +58,36 @@ function requireUserUuid(req: import("express").Request): string {
  * Secret values are replaced with `null` — the FE renders a Password input
  * with a placeholder and only sends a value when the user types a new one.
  * An empty PUT body for a secret means "leave unchanged".
+ *
+ * Typed values are coerced to their native JS type before serialization:
+ *   - `bigint`  → native `bigint` (preserved by extJsonMiddleware on response)
+ *   - `number`  → native `number`
+ *   - `money`   → native `number` (amount only; currency is in `type_config`)
+ *   - other     → string (as stored in DB)
  */
 function maskSecretValue(row: AuthConfigurationEntity): Record<string, unknown> {
+  // Coerce the stored string value to its native JS type based on config type.
+  // For secrets, value is masked to null — the FE only sends a new value.
+  let coercedValue: unknown = row.value;
+  if (row.type !== "secret" && row.value !== null && row.value !== undefined) {
+    try {
+      coercedValue = coerceConfigValue(
+        row.type as ConfigType,
+        row.value,
+        row.type_config ?? undefined,
+      );
+    } catch {
+      // If coercion fails (e.g. stale DB value), fall back to the raw string.
+      coercedValue = row.value;
+    }
+  } else if (row.type === "secret") {
+    coercedValue = null;
+  }
+
   return {
     uuid: row.uuid,
     key: row.key,
-    value: row.value,
+    value: coercedValue,
     type: row.type,
     type_config: row.type_config ?? null,
     label_key: row.label_key ?? null,
@@ -82,7 +106,9 @@ const UuidParamSchema = z.object({
 });
 
 const UpdateBodySchema = z.object({
-  value: z.string(),
+  value: z.union([z.string(), z.number(), z.bigint()]).optional(),
+  type: z.string().min(1).max(50).optional(),
+  type_config: z.string().nullable().optional(),
   version: z.number().int().min(1),
 });
 
@@ -94,7 +120,9 @@ const BulkUpdateBodySchema = z.object({
   updates: z.array(
     z.object({
       uuid: z.string().min(1),
-      value: z.string(),
+      value: z.union([z.string(), z.number(), z.bigint()]).optional(),
+      type: z.string().min(1).max(50).optional(),
+      type_config: z.string().nullable().optional(),
       version: z.number().int().min(1),
     })
   ).min(1),
@@ -102,7 +130,7 @@ const BulkUpdateBodySchema = z.object({
 
 const CreateBodySchema = z.object({
   key: z.string().min(1).max(100),
-  value: z.string(),
+  value: z.union([z.string(), z.number(), z.bigint()]),
   type: z.string().min(1).max(50),
   type_config: z.string().nullable().optional(),
   label_key: z.string().max(100).nullable().optional(),
@@ -154,9 +182,14 @@ export function configEntriesRouter() {
       );
     }
 
-    // 2. Validate the value using SDK validateConfigValue
+    // 2. Serialize the incoming typed value to its DB string form.
+    //    The FE sends native bigint/number for bigint/number/money types;
+    //    the DB stores TEXT, so we serialize before validation + persistence.
+    const valueStr = serializeConfigValue(body.type as ConfigType, body.value);
+
+    // 3. Validate the serialized string value using SDK validateConfigValue
     try {
-      validateConfigValue(body.type as ConfigType, body.type_config ?? undefined, body.value, body.key);
+      validateConfigValue(body.type as ConfigType, body.type_config ?? undefined, valueStr, body.key);
     } catch (err) {
       if (err instanceof ConfigValidationError) {
         throw new ValidationError(err.error_label_key, {
@@ -168,11 +201,11 @@ export function configEntriesRouter() {
       });
     }
 
-    // 3. DAL insert (pure data I/O)
+    // 4. DAL insert (pure data I/O)
     const row = await dal.add(
       {
         key: body.key,
-        value: body.value,
+        value: valueStr,
         type: body.type,
         type_config: body.type_config ?? null,
         label_key: body.label_key ?? null,
@@ -204,11 +237,28 @@ export function configEntriesRouter() {
       );
     }
 
-    // 2. Validate using SDK validateConfigValue (router layer, not DAL)
+    // 2. Determine the effective type and type_config for validation.
+    //    If the request includes a new type/type_config (non-reserved only),
+    //    validate the value against the NEW type; otherwise use the existing.
+    const effectiveType = (body.type ?? existing.type) as ConfigType;
+    const effectiveTypeConfig = body.type_config !== undefined
+      ? body.type_config
+      : existing.type_config;
+
+    // 3. Serialize the incoming typed value to its DB string form.
+    //    If no value is provided, keep the existing value (type-only change).
+    let valueStr: string;
+    if (body.value !== undefined) {
+      valueStr = serializeConfigValue(effectiveType, body.value);
+    } else {
+      valueStr = existing.value ?? "";
+    }
+
+    // 4. Validate using SDK validateConfigValue with the effective type.
     //    secret: empty string = "leave unchanged" → skip validation
-    if (!(existing.type === "secret" && body.value === "")) {
+    if (!(effectiveType === "secret" && valueStr === "")) {
       try {
-        validateConfigValue(existing.type as ConfigType, existing.type_config, body.value, existing.key);
+        validateConfigValue(effectiveType, effectiveTypeConfig, valueStr, existing.key);
       } catch (err) {
         if (err instanceof ConfigValidationError) {
           throw new ValidationError(err.error_label_key, {
@@ -221,10 +271,33 @@ export function configEntriesRouter() {
       }
     }
 
-    // 3. DAL update (pure data I/O)
+    // 5. DAL update — enforces reserved-row rule for type/type_config changes.
+    //    The DAL throws ReservedConfigTypeError if a reserved row's type or
+    //    type_config is changed.
     try {
-      await dal.update(uuid as string, body.value, userUuid);
+      await dal.update(
+        uuid as string,
+        {
+          value: body.value !== undefined ? valueStr : undefined,
+          type: body.type,
+          type_config: body.type_config,
+        },
+        userUuid,
+      );
     } catch (err) {
+      if (err instanceof ReservedConfigTypeError) {
+        throw new ApiError(
+          "/errors/reserved-config-type-cannot-be-changed",
+          "Reserved config type cannot be changed",
+          403,
+          err.message,
+          {
+            internal_code: err.internal_code,
+            severity: "MEDIUM",
+            extra: { key: err.key },
+          },
+        );
+      }
       if (err instanceof Error && err.message.includes("not found")) {
         throw new ApiError(
           "/errors/not-found",
@@ -244,8 +317,14 @@ export function configEntriesRouter() {
     const userUuid = requireUserUuid(req);
     const dal = makeDal();
 
-    // 1. Fetch all existing rows, validate each value, check optimistic concurrency
-    const validUpdates: Array<{ id: bigint; value: string }> = [];
+    // 1. Fetch all existing rows, validate each value, check optimistic concurrency,
+    //    and enforce the reserved-row rule per item.
+    const validUpdates: Array<{
+      id: bigint;
+      value?: string;
+      type?: string;
+      type_config?: string | null;
+    }> = [];
     for (const item of body.updates) {
       const existing = await dal.findByUuid(item.uuid);
       if (!existing) {
@@ -258,9 +337,6 @@ export function configEntriesRouter() {
         );
       }
 
-      // secret: empty string = "leave unchanged" → skip
-      if (existing.type === "secret" && item.value === "") continue;
-
       // Optimistic concurrency check
       if (existing.version !== item.version) {
         throw new ValidationError(
@@ -269,21 +345,84 @@ export function configEntriesRouter() {
         );
       }
 
-      // Validate using SDK
-      try {
-        validateConfigValue(existing.type as ConfigType, existing.type_config, item.value, existing.key);
-      } catch (err) {
-        if (err instanceof ConfigValidationError) {
-          throw new ValidationError(err.error_label_key, {
+      // Reserved-row rule: type and type_config cannot be changed on reserved rows.
+      if (existing.reserved) {
+        if (item.type !== undefined && item.type !== existing.type) {
+          throw new ApiError(
+            "/errors/reserved-config-type-cannot-be-changed",
+            "Reserved config type cannot be changed",
+            403,
+            `Config key "${existing.key}" is reserved: type and type_config cannot be changed`,
+            {
+              internal_code: "reserved_config_type_cannot_be_changed",
+              severity: "MEDIUM",
+              extra: { key: existing.key },
+            },
+          );
+        }
+        if (
+          item.type_config !== undefined &&
+          item.type_config !== (existing.type_config ?? null)
+        ) {
+          throw new ApiError(
+            "/errors/reserved-config-type-cannot-be-changed",
+            "Reserved config type cannot be changed",
+            403,
+            `Config key "${existing.key}" is reserved: type and type_config cannot be changed`,
+            {
+              internal_code: "reserved_config_type_cannot_be_changed",
+              severity: "MEDIUM",
+              extra: { key: existing.key },
+            },
+          );
+        }
+      }
+
+      // Determine effective type for validation/serialization
+      const effectiveType = (item.type ?? existing.type) as ConfigType;
+      const effectiveTypeConfig = item.type_config !== undefined
+        ? item.type_config
+        : existing.type_config;
+
+      // Serialize the incoming typed value to its DB string form.
+      let valueStr: string | undefined;
+      if (item.value !== undefined) {
+        valueStr = serializeConfigValue(effectiveType, item.value);
+      }
+
+      // secret: empty string = "leave unchanged" → skip value validation + write
+      if (effectiveType === "secret" && valueStr === "") {
+        // Still allow type/type_config updates for non-reserved rows
+        validUpdates.push({
+          id: existing.id!,
+          type: item.type,
+          type_config: item.type_config,
+        });
+        continue;
+      }
+
+      // Validate using SDK with the effective type
+      if (valueStr !== undefined) {
+        try {
+          validateConfigValue(effectiveType, effectiveTypeConfig, valueStr, existing.key);
+        } catch (err) {
+          if (err instanceof ConfigValidationError) {
+            throw new ValidationError(err.error_label_key, {
+              internal_code: "VALIDATION_ERROR",
+            });
+          }
+          throw new ValidationError(err instanceof Error ? err.message : "Invalid value", {
             internal_code: "VALIDATION_ERROR",
           });
         }
-        throw new ValidationError(err instanceof Error ? err.message : "Invalid value", {
-          internal_code: "VALIDATION_ERROR",
-        });
       }
 
-      validUpdates.push({ id: existing.id!, value: item.value });
+      validUpdates.push({
+        id: existing.id!,
+        value: valueStr,
+        type: item.type,
+        type_config: item.type_config,
+      });
     }
 
     // 2. Single transactional bulk write via DAL (TEMP TABLE strategy)

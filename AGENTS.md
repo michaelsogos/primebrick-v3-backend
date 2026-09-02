@@ -139,8 +139,9 @@ both BE validation and FE widget selection.
 | `string` | text input | none |
 | `text` | textarea | none |
 | `boolean` | switch | must be `"true"` or `"false"` |
-| `integer` | numeric input | must be an integer |
-| `number` | numeric input | must be a number |
+| `bigint` | numeric input | must be an integer (coerced to JS `BigInt`) |
+| `number` | numeric input | must be a number (coerced to JS `Number`) |
+| `money` | numeric input + currency symbol | must be a number (amount is JS `Number`, currency in `type_config`) |
 | `badge` | ComboSelect (inline values from `type_config.values`) | must be in `type_config.values` |
 | `list` | ComboSelect (options loaded from `type_config.api_url`) | none (validated by the BE catalog code) |
 | `url` | URL input | must be a valid URL |
@@ -150,7 +151,20 @@ both BE validation and FE widget selection.
 | `datetime` | DateWheelPicker (includeTime) | none (format validated by FE) |
 | `time` | native time input | none (format validated by FE) |
 
+The conceptual type `"integer"` was renamed to `"bigint"` to make the
+backing JS type explicit. Existing rows are migrated by a fire-and-forget
+SQL patch (`rename_integer_to_bigint_config_type.sql`).
+
+The `money` type is a primitive numeric display type — the amount is a
+JS `Number`, and currency metadata is stored in `type_config`. There is
+no `Money` composite wire type.
+
 ### `type_config` JSON shapes
+
+**money:**
+```json
+{ "currency": "EUR" }
+```
 
 **badge:**
 ```json
@@ -190,10 +204,20 @@ All endpoints are admin-only (`AUTHENTICATED_ADMIN`):
 
 - **Reserved rows** are editable but cannot be deleted (returns 403 with
   `internal_code: "reserved_config_cannot_be_deleted"`).
+- **Reserved rows** cannot change `type` or `type_config` (returns 403 with
+  `internal_code: "reserved_config_type_cannot_change"`). Only `value` is
+  updatable for reserved rows.
+- **Non-reserved rows** allow `value`, `type`, and `type_config` updates.
 - **Delete and bulk-delete** require step-up MFA (X-MFA-Action-Authorization header).
 - **Secret values** are masked to `null` in API responses. An empty PUT body
   for a secret means "leave unchanged".
 - **Writes** invalidate and reload the in-memory auth configuration cache.
+- **Typed values** are coerced at the SDK/BE boundary: `bigint` values
+  become native `bigint`, `number`/`money` values become `number`. The BE
+  serializes typed input via `serializeConfigValue()` before storing it in
+  the text `value` column, and coerces values before returning them to the FE.
+- **Request bodies** are parsed with the SDK's BigInt-safe `extJsonBodyParser()`
+  (replaces `express.json()`) so that large integer values preserve precision.
 
 ### Files
 
