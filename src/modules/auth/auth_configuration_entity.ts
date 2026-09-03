@@ -8,7 +8,7 @@
  *
  * Config Table standard columns:
  * - `type` — drives SDK coercion and FE widget selection (see ConfigType in SDK).
- * - `type_config` — JSONB-text extra per-type config (badge inline values, list API URL, etc.).
+ * - `type_config` — JSONB-text extra per-type config (badge inline values, select API URL, etc.).
  * - `label_key` / `description_key` — i18n keys for the setting title and description.
  * - `reserved` — if true, the row is system-critical: editable but not deletable.
  *
@@ -52,7 +52,7 @@ export class AuthConfigurationEntity implements IAuditableEntity {
   @Column({ length: 50, nullable: false })
   type: string;
 
-  /** JSONB-text extra per-type configuration (badge inline values, list API URL, etc.). */
+  /** JSONB-text extra per-type configuration (badge inline values, select API URL, values_source, etc.). */
   @Column({ nullable: true })
   type_config?: string | null;
 
