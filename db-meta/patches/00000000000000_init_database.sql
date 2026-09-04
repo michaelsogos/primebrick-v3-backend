@@ -293,10 +293,13 @@ COMMENT ON COLUMN public.mfa_action_authorizations.used_at IS 'When the token wa
 -- role_mappings table
 CREATE TABLE IF NOT EXISTS "public"."role_mappings" (
   "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
   "idp_role" varchar(255) NOT NULL,
   "label_key" varchar(255),
   "permissions" jsonb NOT NULL,
   "is_admin" boolean NOT NULL DEFAULT false,
+  "idp_org" varchar(255),
+  "last_synced_at" timestamptz,
   "created_at" timestamptz DEFAULT now(),
   "created_by" text,
   "updated_at" timestamptz DEFAULT now(),
@@ -306,6 +309,7 @@ CREATE TABLE IF NOT EXISTS "public"."role_mappings" (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "role_mappings_idp_role_uq" ON "public"."role_mappings" ("idp_role");
+CREATE UNIQUE INDEX IF NOT EXISTS "role_mappings_uuid_uq" ON "public"."role_mappings" ("uuid");
 
 -- role_mappings_audit table
 CREATE TABLE IF NOT EXISTS "public"."role_mappings_audit" (
@@ -474,8 +478,12 @@ CREATE TABLE IF NOT EXISTS "public"."service_registry" (
   "github_repo_url" text,
   "service_version" text,
   "is_behind_scaler" boolean NOT NULL DEFAULT false,
+  "is_reserved" boolean NOT NULL DEFAULT false,
   "status" text NOT NULL DEFAULT 'unknown',
   "last_health_check_at" timestamptz,
+  "is_enabled" boolean NOT NULL DEFAULT true,
+  "icon" text,
+  "icon_type" text NOT NULL DEFAULT 'icon',
   "created_at" timestamptz DEFAULT now(),
   "created_by" text,
   "updated_at" timestamptz DEFAULT now(),
@@ -493,6 +501,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_uq_scaler"
 -- One row per (code, base_url) when not behind scaler
 CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_base_url_uq"
   ON "public"."service_registry" ("code", "base_url") WHERE is_behind_scaler = false;
+
+-- Seed reserved SETTINGS module (cannot be disabled/deleted, always present).
+-- SETTINGS is the system configuration module — 7 sub-pages, no microservice backend.
+INSERT INTO public.service_registry (
+  code, base_url, endpoints, name, description, is_behind_scaler,
+  status, is_enabled, icon, icon_type, is_reserved,
+  created_at, created_by, updated_at, updated_by, version
+)
+SELECT
+  'settings', '', '{}'::jsonb, 'Settings', 'Primebrick system settings — reserved shell module', true,
+  'active', true, 'settings', 'icon', true,
+  now(), 'system', now(), 'system', 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.service_registry WHERE code = 'settings' AND is_behind_scaler = true
+);
 
 -- === AI Chat tables ===
 -- NOTE: The AI chat tables (docs_kb, ai_conversations, ai_messages,
@@ -524,6 +547,57 @@ CREATE INDEX IF NOT EXISTS "auth_events_event_type_event_at_idx"
 CREATE INDEX IF NOT EXISTS "auth_events_attempted_username_event_at_idx"
   ON "public"."auth_events" ("attempted_username", "event_at" DESC);
 
+-- api_keys table (machine-to-machine authentication with RBAC).
+-- API keys are first-class auth credentials mapped to permissions.
+-- The is_system flag allows system API keys that bypass RBAC (actor = "system").
+CREATE TABLE IF NOT EXISTS "public"."api_keys" (
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "key_hash" text NOT NULL,
+  "key_prefix" varchar(20) NOT NULL,
+  "name" varchar(100) NOT NULL,
+  "description" text,
+  "permissions" jsonb DEFAULT '[]',
+  "is_system" boolean DEFAULT FALSE,
+  "is_active" boolean DEFAULT TRUE,
+  "expires_at" timestamptz,
+  "created_at" timestamptz DEFAULT now(),
+  "created_by" text,
+  "updated_at" timestamptz DEFAULT now(),
+  "updated_by" text,
+  "version" integer DEFAULT 1,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "api_keys_uuid_uq" ON "public"."api_keys" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "api_keys_key_hash_uq" ON "public"."api_keys" ("key_hash");
+
+-- mcp_oauth_clients table (MCP OAuth 2.1 Dynamic Client Registration, RFC 7591).
+-- Stores OAuth clients registered by AI clients (Claude Desktop, Cursor, VS Code)
+-- via the MCP server's DCR endpoint. These clients are used for the authorization
+-- code flow that issues Casdoor JWTs scoped to the MCP server.
+CREATE TABLE IF NOT EXISTS "public"."mcp_oauth_clients" (
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "client_id" varchar(255) NOT NULL,
+  "client_secret" text,
+  "client_name" varchar(255),
+  "redirect_uris" jsonb DEFAULT '[]',
+  "grant_types" jsonb DEFAULT '["authorization_code","refresh_token"]',
+  "response_types" jsonb DEFAULT '["code"]',
+  "token_endpoint_auth_method" varchar(50) DEFAULT 'client_secret_post',
+  "scope" text DEFAULT 'mcp:tools',
+  "client_id_issued_at" timestamptz DEFAULT now(),
+  "client_secret_expires_at" timestamptz,
+  "created_at" timestamptz DEFAULT now(),
+  "updated_at" timestamptz DEFAULT now(),
+  "version" integer DEFAULT 1,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "mcp_oauth_clients_uuid_uq" ON "public"."mcp_oauth_clients" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "mcp_oauth_clients_client_id_uq" ON "public"."mcp_oauth_clients" ("client_id");
+
 -- === Seed Data ===
 
 -- Seed the only auto-created role mapping: 'administrators' (is_admin=true).
@@ -553,8 +627,6 @@ AND NOT EXISTS (
 -- Seed the 'auth_auditor' role mapping (read-only auth events audit).
 -- Dedicated role for security/compliance team to inspect login logs.
 -- Admin (is_admin=true) bypasses all checks; this role is for non-admin users.
--- Note: no audit trail seed for role_mappings because the table has no uuid column
--- (pre-existing schema limitation — administrators seed has the same gap).
 INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
 VALUES ('auth_auditor', '["auth_events.read.all"]'::jsonb, false, '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1)
 ON CONFLICT (idp_role) DO NOTHING;
