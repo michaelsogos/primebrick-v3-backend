@@ -81,6 +81,25 @@ export function translationsRouter() {
     }),
   );
 
+  // GET /api/v1/translations/:module/:language — module i18n dict (authenticated)
+  router.get(
+    "/api/v1/translations/:module/:language",
+    rbacHandler([Permission.AUTHENTICATED_USER]),
+    asyncHandler(async (req, res) => {
+      const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
+      if (!moduleResult.success) {
+        throw new ValidationError("Invalid module code", { internal_code: "VALIDATION_ERROR" });
+      }
+      const langResult = LanguageSchema.safeParse(req.params.language);
+      if (!langResult.success) {
+        throw new ValidationError("Invalid language code", { internal_code: "VALIDATION_ERROR" });
+      }
+      const dal = new TranslationsDal(getPool());
+      const dict = await dal.getI18nDict(moduleResult.data, langResult.data);
+      res.json(dict);
+    }),
+  );
+
   // GET /api/v1/translations/modules — list available translation modules
   router.get(
     "/api/v1/translations/modules",
