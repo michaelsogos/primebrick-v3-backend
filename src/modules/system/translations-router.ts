@@ -1,17 +1,36 @@
 /**
  * translations.router — central CRUD gateway for all translation schemas.
  *
- * Endpoints:
- *   GET    /api/v1/translations/public/:language        → public i18n dict (no auth)
- *   GET    /api/v1/translations/modules                  → list available modules
- *   GET    /api/v1/translations/:module/list             → paginated list (admin)
- *   POST   /api/v1/translations/:module                  → create (admin)
- *   PUT    /api/v1/translations/:module/:uuid            → update (admin)
- *   DELETE /api/v1/translations/:module/:uuid            → soft delete (admin)
- *   POST   /api/v1/translations/:module/:uuid/restore    → restore (admin)
+ * DESIGN:
+ * - Public read: no auth, returns flat i18n dict for app.* keys
+ * - Runtime read: authenticated, returns flat i18n dict for any module
+ * - Admin CRUD: TRANSLATIONS_MANAGE, separated under /admin/ to avoid
+ *   routing conflicts with the runtime read path
  *
- * The public endpoint reads only public.translations (AppTranslationEntity).
- * All other endpoints require TRANSLATIONS_MANAGE permission.
+ * The module list for the admin selector comes from the existing
+ * /api/v1/modules endpoint (service_registry) — NOT from this router.
+ * The FE adds the static 'app' and 'system' entries locally.
+ *
+ * Endpoints:
+ *   PUBLIC READ (no auth):
+ *     GET /api/v1/translations/public/:language
+ *       → flat i18n dict from public.translations (app.* keys)
+ *
+ *   RUNTIME READ (authenticated user):
+ *     GET /api/v1/translations/:module/:language
+ *       → flat i18n dict from {schema}.translations
+ *
+ *   ADMIN CRUD (TRANSLATIONS_MANAGE):
+ *     GET    /api/v1/translations/admin/:module/list?language=xx-XX&page=1&page_size=25
+ *       → paginated rows, filtered by module (path) + language (query)
+ *     POST   /api/v1/translations/admin/:module
+ *       → create row in {schema}.translations
+ *     PUT    /api/v1/translations/admin/:module/:uuid
+ *       → update row
+ *     DELETE /api/v1/translations/admin/:module/:uuid
+ *       → soft delete row
+ *     POST   /api/v1/translations/admin/:module/:uuid/restore
+ *       → restore soft-deleted row
  *
  * The router contains NO business logic. All errors are thrown as `ApiError`
  * subclasses and converted to RFC 7807 by the centralized `errorHandler`.
@@ -26,7 +45,7 @@ import { rbacHandler } from "../auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
 import { getPool } from "../../db/pool.js";
 import { TranslationsDal } from "./translations-dal.js";
-import { ValidationError, NotFoundError } from "../../http/api-errors.js";
+import { ValidationError } from "../../http/api-errors.js";
 
 const ModuleCodeSchema = z
   .string()
@@ -66,7 +85,9 @@ const ListQuerySchema = z.object({
 export function translationsRouter() {
   const router = makeProtectedRouter();
 
-  // GET /api/v1/translations/public/:language — public i18n dict (no auth)
+  // ─── PUBLIC READ (no auth) ──────────────────────────────────────────────
+  // Returns flat i18n dict from public.translations (app.* keys only).
+  // Used by login, welcome, and MCP consent pages before authentication.
   router.get(
     "/api/v1/translations/public/:language",
     rbacHandler([Permission.PUBLIC]),
@@ -81,7 +102,9 @@ export function translationsRouter() {
     }),
   );
 
-  // GET /api/v1/translations/:module/:language — module i18n dict (authenticated)
+  // ─── RUNTIME READ (authenticated user) ──────────────────────────────────
+  // Returns flat i18n dict for any module's schema.
+  // Used by useModuleTranslations composable on authenticated pages.
   router.get(
     "/api/v1/translations/:module/:language",
     rbacHandler([Permission.AUTHENTICATED_USER]),
@@ -100,19 +123,14 @@ export function translationsRouter() {
     }),
   );
 
-  // GET /api/v1/translations/modules — list available translation modules
-  router.get(
-    "/api/v1/translations/modules",
-    rbacHandler([Permission.AUTHENTICATED_USER]),
-    asyncHandler(async (_req, res) => {
-      const dal = new TranslationsDal(getPool());
-      res.json({ modules: dal.listModules() });
-    }),
-  );
+  // ─── ADMIN CRUD (TRANSLATIONS_MANAGE) ───────────────────────────────────
+  // Separated under /admin/ to avoid routing conflicts with the runtime
+  // read path (/:module/:language). The admin page has two selectors:
+  // module (path param) + language (query param, defaults to user's lang).
 
-  // GET /api/v1/translations/:module/list — paginated list (admin)
+  // GET /api/v1/translations/admin/:module/list?language=xx-XX&page=1&page_size=25
   router.get(
-    "/api/v1/translations/:module/list",
+    "/api/v1/translations/admin/:module/list",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
       const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
@@ -129,9 +147,9 @@ export function translationsRouter() {
     }),
   );
 
-  // POST /api/v1/translations/:module — create (admin)
+  // POST /api/v1/translations/admin/:module — create
   router.post(
-    "/api/v1/translations/:module",
+    "/api/v1/translations/admin/:module",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
       const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
@@ -148,9 +166,9 @@ export function translationsRouter() {
     }),
   );
 
-  // PUT /api/v1/translations/:module/:uuid — update (admin)
+  // PUT /api/v1/translations/admin/:module/:uuid — update
   router.put(
-    "/api/v1/translations/:module/:uuid",
+    "/api/v1/translations/admin/:module/:uuid",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
       const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
@@ -171,9 +189,9 @@ export function translationsRouter() {
     }),
   );
 
-  // DELETE /api/v1/translations/:module/:uuid — soft delete (admin)
+  // DELETE /api/v1/translations/admin/:module/:uuid — soft delete
   router.delete(
-    "/api/v1/translations/:module/:uuid",
+    "/api/v1/translations/admin/:module/:uuid",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
       const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
@@ -190,9 +208,9 @@ export function translationsRouter() {
     }),
   );
 
-  // POST /api/v1/translations/:module/:uuid/restore — restore (admin)
+  // POST /api/v1/translations/admin/:module/:uuid/restore — restore
   router.post(
-    "/api/v1/translations/:module/:uuid/restore",
+    "/api/v1/translations/admin/:module/:uuid/restore",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
       const moduleResult = ModuleCodeSchema.safeParse(req.params.module);

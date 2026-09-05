@@ -106,11 +106,6 @@ export class TranslationsDal {
     return entity;
   }
 
-  /** List available module codes. */
-  listModules(): string[] {
-    return Object.keys(MODULE_ENTITIES);
-  }
-
   /**
    * Get the flat i18n dict for a language from a specific module's schema.
    * PG builds the dict natively via jsonb_object_agg — no Node-side post-processing.
