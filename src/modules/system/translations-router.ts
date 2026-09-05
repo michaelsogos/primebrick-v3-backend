@@ -4,8 +4,8 @@
  * DESIGN:
  * - Public read: no auth, returns flat i18n dict for app.* keys
  * - Runtime read: authenticated, returns flat i18n dict for any module
- * - Admin CRUD: TRANSLATIONS_MANAGE, separated under /admin/ to avoid
- *   routing conflicts with the runtime read path
+ * - Admin CRUD: follows the standard entity pattern under
+ *   /api/v1/entities/translations/ with module as a query param
  *
  * The module list for the admin selector comes from the existing
  * /api/v1/modules endpoint (service_registry) — NOT from this router.
@@ -20,17 +20,12 @@
  *     GET /api/v1/translations/:module/:language
  *       → flat i18n dict from {schema}.translations
  *
- *   ADMIN CRUD (TRANSLATIONS_MANAGE):
- *     GET    /api/v1/translations/admin/:module/list?language=xx-XX&page=1&page_size=25
- *       → paginated rows, filtered by module (path) + language (query)
- *     POST   /api/v1/translations/admin/:module
- *       → create row in {schema}.translations
- *     PUT    /api/v1/translations/admin/:module/:uuid
- *       → update row
- *     DELETE /api/v1/translations/admin/:module/:uuid
- *       → soft delete row
- *     POST   /api/v1/translations/admin/:module/:uuid/restore
- *       → restore soft-deleted row
+ *   ADMIN CRUD (TRANSLATIONS_MANAGE — standard entity pattern):
+ *     GET    /api/v1/entities/translations/list?module={code}&language={lang}&page=1&page_size=25
+ *     POST   /api/v1/entities/translations?module={code}
+ *     PUT    /api/v1/entities/translations/:uuid?module={code}
+ *     DELETE /api/v1/entities/translations/:uuid?module={code}
+ *     POST   /api/v1/entities/translations/:uuid/restore?module={code}
  *
  * The router contains NO business logic. All errors are thrown as `ApiError`
  * subclasses and converted to RFC 7807 by the centralized `errorHandler`.
@@ -74,12 +69,17 @@ const TranslationUpdateSchema = z.object({
 });
 
 const ListQuerySchema = z.object({
+  module: ModuleCodeSchema,
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(100).default(25),
   language: LanguageSchema.optional(),
   sort_key: z.string().optional(),
   sort_dir: z.enum(["asc", "desc"]).optional(),
   deleted_records: z.enum(["EXCLUDED", "ONLY", "INCLUDED"]).optional(),
+});
+
+const ModuleQuerySchema = z.object({
+  module: ModuleCodeSchema,
 });
 
 export function translationsRouter() {
@@ -123,57 +123,52 @@ export function translationsRouter() {
     }),
   );
 
-  // ─── ADMIN CRUD (TRANSLATIONS_MANAGE) ───────────────────────────────────
-  // Separated under /admin/ to avoid routing conflicts with the runtime
-  // read path (/:module/:language). The admin page has two selectors:
-  // module (path param) + language (query param, defaults to user's lang).
+  // ─── ADMIN CRUD (TRANSLATIONS_MANAGE — standard entity pattern) ─────────
+  // Follows the same pattern as /api/v1/entities/customer, /api/v1/entities/organization, etc.
+  // Module is a query param (not a path param) — same as the plan specified.
 
-  // GET /api/v1/translations/admin/:module/list?language=xx-XX&page=1&page_size=25
+  // GET /api/v1/entities/translations/list?module={code}&language={lang}&page=1&page_size=25
   router.get(
-    "/api/v1/translations/admin/:module/list",
+    "/api/v1/entities/translations/list",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
-      const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
-      if (!moduleResult.success) {
-        throw new ValidationError("Invalid module code", { internal_code: "VALIDATION_ERROR" });
-      }
       const queryResult = ListQuerySchema.safeParse(req.query);
       if (!queryResult.success) {
         throw new ValidationError("Invalid query parameters", { internal_code: "VALIDATION_ERROR" });
       }
       const dal = new TranslationsDal(getPool());
-      const result = await dal.list(moduleResult.data, queryResult.data);
+      const result = await dal.list(queryResult.data.module, queryResult.data);
       res.json(result);
     }),
   );
 
-  // POST /api/v1/translations/admin/:module — create
+  // POST /api/v1/entities/translations?module={code} — create
   router.post(
-    "/api/v1/translations/admin/:module",
+    "/api/v1/entities/translations",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
-      const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
-      if (!moduleResult.success) {
-        throw new ValidationError("Invalid module code", { internal_code: "VALIDATION_ERROR" });
+      const queryResult = ModuleQuerySchema.safeParse(req.query);
+      if (!queryResult.success) {
+        throw new ValidationError("Missing or invalid module query param", { internal_code: "VALIDATION_ERROR" });
       }
       const bodyResult = TranslationCreateSchema.safeParse(req.body);
       if (!bodyResult.success) {
         throw new ValidationError("Invalid request body", { internal_code: "VALIDATION_ERROR" });
       }
       const dal = new TranslationsDal(getPool());
-      const created = await dal.create(moduleResult.data, bodyResult.data);
+      const created = await dal.create(queryResult.data.module, bodyResult.data);
       res.status(201).json(created);
     }),
   );
 
-  // PUT /api/v1/translations/admin/:module/:uuid — update
+  // PUT /api/v1/entities/translations/:uuid?module={code} — update
   router.put(
-    "/api/v1/translations/admin/:module/:uuid",
+    "/api/v1/entities/translations/:uuid",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
-      const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
-      if (!moduleResult.success) {
-        throw new ValidationError("Invalid module code", { internal_code: "VALIDATION_ERROR" });
+      const queryResult = ModuleQuerySchema.safeParse(req.query);
+      if (!queryResult.success) {
+        throw new ValidationError("Missing or invalid module query param", { internal_code: "VALIDATION_ERROR" });
       }
       const uuidResult = UuidSchema.safeParse(req.params.uuid);
       if (!uuidResult.success) {
@@ -184,45 +179,45 @@ export function translationsRouter() {
         throw new ValidationError("Invalid request body", { internal_code: "VALIDATION_ERROR" });
       }
       const dal = new TranslationsDal(getPool());
-      const updated = await dal.update(moduleResult.data, uuidResult.data, bodyResult.data);
+      const updated = await dal.update(queryResult.data.module, uuidResult.data, bodyResult.data);
       res.json(updated);
     }),
   );
 
-  // DELETE /api/v1/translations/admin/:module/:uuid — soft delete
+  // DELETE /api/v1/entities/translations/:uuid?module={code} — soft delete
   router.delete(
-    "/api/v1/translations/admin/:module/:uuid",
+    "/api/v1/entities/translations/:uuid",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
-      const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
-      if (!moduleResult.success) {
-        throw new ValidationError("Invalid module code", { internal_code: "VALIDATION_ERROR" });
+      const queryResult = ModuleQuerySchema.safeParse(req.query);
+      if (!queryResult.success) {
+        throw new ValidationError("Missing or invalid module query param", { internal_code: "VALIDATION_ERROR" });
       }
       const uuidResult = UuidSchema.safeParse(req.params.uuid);
       if (!uuidResult.success) {
         throw new ValidationError("Invalid UUID", { internal_code: "VALIDATION_ERROR" });
       }
       const dal = new TranslationsDal(getPool());
-      await dal.softDelete(moduleResult.data, uuidResult.data);
+      await dal.softDelete(queryResult.data.module, uuidResult.data);
       res.status(204).send();
     }),
   );
 
-  // POST /api/v1/translations/admin/:module/:uuid/restore — restore
+  // POST /api/v1/entities/translations/:uuid/restore?module={code} — restore
   router.post(
-    "/api/v1/translations/admin/:module/:uuid/restore",
+    "/api/v1/entities/translations/:uuid/restore",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
-      const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
-      if (!moduleResult.success) {
-        throw new ValidationError("Invalid module code", { internal_code: "VALIDATION_ERROR" });
+      const queryResult = ModuleQuerySchema.safeParse(req.query);
+      if (!queryResult.success) {
+        throw new ValidationError("Missing or invalid module query param", { internal_code: "VALIDATION_ERROR" });
       }
       const uuidResult = UuidSchema.safeParse(req.params.uuid);
       if (!uuidResult.success) {
         throw new ValidationError("Invalid UUID", { internal_code: "VALIDATION_ERROR" });
       }
       const dal = new TranslationsDal(getPool());
-      await dal.restore(moduleResult.data, uuidResult.data);
+      await dal.restore(queryResult.data.module, uuidResult.data);
       res.status(204).send();
     }),
   );
