@@ -39,10 +39,17 @@ import {
  */
 type TranslationEntityCtor = EntityClass & (new () => AppTranslationEntity);
 
-/** Module code → entity class mapping. */
+/**
+ * Module code → entity class mapping.
+ *
+ * The `settings` module is a reserved shell module whose translations live in
+ * `system.translations` (keys are `system.settings.*`). It has no own schema.
+ * Other module codes (from microservices) map to their own translation schemas.
+ */
 const MODULE_ENTITIES: Record<string, TranslationEntityCtor> = {
   app: AppTranslationEntity as unknown as TranslationEntityCtor,
   system: SystemTranslationEntity as unknown as TranslationEntityCtor,
+  settings: SystemTranslationEntity as unknown as TranslationEntityCtor,
   emailsender: EmailsenderTranslationEntity as unknown as TranslationEntityCtor,
 };
 
