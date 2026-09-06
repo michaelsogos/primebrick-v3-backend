@@ -64,7 +64,7 @@ export const userProfileMeta = {
       customActions: [
         {
           actionName: "changePassword",
-          translationKey: "shell.settings.users.changePassword",
+          translationKey: "system.settings.users.changePassword",
           icon: "key-round",
           textColor: "",
           disabledWhenDeleted: true,

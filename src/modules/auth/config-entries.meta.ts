@@ -14,7 +14,7 @@
 export const configEntriesMeta = {
   entity: "config_entries",
   translationKey: "config_entry",
-  titleKey: "shell.settings.security.title",
+  titleKey: "system.settings.security.title",
   uid: "uuid",
   list: {
     columns: [

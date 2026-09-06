@@ -77,10 +77,10 @@ export function systemRouter() {
       const modules = Array.from(modulesMap.entries())
         .map(([code, perms]) => ({
           code,
-          label_key: `shell.settings.roles.permissions.module.${code}`,
+          label_key: `system.settings.roles.permissions.module.${code}`,
           permissions: perms.sort().map((code2) => ({
             code: code2,
-            label_key: `shell.settings.roles.permissions.${code2}`,
+            label_key: `system.settings.roles.permissions.${code2}`,
           })),
         }))
         .sort((a, b) => a.code.localeCompare(b.code));
