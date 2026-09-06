@@ -1,3 +1,3 @@
 {
-  "pages": ["overview", "architecture", "authentication", "rbac", "environment-configuration", "collaboration"]
+  "pages": ["overview", "architecture", "api-conventions", "authentication", "rbac", "environment-configuration", "collaboration"]
 }

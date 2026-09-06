@@ -68,7 +68,38 @@ If **you** started `pnpm run dev` only to verify, **stop it** when done. Do not 
 - No secrets in git (`.env`, credentials).
 - **Team-facing `*.md`:** English only.
 - **API errors:** Use stable error codes with `impact` field for the frontend.
-- **Translation keys:** MUST be snake_case singular — see [`.devin/rules/translation-key-convention.md`](./.devin/rules/translation-key-convention.md). Every meta file MUST include a `translationKey` field (snake_case singular) alongside `entity` (snake_case plural). All `labelKey`/`titleKey`/`tooltip` values MUST use the `translationKey` as the entity segment.
+- **Translation keys:** MUST be snake_case singular — see [`.devin/rules/translation-key-convention.md`](./.devin/rules/translation-key-convention.md). Every meta file MUST include a `translationKey` field (snake_case singular) alongside `entity` (snake_case singular). All `labelKey`/`titleKey`/`tooltip` values MUST use the `translationKey` as the entity segment.
+
+## API Endpoint Conventions
+
+All HTTP endpoints follow a standardized path taxonomy. See
+[`.devin/rules/api-path-conventions.md`](./.devin/rules/api-path-conventions.md)
+for the full specification.
+
+### Categories
+
+| Category | Path prefix | Purpose |
+|---|---|---|
+| Entity CRUD | `/api/v1/entities/:entity/...` | RESTful CRUD on database-backed entities |
+| Auth RPC | `/api/v1/auth/...` | Authentication, session, MFA, WebAuthn |
+| System RPC | `/api/v1/system/...` | Infrastructure, config, runtime reads, health, OpenAPI |
+| MCP | `/mcp/...` | AI tool-calling protocol (OAuth + transport) |
+| Webhooks (US only) | `/webhook/...` | External callbacks |
+| Well-known | `/.well-known/...` | Protocol-mandated discovery (OAuth) |
+
+### Naming convention
+
+- Entity class = **singular** (one row schema). Example: `CustomerEntity`
+- PG table = **plural** (collection). Example: `customers`
+- URL entity segment = **singular**. Example: `/api/v1/entities/customer/...`
+- Translation key entity segment = **singular**. Example: `entities.customer.title`
+
+### Rules
+
+- AUTH and SYSTEM are RPC-style APIs. ENTITIES is RESTful CRUD. Do not mix them.
+- MCP is a distinct tool-calling protocol for AIs. Everything under `/mcp/...`
+  stays under `/mcp/...`. The `.well-known` discovery URLs are
+  protocol-mandated at the root.
 
 ### Schema diff safety
 

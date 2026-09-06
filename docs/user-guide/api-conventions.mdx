@@ -1,0 +1,131 @@
+---
+title: API Conventions
+description: "Endpoint taxonomy, naming conventions, and path standards for the Primebrick backend."
+---
+
+# API Conventions
+
+The backend exposes a standardized set of endpoint categories. Every HTTP
+route falls into exactly one category, each with its own path prefix and
+API style.
+
+## Endpoint categories
+
+| Category | Path prefix | API style | Purpose |
+|---|---|---|---|
+| Entity CRUD | `/api/v1/entities/:entity/...` | RESTful CRUD | Standard lifecycle operations on database-backed entities |
+| Auth RPC | `/api/v1/auth/...` | RPC | Authentication, session, MFA, WebAuthn |
+| System RPC | `/api/v1/system/...` | RPC | Infrastructure, config, runtime reads, health, OpenAPI |
+| MCP | `/mcp/...` | Tool protocol | AI tool-calling protocol (OAuth + transport) |
+| Webhooks | `/webhook/...` | RPC | External callbacks (US microservices only) |
+| Well-known | `/.well-known/...` | RPC | Protocol-mandated discovery (OAuth) |
+
+- **SYSTEM** is the default module for BE-internal RPC endpoints.
+- **AUTH** is a separate module for authentication.
+- **ENTITIES** is for RESTful CRUD only.
+- **MCP** is a distinct tool-calling protocol for AIs — not AUTH, not RPC, not CRUD.
+
+## Entity CRUD
+
+Database-backed entities with standard CRUD lifecycle use this pattern:
+
+```
+GET    /api/v1/entities/:entity/meta              → entity metadata
+GET    /api/v1/entities/:entity/list              → paginated list
+GET    /api/v1/entities/:entity/:uuid             → single record
+POST   /api/v1/entities/:entity                   → create
+PUT    /api/v1/entities/:entity/:uuid             → update
+DELETE /api/v1/entities/:entity/:uuid             → soft-delete
+POST   /api/v1/entities/:entity/:uuid/restore     → restore
+GET    /api/v1/entities/:entity/:uuid/audit       → audit history
+POST   /api/v1/entities/:entity/bulk-delete       → bulk soft-delete
+POST   /api/v1/entities/:entity/bulk-restore      → bulk restore
+GET    /api/v1/entities/:entity/export            → streamed export
+GET    /api/v1/entities/:entity/check-availability → uniqueness check
+```
+
+`:entity` is always snake_case **singular** (e.g. `customer`, `organization`,
+`user_profile`).
+
+### curl examples
+
+```bash
+# List with search + pagination
+curl -H "Authorization: Bearer <jwt>" \
+  "http://localhost:3001/api/v1/entities/customer/list?search=acme&page=1&page_size=20"
+
+# Get entity metadata (field schema for dynamic forms)
+curl -H "Authorization: Bearer <jwt>" \
+  http://localhost:3001/api/v1/entities/customer/meta
+
+# Create a customer
+curl -X POST -H "Authorization: Bearer <jwt>" -H "Content-Type: application/json" \
+  http://localhost:3001/api/v1/entities/customer \
+  -d '{"code":"ACME","name":"Acme Corp"}'
+
+# Soft-delete by UUID
+curl -X DELETE -H "Authorization: Bearer <jwt>" \
+  http://localhost:3001/api/v1/entities/customer/550e8400-e29b-41d4-a716-446655440000
+
+# Restore a soft-deleted record
+curl -X POST -H "Authorization: Bearer <jwt>" \
+  http://localhost:3001/api/v1/entities/customer/550e8400-e29b-41d4-a716-446655440000/restore
+```
+
+## Auth RPC
+
+Authentication endpoints under `/api/v1/auth/...` handle login, refresh,
+WebAuthn, MFA, and user self-service. See [Authentication](./authentication)
+for the full endpoint list and flows.
+
+## System RPC
+
+Infrastructure and runtime endpoints under `/api/v1/system/...`:
+
+```bash
+# Active organizations for sidebar switcher
+curl -H "Authorization: Bearer <jwt>" \
+  http://localhost:3001/api/v1/system/organizations/active
+
+# Active roles
+curl -H "Authorization: Bearer <jwt>" \
+  http://localhost:3001/api/v1/system/roles/active
+
+# Password policy
+curl -H "Authorization: Bearer <jwt>" \
+  http://localhost:3001/api/v1/system/password-policy
+```
+
+## MCP
+
+The MCP (Model Context Protocol) server exposes AI tool-calling endpoints
+under `/mcp/...`. MCP is a distinct protocol with its own OAuth flow
+(Authorization Code + PKCE + Dynamic Client Registration), its own token
+verifier, and its own transport. It is NOT a variant of AUTH/CRUD/RPC.
+
+```bash
+# OAuth discovery (RFC 8414)
+curl http://localhost:3001/.well-known/oauth-authorization-server
+
+# Protected resource metadata (RFC 9728)
+curl http://localhost:3001/.well-known/oauth-protected-resource/mcp
+```
+
+## Naming conventions
+
+| Layer | Name form | Example |
+|---|---|---|
+| PG table | snake_case **plural** | `customers`, `user_profiles` |
+| TS entity class | PascalCase **singular** | `CustomerEntity`, `UserProfileEntity` |
+| API URL entity segment | snake_case **singular** | `/api/v1/entities/customer/...` |
+| Translation key entity segment | snake_case **singular** | `entities.customer.title` |
+
+- Entity class = singular (one row schema)
+- PG table = plural (collection of rows)
+- URL entity segment = singular (resource type)
+
+## Next steps
+
+- [Authentication](./authentication) — Casdoor IDP integration, JWT, sessions, passkeys
+- [RBAC](./rbac) — the wildcard permission system and role mappings
+- [Architecture](./architecture) — request flow and HTTP layer internals

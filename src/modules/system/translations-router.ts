@@ -5,7 +5,7 @@
  * - Public read: no auth, returns flat i18n dict for app.* keys
  * - Runtime read: authenticated, returns flat i18n dict for any module
  * - Admin CRUD: follows the standard entity pattern under
- *   /api/v1/entities/translations/ with module as a query param
+ *   /api/v1/entities/translation/ with module as a query param
  *
  * The module list for the admin selector comes from the existing
  * /api/v1/modules endpoint (service_registry) — NOT from this router.
@@ -13,19 +13,19 @@
  *
  * Endpoints:
  *   PUBLIC READ (no auth):
- *     GET /api/v1/translations/public/:language
+ *     GET /api/v1/system/translations/public/:language
  *       → flat i18n dict from public.translations (app.* keys)
  *
  *   RUNTIME READ (authenticated user):
- *     GET /api/v1/translations/:module/:language
+ *     GET /api/v1/system/translations/:module/:language
  *       → flat i18n dict from {schema}.translations
  *
  *   ADMIN CRUD (TRANSLATIONS_MANAGE — standard entity pattern):
- *     GET    /api/v1/entities/translations/list?module={code}&language={lang}&page=1&page_size=25
- *     POST   /api/v1/entities/translations?module={code}
- *     PUT    /api/v1/entities/translations/:uuid?module={code}
- *     DELETE /api/v1/entities/translations/:uuid?module={code}
- *     POST   /api/v1/entities/translations/:uuid/restore?module={code}
+ *     GET    /api/v1/entities/translation/list?module={code}&language={lang}&page=1&page_size=25
+ *     POST   /api/v1/entities/translation?module={code}
+ *     PUT    /api/v1/entities/translation/:uuid?module={code}
+ *     DELETE /api/v1/entities/translation/:uuid?module={code}
+ *     POST   /api/v1/entities/translation/:uuid/restore?module={code}
  *
  * The router contains NO business logic. All errors are thrown as `ApiError`
  * subclasses and converted to RFC 7807 by the centralized `errorHandler`.
@@ -89,7 +89,7 @@ export function translationsRouter() {
   // Returns flat i18n dict from public.translations (app.* keys only).
   // Used by login, welcome, and MCP consent pages before authentication.
   router.get(
-    "/api/v1/translations/public/:language",
+    "/api/v1/system/translations/public/:language",
     rbacHandler([Permission.PUBLIC]),
     asyncHandler(async (req, res) => {
       const langResult = LanguageSchema.safeParse(req.params.language);
@@ -106,7 +106,7 @@ export function translationsRouter() {
   // Returns flat i18n dict for any module's schema.
   // Used by useModuleTranslations composable on authenticated pages.
   router.get(
-    "/api/v1/translations/:module/:language",
+    "/api/v1/system/translations/:module/:language",
     rbacHandler([Permission.AUTHENTICATED_USER]),
     asyncHandler(async (req, res) => {
       const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
@@ -127,9 +127,9 @@ export function translationsRouter() {
   // Follows the same pattern as /api/v1/entities/customer, /api/v1/entities/organization, etc.
   // Module is a query param (not a path param) — same as the plan specified.
 
-  // GET /api/v1/entities/translations/list?module={code}&language={lang}&page=1&page_size=25
+  // GET /api/v1/entities/translation/list?module={code}&language={lang}&page=1&page_size=25
   router.get(
-    "/api/v1/entities/translations/list",
+    "/api/v1/entities/translation/list",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
       const queryResult = ListQuerySchema.safeParse(req.query);
@@ -142,9 +142,9 @@ export function translationsRouter() {
     }),
   );
 
-  // POST /api/v1/entities/translations?module={code} — create
+  // POST /api/v1/entities/translation?module={code} — create
   router.post(
-    "/api/v1/entities/translations",
+    "/api/v1/entities/translation",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
       const queryResult = ModuleQuerySchema.safeParse(req.query);
@@ -161,9 +161,9 @@ export function translationsRouter() {
     }),
   );
 
-  // PUT /api/v1/entities/translations/:uuid?module={code} — update
+  // PUT /api/v1/entities/translation/:uuid?module={code} — update
   router.put(
-    "/api/v1/entities/translations/:uuid",
+    "/api/v1/entities/translation/:uuid",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
       const queryResult = ModuleQuerySchema.safeParse(req.query);
@@ -184,9 +184,9 @@ export function translationsRouter() {
     }),
   );
 
-  // DELETE /api/v1/entities/translations/:uuid?module={code} — soft delete
+  // DELETE /api/v1/entities/translation/:uuid?module={code} — soft delete
   router.delete(
-    "/api/v1/entities/translations/:uuid",
+    "/api/v1/entities/translation/:uuid",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
       const queryResult = ModuleQuerySchema.safeParse(req.query);
@@ -203,9 +203,9 @@ export function translationsRouter() {
     }),
   );
 
-  // POST /api/v1/entities/translations/:uuid/restore?module={code} — restore
+  // POST /api/v1/entities/translation/:uuid/restore?module={code} — restore
   router.post(
-    "/api/v1/entities/translations/:uuid/restore",
+    "/api/v1/entities/translation/:uuid/restore",
     rbacHandler([Permission.TRANSLATIONS_MANAGE]),
     asyncHandler(async (req, res) => {
       const queryResult = ModuleQuerySchema.safeParse(req.query);
