@@ -18,12 +18,12 @@ export const configEntriesMeta = {
   uid: "uuid",
   list: {
     columns: [
-      { key: "key", labelKey: "entities.config_entry.fields.key", type: "text", sortable: true, defaultVisible: true, filterable: true },
-      { key: "value", labelKey: "entities.config_entry.fields.value", type: "text", sortable: false, defaultVisible: true, filterable: false },
-      { key: "type", labelKey: "entities.config_entry.fields.type", type: "text", sortable: true, defaultVisible: true, filterable: true },
-      { key: "reserved", labelKey: "entities.config_entry.fields.reserved", type: "boolean", sortable: true, defaultVisible: true, filterable: true },
-      { key: "updated_at", labelKey: "entities.config_entry.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
-      { key: "updated_by", labelKey: "entities.config_entry.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+      { key: "key", labelKey: "system.entities.config_entry.fields.key", type: "text", sortable: true, defaultVisible: true, filterable: true },
+      { key: "value", labelKey: "system.entities.config_entry.fields.value", type: "text", sortable: false, defaultVisible: true, filterable: false },
+      { key: "type", labelKey: "system.entities.config_entry.fields.type", type: "text", sortable: true, defaultVisible: true, filterable: true },
+      { key: "reserved", labelKey: "system.entities.config_entry.fields.reserved", type: "boolean", sortable: true, defaultVisible: true, filterable: true },
+      { key: "updated_at", labelKey: "system.entities.config_entry.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
+      { key: "updated_by", labelKey: "system.entities.config_entry.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
     ],
     rowActions: {
       delete: true,

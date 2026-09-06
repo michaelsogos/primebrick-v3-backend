@@ -19,8 +19,8 @@ const FIELD_LABELS = new Map(
 );
 
 const STATUS_LABELS = new Map([
-  ["ACTIVE", "entities.customer.status.active"],
-  ["INACTIVE", "entities.customer.status.inactive"],
+  ["ACTIVE", "system.entities.customer.status.active"],
+  ["INACTIVE", "system.entities.customer.status.inactive"],
 ]);
 
 function formatDate(isoString: string): string {

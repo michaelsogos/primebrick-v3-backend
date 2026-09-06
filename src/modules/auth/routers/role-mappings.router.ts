@@ -44,22 +44,22 @@ import { ValidationError } from "../../../http/api-errors.js";
 // idp_role: snake_case, lowercase letters / digits / underscores, 1-255 chars.
 const idpRoleSchema = z
   .string()
-  .min(1, { message: "validation.idpRoleRequired" })
+  .min(1, { message: "system.settings.roles.validation.idpRoleRequired" })
   .max(255)
-  .regex(/^[a-z0-9_]+$/, { message: "validation.idpRoleFormat" });
+  .regex(/^[a-z0-9_]+$/, { message: "system.settings.roles.validation.idpRoleFormat" });
 
 // idp_org: the Casdoor organization name (owner). Required on create.
 const idpOrgSchema = z
   .string()
-  .min(1, { message: "validation.idpOrgRequired" })
+  .min(1, { message: "system.settings.roles.validation.idpOrgRequired" })
   .max(255);
 
 // permissions: array of permission strings matching module.action.granularity.
 // Sentinels (_public, _authenticated_user, _authenticated_admin) are rejected.
 const permissionStringSchema = z
   .string()
-  .regex(/^[a-z_]+\.[a-z_]+(\.[a-z_]+)*$/, { message: "validation.permissionFormat" })
-  .refine((p) => !isPermissionSentinel(p), { message: "validation.permissionSentinelRejected" });
+  .regex(/^[a-z_]+\.[a-z_]+(\.[a-z_]+)*$/, { message: "system.settings.roles.validation.permissionFormat" })
+  .refine((p) => !isPermissionSentinel(p), { message: "system.settings.roles.validation.permissionSentinelRejected" });
 
 const CreateBodySchema = z.object({
   idp_role: idpRoleSchema,

@@ -18,11 +18,11 @@ import {
 export const customerMeta = {
   entity: "customer",
   translationKey: "customer",
-  titleKey: "entities.customer.title",
+  titleKey: "system.entities.customer.title",
   uid: "uuid",
   defaultView: CUSTOMER_DEFAULT_VIEW,
   list: {
-    searchPlaceholderKey: "entities.list.searchPlaceholder",
+    searchPlaceholderKey: "system.entities.list.searchPlaceholder",
     defaultPageSize: 25,
     pageSizeOptions: [10, 25, 50, 100],
     columns: CUSTOMER_LIST_COLUMNS,

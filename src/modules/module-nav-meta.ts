@@ -19,8 +19,8 @@ export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
         icon: "users",
         route_prefixes: ["/customers", "/crm"],
         nav: [
-          { id: "customers", label_key: "entities.customer.title", href: "/customers", icon: "users" },
-          { id: "pipeline", label_key: "entities.crm.pipeline.nav", href: "/crm/pipeline", icon: "git-branch" },
+          { id: "customers", label_key: "system.entities.customer.title", href: "/customers", icon: "users" },
+          { id: "pipeline", label_key: "system.entities.crm.pipeline.nav", href: "/crm/pipeline", icon: "git-branch" },
         ],
       };
     case "settings":

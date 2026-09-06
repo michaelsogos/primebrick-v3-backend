@@ -68,12 +68,12 @@ export interface PasswordPolicyConfig {
 export const PASSWORD_POLICY_CONFIGS: Record<PasswordPolicy, PasswordPolicyConfig> = {
   [PasswordPolicy.ALPHA_NUMERIC]: {
     regex: /^[A-Za-z0-9]{8,64}$/,
-    errorLabelKey: "validation.passwordPolicyAlphaNumeric",
+    errorLabelKey: "app.common.validation.passwordPolicyAlphaNumeric",
     checklistRules: [PasswordChecklistRule.LENGTH],
   },
   [PasswordPolicy.LETTER_AND_NUMBER]: {
     regex: /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]{8,64}$/,
-    errorLabelKey: "validation.passwordPolicyLetterAndNumber",
+    errorLabelKey: "app.common.validation.passwordPolicyLetterAndNumber",
     checklistRules: [
       PasswordChecklistRule.LENGTH,
       PasswordChecklistRule.LETTER,
@@ -82,7 +82,7 @@ export const PASSWORD_POLICY_CONFIGS: Record<PasswordPolicy, PasswordPolicyConfi
   },
   [PasswordPolicy.LETTER_NUMBER_SPECIAL]: {
     regex: /^(?=.*[A-Za-z])(?=.*\d)(?=.*[*\-_.#@!|?^:])[A-Za-z0-9*\-_.#@!|?^:]{8,64}$/,
-    errorLabelKey: "validation.passwordPolicyLetterNumberSpecial",
+    errorLabelKey: "app.common.validation.passwordPolicyLetterNumberSpecial",
     checklistRules: [
       PasswordChecklistRule.LENGTH,
       PasswordChecklistRule.LETTER,
@@ -92,7 +92,7 @@ export const PASSWORD_POLICY_CONFIGS: Record<PasswordPolicy, PasswordPolicyConfi
   },
   [PasswordPolicy.MIXED_CASE_SPECIAL]: {
     regex: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[*\-_.#@!|?^:])[A-Za-z0-9*\-_.#@!|?^:]{8,64}$/,
-    errorLabelKey: "validation.passwordPolicyMixedCaseSpecial",
+    errorLabelKey: "app.common.validation.passwordPolicyMixedCaseSpecial",
     checklistRules: [
       PasswordChecklistRule.LENGTH,
       PasswordChecklistRule.LOWERCASE,
@@ -132,6 +132,6 @@ export function passwordZodSchema(policy: PasswordPolicy) {
   const config = getPasswordPolicyConfig(policy);
   return z
     .string()
-    .min(1, { message: "validation.passwordRequired" })
+    .min(1, { message: "app.common.validation.passwordRequired" })
     .regex(config.regex, { message: config.errorLabelKey });
 }
