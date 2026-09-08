@@ -171,16 +171,19 @@ both BE validation and FE widget selection.
 | `text` | textarea | none |
 | `boolean` | switch | must be `"true"` or `"false"` |
 | `bigint` | numeric input | must be an integer (coerced to JS `BigInt`) |
-| `number` | numeric input | must be a number (coerced to JS `Number`) |
-| `money` | numeric input + currency symbol | must be a number (amount is JS `Number`, currency in `type_config`) |
+| `number` | numeric input | must be a number (regex `/^-?\d*\.?\d+$/`, coerced to JS `Number`) |
+| `money` | numeric input + currency symbol | must be a number (regex `/^-?\d*\.?\d+$/`, amount is JS `Number`, currency in `type_config`) |
 | `badge` | ComboSelect (inline values from `type_config.values`) | must be in `type_config.values` |
-| `list` | ComboSelect (options loaded from `type_config.api_url`) | none (validated by the BE catalog code) |
-| `url` | URL input | must be a valid URL |
+| `single_select` | ComboSelect (options from `type_config.api_url` or `type_config.values_source`) | none (validated by the BE catalog code) |
+| `multi_select` | ComboSelect (multi-mode, options from `type_config.api_url` or `type_config.values_source`) | none (value stored as comma-separated string) |
+| `url` | UrlInput (protocol selector + URL input) | must be a valid URL (`new URL()`), protocols checked against `type_config.allowed_protocols` |
 | `secret` | password input (masked) | none (empty string = "leave unchanged") |
 | `json` | textarea | must be valid JSON |
 | `date` | DateWheelPicker | none (format validated by FE) |
 | `datetime` | DateWheelPicker (includeTime) | none (format validated by FE) |
-| `time` | native time input | none (format validated by FE) |
+| `time` | DateWheelPicker (timeOnly) | none (format validated by FE) |
+| `email` | EmailInput (native email input) | must match email regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` |
+| `phone` | PhoneInput (country prefix selector + tel input) | validated via `libphonenumber-js` `parsePhoneNumber(value, country).isValid()`, country from `type_config.country` |
 
 The conceptual type `"integer"` was renamed to `"bigint"` to make the
 backing JS type explicit. Existing rows are migrated by a fire-and-forget
@@ -207,7 +210,7 @@ no `Money` composite wire type.
 }
 ```
 
-**list:**
+**list / single_select / multi_select:**
 ```json
 {
   "api_url": "/api/v1/system/roles/active",
@@ -216,6 +219,31 @@ no `Money` composite wire type.
   "label_field": "label_key"
 }
 ```
+
+Or using built-in values_source:
+```json
+{
+  "values_source": "currencies"
+}
+```
+
+**url:**
+```json
+{
+  "default_protocol": "https",
+  "allowed_protocols": ["http", "https", "redis", "rediss", "tcp"]
+}
+```
+
+**phone:**
+```json
+{
+  "country": "IT",
+  "allowed_countries": ["IT", "US", "GB", "FR", "DE", "ES", "PT"]
+}
+```
+
+**email:** no `type_config` required — validation is inherent to the type.```
 
 ### CRUD endpoints
 

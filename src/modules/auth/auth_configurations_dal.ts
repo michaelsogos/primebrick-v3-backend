@@ -6,24 +6,50 @@
  */
 
 import type { Pool } from "pg";
-import { Repository, field, Filter, Sort, buildAuditableJoinsSelective } from "@primebrick/dal-pg";
+import { field, Filter, Sort, buildAuditableJoinsSelective } from "@primebrick/dal-pg";
+import { type CacheEntry, wrapCacheEntry } from "@primebrick/sdk";
 import { AuthConfigurationEntity } from "./auth_configuration_entity.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
+import { createRepository } from "../../db/repository-factory.js";
+import { getCachePort } from "../../cache/cache-port-holder.js";
+
+const LIST_CACHE_KEY = "dal:auth_configurations:list";
+const LIST_CACHE_TTL = 300_000; // 5 min — same as entity TTL
 
 export class AuthConfigurationsDal {
-  private repo: Repository;
+  private repo: ReturnType<typeof createRepository>;
   private pool: Pool;
 
   constructor(pool: Pool) {
     this.pool = pool;
-    this.repo = new Repository(pool);
+    this.repo = createRepository(pool);
   }
 
   /**
    * Load all auth config rows (excluding soft-deleted).
    * Returns the raw entity rows — the caller reduces them into a key/value map.
+   * Uses a manual list cache (Redis) with ETag support.
    */
   async findAll(): Promise<AuthConfigurationEntity[]> {
+    const entry = await this.findAllWithCache();
+    return entry.data;
+  }
+
+  /**
+   * Same as `findAll` but returns the full `CacheEntry` (data + etag).
+   * Used by the ETag middleware to answer conditional GET requests.
+   */
+  async findAllWithCache(): Promise<CacheEntry<AuthConfigurationEntity[]>> {
+    const port = getCachePort();
+    if (port) {
+      try {
+        const cached = await port.get<CacheEntry<AuthConfigurationEntity[]>>(LIST_CACHE_KEY);
+        if (cached && typeof cached === "object" && "data" in cached && "etag" in cached) {
+          return cached;
+        }
+      } catch { /* best-effort — fall through to DB */ }
+    }
+
     const rows = await this.repo.findAll<AuthConfigurationEntity, AuthConfigurationEntity>(
       AuthConfigurationEntity,
       null,
@@ -40,7 +66,14 @@ export class AuthConfigurationsDal {
         }),
       }
     );
-    return rows as AuthConfigurationEntity[];
+    const result = rows as AuthConfigurationEntity[];
+    const entry = wrapCacheEntry(result);
+    if (port) {
+      try {
+        await port.set(LIST_CACHE_KEY, entry, LIST_CACHE_TTL);
+      } catch { /* best-effort */ }
+    }
+    return entry;
   }
 
   /**
@@ -372,6 +405,13 @@ export class AuthConfigurationsDal {
    * the stale config rather than throwing on every getAuthConfig() call.
    */
   private async reloadCache(): Promise<void> {
+    // Invalidate the list cache (manual cache for findAll)
+    const port = getCachePort();
+    if (port) {
+      try {
+        await port.del(LIST_CACHE_KEY);
+      } catch { /* best-effort — entity prefix invalidation handled by withCache */ }
+    }
     try {
       const { loadAuthConfig } = await import("./config.js");
       await loadAuthConfig(this.pool);

@@ -482,9 +482,8 @@ export class InvitationService {
     );
 
     // Mark onboarding_completed on user_profile
-    await this.pool.query(
-      `UPDATE user_profiles SET onboarding_completed = true, updated_at = now(), updated_by = $1 WHERE id = $2`,
-      ["system", invitation.user_profile_id],
+    await runAsSystem(() =>
+      this.profilesDal.updateProfileById(invitation.user_profile_id, { onboarding_completed: true }),
     );
 
     // Send notification email

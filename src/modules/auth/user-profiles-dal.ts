@@ -145,9 +145,21 @@ export class UserProfilesDal {
 
   async updateProfile(
     uuid: string,
-    body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string }
+    body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string; auth_method_enforcer_dismissed?: boolean; onboarding_completed?: boolean }
   ): Promise<void> {
     await this.repo.update(UserProfileEntity, { ...body, uuid }, { actor: requireActor(), audit: this.auditPort });
+  }
+
+  /**
+   * Update a user profile by its numeric id (alternative to `updateProfile` which
+   * uses uuid). Used by flows that have the `id` from a foreign key (e.g.
+   * `invitation.user_profile_id`).
+   */
+  async updateProfileById(
+    id: bigint | number,
+    body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string; auth_method_enforcer_dismissed?: boolean; onboarding_completed?: boolean }
+  ): Promise<void> {
+    await this.repo.update(UserProfileEntity, { ...body, id }, { actor: requireActor(), audit: this.auditPort });
   }
 
   async getByIdpCode(idpCode: string): Promise<UserProfileDetailDto | null> {

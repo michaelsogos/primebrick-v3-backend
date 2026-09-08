@@ -16,11 +16,12 @@
 
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
-import { Repository, field, Filter } from "@primebrick/dal-pg";
+import { field, Filter } from "@primebrick/dal-pg";
 import { getPool } from "../../db/pool.js";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
+import { createRepository } from "../../db/repository-factory.js";
 
 const USER_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
 
@@ -61,7 +62,7 @@ export async function resolveInternalUuid(
     }
   }
 
-  const repo = new Repository(pool);
+  const repo = createRepository(pool);
   const auditPort = new BeAuditPortAdapter(repo);
 
   // 2. Try a fast SELECT first — most requests hit existing users.
@@ -135,22 +136,6 @@ export async function resolveInternalUuid(
     }
   }
   return uuid;
-}
-
-/**
- * Invalidate the Redis cache for a specific idp_code.
- * Called when a user profile is updated via the users API.
- * Best-effort — if Redis is down, the cache TTL (5 min) bounds staleness.
- */
-export async function invalidateUserProfileCache(idpCode: string): Promise<void> {
-  const port = getCachePort();
-  if (port) {
-    try {
-      await port.del(idpCodeCacheKey(idpCode));
-    } catch (e) {
-      console.warn(`[cache] user_profiles invalidate failed: ${e}`);
-    }
-  }
 }
 
 /** Test helper: clear the user profile cache. With Redis, this is a no-op

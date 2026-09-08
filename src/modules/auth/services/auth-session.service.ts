@@ -369,10 +369,7 @@ export class AuthSessionService {
     }
 
     const actor = requireActor();
-    await this.pool.query(
-      `UPDATE user_profiles SET auth_method_enforcer_dismissed = true, updated_at = now(), updated_by = $1 WHERE uuid = $2`,
-      [actor, userUuid],
-    );
+    await this.dal.updateProfile(userUuid, { auth_method_enforcer_dismissed: true });
     return { success: true };
   }
 

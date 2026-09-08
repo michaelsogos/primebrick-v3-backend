@@ -29,9 +29,11 @@ import {
   DeletableFieldType,
   AuditTrail,
 } from "@primebrick/dal-pg";
+import { Cached } from "@primebrick/sdk";
 
 @Entity("auth_configurations")
 @AuditTrail()
+@Cached(300_000) // 5 min TTL — same as other cached entities
 export class AuthConfigurationEntity implements IAuditableEntity {
   @Key()
   id: bigint;

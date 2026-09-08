@@ -25,7 +25,7 @@ import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../rbac.middleware.js";
-import { Permission, validateConfigValue, coerceConfigValue, serializeConfigValue, ConfigValidationError, type ConfigType } from "@primebrick/sdk";
+import { Permission, validateConfigValue, coerceConfigValue, serializeConfigValue, ConfigValidationError, type ConfigType, type CacheEntry, etagMatches, CACHE_HEADERS, CACHE_CONTROL_CACHED } from "@primebrick/sdk";
 import { getPool } from "../../../db/pool.js";
 import { AuthConfigurationsDal, ReservedConfigError, ReservedConfigTypeError } from "../auth_configurations_dal.js";
 import { AuthConfigurationEntity } from "../auth_configuration_entity.js";
@@ -146,10 +146,21 @@ export function configEntriesRouter() {
     res.json(assembleMeta(configEntriesMeta, AuthConfigurationEntity));
   });
 
-  const list: RequestHandler = asyncHandler(async (_req, res) => {
+  const list: RequestHandler = asyncHandler(async (req, res) => {
     const dal = makeDal();
-    const rows = await dal.findAll();
-    res.json({ rows: rows.map(maskSecretValue) });
+    const entry = await dal.findAllWithCache();
+    const ifNoneMatch = req.headers[CACHE_HEADERS.IF_NONE_MATCH.toLowerCase()] as string | undefined;
+    if (ifNoneMatch && etagMatches(ifNoneMatch, entry.etag)) {
+      res.setHeader(CACHE_HEADERS.ETAG, entry.etag);
+      res.setHeader(CACHE_HEADERS.PB_CACHED, "true");
+      res.setHeader("Cache-Control", CACHE_CONTROL_CACHED);
+      res.status(304).end();
+      return;
+    }
+    res.setHeader(CACHE_HEADERS.ETAG, entry.etag);
+    res.setHeader(CACHE_HEADERS.PB_CACHED, "true");
+    res.setHeader("Cache-Control", CACHE_CONTROL_CACHED);
+    res.json({ rows: entry.data.map(maskSecretValue) });
   });
 
   const getSingle: RequestHandler = asyncHandler(async (req, res) => {

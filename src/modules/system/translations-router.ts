@@ -37,10 +37,11 @@ import { z } from "zod";
 import { makeProtectedRouter } from "../../http/protected-router.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { rbacHandler } from "../auth/rbac.middleware.js";
-import { Permission } from "@primebrick/sdk";
+import { Permission, type CacheEntry, type I18nDict } from "@primebrick/sdk";
 import { getPool } from "../../db/pool.js";
 import { TranslationsDal } from "./translations-dal.js";
 import { ValidationError } from "../../http/api-errors.js";
+import { etagMiddleware } from "../../http/etag-middleware.js";
 
 const ModuleCodeSchema = z
   .string()
@@ -88,27 +89,34 @@ export function translationsRouter() {
   // ─── PUBLIC READ (no auth) ──────────────────────────────────────────────
   // Returns flat i18n dict from public.translations (app.* keys only).
   // Used by login, welcome, and MCP consent pages before authentication.
+  // ETag-enabled: returns 304 if the dict hasn't changed.
   router.get(
     "/api/v1/system/translations/public/:language",
     rbacHandler([Permission.PUBLIC]),
-    asyncHandler(async (req, res) => {
+    etagMiddleware(),
+    asyncHandler(async (req, res, next) => {
       const langResult = LanguageSchema.safeParse(req.params.language);
       if (!langResult.success) {
         throw new ValidationError("Invalid language code", { internal_code: "VALIDATION_ERROR" });
       }
       const dal = new TranslationsDal(getPool());
-      const dict = await dal.getI18nDict("app", langResult.data);
-      res.json(dict);
+      res.locals.cacheEntry = await dal.getI18nDictWithCache("app", langResult.data);
+      next();
+    }),
+    asyncHandler(async (req, res) => {
+      res.json((res.locals.cacheEntry as CacheEntry<I18nDict>).data);
     }),
   );
 
   // ─── RUNTIME READ (authenticated user) ──────────────────────────────────
   // Returns flat i18n dict for any module's schema.
   // Used by useModuleTranslations composable on authenticated pages.
+  // ETag-enabled: returns 304 if the dict hasn't changed.
   router.get(
     "/api/v1/system/translations/:module/:language",
     rbacHandler([Permission.AUTHENTICATED_USER]),
-    asyncHandler(async (req, res) => {
+    etagMiddleware(),
+    asyncHandler(async (req, res, next) => {
       const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
       if (!moduleResult.success) {
         throw new ValidationError("Invalid module code", { internal_code: "VALIDATION_ERROR" });
@@ -118,8 +126,11 @@ export function translationsRouter() {
         throw new ValidationError("Invalid language code", { internal_code: "VALIDATION_ERROR" });
       }
       const dal = new TranslationsDal(getPool());
-      const dict = await dal.getI18nDict(moduleResult.data, langResult.data);
-      res.json(dict);
+      res.locals.cacheEntry = await dal.getI18nDictWithCache(moduleResult.data, langResult.data);
+      next();
+    }),
+    asyncHandler(async (req, res) => {
+      res.json((res.locals.cacheEntry as CacheEntry<I18nDict>).data);
     }),
   );
 

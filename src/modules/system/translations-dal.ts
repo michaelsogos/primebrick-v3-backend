@@ -23,7 +23,7 @@ import {
   type EntityClass,
   type FilterExpr,
 } from "@primebrick/dal-pg";
-import { requireActor, TranslationsCache, type I18nDict } from "@primebrick/sdk";
+import { requireActor, TranslationsCache, type I18nDict, type CacheEntry, wrapCacheEntry } from "@primebrick/sdk";
 import { getCachePort } from "../../cache/cache-port-holder.js";
 import {
   AppTranslationEntity,
@@ -119,6 +119,15 @@ export class TranslationsDal {
    * Cache-first; falls back to DB on miss.
    */
   async getI18nDict(moduleCode: string, language: string): Promise<I18nDict> {
+    const entry = await this.getI18nDictWithCache(moduleCode, language);
+    return entry.data;
+  }
+
+  /**
+   * Same as `getI18nDict` but returns the full `CacheEntry` (data + etag).
+   * Used by the ETag middleware to answer conditional GET requests.
+   */
+  async getI18nDictWithCache(moduleCode: string, language: string): Promise<CacheEntry<I18nDict>> {
     const entity = this.resolveEntity(moduleCode);
     const schema = schemaOf(entity);
     const table = tableOf(entity);
@@ -132,8 +141,9 @@ export class TranslationsDal {
       [language],
     );
     const dict = (result.rows[0]?.dict ?? {}) as I18nDict;
+    const entry = wrapCacheEntry(dict);
     await cache.setI18nDict(language, dict);
-    return dict;
+    return entry;
   }
 
   /** Paginated list of translation rows for a module. */

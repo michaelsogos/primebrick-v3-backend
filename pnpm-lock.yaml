@@ -21,8 +21,8 @@ importers:
         specifier: file:../primebrick-dal-v3
         version: file:../primebrick-dal-v3
       '@primebrick/sdk':
-        specifier: file:../primebrick-v3-sdk
-        version: file:../primebrick-v3-sdk
+        specifier: ^0.5.0
+        version: 0.5.0
       casdoor-nodejs-sdk:
         specifier: 1.34.0
         version: 1.34.0
@@ -317,8 +317,8 @@ packages:
     resolution: {directory: ../primebrick-dal-v3, type: directory}
     engines: {node: '24'}
 
-  '@primebrick/sdk@file:../primebrick-v3-sdk':
-    resolution: {directory: ../primebrick-v3-sdk, type: directory}
+  '@primebrick/sdk@0.5.0':
+    resolution: {integrity: sha512-fqZvaRSx8MXjVG+SsJJ7RqdtE/DQ5h3gkccZNcYwQdLUjROjpK0cGW9WAtotk2eEXJb42I2VcIACfz/1HMO0EQ==}
     engines: {node: '24'}
 
   '@redis/bloom@6.1.0':
@@ -690,9 +690,6 @@ packages:
   cors@2.8.6:
     resolution: {integrity: sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==}
     engines: {node: '>= 0.10'}
-
-  countries-list@3.4.1:
-    resolution: {integrity: sha512-sKLGAZD5EAdzQwQ19vOp/9u33MTjmZ0CkdXPYtp/An6cyIlJ/E8TwGf2FcPe1AnzHO+h7nbTfoHyXIi58Hpa+Q==}
 
   crc-32@1.2.2:
     resolution: {integrity: sha512-ROmzCKrTnOwybPcJApAA6WBWij23HVfGVNKqqrZpuyZOHqK2CwHSvpGuyt/UNNvaIjEd8X5IFGp4Mh+Ie1IHJQ==}
@@ -1788,9 +1785,8 @@ snapshots:
     transitivePeerDependencies:
       - pg-native
 
-  '@primebrick/sdk@file:../primebrick-v3-sdk':
+  '@primebrick/sdk@0.5.0':
     dependencies:
-      countries-list: 3.4.1
       jose: 6.2.3
       json-bigint: 1.0.0
       nats: 2.29.3
@@ -2178,8 +2174,6 @@ snapshots:
     dependencies:
       object-assign: 4.1.1
       vary: 1.1.2
-
-  countries-list@3.4.1: {}
 
   crc-32@1.2.2: {}
 
