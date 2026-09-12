@@ -26,6 +26,7 @@ import { getPool } from "../../db/pool.js";
 import { CasdoorService } from "./services/casdoor.service.js";
 import { MfaService } from "./services/mfa.service.js";
 import { ApiError } from "../../http/api-errors.js";
+import { asyncHandler } from "../../http/async-handler.js";
 
 const HEADER_NAME = "x-mfa-action-authorization";
 
@@ -41,7 +42,7 @@ export function requireMfaStepUp(
   action: string,
   targetResource: string,
 ): RequestHandler {
-  return async (req: Request, _res: Response, next: NextFunction) => {
+  return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
     const token = req.headers[HEADER_NAME] as string | undefined;
     if (!token) {
       throw new ApiError(
@@ -89,5 +90,5 @@ export function requireMfaStepUp(
       }
       throw err;
     }
-  };
+  });
 }

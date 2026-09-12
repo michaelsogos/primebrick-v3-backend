@@ -36,6 +36,7 @@ export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
           { id: "users", label_key: "system.settings.tabs.users", href: "/system/settings/users", icon: "users" },
           { id: "roles", label_key: "system.settings.tabs.roles", href: "/system/settings/roles", icon: "user-key" },
           { id: "security", label_key: "system.settings.tabs.security", href: "/system/settings/security", icon: "settings-2" },
+          { id: "ai", label_key: "system.settings.tabs.ai", href: "/system/settings/ai", icon: "brain-circuit" },
           { id: "modules", label_key: "system.settings.tabs.modules", href: "/system/settings/modules", icon: "package" },
           { id: "templates", label_key: "system.settings.tabs.templates", href: "/system/settings/templates", icon: "file-text" },
           { id: "email-providers", label_key: "system.settings.tabs.emailProviders", href: "/system/settings/email-providers", icon: "mail" },

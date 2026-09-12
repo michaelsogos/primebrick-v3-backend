@@ -10,6 +10,7 @@ import { UserProfileEntity } from "../../modules/auth/user_profile_entity.js";
 import { RoleMappingEntity } from "../../modules/auth/role_mapping_entity.js";
 import { OrganizationEntity } from "../../modules/auth/organization_entity.js";
 import { ServiceRegistryEntity } from "../../modules/system/service_registry_entity.js";
+import { AiModelEntity } from "../../modules/ai-models/ai_model_entity.js";
 
 export const ENTITY_REGISTRY = [
   CustomerEntity,
@@ -17,4 +18,5 @@ export const ENTITY_REGISTRY = [
   RoleMappingEntity,
   OrganizationEntity,
   ServiceRegistryEntity,
+  AiModelEntity,
 ] as const;
