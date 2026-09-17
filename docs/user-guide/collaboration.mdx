@@ -373,7 +373,7 @@ redis-cli CONFIG SET notify-keyspace-events Exg
 ```
 
 The presence store reuses the same `redis_url` as the cache port (loaded from
-`auth_configurations`). It creates a separate Redis client because node-redis
+`config_entries`). It creates a separate Redis client because node-redis
 does not support concurrent command queuing on a shared connection safely across
 modules.
 

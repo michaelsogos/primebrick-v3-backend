@@ -3,12 +3,12 @@
  * surface (admin).
  *
  * Endpoints:
- *   GET   /api/v1/entities/user_profiles/meta           → entity metadata
- *   GET   /api/v1/entities/user_profiles/list           → paginated list
- *   GET   /api/v1/entities/user_profiles/:uuid          → single user
- *   POST  /api/v1/entities/user_profiles/:uuid/restore  → restore soft-deleted
- *   GET   /api/v1/entities/user_profiles/:uuid/audit    → audit history
- *   PUT   /api/v1/entities/user_profiles/:uuid          → admin profile update
+ *   GET   /api/v1/entities/user_profile/meta           → entity metadata
+ *   GET   /api/v1/entities/user_profile/list           → paginated list
+ *   GET   /api/v1/entities/user_profile/:uuid          → single user
+ *   POST  /api/v1/entities/user_profile/:uuid/restore  → restore soft-deleted
+ *   GET   /api/v1/entities/user_profile/:uuid/audit    → audit history
+ *   PUT   /api/v1/entities/user_profile/:uuid          → admin profile update
  *
  * The router contains NO business logic. All errors are thrown as `ApiError`
  * subclasses and converted to RFC 7807 by the centralized `errorHandler`.
@@ -142,45 +142,45 @@ export function userProfilesRouter() {
   registerRoutes(router, [
     {
       method: "get",
-      path: "/api/v1/entities/user_profiles/meta",
+      path: "/api/v1/entities/user_profile/meta",
       permission: rbacHandler([Permission.USERS_READ_ALL, Permission.USERS_READ_SINGLE]),
       handler: getMeta,
     },
     {
       method: "get",
-      path: "/api/v1/entities/user_profiles/list",
+      path: "/api/v1/entities/user_profile/list",
       permission: rbacHandler([Permission.USERS_READ_ALL]),
       handler: list,
     },
     {
       method: "get",
-      path: "/api/v1/entities/user_profiles/:uuid",
+      path: "/api/v1/entities/user_profile/:uuid",
       permission: rbacHandler([Permission.USERS_READ_SINGLE]),
       handler: getSingle,
     },
     {
       method: "post",
-      path: "/api/v1/entities/user_profiles/:uuid/restore",
+      path: "/api/v1/entities/user_profile/:uuid/restore",
       permission: rbacHandler([Permission.USERS_RESTORE_SINGLE]),
       handler: restore,
     },
     {
       method: "get",
-      path: "/api/v1/entities/user_profiles/:uuid/audit",
+      path: "/api/v1/entities/user_profile/:uuid/audit",
       permission: rbacHandler([Permission.USER_PROFILE_READ_AUDIT]),
       middlewares: [validateAuditParams],
       handler: getAudit,
     },
     {
       method: "put",
-      path: "/api/v1/entities/user_profiles/:uuid",
+      path: "/api/v1/entities/user_profile/:uuid",
       permission: rbacHandler([Permission.USERS_UPDATE_SINGLE]),
       middlewares: [validateBody(UserUpdateBodySchema)],
       handler: update,
     },
     {
       method: "post",
-      path: "/api/v1/entities/user_profiles/:uuid/change-password",
+      path: "/api/v1/entities/user_profile/:uuid/change-password",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       handler: changePassword,
     },

@@ -162,7 +162,7 @@ The backend supports WebAuthn passkey signin and enrollment. The browser's
 
 Passkeys are stored in the `user_passkeys` table and linked to the user
 profile. Whether passkey signin is offered is controlled by the
-`enable_webauthn` flag in `auth_configurations` (returned by
+`enable_webauthn` flag in `config_entries` (returned by
 `GET /api/v1/auth/config`).
 
 ### Passkey signin flow
@@ -260,7 +260,7 @@ Every auth error is a RFC 7807 Problem Details object with a stable
 | `RBAC_PERMISSION_DENIED` | 403 | User lacks the required permission(s) |
 | `RBAC_ADMIN_ONLY` | 403 | `AUTHENTICATED_ADMIN` sentinel, user is not admin |
 | `ROUTE_PERMISSION_NOT_DECLARED` | 403 | Secure-first default-deny (route forgot `rbacHandler`) |
-| `AUTH_CONFIG_NOT_LOADED` | 500 | `auth_configurations` table missing/empty (CRITICAL) |
+| `AUTH_CONFIG_NOT_LOADED` | 500 | `config_entries` table missing/empty (CRITICAL) |
 
 ```bash
 # Expired JWT → 401

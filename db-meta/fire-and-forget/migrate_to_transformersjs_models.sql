@@ -141,7 +141,7 @@ INSERT INTO "public"."ai_models" (
 ON CONFLICT (model_id) DO NOTHING;
 
 -- ─── 5. Update default model config to Qwen3.5-2B-ONNX ───
-UPDATE "public"."auth_configurations"
+UPDATE "public"."config_entries"
 SET value = 'onnx-community/Qwen3.5-2B-ONNX',
     updated_at = NOW()
 WHERE key = 'ai_assistant_model';

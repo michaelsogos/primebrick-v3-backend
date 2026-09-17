@@ -74,7 +74,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "user_passkeys_credential_id_uq" ON "public"."
 CREATE INDEX IF NOT EXISTS "user_passkeys_user_profile_id_idx" ON "public"."user_passkeys" ("user_profile_id");
 
 -- 4. Insert new auth config keys (idempotent via ON CONFLICT).
-INSERT INTO "public"."auth_configurations" ("key", "value", "description", "created_by") VALUES
+INSERT INTO "public"."config_entries" ("key", "value", "description", "created_by") VALUES
 ('invitation_expiry_days', '7', 'Invitation token expiry in days', 'system'),
 ('admin_contact_email', '', 'Admin email for unauthorized action alerts and mailto: links. If empty, BE falls back to first user with is_admin=true.', 'system'),
 ('notification_alert_secret', '', 'HMAC secret for unauthorized-action alert links in emails. Auto-generated (32 random bytes hex) on first use if empty.', 'system'),

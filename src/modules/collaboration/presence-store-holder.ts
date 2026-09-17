@@ -18,7 +18,7 @@ let presencePort: PresencePort | null = null;
 /**
  * Initialize the presence store from `redis_url`.
  *
- * Reuses the same `redis_url` as the cache port (from `auth_configurations`).
+ * Reuses the same `redis_url` as the cache port (from `config_entries`).
  * If `redisUrl` is empty/undefined: logs a warn, presence disabled (best-effort).
  * If Redis is unreachable: logs a warn, presence disabled (best-effort).
  *

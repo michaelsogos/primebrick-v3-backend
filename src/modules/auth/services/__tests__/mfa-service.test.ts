@@ -90,8 +90,8 @@ vi.mock("../../mfa_action_authorizations_dal.js", () => ({
   MfaActionAuthorizationsDal: vi.fn().mockImplementation(function () { return mockActionDal; }),
 }));
 
-vi.mock("../../auth_configurations_dal.js", () => ({
-  AuthConfigurationsDal: vi.fn().mockImplementation(function () { return mockAuthConfigDal; }),
+vi.mock("../../config_entries_dal.js", () => ({
+  ConfigEntriesDal: vi.fn().mockImplementation(function () { return mockAuthConfigDal; }),
 }));
 
 vi.mock("../../user-profiles-dal.js", () => ({

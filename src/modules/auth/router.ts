@@ -54,7 +54,7 @@ export function authRouter() {
   // Role mappings CRUD (Casdoor-synced, non-best-effort).
   router.use(roleMappingsRouter());
 
-  // Config entries CRUD (auth_configurations — Config Table standard).
+  // Config entries CRUD (config_entries — Config Table standard).
   router.use(configEntriesRouter());
 
   return router;

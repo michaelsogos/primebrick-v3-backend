@@ -15,7 +15,7 @@
 
 BEGIN;
 
-UPDATE public.auth_configurations
+UPDATE public.config_entries
 SET type_config = jsonb_build_object(
     'api_url', '/api/v1/entities/ai_model/list',
     'api_verb', 'GET',
@@ -33,7 +33,7 @@ WHERE key = 'ai_assistant_model'
   AND type_config::jsonb ->> 'values_source' = 'ai_models';
 
 -- Audit entry for the type_config update.
-INSERT INTO public.auth_configurations_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+INSERT INTO public.config_entries_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
 SELECT id, uuid, 'UPDATE', now(), 'system', version,
   jsonb_build_object(
     'type_config', jsonb_build_object(
@@ -53,7 +53,7 @@ SELECT id, uuid, 'UPDATE', now(), 'system', version,
     'updated_at', jsonb_build_object('old', updated_at, 'new', now()),
     'updated_by', jsonb_build_object('old', updated_by, 'new', 'system')
   )
-FROM auth_configurations
+FROM config_entries
 WHERE key = 'ai_assistant_model'
   AND type_config::jsonb ->> 'values_source' = 'ai_models';
 

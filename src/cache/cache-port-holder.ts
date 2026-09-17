@@ -1,7 +1,7 @@
 /**
  * Singleton holder for the `CachePort` instance.
  *
- * The BE initializes this once at startup from `redis_url` in `auth_configurations`.
+ * The BE initializes this once at startup from `redis_url` in `config_entries`.
  * If `redis_url` is empty or Redis is unreachable, `cachePort` stays `null` and all
  * cache calls are no-ops (best-effort — the system is fully valid without Redis).
  *

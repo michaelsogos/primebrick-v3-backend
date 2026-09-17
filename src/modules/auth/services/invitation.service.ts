@@ -20,7 +20,7 @@ import { runAsSystem, requireActor } from "@primebrick/sdk";
 
 import { UserInvitationsDal } from "../user-invitations-dal.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
-import { AuthConfigurationsDal } from "../auth_configurations_dal.js";
+import { ConfigEntriesDal } from "../config_entries_dal.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { sendEmail } from "./email-sender.js";
 import {
@@ -65,14 +65,14 @@ export class InvitationService {
   private pool: Pool;
   private invitationsDal: UserInvitationsDal;
   private profilesDal: UserProfilesDal;
-  private configDal: AuthConfigurationsDal;
+  private configDal: ConfigEntriesDal;
   private casdoor: CasdoorService;
 
   constructor(pool: Pool, casdoor: CasdoorService) {
     this.pool = pool;
     this.invitationsDal = new UserInvitationsDal(pool);
     this.profilesDal = new UserProfilesDal(pool);
-    this.configDal = new AuthConfigurationsDal(pool);
+    this.configDal = new ConfigEntriesDal(pool);
     this.casdoor = casdoor;
   }
 
@@ -81,7 +81,7 @@ export class InvitationService {
   private async getFrontendUrl(): Promise<string> {
     const row = await this.configDal.findByKey("frontend_url");
     if (!row || !row.value) {
-      throw new Error("[auth] frontend_url is missing in auth_configurations table");
+      throw new Error("[auth] frontend_url is missing in config_entries table");
     }
     return row.value;
   }

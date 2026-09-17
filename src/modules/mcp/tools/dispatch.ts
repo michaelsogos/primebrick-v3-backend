@@ -140,7 +140,7 @@ export async function dispatchBeList(
       return getCustomerService().listCustomers(query as never);
     case "organization":
       return getOrganizationService().listOrganizations(query as never);
-    case "user_profiles":
+    case "user_profile":
       return getUserService().listUsers(query as never);
     default:
       throw new EntityNotFoundError("be", entity);
@@ -156,7 +156,7 @@ export async function dispatchBeGet(entity: string, uuid: string): Promise<unkno
       return getCustomerService().getCustomer(uuid);
     case "organization":
       return getOrganizationService().getOrganization(uuid);
-    case "user_profiles":
+    case "user_profile":
       return getUserService().getUserByUuid(uuid);
     default:
       throw new EntityNotFoundError("be", entity);
@@ -175,7 +175,7 @@ export async function dispatchBeCreate(
       return getCustomerService().createCustomer(data as never);
     case "organization":
       return getOrganizationService().createOrganization(data as never);
-    case "user_profiles":
+    case "user_profile":
       return (await getUserService().createUser(data as never)).profile;
     default:
       throw new EntityNotFoundError("be", entity);
@@ -197,7 +197,7 @@ export async function dispatchBeUpdate(
     case "organization":
       await getOrganizationService().updateOrganization(uuid, data as never);
       return { success: true };
-    case "user_profiles":
+    case "user_profile":
       return getUserService().updateUserProfile(uuid, data as never);
     default:
       throw new EntityNotFoundError("be", entity);
@@ -215,7 +215,7 @@ export async function dispatchBeDelete(entity: string, uuid: string): Promise<un
     case "organization":
       await getOrganizationService().deleteOrganization(uuid);
       return { success: true };
-    case "user_profiles":
+    case "user_profile":
       await getUserService().deleteUser(uuid);
       return { success: true };
     default:
@@ -234,7 +234,7 @@ export async function dispatchBeRestore(entity: string, uuid: string): Promise<u
     case "organization":
       await getOrganizationService().restoreOrganization(uuid);
       return { success: true };
-    case "user_profiles":
+    case "user_profile":
       await getUserService().restoreUser(uuid);
       return { success: true };
     default:
@@ -256,7 +256,7 @@ export async function dispatchBeAudit(
       return getCustomerService().getCustomerAudit(uuid, page, limit);
     case "organization":
       return getOrganizationService().getOrganizationAudit(uuid, page, limit);
-    case "user_profiles":
+    case "user_profile":
       return getUserService().getUserProfileAudit(uuid, page, limit);
     default:
       throw new EntityNotFoundError("be", entity);
@@ -272,7 +272,7 @@ export async function dispatchBeMeta(entity: string): Promise<unknown> {
       return customerMeta;
     case "organization":
       return organizationMeta;
-    case "user_profiles":
+    case "user_profile":
       return userProfileMeta;
     default:
       throw new EntityNotFoundError("be", entity);
@@ -542,7 +542,7 @@ export async function dispatchBeAggregate(
     page_size?: number;
   },
 ): Promise<unknown> {
-  if (entity !== "auth_events") {
+  if (entity !== "auth_event") {
     throw new EntityNotFoundError("be", entity);
   }
 

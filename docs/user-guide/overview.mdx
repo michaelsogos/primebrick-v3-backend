@@ -127,7 +127,7 @@ pnpm run db:seed:customers   # optional: load demo customers
 
 ### 2. Configure Casdoor
 
-The BE reads its IDP configuration from the `auth_configurations` table at
+The BE reads its IDP configuration from the `config_entries` table at
 startup. The minimum rows required are the Casdoor endpoint, organization,
 builtin client credentials, and the OIDC issuer URL. See
 [Authentication](./authentication) for the full config schema.

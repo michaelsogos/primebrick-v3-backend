@@ -143,9 +143,9 @@ rebuild gets the exact same dependency tree that was tested during UAT.
 See [.devin/rules/package-versioning.md](./.devin/rules/package-versioning.md)
 for the full rule and upgrade procedure.
 
-## Config Table Standard (`auth_configurations`)
+## Config Table Standard (`config_entries`)
 
-The `auth_configurations` table is the canonical Config Table standard for
+The `config_entries` table is the canonical Config Table standard for
 Primebrick. It stores key/value configuration rows with metadata that drives
 both BE validation and FE widget selection.
 
@@ -251,13 +251,13 @@ All endpoints are admin-only (`AUTHENTICATED_ADMIN`):
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/entities/config_entries/meta` | Entity metadata |
-| GET | `/api/v1/entities/config_entries/list` | All rows (secrets masked to `null`) |
-| GET | `/api/v1/entities/config_entries/:uuid` | Single row (secret masked) |
-| PUT | `/api/v1/entities/config_entries/:uuid` | Update value (validates type) |
-| DELETE | `/api/v1/entities/config_entries/:uuid` | Soft-delete (reserved rejected, step-up MFA) |
-| POST | `/api/v1/entities/config_entries/bulk-delete` | Bulk soft-delete (reserved rejected, step-up MFA) |
-| POST | `/api/v1/entities/config_entries/:uuid/restore` | Restore soft-deleted row |
+| GET | `/api/v1/entities/config_entry/meta` | Entity metadata |
+| GET | `/api/v1/entities/config_entry/list` | All rows (secrets masked to `null`) |
+| GET | `/api/v1/entities/config_entry/:uuid` | Single row (secret masked) |
+| PUT | `/api/v1/entities/config_entry/:uuid` | Update value (validates type) |
+| DELETE | `/api/v1/entities/config_entry/:uuid` | Soft-delete (reserved rejected, step-up MFA) |
+| POST | `/api/v1/entities/config_entry/bulk-delete` | Bulk soft-delete (reserved rejected, step-up MFA) |
+| POST | `/api/v1/entities/config_entry/:uuid/restore` | Restore soft-deleted row |
 
 ### Security
 
@@ -280,8 +280,8 @@ All endpoints are admin-only (`AUTHENTICATED_ADMIN`):
 
 ### Files
 
-- Entity: `src/modules/auth/auth_configuration_entity.ts`
-- DAL: `src/modules/auth/auth_configurations_dal.ts`
+- Entity: `src/modules/auth/config_entry_entity.ts`
+- DAL: `src/modules/auth/config_entries_dal.ts`
 - Router: `src/modules/auth/routers/config-entries.router.ts`
 - Meta: `src/modules/auth/config-entries.meta.ts`
 - DB patch: `db-meta/patches/00000000000000_init_database.sql`
@@ -305,7 +305,7 @@ The backend uses a wildcard-based RBAC system with pattern matching:
   (not just bypassed), use the `Permission.AUTHENTICATED_ADMIN` sentinel.
   This sentinel requires `req.user.isAdmin === true` and must appear alone
   in the permission array (same rule as `PUBLIC` and `AUTHENTICATED_USER`).
-  Example: `POST /api/v1/entities/user_profiles/:uuid/change-password`.
+  Example: `POST /api/v1/entities/user_profile/:uuid/change-password`.
 
 ### Permission Structure
 

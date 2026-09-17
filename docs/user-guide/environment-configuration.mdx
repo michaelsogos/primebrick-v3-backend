@@ -8,10 +8,10 @@ description: "Environment variables, .env setup, and configuration reference for
 The Primebrick Backend reads configuration from two sources:
 
 1. **Environment variables** (`.env` file) — connection strings, ports, URLs
-2. **`auth_configurations` database table** — runtime auth settings (OIDC, Redis, gateway)
+2. **`config_entries` database table** — runtime auth settings (OIDC, Redis, gateway)
 
 Environment variables are loaded once at startup via `dotenv/config`. The
-`auth_configurations` table is read at runtime and can be updated via the
+`config_entries` table is read at runtime and can be updated via the
 admin API without restarting.
 
 ## Quick start
@@ -69,7 +69,7 @@ These are development-only variables. Do not enable in production.
 
 ## Database-stored configuration
 
-Most auth-related configuration is stored in the `auth_configurations`
+Most auth-related configuration is stored in the `config_entries`
 table, not in environment variables. This allows runtime updates via the
 admin API without restarting the server.
 
@@ -97,7 +97,7 @@ system. Non-reserved rows allow `value`, `type`, and `type_config` updates.
 To update a config value, use the admin API:
 
 ```bash
-curl -X PUT http://localhost:3001/api/v1/entities/config_entries/<uuid> \
+curl -X PUT http://localhost:3001/api/v1/entities/config_entry/<uuid> \
   -H "Authorization: Bearer <admin-jwt>" \
   -H "Content-Type: application/json" \
   -d '{"value": "redis://redis:6379", "version": 1}'
@@ -107,7 +107,7 @@ curl -X PUT http://localhost:3001/api/v1/entities/config_entries/<uuid> \
 
 <Mermaid chart={`flowchart LR
   ENV[".env file"] -->|loaded by dotenv| BE[Backend API]
-  DB["auth_configurations table"] -->|read at runtime| BE
+  DB["config_entries table"] -->|read at runtime| BE
   BE -->|connects| PG[(PostgreSQL)]
   BE -->|connects| NATS[NATS]
   BE -->|health check| CASDOOR[Casdoor IDP]
@@ -156,6 +156,6 @@ curl -X PUT http://localhost:3001/api/v1/entities/config_entries/<uuid> \
 - [ ] Set `NATS_URL` to the production NATS cluster
 - [ ] Set `PUBLIC_BASE_URL` and `PUBLIC_FE_URL` to the public domains
 - [ ] Set `CASDOOR_*` variables to the production Casdoor instance
-- [ ] Update `auth_configurations` table with production Redis, OIDC, and gateway settings
+- [ ] Update `config_entries` table with production Redis, OIDC, and gateway settings
 - [ ] Set `PB_SEED_CUSTOMERS=0` to disable demo data
 - [ ] Remove or disable all debug toggles

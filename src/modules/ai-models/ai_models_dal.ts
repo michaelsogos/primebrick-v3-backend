@@ -5,7 +5,7 @@
  * methods plus a Redis-cached `findAllWithCache()` (with ETag support) for
  * the list endpoint. Cache is invalidated on every write.
  *
- * Mirrors the `AuthConfigurationsDal` Redis pattern and the `CustomersDal`
+ * Mirrors the `ConfigEntriesDal` Redis pattern and the `CustomersDal`
  * CRUD/audit pattern.
  */
 import { randomUUID } from "node:crypto";

@@ -3,7 +3,7 @@
 -- The enable_formauth configuration key has been removed from the system.
 -- Form (username/password) authentication is an invariant — always available,
 -- not a toggleable setting. This script:
---   1. Hard-deletes the enable_formauth row from auth_configurations.
+--   1. Hard-deletes the enable_formauth row from config_entries.
 --   2. Updates the content_sha256 of the init patch in the registry, because
 --      the init patch seed was modified (the enable_formauth row was removed
 --      from the INSERT block).
@@ -14,7 +14,7 @@
 BEGIN;
 
 -- 1. Hard-delete the enable_formauth config row (if it exists).
-DELETE FROM public.auth_configurations
+DELETE FROM public.config_entries
 WHERE "key" = 'enable_formauth';
 
 -- 2. Update the init patch SHA256 in the registry so db:migrate can proceed.

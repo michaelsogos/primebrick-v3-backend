@@ -1,17 +1,17 @@
 /**
- * config-entries.router — thin controller for the `auth_configurations` entity
+ * config-entries.router — thin controller for the `config_entries` entity
  * CRUD surface (admin). Exposes the Config Table standard endpoints used by
  * the FE Security page and future Config Table pages.
  *
  * Endpoints:
- *   GET    /api/v1/entities/config_entries/meta              → entity metadata
- *   GET    /api/v1/entities/config_entries/list              → all rows (secrets masked)
- *   GET    /api/v1/entities/config_entries/:uuid             → single row (secret masked)
- *   POST   /api/v1/entities/config_entries                   → create new config row (validates value)
- *   PUT    /api/v1/entities/config_entries/:uuid             → update value (validates type)
- *   DELETE /api/v1/entities/config_entries/:uuid             → soft-delete (reserved rejected, step-up MFA)
- *   POST   /api/v1/entities/config_entries/bulk-delete       → bulk soft-delete (reserved rejected, step-up MFA)
- *   POST   /api/v1/entities/config_entries/:uuid/restore     → restore soft-deleted row
+ *   GET    /api/v1/entities/config_entry/meta              → entity metadata
+ *   GET    /api/v1/entities/config_entry/list              → all rows (secrets masked)
+ *   GET    /api/v1/entities/config_entry/:uuid             → single row (secret masked)
+ *   POST   /api/v1/entities/config_entry                   → create new config row (validates value)
+ *   PUT    /api/v1/entities/config_entry/:uuid             → update value (validates type)
+ *   DELETE /api/v1/entities/config_entry/:uuid             → soft-delete (reserved rejected, step-up MFA)
+ *   POST   /api/v1/entities/config_entry/bulk-delete       → bulk soft-delete (reserved rejected, step-up MFA)
+ *   POST   /api/v1/entities/config_entry/:uuid/restore     → restore soft-deleted row
  *
  * The router contains NO business logic. All errors are thrown as `ApiError`
  * subclasses and converted to RFC 7807 by the centralized `errorHandler`.
@@ -27,15 +27,15 @@ import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../rbac.middleware.js";
 import { Permission, validateConfigValue, coerceConfigValue, serializeConfigValue, ConfigValidationError, type ConfigType, type CacheEntry, etagMatches, CACHE_HEADERS, CACHE_CONTROL_CACHED } from "@primebrick/sdk";
 import { getPool } from "../../../db/pool.js";
-import { AuthConfigurationsDal, ReservedConfigError, ReservedConfigTypeError } from "../auth_configurations_dal.js";
-import { AuthConfigurationEntity } from "../auth_configuration_entity.js";
+import { ConfigEntriesDal, ReservedConfigError, ReservedConfigTypeError } from "../config_entries_dal.js";
+import { ConfigEntryEntity } from "../config_entry_entity.js";
 import { configEntriesMeta } from "../config-entries.meta.js";
 import { assembleMeta } from "../../../http/meta-assembler.js";
 import { requireMfaStepUp } from "../mfa-step-up.middleware.js";
 import { ApiError, ValidationError } from "../../../http/api-errors.js";
 
-function makeDal(): AuthConfigurationsDal {
-  return new AuthConfigurationsDal(getPool());
+function makeDal(): ConfigEntriesDal {
+  return new ConfigEntriesDal(getPool());
 }
 
 /** Require an authenticated user and return their UUID (user_profiles.uuid). */
@@ -65,7 +65,7 @@ function requireUserUuid(req: import("express").Request): string {
  *   - `money`   → native `number` (amount only; currency is in `type_config`)
  *   - other     → string (as stored in DB)
  */
-function maskSecretValue(row: AuthConfigurationEntity): Record<string, unknown> {
+function maskSecretValue(row: ConfigEntryEntity): Record<string, unknown> {
   // Coerce the stored string value to its native JS type based on config type.
   // For secrets, value is masked to null — the FE only sends a new value.
   let coercedValue: unknown = row.value;
@@ -143,7 +143,7 @@ export function configEntriesRouter() {
   const router = makeProtectedRouter();
 
   const getMeta: RequestHandler = asyncHandler(async (_req, res) => {
-    res.json(assembleMeta(configEntriesMeta, AuthConfigurationEntity));
+    res.json(assembleMeta(configEntriesMeta, ConfigEntryEntity));
   });
 
   const list: RequestHandler = asyncHandler(async (req, res) => {
@@ -467,7 +467,7 @@ export function configEntriesRouter() {
     const pool = getPool();
     const repo = new Repository(pool);
     const result = await findAuditPage(repo, {
-      tableName: "auth_configurations_audit",
+      tableName: "config_entries_audit",
       entityUuid: uuid,
       page,
       limit,
@@ -567,66 +567,66 @@ export function configEntriesRouter() {
   registerRoutes(router, [
     {
       method: "get",
-      path: "/api/v1/entities/config_entries/meta",
+      path: "/api/v1/entities/config_entry/meta",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       handler: getMeta,
     },
     {
       method: "get",
-      path: "/api/v1/entities/config_entries/list",
+      path: "/api/v1/entities/config_entry/list",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       handler: list,
     },
     {
       method: "get",
-      path: "/api/v1/entities/config_entries/:uuid",
+      path: "/api/v1/entities/config_entry/:uuid",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       handler: getSingle,
     },
     {
       method: "post",
-      path: "/api/v1/entities/config_entries",
+      path: "/api/v1/entities/config_entry",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       middlewares: [validateBody(CreateBodySchema)],
       handler: create,
     },
     {
       method: "put",
-      path: "/api/v1/entities/config_entries/:uuid",
+      path: "/api/v1/entities/config_entry/:uuid",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       middlewares: [validateBody(UpdateBodySchema)],
       handler: update,
     },
     {
       method: "put",
-      path: "/api/v1/entities/config_entries/bulk-update",
+      path: "/api/v1/entities/config_entry/bulk-update",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       middlewares: [validateBody(BulkUpdateBodySchema)],
       handler: bulkUpdate,
     },
     {
       method: "get",
-      path: "/api/v1/entities/config_entries/:uuid/audit",
+      path: "/api/v1/entities/config_entry/:uuid/audit",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       handler: getAudit,
     },
     {
       method: "delete",
-      path: "/api/v1/entities/config_entries/:uuid",
+      path: "/api/v1/entities/config_entry/:uuid",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       middlewares: [requireMfaStepUp("delete", "config_entries")],
       handler: softDelete,
     },
     {
       method: "post",
-      path: "/api/v1/entities/config_entries/bulk-delete",
+      path: "/api/v1/entities/config_entry/bulk-delete",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       middlewares: [validateBody(BulkDeleteBodySchema), requireMfaStepUp("bulk_delete", "config_entries")],
       handler: bulkDelete,
     },
     {
       method: "post",
-      path: "/api/v1/entities/config_entries/:uuid/restore",
+      path: "/api/v1/entities/config_entry/:uuid/restore",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
       handler: restore,
     },

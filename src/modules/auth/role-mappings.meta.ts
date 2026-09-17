@@ -1,6 +1,6 @@
 /**
  * `role_mappings` entity metadata — the JSON returned by
- * `GET /api/v1/entities/role_mappings/meta`.
+ * `GET /api/v1/entities/role_mapping/meta`.
  *
  * Pure data, no logic. Mirrors `organizations.meta.ts`.
  *
@@ -13,7 +13,7 @@
  */
 
 export const roleMappingsMeta = {
-  entity: "role_mappings",
+  entity: "role_mapping",
   translationKey: "role_mapping",
   titleKey: "system.entities.role_mapping.title",
   updatePageTitle: "${idp_role}",

@@ -60,7 +60,7 @@ vi.mock("../../auth/organizations.meta.js", () => ({
   organizationMeta: { entity: "organization", fields: [] },
 }));
 vi.mock("../../auth/user-profiles.meta.js", () => ({
-  userProfileMeta: { entity: "user_profiles", fields: [] },
+  userProfileMeta: { entity: "user_profile", fields: [] },
 }));
 
 // Mock ServiceRegistryRepo
@@ -177,10 +177,10 @@ describe("MCP Dispatch — Error classes", () => {
   });
 
   it("OperationNotSupportedError has correct name and message", () => {
-    const err = new OperationNotSupportedError("be", "user_profiles", "create");
+    const err = new OperationNotSupportedError("be", "user_profile", "create");
     expect(err.name).toBe("OperationNotSupportedError");
     expect(err.message).toContain("create");
-    expect(err.message).toContain("be/user_profiles");
+    expect(err.message).toContain("be/user_profile");
   });
 });
 
@@ -225,13 +225,13 @@ describe("MCP Dispatch — checkRbac", () => {
 
   it("passes for proxy entities (RBAC enforced by microservice)", () => {
     entityRegistry.registerProxyEntity("emailsender", {
-      entity: "providers",
+      entity: "provider",
       label: "Providers",
       supported_operations: ["list"],
     });
     const userAuth = makeAuthInfoWithPermissions([]); // no permissions
     // Proxy entities skip RBAC — the microservice enforces its own
-    expect(() => checkRbac(userAuth, "emailsender", "providers", "list")).not.toThrow();
+    expect(() => checkRbac(userAuth, "emailsender", "provider", "list")).not.toThrow();
   });
 });
 
@@ -259,9 +259,9 @@ describe("MCP Dispatch — BE in-process dispatch", () => {
     );
   });
 
-  it("dispatchBeList calls UserService for user_profiles", async () => {
+  it("dispatchBeList calls UserService for user_profile", async () => {
     mockUserService.listUsers.mockResolvedValue({ rows: [], total: 0 });
-    await dispatchBeList("user_profiles", { page: 1 });
+    await dispatchBeList("user_profile", { page: 1 });
     expect(mockUserService.listUsers).toHaveBeenCalled();
   });
 

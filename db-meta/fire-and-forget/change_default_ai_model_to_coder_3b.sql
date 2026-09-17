@@ -4,7 +4,7 @@
 -- Note: q4 chosen over q4f16 — same 5/5 quality, faster avg response
 -- (3.66 s vs 4.4 s); no KV reuse on either, q4 prefill is cheaper.
 -- Previous default: onnx-community/Qwen3-0.6B-ONNX#q4f16 (NOT_COMPATIBLE).
-UPDATE auth_configurations
+UPDATE config_entries
 SET value = 'onnx-community/Qwen2.5-Coder-3B-Instruct#q4',
     updated_at = NOW(),
     updated_by = 'system',

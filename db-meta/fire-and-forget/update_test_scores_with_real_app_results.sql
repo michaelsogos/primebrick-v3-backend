@@ -1,6 +1,6 @@
 -- Update test_scores with real app test results (end-to-end verification)
 -- Test date: 2026-09-11
--- App: http://localhost:5173/system/settings/security/create
+-- App: http://localhost:5173/system/settings/configurations/create
 -- Models tested: Qwen3-1.7B (4 turns), Qwen3.5-4B (4 turns)
 -- Harness: all 7 models (3 scenarios, 5 turns each)
 --

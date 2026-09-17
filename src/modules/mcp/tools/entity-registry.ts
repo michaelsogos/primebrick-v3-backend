@@ -40,7 +40,7 @@ export type HandlerType = "in-process" | "proxy";
  * The factory returns a service instance that reads actor from ALS.
  */
 export interface BeEntityConfig {
-  /** Entity name (snake_case plural, e.g. "customer", "organization"). */
+  /** Entity name (snake_case singular, e.g. "customer", "organization"). */
   entity: string;
   /** Human-readable label for the entity. */
   label: string;
@@ -57,7 +57,7 @@ export interface BeEntityConfig {
  * Paths are constructed from the standard template — no path storage needed.
  */
 export interface ProxyEntityConfig {
-  /** Entity name (snake_case plural). */
+  /** Entity name (snake_case singular). */
   entity: string;
   /** Human-readable label (from microservice OpenAPI tags or title). */
   label: string;
@@ -213,7 +213,7 @@ export function registerBeEntities(): void {
 
   // User profiles
   entityRegistry.registerBeEntity("be", {
-    entity: "user_profiles",
+    entity: "user_profile",
     label: "User Profile",
     supported_operations: ["list", "get", "update", "restore", "audit", "meta"],
     permissions: {
@@ -228,7 +228,7 @@ export function registerBeEntities(): void {
 
   // Auth events (audit log entity — read-only via MCP, no CRUD)
   entityRegistry.registerBeEntity("be", {
-    entity: "auth_events",
+    entity: "auth_event",
     label: "Auth Events",
     supported_operations: ["list", "aggregate", "meta"],
     permissions: {

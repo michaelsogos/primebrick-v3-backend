@@ -57,7 +57,7 @@ const ChangeMyPasswordSchema = makeChangeOwnPasswordSchema(DEFAULT_PASSWORD_POLI
 
 /** Metadata for the self-service profile form (`GET /api/v1/auth/me/meta`). */
 const meMeta = {
-  entity: "user_profiles",
+  entity: "user_profile",
   translationKey: "user_profile",
   titleKey: "system.entities.user_profile.title",
   updatePageTitle: "${display_name}",

@@ -54,6 +54,21 @@ POST   /api/v1/entities/:entity/:uuid/:action     → entity-scoped action
 
 `:entity` is always snake_case **singular**.
 
+Notes on accepted extensions:
+
+- **Sub-actions** on a single row use `POST /api/v1/entities/:entity/:uuid/:action`
+  (e.g. `change-password`, `restore`); collection-level actions use
+  `/api/v1/entities/:entity/:action` (e.g. `check-availability`, `duplicate`).
+- **Verb nuance:** `bulk-update` may use `PUT` instead of `POST` when the
+  operation is idempotent full-field replacement (config_entry uses PUT).
+- **Domain orchestration routes** (`/api/v1/auth/users`, `/api/v1/auth/invitations/*`)
+  are NOT entity-row CRUD — they orchestrate identity lifecycle across IDP +
+  local DB and legitimately live under the `auth` namespace. Do not migrate
+  them into `/entities/`.
+- `/api/v1/system/role-mappings*` is a **documented legacy surface** keyed by
+  `idp_role` (not uuid) used by FE role-mapping forms. The canonical CRUD is
+  `/api/v1/entities/role_mapping/*`.
+
 ## Naming convention
 
 | Layer | Name form | Rationale | Example |

@@ -348,8 +348,8 @@ END $$;
 CREATE INDEX IF NOT EXISTS "role_mappings_audit_entity_uuid_idx" ON "public"."role_mappings_audit" ("entity_uuid");
 CREATE INDEX IF NOT EXISTS "role_mappings_audit_action_idx" ON "public"."role_mappings_audit" ("action");
 
--- auth_configurations table (Config Table standard: type/type_config/label_key/description_key/reserved)
-CREATE TABLE IF NOT EXISTS "public"."auth_configurations" (
+-- config_entries table (Config Table standard: type/type_config/label_key/description_key/reserved)
+CREATE TABLE IF NOT EXISTS "public"."config_entries" (
   "id" bigint generated always as identity NOT NULL,
   "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
   "key" varchar(100) NOT NULL,
@@ -370,11 +370,11 @@ CREATE TABLE IF NOT EXISTS "public"."auth_configurations" (
   PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "auth_configurations_key_uq" ON "public"."auth_configurations" ("key");
-CREATE INDEX IF NOT EXISTS "auth_configurations_deleted_at_idx" ON "public"."auth_configurations" ("deleted_at");
+CREATE UNIQUE INDEX IF NOT EXISTS "config_entries_key_uq" ON "public"."config_entries" ("key");
+CREATE INDEX IF NOT EXISTS "config_entries_deleted_at_idx" ON "public"."config_entries" ("deleted_at");
 
--- auth_configurations_audit table
-CREATE TABLE IF NOT EXISTS "public"."auth_configurations_audit" (
+-- config_entries_audit table
+CREATE TABLE IF NOT EXISTS "public"."config_entries_audit" (
   "id" bigint generated always as identity NOT NULL,
   "entity_id" bigint NOT NULL,
   "entity_uuid" uuid NOT NULL,
@@ -386,13 +386,13 @@ CREATE TABLE IF NOT EXISTS "public"."auth_configurations_audit" (
   PRIMARY KEY ("id", "changed_at")
 ) PARTITION BY RANGE ("changed_at");
 
-COMMENT ON COLUMN public.auth_configurations_audit.changed_by IS 'Identifier of the principal that produced the audit entry (falls back to "system" when no authenticated context is available).';
+COMMENT ON COLUMN public.config_entries_audit.changed_by IS 'Identifier of the principal that produced the audit entry (falls back to "system" when no authenticated context is available).';
 
--- Indexes for auth_configurations_audit
-CREATE INDEX IF NOT EXISTS "auth_configurations_audit_entity_uuid_idx" ON "public"."auth_configurations_audit" ("entity_uuid");
-CREATE INDEX IF NOT EXISTS "auth_configurations_audit_action_idx" ON "public"."auth_configurations_audit" ("action");
+-- Indexes for config_entries_audit
+CREATE INDEX IF NOT EXISTS "config_entries_audit_entity_uuid_idx" ON "public"."config_entries_audit" ("entity_uuid");
+CREATE INDEX IF NOT EXISTS "config_entries_audit_action_idx" ON "public"."config_entries_audit" ("action");
 
--- pg_partman setup for auth_configurations_audit (idempotent)
+-- pg_partman setup for config_entries_audit (idempotent)
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -401,9 +401,9 @@ BEGIN
     AND table_name = 'part_config'
   ) OR NOT EXISTS (
     SELECT 1 FROM partman.part_config 
-    WHERE parent_table = 'public.auth_configurations_audit'
+    WHERE parent_table = 'public.config_entries_audit'
   ) THEN
-    PERFORM partman.create_parent('public.auth_configurations_audit', 'changed_at', '1 month');
+    PERFORM partman.create_parent('public.config_entries_audit', 'changed_at', '1 month');
   END IF;
 EXCEPTION WHEN others THEN
   -- If pg_partman is not properly configured, skip silently
@@ -689,7 +689,7 @@ VALUES ('auth_auditor', '["auth_events.read.all"]'::jsonb, false, '2026-05-18T14
 ON CONFLICT (idp_role) DO NOTHING;
 
 -- Seed initial auth configuration values
-INSERT INTO "public"."auth_configurations" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "group_key", "created_by") VALUES
+INSERT INTO "public"."config_entries" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "group_key", "created_by") VALUES
 ('idp_endpoint', 'http://localhost:8000', 'url', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"url":{"protocols":["http","https"],"error_label_key":"app.common.validation.invalidUrl"}}}}', 'system.settings.config.auth.idp_endpoint.label', 'system.settings.config.auth.idp_endpoint.description', true, 'idp_parameters', 'system'),
 ('idp_organization', 'ACME', 'string', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":1,"error_label_key":"app.common.validation.tooShort"},"max":{"value":100,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.idp_organization.label', 'system.settings.config.auth.idp_organization.description', true, 'idp_parameters', 'system'),
 ('oidc_issuer_url', 'http://localhost:8000', 'url', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"url":{"protocols":["http","https"],"error_label_key":"app.common.validation.invalidUrl"}}}}', 'system.settings.config.auth.oidc_issuer_url.label', 'system.settings.config.auth.oidc_issuer_url.description', true, 'oidc_parameters', 'system'),
@@ -714,11 +714,11 @@ INSERT INTO "public"."auth_configurations" ("key", "value", "type", "type_config
 ('ai_assistant_model', 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC', 'single_select', '{"values_source":"ai_models","value_field":"id","label_field":"label_key","model_levels":{"Qwen3-1.7B-q4f16_1-MLC":2,"Qwen2.5-1.5B-Instruct-q4f16_1-MLC":3,"Qwen3-4B-q4f16_1-MLC":4},"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.ai_assistant_model.label', 'system.settings.config.auth.ai_assistant_model.description', true, 'ai_features', 'system')
 ON CONFLICT ("key") DO NOTHING;
 
--- Audit trail for the auth_configurations seed (INSERT record, version 1).
+-- Audit trail for the config_entries seed (INSERT record, version 1).
 -- Uses 'initial-setup' as changed_by to distinguish seed/system inserts from user actions.
 -- changed_at uses the actual created_at of each row (not a hardcoded timestamp).
 -- Delta includes ALL columns to match the DAL's INSERT audit behavior (Phase 2).
-INSERT INTO public.auth_configurations_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+INSERT INTO public.config_entries_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
 SELECT id, uuid, 'INSERT', created_at, 'initial-setup', 1,
   jsonb_strip_nulls(jsonb_build_object(
     'id', jsonb_build_object('old', null, 'new', id),
@@ -739,10 +739,10 @@ SELECT id, uuid, 'INSERT', created_at, 'initial-setup', 1,
     'deleted_at', jsonb_build_object('old', null, 'new', deleted_at),
     'deleted_by', jsonb_build_object('old', null, 'new', deleted_by)
   ))
-FROM public.auth_configurations
+FROM public.config_entries
 WHERE NOT EXISTS (
-  SELECT 1 FROM public.auth_configurations_audit a
-  WHERE a.entity_uuid = auth_configurations.uuid
+  SELECT 1 FROM public.config_entries_audit a
+  WHERE a.entity_uuid = config_entries.uuid
     AND a.action = 'INSERT'
 );
 

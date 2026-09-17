@@ -133,7 +133,7 @@ router.get("/api/v1/user/profile", rbacHandler([Permission.AUTHENTICATED_USER]),
 // Admin-only endpoint (only callers with isAdmin === true pass)
 // Use for high-risk non-CRUD operations like admin change-password.
 router.post(
-  "/api/v1/entities/user_profiles/:uuid/change-password",
+  "/api/v1/entities/user_profile/:uuid/change-password",
   rbacHandler([Permission.AUTHENTICATED_ADMIN]),
   asyncHandler(async (req, res) => {
     // ... handler ...

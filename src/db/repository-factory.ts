@@ -6,7 +6,7 @@
  * files that handle `@Cached` entities. If the cache is disabled (redis_url
  * empty or Redis unreachable), a bare `Repository` is returned — no overhead.
  *
- * DALs for non-cached entities (role_mappings, auth_configurations,
+ * DALs for non-cached entities (role_mappings, config_entries,
  * service_registry, user_invitations, user_passkeys) should keep using
  * `new Repository(pool)` directly — no point wrapping them with `withCache`
  * since they're not `@Cached`.

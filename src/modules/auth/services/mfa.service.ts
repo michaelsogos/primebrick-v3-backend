@@ -28,7 +28,7 @@ import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 
 import { runAsSystem } from "@primebrick/sdk";
 import { getAuthConfig } from "../config.js";
-import { AuthConfigurationsDal } from "../auth_configurations_dal.js";
+import { ConfigEntriesDal } from "../config_entries_dal.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { UserMfaFactorsDal } from "../user_mfa_factors_dal.js";
 import { MfaActionAuthorizationsDal } from "../mfa_action_authorizations_dal.js";
@@ -224,7 +224,7 @@ export class MfaService {
         "/errors/mfa-disabled",
         "MFA is not enabled on this server",
         503,
-        "The MFA / 2FA system is disabled. Set enable_mfa=true in auth_configurations to enable it.",
+        "The MFA / 2FA system is disabled. Set enable_mfa=true in config_entries to enable it.",
         { internal_code: "MFA_DISABLED", severity: "MEDIUM" },
       );
     }
@@ -237,7 +237,7 @@ export class MfaService {
    * `notification_alert_secret` in invitation.service.ts).
    */
   private async getMfaChallengeSecret(): Promise<string> {
-    const dal = new AuthConfigurationsDal(this.pool);
+    const dal = new ConfigEntriesDal(this.pool);
     let row = await dal.findByKey("mfa_challenge_signing_secret");
     if (!row || !row.value || row.value.trim() === "") {
       const secret = randomBytes(32).toString("hex");
@@ -254,7 +254,7 @@ export class MfaService {
    * Falls back to 300 seconds (5 minutes) if missing.
    */
   private async getMfaChallengeTtl(): Promise<number> {
-    const dal = new AuthConfigurationsDal(this.pool);
+    const dal = new ConfigEntriesDal(this.pool);
     const row = await dal.findByKey("mfa_challenge_token_ttl_seconds");
     if (!row || !row.value) return 300;
     const ttl = parseInt(row.value, 10);

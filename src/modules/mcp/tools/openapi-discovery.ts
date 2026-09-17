@@ -11,7 +11,7 @@ import type { Operation } from "./entity-registry.js";
 
 /** Entity info extracted from a microservice's OpenAPI spec. */
 export interface DiscoveredEntity {
-  /** Entity name (snake_case plural, e.g. "providers", "config_entries"). */
+  /** Entity name (snake_case singular, e.g. "provider", "config_entry"). */
   entity: string;
   /** Human-readable label (from OpenAPI tag description or entity name). */
   label: string;

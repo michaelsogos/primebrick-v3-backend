@@ -23,7 +23,7 @@ BEGIN;
 
 -- 1. Rename existing config rows with type='integer' to type='bigint'.
 --    The DB value column is TEXT — no data conversion needed, only the type label.
-UPDATE "public"."auth_configurations"
+UPDATE "public"."config_entries"
 SET "type" = 'bigint'
 WHERE "type" = 'integer';
 

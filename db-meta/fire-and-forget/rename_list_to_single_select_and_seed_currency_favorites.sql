@@ -23,12 +23,12 @@
 BEGIN;
 
 -- 1. Rename existing config rows with type='list' to type='single_select'.
-UPDATE "public"."auth_configurations"
+UPDATE "public"."config_entries"
 SET "type" = 'single_select'
 WHERE "type" = 'list';
 
 -- 2. Seed the currency_favorites config row (reserved: true — type/type_config locked, only value editable).
-INSERT INTO "public"."auth_configurations" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "group_key", "created_by")
+INSERT INTO "public"."config_entries" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "group_key", "created_by")
 VALUES (
   'currency_favorites',
   'EUR,USD,GBP,CHF,CNY,JPY',
@@ -44,7 +44,7 @@ ON CONFLICT ("key") DO NOTHING;
 
 -- 3. Insert the audit trail entry for currency_favorites (INSERT record, version 1).
 --    Mirrors the init patch audit insert pattern.
-INSERT INTO public.auth_configurations_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+INSERT INTO public.config_entries_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
 SELECT id, uuid, 'INSERT', created_at, 'initial-setup', 1,
   jsonb_strip_nulls(jsonb_build_object(
     'id', jsonb_build_object('old', null, 'new', id),
@@ -65,11 +65,11 @@ SELECT id, uuid, 'INSERT', created_at, 'initial-setup', 1,
     'deleted_at', jsonb_build_object('old', null, 'new', deleted_at),
     'deleted_by', jsonb_build_object('old', null, 'new', deleted_by)
   ))
-FROM public.auth_configurations
+FROM public.config_entries
 WHERE key = 'currency_favorites'
   AND NOT EXISTS (
-    SELECT 1 FROM public.auth_configurations_audit a
-    WHERE a.entity_uuid = auth_configurations.uuid
+    SELECT 1 FROM public.config_entries_audit a
+    WHERE a.entity_uuid = config_entries.uuid
       AND a.action = 'INSERT'
   );
 

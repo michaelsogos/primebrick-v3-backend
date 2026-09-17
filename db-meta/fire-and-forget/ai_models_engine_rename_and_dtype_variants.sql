@@ -35,7 +35,7 @@ UPDATE "public"."ai_models" SET model_id='onnx-community/Phi-3-mini-4k-instruct-
 UPDATE "public"."ai_models" SET model_id='onnx-community/Phi-4-mini-instruct-ONNX-GQA#q4f16',  name='Phi 4 mini (q4f16)',         download_size_mb=3067 WHERE id=47;
 
 -- Point the configured default at a suffixed variant id
-UPDATE "public"."auth_configurations" SET value='onnx-community/Phi-3.5-mini-instruct-onnx-web#q4f16'
+UPDATE "public"."config_entries" SET value='onnx-community/Phi-3.5-mini-instruct-onnx-web#q4f16'
 WHERE key='ai_assistant_model' AND value LIKE 'onnx-community/%' AND value NOT LIKE '%#%';
 
 -- ─── 5. Per-dtype variant rows ───

@@ -333,7 +333,7 @@ export class RoleService {
   }
 
   // --- Entity-pattern methods (keyed by uuid) -------------------------------
-  // These back the `/api/v1/entities/role_mappings/...` endpoints used by the
+  // These back the `/api/v1/entities/role_mapping/...` endpoints used by the
   // FE EntityListTable. The Casdoor-coupled create/update/delete flows above
   // remain keyed by idp_role (the Casdoor identity); the entity-pattern
   // delete/put handlers below resolve uuid → idp_role then delegate to the

@@ -5,7 +5,7 @@
  * or RoleMappingPort — they use GATEWAY-RESOLVED mode where the BE already
  * resolved the user and forwards the full AuthUser in headers.
  *
- * - BeAuthConfigPort: loads auth config from `auth_configurations` table
+ * - BeAuthConfigPort: loads auth config from `config_entries` table
  * - BeUserResolverPort: resolves IDP sub to internal UUID via `user_profiles` (JIT provisioning)
  * - BeRoleMappingPort: loads role-to-permission mappings from `role_mappings` table
  * - BeApiKeyPort: looks up API keys by hash from `api_keys` table

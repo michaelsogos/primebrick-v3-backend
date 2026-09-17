@@ -1,9 +1,9 @@
 import type { Pool } from "pg";
-import { AuthConfigurationsDal } from "./auth_configurations_dal.js";
+import { ConfigEntriesDal } from "./config_entries_dal.js";
 import { AuthMode } from "@primebrick/sdk";
 
 /**
- * Auth configuration loaded from the `auth_configurations` table.
+ * Auth configuration loaded from the `config_entries` table.
  *
  * ALL field names are snake_case — matching the DB keys exactly. No DTO
  * renaming. Values are exactly what the DB has: `undefined` if the key is
@@ -51,14 +51,14 @@ export interface AuthConfigDb {
   // --- Redis cache (optional) ---
   // Empty or undefined = cache disabled (best-effort, system valid without it).
   // Set to a Redis URL (e.g. "redis://redis:6379" or "redis://external-redis:6379")
-  // to enable the cache layer. Configured by the admin in the auth_configurations table.
+  // to enable the cache layer. Configured by the admin in the config_entries table.
   redis_url?: string;
 }
 
 /**
- * Load auth configuration from the `auth_configurations` table via the DAL.
+ * Load auth configuration from the `config_entries` table via the DAL.
  *
- * Uses `AuthConfigurationsDal.findAll()` — NO raw SQL strings.
+ * Uses `ConfigEntriesDal.findAll()` — NO raw SQL strings.
  * Values are exactly what the DB has. Mandatory-field checks throw before
  * the return. The only transformations are TYPE conversions:
  *   - `enable_email_verification_check`: string → boolean
@@ -66,7 +66,7 @@ export interface AuthConfigDb {
  * NO lowercasing, NO fallback defaults, NO field-by-field DTO mapping.
  */
 export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
-  const dal = new AuthConfigurationsDal(pool);
+  const dal = new ConfigEntriesDal(pool);
   const rows = await dal.findAll();
 
   // Reduce typed entity rows into a key/value map. Snake_case keys preserved
@@ -82,7 +82,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
 
   // --- Mandatory-field checks (fail loud, no silent defaults) ---
   if (!settings.auth_mode) {
-    throw new Error("[auth] auth_mode is missing in auth_configurations table");
+    throw new Error("[auth] auth_mode is missing in config_entries table");
   }
   const mode = settings.auth_mode.toUpperCase();
   if (mode !== AuthMode.STANDALONE && mode !== AuthMode.GATEWAY) {
@@ -93,7 +93,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
 
   // auth_roles_path is mandatory in all modes — used to extract roles from JWT.
   if (!settings.auth_roles_path) {
-    throw new Error("[auth] auth_roles_path is missing in auth_configurations table");
+    throw new Error("[auth] auth_roles_path is missing in config_entries table");
   }
 
   // In GATEWAY mode, ALL gateway fields are mandatory — no fake defaults.
@@ -114,7 +114,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
     for (const key of requiredGatewayFields) {
       if (!settings[key]) {
         throw new Error(
-          `[auth] ${key} is missing or empty in auth_configurations table (required in GATEWAY mode)`
+          `[auth] ${key} is missing or empty in config_entries table (required in GATEWAY mode)`
         );
       }
     }
@@ -131,7 +131,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
     for (const key of requiredOidcFields) {
       if (!settings[key]) {
         throw new Error(
-          `[auth] ${key} is missing or empty in auth_configurations table (required in STANDALONE mode)`
+          `[auth] ${key} is missing or empty in config_entries table (required in STANDALONE mode)`
         );
       }
     }
@@ -174,6 +174,6 @@ export async function updateAuthConfig(
   value: string,
   updatedBy: string = "system"
 ): Promise<void> {
-  const dal = new AuthConfigurationsDal(pool);
+  const dal = new ConfigEntriesDal(pool);
   await dal.upsert(key, value, updatedBy);
 }

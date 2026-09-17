@@ -1,7 +1,7 @@
 /**
  * Password policy module — enum, regex configs, and helpers.
  *
- * The active policy is stored in the `auth_configurations` table under key
+ * The active policy is stored in the `config_entries` table under key
  * `password_policy`. The DB value is the lowercase string matching the enum
  * (e.g. "letter_number_special").
  *

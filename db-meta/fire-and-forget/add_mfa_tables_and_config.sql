@@ -56,7 +56,7 @@ CREATE INDEX IF NOT EXISTS "mfa_action_authorizations_expires_at_idx" ON "public
 COMMENT ON TABLE public.mfa_action_authorizations IS 'Single-use action authorization tokens for step-up MFA';
 
 -- 3. Seed MFA config keys (idempotent — ON CONFLICT DO NOTHING)
-INSERT INTO "public"."auth_configurations" ("key", "value", "description", "created_by") VALUES
+INSERT INTO "public"."config_entries" ("key", "value", "description", "created_by") VALUES
 ('enable_mfa', 'true', 'Abilita il sistema MFA / 2FA (login MFA + step-up MFA). Se false, il login non richiede mai MFA e il middleware step-up passa attraverso (true/false).', 'system'),
 ('mfa_challenge_token_ttl_seconds', '300', 'TTL in secondi per i token di challenge MFA (login, step-up, action authorization). Default 300 = 5 minuti.', 'system'),
 ('mfa_challenge_signing_secret', '', 'HMAC secret per firmare i JWT di challenge MFA. Auto-generato (32 random bytes hex) al primo utilizzo se vuoto.', 'system')

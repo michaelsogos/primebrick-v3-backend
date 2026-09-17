@@ -1,5 +1,5 @@
 /**
- * `auth_configurations` — key/value store for all authentication configuration.
+ * `config_entries` — key/value store for all authentication configuration.
  *
  * Every OIDC, Casdoor, gateway, and auth-mode setting is stored here as a
  * single row keyed by `key` (e.g. "oidc_issuer_url", "auth_mode"). The value
@@ -31,10 +31,10 @@ import {
 } from "@primebrick/dal-pg";
 import { Cached } from "@primebrick/sdk";
 
-@Entity("auth_configurations")
+@Entity("config_entries")
 @AuditTrail()
 @Cached(300_000) // 5 min TTL — same as other cached entities
-export class AuthConfigurationEntity implements IAuditableEntity {
+export class ConfigEntryEntity implements IAuditableEntity {
   @Key()
   id: bigint;
 

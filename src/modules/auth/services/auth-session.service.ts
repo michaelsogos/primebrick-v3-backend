@@ -133,7 +133,7 @@ export class AuthSessionService {
     };
     const claims = this.decodeJwtPayload(data.access_token);
 
-    // Email-verified guard — gated by auth_configurations flag.
+    // Email-verified guard — gated by config_entries flag.
     if (cfg.enable_email_verification_check && claims.emailVerified === false) {
       throw new UnauthorizedError("The user email isn't verified yet", {
         internal_code: "email_not_verified",

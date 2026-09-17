@@ -1,5 +1,5 @@
 /**
- * DAL for `auth_configurations` — key/value store for all auth config.
+ * DAL for `config_entries` — key/value store for all auth config.
  *
  * Wraps the `Repository` from `@primebrick/dal-pg`. Exposes standard CRUD/finder
  * methods only — no custom non-standard finders, no raw SQL strings.
@@ -8,15 +8,15 @@
 import type { Pool } from "pg";
 import { field, Filter, Sort, buildAuditableJoinsSelective } from "@primebrick/dal-pg";
 import { type CacheEntry, wrapCacheEntry } from "@primebrick/sdk";
-import { AuthConfigurationEntity } from "./auth_configuration_entity.js";
+import { ConfigEntryEntity } from "./config_entry_entity.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
 import { createRepository } from "../../db/repository-factory.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
 
-const LIST_CACHE_KEY = "dal:auth_configurations:list";
+const LIST_CACHE_KEY = "dal:config_entries:list";
 const LIST_CACHE_TTL = 300_000; // 5 min — same as entity TTL
 
-export class AuthConfigurationsDal {
+export class ConfigEntriesDal {
   private repo: ReturnType<typeof createRepository>;
   private pool: Pool;
 
@@ -30,7 +30,7 @@ export class AuthConfigurationsDal {
    * Returns the raw entity rows — the caller reduces them into a key/value map.
    * Uses a manual list cache (Redis) with ETag support.
    */
-  async findAll(): Promise<AuthConfigurationEntity[]> {
+  async findAll(): Promise<ConfigEntryEntity[]> {
     const entry = await this.findAllWithCache();
     return entry.data;
   }
@@ -39,34 +39,34 @@ export class AuthConfigurationsDal {
    * Same as `findAll` but returns the full `CacheEntry` (data + etag).
    * Used by the ETag middleware to answer conditional GET requests.
    */
-  async findAllWithCache(): Promise<CacheEntry<AuthConfigurationEntity[]>> {
+  async findAllWithCache(): Promise<CacheEntry<ConfigEntryEntity[]>> {
     const port = getCachePort();
     if (port) {
       try {
-        const cached = await port.get<CacheEntry<AuthConfigurationEntity[]>>(LIST_CACHE_KEY);
+        const cached = await port.get<CacheEntry<ConfigEntryEntity[]>>(LIST_CACHE_KEY);
         if (cached && typeof cached === "object" && "data" in cached && "etag" in cached) {
           return cached;
         }
       } catch { /* best-effort — fall through to DB */ }
     }
 
-    const rows = await this.repo.findAll<AuthConfigurationEntity, AuthConfigurationEntity>(
-      AuthConfigurationEntity,
+    const rows = await this.repo.findAll<ConfigEntryEntity, ConfigEntryEntity>(
+      ConfigEntryEntity,
       null,
       {
         deletedRecords: "EXCLUDED",
         sorting: [
-          Sort.by(field(AuthConfigurationEntity, "group_key" as any), "ASC"),
-          Sort.by(field(AuthConfigurationEntity, "key" as any), "ASC"),
+          Sort.by(field(ConfigEntryEntity, "group_key" as any), "ASC"),
+          Sort.by(field(ConfigEntryEntity, "key" as any), "ASC"),
         ],
-        joins: buildAuditableJoinsSelective(AuthConfigurationEntity, UserProfileEntity, {
+        joins: buildAuditableJoinsSelective(ConfigEntryEntity, UserProfileEntity, {
           includeCreator: false,
           includeUpdater: true,
           includeDeleter: false,
         }),
       }
     );
-    const result = rows as AuthConfigurationEntity[];
+    const result = rows as ConfigEntryEntity[];
     const entry = wrapCacheEntry(result);
     if (port) {
       try {
@@ -80,14 +80,14 @@ export class AuthConfigurationsDal {
    * Find a single config row by key.
    * Returns `null` if not found.
    */
-  async findByKey(key: string): Promise<AuthConfigurationEntity | null> {
-    return this.repo.find<AuthConfigurationEntity, AuthConfigurationEntity>(
-      AuthConfigurationEntity,
+  async findByKey(key: string): Promise<ConfigEntryEntity | null> {
+    return this.repo.find<ConfigEntryEntity, ConfigEntryEntity>(
+      ConfigEntryEntity,
       null,
       {
         filters: [
           Filter.fieldValue(
-            field(AuthConfigurationEntity, "key" as any),
+            field(ConfigEntryEntity, "key" as any),
             "=",
             key
           ),
@@ -102,9 +102,9 @@ export class AuthConfigurationsDal {
    * Find a single config row by uuid.
    * Returns `null` if not found.
    */
-  async findByUuid(uuid: string): Promise<AuthConfigurationEntity | null> {
-    return this.repo.findByUUID<AuthConfigurationEntity, AuthConfigurationEntity>(
-      AuthConfigurationEntity,
+  async findByUuid(uuid: string): Promise<ConfigEntryEntity | null> {
+    return this.repo.findByUUID<ConfigEntryEntity, ConfigEntryEntity>(
+      ConfigEntryEntity,
       uuid,
       { deletedRecords: "EXCLUDED", throwIfNotFound: false }
     );
@@ -130,9 +130,9 @@ export class AuthConfigurationsDal {
       reserved?: boolean;
     },
     updatedBy: string
-  ): Promise<AuthConfigurationEntity> {
+  ): Promise<ConfigEntryEntity> {
     const row = await this.repo.add(
-      AuthConfigurationEntity,
+      ConfigEntryEntity,
       {
         key: params.key,
         value: params.value,
@@ -148,7 +148,7 @@ export class AuthConfigurationsDal {
       { actor: updatedBy }
     );
     await this.reloadCache();
-    return row as AuthConfigurationEntity;
+    return row as ConfigEntryEntity;
   }
 
   /**
@@ -165,7 +165,7 @@ export class AuthConfigurationsDal {
     const existing = await this.findByKey(key);
     if (!existing) {
       await this.repo.add(
-        AuthConfigurationEntity,
+        ConfigEntryEntity,
         {
           key,
           value,
@@ -176,7 +176,7 @@ export class AuthConfigurationsDal {
       );
     } else {
       await this.repo.update(
-        AuthConfigurationEntity,
+        ConfigEntryEntity,
         {
           id: existing.id,
           value,
@@ -258,8 +258,8 @@ export class AuthConfigurationsDal {
     // Only write if there's something to update (not just id).
     if (Object.keys(updateEntity).length > 1) {
       await this.repo.update(
-        AuthConfigurationEntity,
-        updateEntity as Partial<AuthConfigurationEntity> & { id: bigint },
+        ConfigEntryEntity,
+        updateEntity as Partial<ConfigEntryEntity> & { id: bigint },
         { actor: updatedBy }
       );
       await this.reloadCache();
@@ -307,13 +307,13 @@ export class AuthConfigurationsDal {
     // only used for value-only updates in the current flow.
 
     await this.repo.updateMany(
-      AuthConfigurationEntity,
+      ConfigEntryEntity,
       updates.map((u) => {
         const entity: Record<string, unknown> = { id: u.id };
         if (u.value !== undefined) entity.value = u.value;
         if (u.type !== undefined) entity.type = u.type;
         if (u.type_config !== undefined) entity.type_config = u.type_config;
-        return entity as Partial<AuthConfigurationEntity> & { id: bigint };
+        return entity as Partial<ConfigEntryEntity> & { id: bigint };
       }),
       { actor: updatedBy, matchBy: "id" }
     );
@@ -336,7 +336,7 @@ export class AuthConfigurationsDal {
       throw new ReservedConfigError(existing.key);
     }
     await this.repo.delete(
-      AuthConfigurationEntity,
+      ConfigEntryEntity,
       { id: existing.id },
       { actor: deletedBy }
     );
@@ -350,7 +350,7 @@ export class AuthConfigurationsDal {
    * Throws if any row is not found or is reserved.
    */
   async bulkSoftDelete(uuids: string[], deletedBy: string): Promise<void> {
-    const rows: AuthConfigurationEntity[] = [];
+    const rows: ConfigEntryEntity[] = [];
     for (const uuid of uuids) {
       const row = await this.findByUuid(uuid);
       if (!row) {
@@ -363,7 +363,7 @@ export class AuthConfigurationsDal {
     }
     for (const row of rows) {
       await this.repo.delete(
-        AuthConfigurationEntity,
+        ConfigEntryEntity,
         { id: row.id },
         { actor: deletedBy }
       );
@@ -377,8 +377,8 @@ export class AuthConfigurationsDal {
    * Throws if the row is not found.
    */
   async restore(uuid: string, updatedBy: string): Promise<void> {
-    const existing = await this.repo.findByUUID<AuthConfigurationEntity, AuthConfigurationEntity>(
-      AuthConfigurationEntity,
+    const existing = await this.repo.findByUUID<ConfigEntryEntity, ConfigEntryEntity>(
+      ConfigEntryEntity,
       uuid,
       { deletedRecords: "INCLUDED", throwIfNotFound: false }
     );
@@ -386,7 +386,7 @@ export class AuthConfigurationsDal {
       throw new Error(`Auth config row with uuid ${uuid} not found`);
     }
     await this.repo.restore(
-      AuthConfigurationEntity,
+      ConfigEntryEntity,
       { id: existing.id },
       { actor: updatedBy }
     );
@@ -397,8 +397,8 @@ export class AuthConfigurationsDal {
    * Reload the SDK's in-memory auth config cache from the DB.
    *
    * Uses a dynamic import to break the static circular dependency:
-   *   auth_configurations_dal.ts → config.ts → sdk-auth-ports.ts
-   *     → config-repo.ts → auth_configurations_dal.ts
+   *   config_entries_dal.ts → config.ts → sdk-auth-ports.ts
+   *     → config-repo.ts → config_entries_dal.ts
    *
    * If the reload fails, the previous cache is left intact (loadAuthConfig
    * only overwrites `cached` on success), so the server keeps running with
@@ -417,7 +417,7 @@ export class AuthConfigurationsDal {
       await loadAuthConfig(this.pool);
     } catch (err) {
       console.warn(
-        "[AuthConfigurationsDal] Failed to reload auth config cache after write. " +
+        "[ConfigEntriesDal] Failed to reload auth config cache after write. " +
           "The DB was updated but the in-memory cache is stale — restart the server to pick up the change.",
         err,
       );

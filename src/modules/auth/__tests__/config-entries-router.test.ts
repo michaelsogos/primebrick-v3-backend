@@ -17,8 +17,8 @@ vi.mock("../../../db/pool.js", () => ({
   getPool: vi.fn(() => ({})),
 }));
 
-vi.mock("../auth_configurations_dal.js", () => ({
-  AuthConfigurationsDal: vi.fn().mockImplementation(function () { return mockDal; }),
+vi.mock("../config_entries_dal.js", () => ({
+  ConfigEntriesDal: vi.fn().mockImplementation(function () { return mockDal; }),
   ReservedConfigError: class ReservedConfigError extends Error {
     readonly key: string;
     readonly internal_code = "reserved_config_cannot_be_deleted";
@@ -60,7 +60,7 @@ vi.mock("../../../db/audit-query-helper.js", () => ({
 }));
 
 // ─── Import after mocks ─────────────────────────────────────────────────────
-import { ReservedConfigTypeError } from "../auth_configurations_dal.js";
+import { ReservedConfigTypeError } from "../config_entries_dal.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function makeRow(overrides: Partial<Record<string, unknown>> = {}) {
@@ -86,7 +86,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("AuthConfigurationsDal.update — reserved-row rule", () => {
+describe("ConfigEntriesDal.update — reserved-row rule", () => {
   // These tests verify the DAL's reserved-row enforcement directly.
   // We re-import the real DAL here (not the mock) by using a separate test file
   // pattern. However, since we mocked the DAL above, we test the router's

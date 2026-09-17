@@ -9,7 +9,7 @@
 
 BEGIN;
 
-UPDATE public.auth_configurations
+UPDATE public.config_entries
 SET value = 'onnx-community/granite-4.0-micro-ONNX-web#q4f16',
     updated_at = NOW(),
     updated_by = 'system_empirical_test',

@@ -1,6 +1,6 @@
 /**
  * `user_profiles` entity metadata — the JSON returned by
- * `GET /api/v1/entities/user_profiles/meta`.
+ * `GET /api/v1/entities/user_profile/meta`.
  *
  * Pure data, no logic. Extracted verbatim from the inline block that used to
  * live in `router.ts` so the meta is scannable and reusable (mirrors the
@@ -8,7 +8,7 @@
  */
 
 export const userProfileMeta = {
-  entity: "user_profiles",
+  entity: "user_profile",
   translationKey: "user_profile",
   titleKey: "system.entities.user_profile.title",
   updatePageTitle: "${display_name}",

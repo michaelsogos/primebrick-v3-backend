@@ -1,6 +1,6 @@
 /**
  * `config_entries` entity metadata — the JSON returned by
- * `GET /api/v1/entities/config_entries/meta`.
+ * `GET /api/v1/entities/config_entry/meta`.
  *
  * The config list UI is NOT a standard EntityListTable — it renders a list of
  * rows with title/description on the left, a dynamic input in the center, and
@@ -12,9 +12,9 @@
  * widget selection directly — they are NOT part of this static meta.
  */
 export const configEntriesMeta = {
-  entity: "config_entries",
+  entity: "config_entry",
   translationKey: "config_entry",
-  titleKey: "system.settings.security.title",
+  titleKey: "system.settings.configurations.title",
   uid: "uuid",
   list: {
     columns: [

@@ -307,7 +307,7 @@ export class UserService {
   }
 
   /**
-   * Admin-side profile update (`PUT /api/v1/entities/user_profiles/:uuid`).
+   * Admin-side profile update (`PUT /api/v1/entities/user_profile/:uuid`).
    * Syncs display_name / email / avatar / roles to Casdoor first (non-best-
    * effort), then updates the local DB.
    */
@@ -347,7 +347,7 @@ export class UserService {
           502,
           "Failed to sync profile to Casdoor™",
           {
-            instance: "/api/v1/entities/user_profiles/:uuid",
+            instance: "/api/v1/entities/user_profile/:uuid",
             internal_code: "CASDOOR_SYNC_FAILED",
             severity: "HIGH",
           },

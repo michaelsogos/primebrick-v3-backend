@@ -318,7 +318,7 @@ async function runStartupTasks(): Promise<void> {
 }
 
 /**
- * Initialize the Redis cache from `redis_url` in auth_configurations.
+ * Initialize the Redis cache from `redis_url` in config_entries.
  * Runs after refreshAuthConfig() so the config is loaded.
  * Redis is mandatory — if redis_url is set but Redis is unreachable, retry
  * every 5s (same pattern as refreshRoleMappings and refreshAuthConfig).
@@ -338,7 +338,7 @@ async function initCacheFromConfig(): Promise<void> {
 }
 
 /**
- * Initialize the Redis presence store from `redis_url` in auth_configurations.
+ * Initialize the Redis presence store from `redis_url` in config_entries.
  * Runs after refreshAuthConfig() so the config is loaded.
  * Redis is mandatory — if redis_url is set but Redis is unreachable, retry
  * every 5s (same pattern as refreshRoleMappings and refreshAuthConfig).

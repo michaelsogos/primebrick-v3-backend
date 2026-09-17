@@ -4,13 +4,13 @@
  * Two endpoint sets coexist:
  *
  * 1. Entity-pattern endpoints (used by the FE EntityListTable), keyed by :uuid:
- *    GET    /api/v1/entities/role_mappings/meta           → entity metadata
- *    GET    /api/v1/entities/role_mappings/list            → paginated list
- *    GET    /api/v1/entities/role_mappings/:uuid           → single record
- *    POST   /api/v1/entities/role_mappings                 → create (Casdoor + local)
- *    PUT    /api/v1/entities/role_mappings/:uuid           → update (Casdoor + local)
- *    DELETE /api/v1/entities/role_mappings/:uuid           → delete (Casdoor + local)
- *    GET    /api/v1/entities/role_mappings/:uuid/audit     → audit history
+ *    GET    /api/v1/entities/role_mapping/meta           → entity metadata
+ *    GET    /api/v1/entities/role_mapping/list            → paginated list
+ *    GET    /api/v1/entities/role_mapping/:uuid           → single record
+ *    POST   /api/v1/entities/role_mapping                 → create (Casdoor + local)
+ *    PUT    /api/v1/entities/role_mapping/:uuid           → update (Casdoor + local)
+ *    DELETE /api/v1/entities/role_mapping/:uuid           → delete (Casdoor + local)
+ *    GET    /api/v1/entities/role_mapping/:uuid/audit     → audit history
  *
  * 2. Legacy system-path endpoints (used by the FE create/edit forms), keyed by
  *    :idp_role (the Casdoor role name):
@@ -179,45 +179,45 @@ export function roleMappingsRouter() {
     // --- Entity-pattern routes (keyed by :uuid) ---
     {
       method: "get",
-      path: "/api/v1/entities/role_mappings/meta",
+      path: "/api/v1/entities/role_mapping/meta",
       permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_ALL, Permission.ROLE_MAPPINGS_READ_SINGLE]),
       handler: getMeta,
     },
     {
       method: "get",
-      path: "/api/v1/entities/role_mappings/list",
+      path: "/api/v1/entities/role_mapping/list",
       permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_ALL]),
       handler: entityList,
     },
     {
       method: "get",
-      path: "/api/v1/entities/role_mappings/:uuid",
+      path: "/api/v1/entities/role_mapping/:uuid",
       permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_SINGLE]),
       handler: entityGetSingle,
     },
     {
       method: "post",
-      path: "/api/v1/entities/role_mappings",
+      path: "/api/v1/entities/role_mapping",
       permission: rbacHandler([Permission.ROLE_MAPPINGS_CREATE]),
       middlewares: [validateBody(CreateBodySchema)],
       handler: entityCreate,
     },
     {
       method: "put",
-      path: "/api/v1/entities/role_mappings/:uuid",
+      path: "/api/v1/entities/role_mapping/:uuid",
       permission: rbacHandler([Permission.ROLE_MAPPINGS_UPDATE]),
       middlewares: [validateBody(UpdateBodySchema)],
       handler: entityUpdate,
     },
     {
       method: "delete",
-      path: "/api/v1/entities/role_mappings/:uuid",
+      path: "/api/v1/entities/role_mapping/:uuid",
       permission: rbacHandler([Permission.ROLE_MAPPINGS_DELETE]),
       handler: entityRemove,
     },
     {
       method: "get",
-      path: "/api/v1/entities/role_mappings/:uuid/audit",
+      path: "/api/v1/entities/role_mapping/:uuid/audit",
       permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_AUDIT]),
       handler: entityGetAudit,
     },
