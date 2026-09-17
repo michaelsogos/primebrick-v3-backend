@@ -88,11 +88,12 @@ export type AiModelListQuery = z.infer<typeof AiModelListQuerySchema>;
 
 const AiModelBaseSchema = z.object({
   model_id: z.string().min(1).max(100),
+  dtype: z.string().min(1).max(20).optional(),
+  engine_type: z.enum(["webllm", "onnx"]).default("webllm"),
   name: z.string().min(1).max(100),
   label_key: z.string().min(1).max(200).optional(),
   description_key: z.string().min(1).max(200).optional(),
   power_level: z.number().int().min(1).max(5).default(3),
-  affidability: z.number().int().min(1).max(5).default(1),
   rank: z.number().min(0).max(5).default(1.0),
   test_scores: z.record(z.string(), z.any()).optional(),
   is_enabled: z.boolean().default(true),
@@ -105,6 +106,7 @@ const AiModelBaseSchema = z.object({
   download_size_mb: z.number().int().min(0).optional(),
   vram_mb: z.number().min(0).optional(),
   compatibility_status: z.enum(["COMPATIBLE", "NOT_COMPATIBLE", "UNTESTED"]).default("UNTESTED"),
+  execution_config: z.record(z.string(), z.any()).optional(),
 });
 
 export const AiModelCreateBodySchema = AiModelBaseSchema;

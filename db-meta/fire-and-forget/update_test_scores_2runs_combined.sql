@@ -4,7 +4,6 @@
 -- Scoring method: weighted_mean_with_consistency (combined 2 runs)
 --   score = mean(all_runs) * 0.6 + (success_count / total_turns) * 5 * 0.4
 --   where success = per-turn score >= 4
---   affidability = ceil(total_success / total_turns * 5), min 1
 --   rank = rounded score (1 decimal)
 --
 -- Combined runs: 8 turns total (4 per run)
@@ -32,7 +31,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 2,
   rank = '1.7'
 WHERE uuid = '07f78259-ae89-419e-b36d-45d8750d9442';
 
@@ -57,7 +55,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 4,
   rank = '3.6'
 WHERE uuid = '75abab16-83b5-45bf-a582-41e96ff615d7';
 
@@ -82,7 +79,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 1,
   rank = '0.9'
 WHERE uuid = 'e97f9fab-4ef1-4f47-967b-83c61758e12e';
 
@@ -107,7 +103,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 5,
   rank = '4.9'
 WHERE uuid = '86a8c42a-2d60-454a-b499-fcf45e028ac7';
 
@@ -132,7 +127,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 2,
   rank = '2.2'
 WHERE uuid = '438d4df0-6154-4762-ac9c-40f03b960cbc';
 
@@ -157,7 +151,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 5,
   rank = '4.5'
 WHERE uuid = '982dcd5a-bc1c-4e2e-81d6-81c735ab969b';
 
@@ -184,7 +177,6 @@ UPDATE ai_models SET
       'crash_note', 'Run 2: model crashed/stalled after turn 2, possibly due to WebGPU reload. Turns 3-4 produced no response.'
     )
   ),
-  affidability = 4,
   rank = '3.4'
 WHERE uuid = '17968455-0425-4cfe-b1db-1d4a540cf351';
 

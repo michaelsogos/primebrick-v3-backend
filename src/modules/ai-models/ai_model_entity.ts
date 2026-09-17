@@ -35,10 +35,22 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   @Unique()
   uuid: string;
 
-  /** Exact WebLLM model ID passed to `CreateMLCEngine` (e.g. `Qwen3-1.7B-q4f16_1-MLC`). */
+  /** Exact model ID passed to the inference engine.
+   *  For WebLLM: `Qwen3-1.7B-q4f16_1-MLC` (passed to `CreateMLCEngine`).
+   *  For Transformers.js: `onnx-community/Qwen3-1.7B-ONNX` (HF repo ID). */
   @Unique()
   @Column({ length: 100, nullable: false })
   model_id: string;
+
+  /** ONNX quantization dtype for Transformers.js models (e.g. `q4f16`, `fp16`, `int8`, `q8`).
+   *  NULL for WebLLM models (which encode quantization in the model_id). */
+  @Column({ length: 20, nullable: true })
+  dtype?: string;
+
+  /** Inference engine type: `webllm` or `transformers_js`.
+   *  Drives the FE to use the correct worker/composable path. */
+  @Column({ length: 20, nullable: false, defaultSql: "'webllm'" })
+  engine_type: string;
 
   /** Short display name (e.g. `Qwen3 1.7B`) — language-neutral, not translated. */
   @Column({ length: 100, nullable: false })
@@ -56,13 +68,13 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   @Column({ nullable: false, defaultSql: "3" })
   power_level: number;
 
-  /** Affidability 1-5 — derived from test_scores final_score (round).
-   *  Measures model reliability, independent from power_level. */
-  @Column({ nullable: false, defaultSql: "1" })
-  affidability: number;
-
-  /** Composite rank 0.0-5.0 — round((affidability * 0.7 + power_level * 0.3) * 10) / 10.
-   *  Affidability weighs 70%, power 30%. */
+  /** Quality rank 0.0-5.0 — speed-aware refined test score:
+   *  quality*0.8 + speed*0.2, where
+   *  quality = mean(runs)*0.6 + (success_count/total_turns)*5*0.4
+   *  (success = turn >= 4) and speed = mean per-turn score from real
+   *  response_s (<=3s→5 … <=60s→1, timeout→0). >=2 timeouts of 5 turns
+   *  => NOT_COMPATIBLE. power_level is not part of rank.
+   *  See docs/modules/ai-models.md for the full scoring spec. */
   @Column({ nullable: false, defaultSql: "1.0" })
   rank: number;
 
@@ -110,6 +122,12 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   /** Compatibility status: COMPATIBLE, NOT_COMPATIBLE, UNTESTED. */
   @Column({ length: 30, nullable: false, defaultSql: "'UNTESTED'" })
   compatibility_status: string;
+
+  /** Execution config — drives the FE worker cache behavior.
+   *  Set empirically by the test harness. NULL = safe fallback (no KV cache reuse).
+   *  JSONB: { kv_cache_reuse, sliding_window, max_history_turns, intent_detection } */
+  @Column({ pgType: "jsonb", nullable: true })
+  execution_config?: Record<string, any>;
 
   @AuditableField(AuditableFieldType.CREATED_AT)
   created_at: Date;

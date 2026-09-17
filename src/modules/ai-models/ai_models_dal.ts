@@ -40,7 +40,6 @@ export type AiModelDetailRow = {
   label_key?: string;
   description_key?: string;
   power_level: number;
-  affidability: number;
   rank: number;
   test_scores?: Record<string, any>;
   is_enabled: boolean;
@@ -53,6 +52,9 @@ export type AiModelDetailRow = {
   download_size_mb?: number;
   vram_mb?: number;
   compatibility_status: string;
+  dtype?: string;
+  engine_type?: string;
+  execution_config?: Record<string, any>;
   created_at: Date;
   created_by: string;
   updated_at: Date;
@@ -79,7 +81,6 @@ function projectAllExceptId(): FieldProjector[] {
     "label_key",
     "description_key",
     "power_level",
-    "affidability",
     "rank",
     "test_scores",
     "is_enabled",
@@ -92,6 +93,9 @@ function projectAllExceptId(): FieldProjector[] {
     "download_size_mb",
     "vram_mb",
     "compatibility_status",
+    "dtype",
+    "engine_type",
+    "execution_config",
     "created_at",
     "created_by",
     "updated_at",
@@ -295,7 +299,6 @@ export class AiModelsDal {
         label_key: body.label_key,
         description_key: body.description_key,
         power_level: body.power_level,
-        affidability: body.affidability,
         rank: body.rank,
         test_scores: body.test_scores,
         is_enabled: body.is_enabled,
@@ -308,6 +311,9 @@ export class AiModelsDal {
         download_size_mb: body.download_size_mb,
         vram_mb: body.vram_mb,
         compatibility_status: body.compatibility_status,
+        dtype: body.dtype,
+        engine_type: body.engine_type,
+        execution_config: body.execution_config,
       },
       { actor, audit: this.auditPort }
     );

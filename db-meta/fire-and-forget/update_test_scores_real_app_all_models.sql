@@ -1,10 +1,9 @@
--- Fire-and-forget migration: update test_scores, affidability, rank for all 7 compatible models
+-- Fire-and-forget migration: update test_scores and rank for all 7 compatible models
 -- based on empirical real-app e2e testing (4-turn Smart Regex conversation).
 --
 -- Scoring method: weighted_mean_with_consistency
 --   score = mean(runs) * 0.6 + (success_count / total_turns) * 5 * 0.4
 --   where success = per-turn score >= 4
---   affidability = success_count (1-5 scale based on how many of 4 turns succeeded)
 --   rank = rounded score (1 decimal)
 --
 -- This replaces the previous pure-mean method that failed to distinguish
@@ -29,7 +28,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 2,
   rank = '1.7'
 WHERE uuid = '07f78259-ae89-419e-b36d-45d8750d9442';
 
@@ -50,7 +48,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 5,
   rank = '5.0'
 WHERE uuid = '75abab16-83b5-45bf-a582-41e96ff615d7';
 
@@ -71,7 +68,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 1,
   rank = '0.9'
 WHERE uuid = 'e97f9fab-4ef1-4f47-967b-83c61758e12e';
 
@@ -92,7 +88,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 5,
   rank = '4.7'
 WHERE uuid = '86a8c42a-2d60-454a-b499-fcf45e028ac7';
 
@@ -113,7 +108,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 2,
   rank = '2.2'
 WHERE uuid = '438d4df0-6154-4762-ac9c-40f03b960cbc';
 
@@ -134,7 +128,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 4,
   rank = '4.1'
 WHERE uuid = '982dcd5a-bc1c-4e2e-81d6-81c735ab969b';
 
@@ -155,7 +148,6 @@ UPDATE ai_models SET
       'test_prompts', '["solo lettere e numeri","con anche punti, virgole e punto virgola","aggiungi il trattino","ora aggiungi anche underscore e punto"]'
     )
   ),
-  affidability = 5,
   rank = '5.0'
 WHERE uuid = '17968455-0425-4cfe-b1db-1d4a540cf351';
 

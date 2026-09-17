@@ -19,7 +19,6 @@ UPDATE ai_models SET
       'test_source', 'webllm_harness_3scenarios + real_app_e2e'
     )
   ),
-  affidability = 2,
   rank = 1.7,
   updated_at = NOW(),
   version = version + 1
@@ -36,7 +35,6 @@ UPDATE ai_models SET
       'test_source', 'webllm_harness_3scenarios + real_app_e2e'
     )
   ),
-  affidability = 4,
   rank = 4.0,
   updated_at = NOW(),
   version = version + 1

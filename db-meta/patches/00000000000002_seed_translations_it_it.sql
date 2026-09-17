@@ -2,7 +2,7 @@
 -- Generated from original i18n JSON files (commit f9b1338~1)
 -- Key reorganization applied: auth.* → app.auth.*, shell.* → app.*/system.*, etc.
 -- This file is UTF-8 encoded
--- Public rows: 408, System rows: 769
+-- Public rows: 408, System rows: 772
 
 -- === public.translations (app.* keys) ===
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES ('app.title', 'it-IT', 'Primebrick', '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1) ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
@@ -1290,3 +1290,6 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES ('app.smart.regex.summary.quant_exactly', 'it-IT', 'esattamente {n}', '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1) ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES ('app.smart.regex.summary.quant_at_least', 'it-IT', 'almeno {n}', '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1) ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES ('app.smart.regex.summary.quant_between', 'it-IT', 'tra {min} e {max}', '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1) ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES ('system.entities.ai_model.fields.speed', 'it-IT', 'Velocità', '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1) ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES ('system.entities.ai_model.speed.explanation', 'it-IT', 'La velocità è la media dei punteggi assegnati al tempo reale di risposta di ogni turno di test.', '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1) ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES ('system.entities.ai_model.speed.avg_response', 'it-IT', 'Tempo medio di risposta', '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1) ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;

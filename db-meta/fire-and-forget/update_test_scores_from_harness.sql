@@ -1,4 +1,4 @@
--- Update test_scores, affidability, and rank for all 7 AI models based on
+-- Update test_scores and rank for all 7 AI models based on
 -- WebLLM KV cache test harness results (7 models, 3 scenarios, 5 turns each).
 --
 -- Score mapping (1-5 scale per scenario):
@@ -12,7 +12,7 @@
 -- 5 runs: [Scenario A, Scenario B, Scenario C, Best scenario, Overall correctness]
 -- Score = mean(runs)
 -- Affidability = round(score) (1-5)
--- Rank = round((affidability * 0.7 + power_level * 0.3) * 10) / 10
+-- Rank = final test score rounded to 1 decimal
 --
 -- Test date: 2026-09-11
 -- Harness: D:\git\primebrick\temp\kv-test\index.html
@@ -28,7 +28,6 @@ UPDATE ai_models SET
       'updated_at', '2026-09-11T22:45:00Z'
     )
   ),
-  affidability = 1,
   rank = 1.0,
   updated_at = NOW(),
   version = version + 1
@@ -44,7 +43,6 @@ UPDATE ai_models SET
       'updated_at', '2026-09-11T22:45:00Z'
     )
   ),
-  affidability = 4,
   rank = 3.1,
   updated_at = NOW(),
   version = version + 1
@@ -60,7 +58,6 @@ UPDATE ai_models SET
       'updated_at', '2026-09-11T22:45:00Z'
     )
   ),
-  affidability = 2,
   rank = 1.7,
   updated_at = NOW(),
   version = version + 1
@@ -76,7 +73,6 @@ UPDATE ai_models SET
       'updated_at', '2026-09-11T22:45:00Z'
     )
   ),
-  affidability = 3,
   rank = 3.0,
   updated_at = NOW(),
   version = version + 1
@@ -92,7 +88,6 @@ UPDATE ai_models SET
       'updated_at', '2026-09-11T22:45:00Z'
     )
   ),
-  affidability = 2,
   rank = 2.3,
   updated_at = NOW(),
   version = version + 1
@@ -108,7 +103,6 @@ UPDATE ai_models SET
       'updated_at', '2026-09-11T22:45:00Z'
     )
   ),
-  affidability = 4,
   rank = 4.0,
   updated_at = NOW(),
   version = version + 1
@@ -124,7 +118,6 @@ UPDATE ai_models SET
       'updated_at', '2026-09-11T22:45:00Z'
     )
   ),
-  affidability = 4,
   rank = 4.0,
   updated_at = NOW(),
   version = version + 1

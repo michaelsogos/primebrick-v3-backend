@@ -9,6 +9,7 @@ These files help humans and agents collaborate consistently on the **Primebrick 
 | Root [`../../AGENTS.md`](../../AGENTS.md) | Project facts, commands, and pointers |
 | Root [`../../CLAUDE.md`](../../CLAUDE.md) | Short pointer to `AGENTS.md` |
 | [`../modules/auth-rbac.md`](../modules/auth-rbac.md) | Auth & RBAC module — env vars, Casdoor™ bootstrap, session context, route wiring, role mappings |
+| [`../modules/ai-models.md`](../modules/ai-models.md) | AI models registry — scoring formulas (quality/speed/rank), test protocols, execution_config, compatibility lifecycle |
 
 **Start here for agents:** read root `AGENTS.md`, then `SKILLS.md`. For the
 auth/RBAC module specifically, see [`../modules/auth-rbac.md`](../modules/auth-rbac.md).

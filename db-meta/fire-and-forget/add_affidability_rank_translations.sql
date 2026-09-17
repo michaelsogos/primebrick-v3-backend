@@ -1,14 +1,5 @@
--- Add translations for new ai_model fields: affidability, rank, test_scores
+-- Add translations for the ai_model rank and test_scores fields.
 -- All 6 languages.
-
-INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
-  ('system.entities.ai_model.fields.affidability', 'en-GB', 'Affidability', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.entities.ai_model.fields.affidability', 'it-IT', 'Affidabilità', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.entities.ai_model.fields.affidability', 'fr-FR', 'Fiabilité', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.entities.ai_model.fields.affidability', 'es-ES', 'Confiabilidad', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.entities.ai_model.fields.affidability', 'de-DE', 'Zuverlässigkeit', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.entities.ai_model.fields.affidability', 'pt-PT', 'Confiabilidade', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_model.fields.rank', 'en-GB', 'Rank', now(), 'initial-setup', now(), 'initial-setup', 1),

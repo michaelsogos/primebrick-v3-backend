@@ -52,6 +52,22 @@ const auditingKeySet = new Set<string>(AI_MODEL_AUDITING_COLUMN_KEYS);
 
 export const AI_MODEL_LIST_COLUMNS: AiModelListColumn[] = [
   { key: "model_id", labelKey: "system.entities.ai_model.fields.model_id", type: "text", sortable: true, hideable: false, filterable: true },
+  {
+    key: "engine_type",
+    labelKey: "system.entities.ai_model.fields.engine_type",
+    type: "badge",
+    sortable: true,
+    searchable: false,
+    defaultVisible: true,
+    filterable: true,
+    badge: {
+      values: {
+        webllm: { labelKey: "system.entities.ai_model.engine_type.webllm", color: "zinc-300" },
+        onnx: { labelKey: "system.entities.ai_model.engine_type.onnx", color: "violet-300" },
+      },
+    },
+  },
+  { key: "dtype", labelKey: "system.entities.ai_model.fields.dtype", type: "text", sortable: true, defaultVisible: true },
   { key: "name", labelKey: "system.entities.ai_model.fields.name", type: "text", sortable: true, filterable: true },
   {
     key: "power_level",
@@ -68,23 +84,6 @@ export const AI_MODEL_LIST_COLUMNS: AiModelListColumn[] = [
         "3": { labelKey: "system.entities.ai_model.power_level.3", color: "emerald-300" },
         "4": { labelKey: "system.entities.ai_model.power_level.4", color: "amber-300" },
         "5": { labelKey: "system.entities.ai_model.power_level.5", color: "rose-300" },
-      },
-    },
-  },
-  {
-    key: "affidability",
-    labelKey: "system.entities.ai_model.fields.affidability",
-    type: "badge",
-    sortable: true,
-    searchable: false,
-    filterable: true,
-    badge: {
-      values: {
-        "1": { labelKey: "system.entities.ai_model.affidability.1", color: "zinc-300" },
-        "2": { labelKey: "system.entities.ai_model.affidability.2", color: "blue-300" },
-        "3": { labelKey: "system.entities.ai_model.affidability.3", color: "emerald-300" },
-        "4": { labelKey: "system.entities.ai_model.affidability.4", color: "amber-300" },
-        "5": { labelKey: "system.entities.ai_model.affidability.5", color: "rose-300" },
       },
     },
   },
