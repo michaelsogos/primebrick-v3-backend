@@ -29,9 +29,13 @@ Engines (`engine_type`):
 
 ## Scoring formulas (current — refined + speed)
 
-Per-turn scores use this convention: **5 = correct, 2 = partially valid
-(regex compiles but semantically wrong), 1 = fail** (invalid regex, garbage,
-prose, crash, timeout, no response).
+Per-turn scores use this convention: **5 = correct, 3 = partially valid
+(regex compiles AND is semantically close, but shows a linguistic
+misunderstanding of user intent — e.g. Italian conjunction/article
+ambiguity injecting a spurious `;`), 2 = regex compiles but semantically
+wrong (an explicit requirement ignored, e.g. a requested `-` missing),
+0 = total failure** (invalid regex, garbage, prose, crash, timeout,
+no response).
 
 Every turn MUST also record its real response time in **seconds**
 (`response_s = generation_time_ms / 1000` from the worker `measure` event;
@@ -71,9 +75,9 @@ Runs `[5,5,4,4,5,5,5,5]` (8 turns, all ≥4), response times all ≤2 s:
 `quality = 4.75*0.6 + 5*0.4 = 4.85`, `speed = 5`,
 `score = 4.85*0.8 + 5*0.2 = 4.88 → rank 4.9`.
 
-Runs `[5,1,1,1,5,1,1,1]` (2 successes / 8), avg speed score 3:
-`quality = 2.0*0.6 + (2/8)*5*0.4 = 1.7`,
-`score = 1.7*0.8 + 3*0.2 = 1.96 → rank 2.0`.
+Runs `[5,0,0,0,5,0,0,0]` (2 successes / 8), avg speed score 3:
+`quality = 1.25*0.6 + (2/8)*5*0.4 = 1.25`,
+`score = 1.25*0.8 + 3*0.2 = 1.6 → rank 1.6`.
 
 Slow-but-correct `[5,5,5,5,5]` with response_s `[4,32,90,90,90]`
 (speed scores `[4,0,0,0,0]` → speed = 0.8):
