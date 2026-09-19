@@ -184,6 +184,12 @@ export const MfaLoginVerifySchema = z.object({
 });
 export type MfaLoginVerifyBody = z.infer<typeof MfaLoginVerifySchema>;
 
+export const MfaChallengeRefreshSchema = z.object({
+  /** Existing login challenge token (may be expired — signature is verified). */
+  mfa_challenge_token: z.string().min(1),
+});
+export type MfaChallengeRefreshBody = z.infer<typeof MfaChallengeRefreshSchema>;
+
 export const MfaStepUpInitiateSchema = z.object({
   /** The action being authorized (e.g. "delete", "change_password"). */
   action: z.string().min(1).max(50),

@@ -35,6 +35,7 @@ import { MfaActionAuthorizationsDal } from "../mfa_action_authorizations_dal.js"
 import {
   signMfaChallengeToken,
   verifyMfaChallengeToken,
+  verifyMfaChallengeTokenSignature,
   type MfaChallengePayload,
 } from "../mfa-challenge-token.js";
 import { encrypt, decrypt } from "../crypto-helpers.js";
@@ -204,6 +205,19 @@ function popTokens(jti: string): TokenStashEntry["tokens"] | null {
   tokenStash.delete(jti);
   if (Date.now() > entry.expires_at) return null;
   return entry.tokens;
+}
+
+/**
+ * Move a stashed-token entry from an old challenge jti to a new one,
+ * refreshing its TTL. Returns null when the entry is missing or expired.
+ */
+function moveTokens(oldJti: string, newJti: string): boolean {
+  const entry = tokenStash.get(oldJti);
+  if (!entry) return false;
+  tokenStash.delete(oldJti);
+  if (Date.now() > entry.expires_at) return false;
+  tokenStash.set(newJti, { tokens: entry.tokens, expires_at: Date.now() + TOKEN_STASH_TTL_MS });
+  return true;
 }
 
 // --- Service --------------------------------------------------------------
@@ -606,6 +620,69 @@ export class MfaService {
     );
 
     stashTokens(jti, tokens);
+
+    return {
+      mfa_challenge_token: token,
+      available_factors: factors.map((f) => ({
+        factor_id: f.uuid,
+        factor_type: f.factor_type,
+        label: f.label ?? null,
+      })),
+    };
+  }
+
+  /**
+   * Refresh a login MFA challenge.
+   * Called by POST /api/v1/auth/mfa/challenge/refresh each time the FE mounts
+   * the OTP form — the old token may be expired or consumed; the signature is
+   * still verified, then the stashed tokens are moved to a fresh jti and a new
+   * challenge token is minted. If the stash is gone (consumed or TTL'd), the
+   * caller must restart password login.
+   */
+  async refreshLoginChallenge(challengeToken: string): Promise<{
+    mfa_challenge_token: string;
+    available_factors: Array<{ factor_id: string; factor_type: string; label: string | null }>;
+  }> {
+    await this.requireMfaEnabled();
+
+    const secret = await this.getMfaChallengeSecret();
+    const payload = await verifyMfaChallengeTokenSignature(challengeToken, secret);
+
+    if (payload.purpose !== "login_challenge") {
+      throw new ApiError(
+        "/errors/mfa-wrong-purpose",
+        "Token is not a login challenge",
+        403,
+        "The MFA challenge token was not issued for login.",
+        { internal_code: "MFA_WRONG_PURPOSE", severity: "MEDIUM" },
+      );
+    }
+
+    const newJti = randomUUID();
+    if (!moveTokens(payload.jti, newJti)) {
+      throw new UnauthorizedError("MFA challenge expired or already used", {
+        internal_code: "MFA_CHALLENGE_EXPIRED",
+      });
+    }
+
+    const profileId = await this.resolveProfileId(payload.sub);
+    const factorsDal = new UserMfaFactorsDal(this.pool);
+    const factors = await factorsDal.findEnabledByUserProfileId(profileId);
+
+    const ttl = await this.getMfaChallengeTtl();
+    const token = await signMfaChallengeToken(
+      {
+        jti: newJti,
+        sub: payload.sub,
+        idp_code: payload.idp_code,
+        idp_org: payload.idp_org,
+        idp_username: payload.idp_username,
+        available_factor_ids: factors.map((f) => f.uuid),
+        purpose: "login_challenge",
+      },
+      secret,
+      ttl,
+    );
 
     return {
       mfa_challenge_token: token,

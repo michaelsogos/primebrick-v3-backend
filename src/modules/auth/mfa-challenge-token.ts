@@ -21,7 +21,7 @@
  *   - iat, exp: standard JWT claims
  */
 
-import { SignJWT, jwtVerify, type JWTPayload } from "jose";
+import { SignJWT, compactVerify, jwtVerify, type JWTPayload } from "jose";
 import { ApiError } from "../../http/api-errors.js";
 
 export type MfaChallengePurpose = "login_challenge" | "step_up_challenge";
@@ -101,6 +101,54 @@ export async function verifyMfaChallengeToken(
 
   // Validate required claims
   if (!payload.jti || !payload.sub || !payload.purpose) {
+    throw new ApiError(
+      "/errors/mfa-challenge-token-malformed",
+      "MFA challenge token malformed",
+      401,
+      "The MFA challenge token is missing required claims.",
+      { internal_code: "MFA_CHALLENGE_TOKEN_MALFORMED", severity: "MEDIUM" },
+    );
+  }
+
+  return {
+    jti: payload.jti,
+    sub: payload.sub,
+    idp_code: payload.idp_code as string,
+    idp_org: payload.idp_org as string,
+    idp_username: payload.idp_username as string,
+    available_factor_ids: payload.available_factor_ids as string[],
+    purpose: payload.purpose as MfaChallengePurpose,
+    action: payload.action as string | undefined,
+    target_resource: payload.target_resource as string | undefined,
+  };
+}
+
+/**
+ * Verify ONLY the signature of an MFA challenge token — `exp` is ignored.
+ * Used by the challenge-refresh endpoint: a stale-but-authentic token is
+ * proof that the client legitimately holds a challenge and may swap it for
+ * a fresh one (provided the server-side token stash is still alive).
+ */
+export async function verifyMfaChallengeTokenSignature(
+  token: string,
+  secret: string,
+): Promise<MfaChallengePayload> {
+  const key = toHexSecret(secret);
+  let payload: JWTPayload;
+  try {
+    const result = await compactVerify(token, key);
+    payload = JSON.parse(new TextDecoder().decode(result.payload)) as JWTPayload;
+  } catch {
+    throw new ApiError(
+      "/errors/mfa-challenge-token-invalid",
+      "MFA challenge token invalid",
+      401,
+      "The MFA challenge token is invalid. Please restart the login process.",
+      { internal_code: "MFA_CHALLENGE_TOKEN_INVALID", severity: "MEDIUM" },
+    );
+  }
+
+  if (payload.iss !== "primebrick-be" || !payload.jti || !payload.sub || !payload.purpose) {
     throw new ApiError(
       "/errors/mfa-challenge-token-malformed",
       "MFA challenge token malformed",

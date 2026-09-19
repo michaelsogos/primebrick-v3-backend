@@ -24,6 +24,7 @@ import { getPool } from "../../../db/pool.js";
 import { CasdoorService } from "../services/casdoor.service.js";
 import { MfaService } from "../services/mfa.service.js";
 import {
+  MfaChallengeRefreshSchema,
   MfaEnrollFinishSchema,
   MfaLoginVerifySchema,
   MfaStepUpInitiateSchema,
@@ -120,6 +121,21 @@ export function authMfaRouter() {
   });
 
   /**
+   * POST /api/v1/auth/mfa/challenge/refresh — swap a stale login challenge for
+   * a fresh one. PUBLIC (challenge-token gated). The FE calls this every time
+   * the OTP form is shown so the challenge is always fresh regardless of the
+   * original TTL. The old token's signature is verified (exp ignored) and the
+   * server-side token stash is moved to the new challenge's jti. If the stash
+   * is already gone (consumed or TTL'd) → 401, and the FE must fall back to
+   * password login.
+   */
+  const refreshChallenge: RequestHandler = asyncHandler(async (req, res) => {
+    const body = req.body as z.infer<typeof MfaChallengeRefreshSchema>;
+    const result = await service.refreshLoginChallenge(body.mfa_challenge_token);
+    res.json({ success: true, ...result });
+  });
+
+  /**
    * POST /api/v1/auth/mfa/step-up/initiate — start a step-up MFA challenge.
    * Session-gated (requires authenticated user). Returns a challenge token +
    * available factors. The FE presents the TOTP input, then calls step-up/verify.
@@ -192,6 +208,13 @@ export function authMfaRouter() {
       permission: rbacHandler([Permission.PUBLIC]),
       middlewares: [validateBody(MfaLoginVerifySchema)],
       handler: verifyLogin,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/mfa/challenge/refresh",
+      permission: rbacHandler([Permission.PUBLIC]),
+      middlewares: [validateBody(MfaChallengeRefreshSchema)],
+      handler: refreshChallenge,
     },
     {
       method: "post",

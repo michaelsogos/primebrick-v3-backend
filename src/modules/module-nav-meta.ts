@@ -17,9 +17,9 @@ export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
       return {
         module: "crm",
         icon: "users",
-        route_prefixes: ["/customers", "/crm"],
+        route_prefixes: ["/system/customers", "/crm"],
         nav: [
-          { id: "customers", label_key: "system.entities.customer.title", href: "/customers", icon: "users" },
+          { id: "customers", label_key: "system.entities.customer.title", href: "/system/customers", icon: "users" },
           { id: "pipeline", label_key: "system.entities.crm.pipeline.nav", href: "/crm/pipeline", icon: "git-branch" },
         ],
       };
@@ -27,7 +27,7 @@ export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
       return {
         module: "settings",
         icon: "settings",
-        route_prefixes: ["/system/settings"],
+        route_prefixes: ["/system"],
         is_reserved: true,
         nav: [
           { id: "profile", label_key: "system.settings.tabs.profile", href: "/system/settings/profile", icon: "square-user" },
