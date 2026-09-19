@@ -27,6 +27,7 @@ import { createHmac, createHash, randomBytes, randomUUID } from "crypto";
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 
 import { runAsSystem } from "@primebrick/sdk";
+import { getCachePort } from "../../../cache/cache-port-holder.js";
 import { getAuthConfig } from "../config.js";
 import { ConfigEntriesDal } from "../config_entries_dal.js";
 import { CasdoorService } from "./casdoor.service.js";
@@ -174,14 +175,21 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000).unref();
 
-// --- Login challenge token stash (in-memory, single-instance) -------------
+// --- Login challenge token stash (Redis, in-memory fallback) ---------------
 //
 // When login() detects the user has MFA factors, the Casdoor tokens are stashed
-// here keyed by the challenge token's jti. On verifyAtLogin() success, the
-// tokens are popped and set as auth cookies.
+// keyed by the challenge token's jti. On verifyAtLogin() success, the tokens
+// are popped and set as auth cookies.
 //
-// NOTE: Single-instance only. For multi-instance BE deployments, replace with
-// a shared store (Redis). Same pattern as WebauthnService.sessionRelay.
+// Primary store is Redis (via CachePort, key `mfa:challenge:{jti}`, TTL 5 min)
+// so the stash survives BE restarts and is shared across instances. When Redis
+// is not configured/unreachable (cache disabled, best-effort), an in-memory
+// Map is used instead — the system stays valid without Redis, with the same
+// semantics as before (single-instance only).
+//
+// NOTE: pop/move are get+del, not atomic GETDEL/RENAME — a multi-instance race
+// could let two concurrent verifies both read the entry. Acceptable: the OTP
+// check is the gate and the window is milliseconds.
 
 interface TokenStashEntry {
   tokens: {
@@ -193,13 +201,28 @@ interface TokenStashEntry {
 }
 
 const TOKEN_STASH_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const TOKEN_STASH_KEY_PREFIX = "mfa:challenge:";
 const tokenStash = new Map<string, TokenStashEntry>();
 
-function stashTokens(jti: string, tokens: TokenStashEntry["tokens"]): void {
+async function stashTokens(jti: string, tokens: TokenStashEntry["tokens"]): Promise<void> {
+  const cache = getCachePort();
+  if (cache) {
+    await cache.set(TOKEN_STASH_KEY_PREFIX + jti, { tokens }, TOKEN_STASH_TTL_MS);
+    return;
+  }
   tokenStash.set(jti, { tokens, expires_at: Date.now() + TOKEN_STASH_TTL_MS });
 }
 
-function popTokens(jti: string): TokenStashEntry["tokens"] | null {
+async function popTokens(jti: string): Promise<TokenStashEntry["tokens"] | null> {
+  const cache = getCachePort();
+  if (cache) {
+    const entry = await cache.get<Pick<TokenStashEntry, "tokens">>(TOKEN_STASH_KEY_PREFIX + jti);
+    if (!entry) return null;
+    await cache.del(TOKEN_STASH_KEY_PREFIX + jti);
+    // extJson round-trip yields integers as bigint — expires_in must be a
+    // plain number for downstream math (e.g. cookie maxAge).
+    return { ...entry.tokens, expires_in: Number(entry.tokens.expires_in) };
+  }
   const entry = tokenStash.get(jti);
   if (!entry) return null;
   tokenStash.delete(jti);
@@ -209,9 +232,17 @@ function popTokens(jti: string): TokenStashEntry["tokens"] | null {
 
 /**
  * Move a stashed-token entry from an old challenge jti to a new one,
- * refreshing its TTL. Returns null when the entry is missing or expired.
+ * refreshing its TTL. Returns false when the entry is missing or expired.
  */
-function moveTokens(oldJti: string, newJti: string): boolean {
+async function moveTokens(oldJti: string, newJti: string): Promise<boolean> {
+  const cache = getCachePort();
+  if (cache) {
+    const entry = await cache.get<Pick<TokenStashEntry, "tokens">>(TOKEN_STASH_KEY_PREFIX + oldJti);
+    if (!entry) return false;
+    await cache.del(TOKEN_STASH_KEY_PREFIX + oldJti);
+    await cache.set(TOKEN_STASH_KEY_PREFIX + newJti, entry, TOKEN_STASH_TTL_MS);
+    return true;
+  }
   const entry = tokenStash.get(oldJti);
   if (!entry) return false;
   tokenStash.delete(oldJti);
@@ -619,7 +650,7 @@ export class MfaService {
       ttl,
     );
 
-    stashTokens(jti, tokens);
+    await stashTokens(jti, tokens);
 
     return {
       mfa_challenge_token: token,
@@ -659,7 +690,7 @@ export class MfaService {
     }
 
     const newJti = randomUUID();
-    if (!moveTokens(payload.jti, newJti)) {
+    if (!(await moveTokens(payload.jti, newJti))) {
       throw new UnauthorizedError("MFA challenge expired or already used", {
         internal_code: "MFA_CHALLENGE_EXPIRED",
       });
@@ -775,7 +806,7 @@ export class MfaService {
     }
 
     // Pop the stashed tokens (single-use)
-    const tokens = popTokens(payload.jti);
+    const tokens = await popTokens(payload.jti);
     if (!tokens) {
       throw new UnauthorizedError("MFA challenge expired or already used", {
         internal_code: "MFA_CHALLENGE_EXPIRED",

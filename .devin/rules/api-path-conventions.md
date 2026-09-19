@@ -102,13 +102,16 @@ POST /api/v1/auth/mfa/challenge/refresh  → swap stale challenge for a fresh on
 POST /api/v1/auth/mfa/verify             → verify TOTP, set auth cookies (PUBLIC)
 ```
 
-- The challenge is an HS256 JWT (`jti` keys an **in-memory token stash**,
-  5-min TTL, single-use — popped on successful verify).
+- The challenge is an HS256 JWT (`jti` keys a **Redis token stash** —
+  `mfa:challenge:{jti}` via `CachePort`, 5-min TTL, single-use — popped on
+  successful verify). If Redis is unavailable the stash falls back to an
+  in-memory Map (single-instance only).
 - `challenge/refresh` verifies the old token's **signature only** (`exp`
   ignored — see `verifyMfaChallengeTokenSignature` in
-  `src/modules/auth/mfa-challenge-token.ts`), moves the stash to a new `jti`,
-  and mints a fresh challenge. Gone stash (consumed/TTL'd/BE restart) → `401
-  MFA_CHALLENGE_EXPIRED`; the FE must then fall back to password login.
+  `src/modules/auth/mfa-challenge-token.ts`), moves the stash to a new `jti`
+  with a **fresh TTL**, and mints a fresh challenge. Gone stash
+  (consumed/TTL'd) → `401 MFA_CHALLENGE_EXPIRED`; the FE must then fall back
+  to password login.
 - The FE calls refresh **every time the OTP form mounts** — a challenge token
   must never be assumed fresh after a reload, HMR, or idle wait.
 - Step-up MFA (`step-up/initiate` + `step-up/verify`) is session-gated and

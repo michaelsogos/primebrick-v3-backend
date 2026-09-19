@@ -158,7 +158,8 @@ see [RBAC](./rbac) for the full system. In short:
 When a user has enrolled MFA factors, `POST /api/v1/auth/login` returns
 `mfa_required` with an `mfa_challenge_token` instead of setting cookies. The
 challenge is an HS256 JWT whose `jti` keys a server-side stash holding the
-Casdoor tokens (in-memory, 5-minute TTL, single-use).
+Casdoor tokens (Redis `mfa:challenge:{jti}`, 5-minute TTL, single-use; falls
+back to in-memory when Redis is not configured).
 
 ```text
 login (password ok, has MFA)
