@@ -45,6 +45,14 @@ cookie automatically; the auth middleware also accepts an explicit
 | `GET`  | `/api/v1/auth/config` | `PUBLIC` | Public auth flags (`enable_webauthn`, `passkey_required`, `enable_mfa`) |
 | `GET`  | `/api/v1/auth/me` | `AUTHENTICATED_USER` | Fetch own profile + permissions |
 | `PATCH`| `/api/v1/auth/me` | `AUTHENTICATED_USER` | Self-service profile update |
+| `POST` | `/api/v1/auth/mfa/verify` | `PUBLIC` | Verify TOTP code for a login challenge; sets cookies |
+| `POST` | `/api/v1/auth/mfa/challenge/refresh` | `PUBLIC` | Swap a stale login challenge for a fresh one |
+| `POST` | `/api/v1/auth/mfa/step-up/initiate` | `AUTHENTICATED_USER` | Mint a step-up challenge for a sensitive action |
+| `POST` | `/api/v1/auth/mfa/step-up/verify` | `AUTHENTICATED_USER` | Verify step-up TOTP; returns single-use action token |
+| `POST` | `/api/v1/auth/mfa/enroll/begin` | `AUTHENTICATED_USER` | Start TOTP enrollment (secret + QR + recovery codes) |
+| `POST` | `/api/v1/auth/mfa/enroll/finish` | `AUTHENTICATED_USER` | Finish enrollment with a TOTP passcode |
+| `GET`  | `/api/v1/auth/mfa/factors` | `AUTHENTICATED_USER` | List own MFA factors |
+| `DELETE` | `/api/v1/auth/mfa/factors/:uuid` | `AUTHENTICATED_USER` | Remove an MFA factor |
 
 ### curl examples
 
@@ -144,6 +152,32 @@ see [RBAC](./rbac) for the full system. In short:
    checks (handled by the SDK's `checkRbac()`).
 4. Otherwise, evaluate `checkRbac(req.user, declaredPerms, mode)` — OR (any-of)
    by default, AND (all-of) via `rbacHandler.all([...])`.
+
+## MFA (TOTP)
+
+When a user has enrolled MFA factors, `POST /api/v1/auth/login` returns
+`mfa_required` with an `mfa_challenge_token` instead of setting cookies. The
+challenge is an HS256 JWT whose `jti` keys a server-side stash holding the
+Casdoor tokens (in-memory, 5-minute TTL, single-use).
+
+```text
+login (password ok, has MFA)
+  → { mfa_required, mfa_challenge_token, available_factors }
+  → POST /api/v1/auth/mfa/verify { mfa_challenge_token, factor_id, code }
+  → cookies set, { success, user }
+```
+
+`POST /api/v1/auth/mfa/challenge/refresh` exchanges a stale challenge for a
+fresh one: the old token's signature is verified (expiry ignored), the stash
+is moved to a new `jti` with a fresh TTL. The frontend calls it every time
+the OTP form is shown, so reloads and idle waits never strand the user on a
+dead challenge. If the stash is already gone the endpoint returns `401
+MFA_CHALLENGE_EXPIRED` — the only recovery is a fresh password login.
+
+Step-up MFA (`step-up/initiate` + `step-up/verify`) protects sensitive
+operations on an already-authenticated session: verify returns a single-use
+`action_authorization_token` that must be sent in the
+`X-MFA-Action-Authorization` header of the protected call.
 
 ## Passkeys (WebAuthn)
 
