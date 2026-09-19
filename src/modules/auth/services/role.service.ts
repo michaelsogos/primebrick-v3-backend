@@ -25,6 +25,7 @@
  * can convert them to RFC 7807 JSON.
  */
 
+import type { PoolClient } from "pg";
 import { getPool } from "../../../db/pool.js";
 import {
   RoleMappingRepo,
@@ -86,7 +87,7 @@ export class RoleService {
 
   // --- Create ---------------------------------------------------------------
 
-  async createRole(input: CreateRoleInput, actor: string): Promise<RoleMappingDetailed> {
+  async createRole(input: CreateRoleInput, actor: string, tx?: PoolClient): Promise<RoleMappingDetailed> {
     const { idp_role, idp_org, label_key, is_admin, permissions } = input;
 
     // 1. Casdoor must be configured.
@@ -164,6 +165,7 @@ export class RoleService {
       idp_org,
       last_synced_at: now,
       actor,
+      tx,
     });
 
     // 6. Return the created row.
@@ -178,7 +180,7 @@ export class RoleService {
 
   // --- Update ---------------------------------------------------------------
 
-  async updateRole(idpRole: string, input: UpdateRoleInput, actor: string): Promise<RoleMappingDetailed> {
+  async updateRole(idpRole: string, input: UpdateRoleInput, actor: string, tx?: PoolClient): Promise<RoleMappingDetailed> {
     const { label_key, is_admin, permissions } = input;
 
     // 1. Load existing row to get idp_org (the Casdoor owner).
@@ -254,6 +256,7 @@ export class RoleService {
         idp_org: existing.idp_org,
         last_synced_at: now,
         actor,
+        tx,
       },
     );
 
@@ -353,14 +356,14 @@ export class RoleService {
     return role;
   }
 
-  async updateRoleByUuid(uuid: string, input: UpdateRoleInput, actor: string): Promise<RoleMappingDetailed> {
+  async updateRoleByUuid(uuid: string, input: UpdateRoleInput, actor: string, tx?: PoolClient): Promise<RoleMappingDetailed> {
     const existing = await this.getRepo().findByUuid(uuid);
     if (!existing) {
       throw new NotFoundError(`Role with uuid "${uuid}" not found`, {
         internal_code: "ROLE_NOT_FOUND",
       });
     }
-    return this.updateRole(existing.idp_role, input, actor);
+    return this.updateRole(existing.idp_role, input, actor, tx);
   }
 
   async deleteRoleByUuid(uuid: string, actor: string): Promise<void> {

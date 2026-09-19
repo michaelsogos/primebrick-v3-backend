@@ -5,8 +5,8 @@
  * methods only — no custom non-standard finders, no raw SQL strings.
  */
 
-import type { Pool } from "pg";
-import { field, Filter, Sort, buildAuditableJoinsSelective } from "@primebrick/dal-pg";
+import type { Pool, PoolClient } from "pg";
+import { field, Filter, Sort, buildAuditableJoinsSelective, Repository } from "@primebrick/dal-pg";
 import { type CacheEntry, wrapCacheEntry } from "@primebrick/sdk";
 import { ConfigEntryEntity } from "./config_entry_entity.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
@@ -129,9 +129,13 @@ export class ConfigEntriesDal {
       group_key?: string | null;
       reserved?: boolean;
     },
-    updatedBy: string
+    updatedBy: string,
+    tx?: PoolClient
   ): Promise<ConfigEntryEntity> {
-    const row = await this.repo.add(
+    // When tx is provided, the write is appended to the open transaction and
+    // the cache reload is deferred — the caller must run it post-commit.
+    const repo = tx ? new Repository(tx) : this.repo;
+    const row = await repo.add(
       ConfigEntryEntity,
       {
         key: params.key,
@@ -147,8 +151,13 @@ export class ConfigEntriesDal {
       },
       { actor: updatedBy }
     );
-    await this.reloadCache();
+    if (!tx) await this.reloadCache();
     return row as ConfigEntryEntity;
+  }
+
+  /** Post-commit cache refresh — for callers that wrote inside a transaction. */
+  async refreshCache(): Promise<void> {
+    await this.reloadCache();
   }
 
   /**
@@ -211,8 +220,9 @@ export class ConfigEntriesDal {
    */
   async update(
     uuid: string,
-    patch: { value?: string; type?: string; type_config?: string | null },
-    updatedBy: string
+    patch: { value?: string; type?: string; type_config?: string | null; version?: number | bigint },
+    updatedBy: string,
+    tx?: PoolClient
   ): Promise<void> {
     const existing = await this.findByUuid(uuid);
     if (!existing) {
@@ -255,14 +265,22 @@ export class ConfigEntriesDal {
       updateEntity.type_config = patch.type_config;
     }
 
+    // Optimistic concurrency — the auditable write requires `version`.
+    if (patch.version !== undefined) {
+      updateEntity.version = Number(patch.version);
+    }
+
     // Only write if there's something to update (not just id).
     if (Object.keys(updateEntity).length > 1) {
-      await this.repo.update(
+      // When tx is provided, the write is appended to the open transaction
+      // and the cache reload is deferred to the caller (post-commit).
+      const repo = tx ? new Repository(tx) : this.repo;
+      await repo.update(
         ConfigEntryEntity,
         updateEntity as Partial<ConfigEntryEntity> & { id: bigint },
         { actor: updatedBy }
       );
-      await this.reloadCache();
+      if (!tx) await this.reloadCache();
     }
   }
 

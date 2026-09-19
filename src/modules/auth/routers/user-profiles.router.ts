@@ -14,7 +14,7 @@
  * subclasses and converted to RFC 7807 by the centralized `errorHandler`.
  */
 
-import type { RequestHandler } from "express";
+import type { IRouter, RequestHandler } from "express";
 import { z } from "zod";
 
 import { makeProtectedRouter } from "../../../http/protected-router.js";
@@ -30,6 +30,7 @@ import { UserService } from "../services/user.service.js";
 import { userProfileMeta } from "../user-profiles.meta.js";
 import { UserProfileEntity } from "../user_profile_entity.js";
 import { assembleMeta } from "../../../http/meta-assembler.js";
+import { deriveEntityActions } from "../../../http/entity-actions.js";
 import {
   UuidParamSchema,
   UserProfileAuditQuerySchema,
@@ -38,8 +39,16 @@ import {
   type ChangePasswordBody,
 } from "../dto.js";
 import { loadAuthConfigFromDb } from "../config-repo.js";
+
+// Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)
+const UserUpdateBodySchemaWrapped = entityWriteBody(UserUpdateBodySchema);
 import { parsePasswordPolicy } from "../password-policy.js";
 import { ValidationError } from "../../../http/api-errors.js";
+import {
+  entityWriteBody,
+  assertTranslationsPermission,
+  runEntityWrite,
+} from "../../../http/entity-write.js";
 
 function makeUserService(): UserService {
   const pool = getPool();
@@ -48,12 +57,22 @@ function makeUserService(): UserService {
   return new UserService(pool, dal, casdoor);
 }
 
-export function userProfilesRouter() {
+export function userProfilesRouter(usersRoutes?: IRouter) {
   const router = makeProtectedRouter();
   const service = makeUserService();
 
   const getMeta: RequestHandler = asyncHandler(async (_req, res) => {
-    res.json(assembleMeta(userProfileMeta, UserProfileEntity));
+    res.json({
+      ...assembleMeta(userProfileMeta, UserProfileEntity),
+      actions: deriveEntityActions(
+        router,
+        "user_profile",
+        userProfileMeta.list.actions_overrides,
+        // create/update/delete live under /api/v1/auth/users (Casdoor-aware
+        // user management) — same entity ops, non-standard prefix.
+        usersRoutes ? [{ router: usersRoutes, prefix: "/api/v1/auth/users" }] : undefined,
+      ),
+    });
   });
 
   const list: RequestHandler = asyncHandler(async (req, res) => {
@@ -104,7 +123,13 @@ export function userProfilesRouter() {
 
   const update: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params;
-    const updated = await service.updateUserProfile(uuid as string, req.body as z.infer<typeof UserUpdateBodySchema>);
+    const body = req.body as z.infer<typeof UserUpdateBodySchemaWrapped>;
+    assertTranslationsPermission(req, body.translations);
+    const updated = await runEntityWrite(
+      getPool(),
+      body.translations,
+      (tx) => service.updateUserProfile(uuid as string, body.entity, tx),
+    );
     res.json(updated);
   });
 
@@ -143,25 +168,25 @@ export function userProfilesRouter() {
     {
       method: "get",
       path: "/api/v1/entities/user_profile/meta",
-      permission: rbacHandler([Permission.USERS_READ_ALL, Permission.USERS_READ_SINGLE]),
+      permission: rbacHandler([Permission.USER_PROFILE_READ_ALL, Permission.USER_PROFILE_READ_SINGLE]),
       handler: getMeta,
     },
     {
       method: "get",
       path: "/api/v1/entities/user_profile/list",
-      permission: rbacHandler([Permission.USERS_READ_ALL]),
+      permission: rbacHandler([Permission.USER_PROFILE_READ_ALL]),
       handler: list,
     },
     {
       method: "get",
       path: "/api/v1/entities/user_profile/:uuid",
-      permission: rbacHandler([Permission.USERS_READ_SINGLE]),
+      permission: rbacHandler([Permission.USER_PROFILE_READ_SINGLE]),
       handler: getSingle,
     },
     {
       method: "post",
       path: "/api/v1/entities/user_profile/:uuid/restore",
-      permission: rbacHandler([Permission.USERS_RESTORE_SINGLE]),
+      permission: rbacHandler([Permission.USER_PROFILE_RESTORE_SINGLE]),
       handler: restore,
     },
     {
@@ -174,8 +199,8 @@ export function userProfilesRouter() {
     {
       method: "put",
       path: "/api/v1/entities/user_profile/:uuid",
-      permission: rbacHandler([Permission.USERS_UPDATE_SINGLE]),
-      middlewares: [validateBody(UserUpdateBodySchema)],
+      permission: rbacHandler([Permission.USER_PROFILE_UPDATE_SINGLE]),
+      middlewares: [validateBody(UserUpdateBodySchemaWrapped)],
       handler: update,
     },
     {

@@ -32,28 +32,43 @@ import { organizationMeta } from "../organizations.meta.js";
 import { OrganizationEntity } from "../organization_entity.js";
 import { OrganizationsService } from "../services/organizations.service.js";
 import { ValidationError } from "../../../http/api-errors.js";
+import {
+  entityWriteBody,
+  assertTranslationsPermission,
+  runEntityWrite,
+} from "../../../http/entity-write.js";
+import { getPool } from "../../../db/pool.js";
 import { assembleMeta } from "../../../http/meta-assembler.js";
+import { deriveEntityActions } from "../../../http/entity-actions.js";
 import type { OrganizationListQuery } from "../organizations_dal.js";
 import { displayNameSchema, idpNameSchema } from "../validation.js";
 
-const CreateBodySchema = z.object({
+// Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)
+const CreateBodySchema = entityWriteBody(z.object({
   idp_owner: z.string().min(1).max(255).optional().default("admin"),
   idp_name: idpNameSchema(z.string()),
   display_name: displayNameSchema(z.string()).optional(),
   website_url: z.string().url().max(2048).optional().or(z.literal("")),
-});
+}));
 
-const UpdateBodySchema = z.object({
+const UpdateBodySchema = entityWriteBody(z.object({
   display_name: displayNameSchema(z.string()).optional(),
   website_url: z.string().url().max(2048).optional().or(z.literal("")),
-});
+}));
 
 export function organizationsRouter() {
   const router = makeProtectedRouter();
   const service = new OrganizationsService();
 
   const getMeta: RequestHandler = asyncHandler(async (_req, res) => {
-    res.json(assembleMeta(organizationMeta, OrganizationEntity));
+    res.json({
+      ...assembleMeta(organizationMeta, OrganizationEntity),
+      actions: deriveEntityActions(
+        router,
+        "organization",
+        organizationMeta.list.actions_overrides,
+      ),
+    });
   });
 
   const list: RequestHandler = asyncHandler(async (req, res) => {
@@ -95,13 +110,25 @@ export function organizationsRouter() {
   });
 
   const create: RequestHandler = asyncHandler(async (req, res) => {
-    const organization = await service.createOrganization(req.body as z.infer<typeof CreateBodySchema>);
+    const body = req.body as z.infer<typeof CreateBodySchema>;
+    assertTranslationsPermission(req, body.translations);
+    const organization = await runEntityWrite(
+      getPool(),
+      body.translations,
+      (tx) => service.createOrganization(body.entity, tx),
+    );
     res.status(201).json({ success: true, organization });
   });
 
   const update: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params;
-    await service.updateOrganization(uuid as string, req.body as z.infer<typeof UpdateBodySchema>);
+    const body = req.body as z.infer<typeof UpdateBodySchema>;
+    assertTranslationsPermission(req, body.translations);
+    await runEntityWrite(
+      getPool(),
+      body.translations,
+      (tx) => service.updateOrganization(uuid as string, body.entity, tx),
+    );
     res.json({ success: true });
   });
 
@@ -129,58 +156,58 @@ export function organizationsRouter() {
     {
       method: "get",
       path: "/api/v1/entities/organization/meta",
-      permission: rbacHandler([Permission.ORGANIZATIONS_READ_ALL, Permission.ORGANIZATIONS_READ_SINGLE]),
+      permission: rbacHandler([Permission.ORGANIZATION_READ_ALL, Permission.ORGANIZATION_READ_SINGLE]),
       handler: getMeta,
     },
     {
       method: "get",
       path: "/api/v1/entities/organization/list",
-      permission: rbacHandler([Permission.ORGANIZATIONS_READ_ALL]),
+      permission: rbacHandler([Permission.ORGANIZATION_READ_ALL]),
       handler: list,
     },
     // check-availability MUST be registered before :uuid to avoid matching.
     {
       method: "get",
       path: "/api/v1/entities/organization/check-availability",
-      permission: rbacHandler([Permission.ORGANIZATIONS_READ_ALL]),
+      permission: rbacHandler([Permission.ORGANIZATION_READ_ALL]),
       handler: checkAvailability,
     },
     {
       method: "get",
       path: "/api/v1/entities/organization/:uuid",
-      permission: rbacHandler([Permission.ORGANIZATIONS_READ_SINGLE]),
+      permission: rbacHandler([Permission.ORGANIZATION_READ_SINGLE]),
       handler: getSingle,
     },
     {
       method: "post",
       path: "/api/v1/entities/organization",
-      permission: rbacHandler([Permission.ORGANIZATIONS_CREATE_SINGLE]),
+      permission: rbacHandler([Permission.ORGANIZATION_CREATE_SINGLE]),
       middlewares: [validateBody(CreateBodySchema)],
       handler: create,
     },
     {
       method: "put",
       path: "/api/v1/entities/organization/:uuid",
-      permission: rbacHandler([Permission.ORGANIZATIONS_UPDATE_SINGLE]),
+      permission: rbacHandler([Permission.ORGANIZATION_UPDATE_SINGLE]),
       middlewares: [validateBody(UpdateBodySchema)],
       handler: update,
     },
     {
       method: "delete",
       path: "/api/v1/entities/organization/:uuid",
-      permission: rbacHandler([Permission.ORGANIZATIONS_DELETE_SINGLE]),
+      permission: rbacHandler([Permission.ORGANIZATION_DELETE_SINGLE]),
       handler: remove,
     },
     {
       method: "post",
       path: "/api/v1/entities/organization/:uuid/restore",
-      permission: rbacHandler([Permission.ORGANIZATIONS_RESTORE_SINGLE]),
+      permission: rbacHandler([Permission.ORGANIZATION_RESTORE_SINGLE]),
       handler: restore,
     },
     {
       method: "get",
       path: "/api/v1/entities/organization/:uuid/audit",
-      permission: rbacHandler([Permission.ORGANIZATIONS_READ_AUDIT]),
+      permission: rbacHandler([Permission.ORGANIZATION_READ_AUDIT]),
       handler: getAudit,
     },
   ]);

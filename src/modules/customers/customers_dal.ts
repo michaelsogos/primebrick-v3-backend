@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 import {
   entityDateToApiIso,
@@ -713,10 +713,11 @@ export class CustomersDal {
     return row ? this.toDto(row) : null;
   }
 
-  async createCustomer(body: CustomerCreateBody): Promise<{ uuid: string }> {
+  async createCustomer(body: CustomerCreateBody, tx?: PoolClient): Promise<{ uuid: string }> {
     const uuid = randomUUID();
     const actor = requireActor();
-    await this.repo.add(
+    const repo = tx ? new Repository(tx) : this.repo;
+    await repo.add(
       CustomerEntity,
       {
         uuid,
@@ -741,8 +742,9 @@ export class CustomersDal {
     return { uuid };
   }
 
-  async updateCustomer(uuid: string, body: CustomerUpdateBody): Promise<void> {
-    await this.repo.update(CustomerEntity, { ...body, uuid }, { actor: requireActor(), audit: this.auditPort });
+  async updateCustomer(uuid: string, body: CustomerUpdateBody, tx?: PoolClient): Promise<void> {
+    const repo = tx ? new Repository(tx) : this.repo;
+    await repo.update(CustomerEntity, { ...body, uuid }, { actor: requireActor(), audit: this.auditPort });
   }
 
   async deleteCustomer(uuid: string): Promise<void> {

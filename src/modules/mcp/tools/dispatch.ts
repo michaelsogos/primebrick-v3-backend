@@ -435,7 +435,9 @@ export async function dispatchProxyCreate(
   data: Record<string, unknown>,
 ): Promise<unknown> {
   const path = buildProxyPath(module, entity, "create");
-  return proxyToMicroservice(authInfo, "POST", path, data);
+  // `{entity}` write-payload standard: the HTTP envelope is a transport
+  // concern — MCP tool callers send flat fields, dispatch wraps them.
+  return proxyToMicroservice(authInfo, "POST", path, { entity: data });
 }
 
 /**
@@ -449,7 +451,7 @@ export async function dispatchProxyUpdate(
   data: Record<string, unknown>,
 ): Promise<unknown> {
   const path = buildProxyPath(module, entity, "update", uuid);
-  return proxyToMicroservice(authInfo, "PUT", path, data);
+  return proxyToMicroservice(authInfo, "PUT", path, { entity: data });
 }
 
 /**

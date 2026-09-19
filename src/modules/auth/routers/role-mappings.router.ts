@@ -33,13 +33,20 @@ import { z } from "zod";
 import { makeProtectedRouter } from "../../../http/protected-router.js";
 import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
+import { deriveEntityActions } from "../../../http/entity-actions.js";
 import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../rbac.middleware.js";
 import { Permission, isPermissionSentinel } from "@primebrick/sdk";
 import { RoleService } from "../services/role.service.js";
+import { RoleMappingRepo, type RoleMappingListQuery } from "../role-mapping-repo.js";
 import { roleMappingsMeta } from "../role-mappings.meta.js";
-import type { RoleMappingListQuery } from "../role-mapping-repo.js";
+import { getPool } from "../../../db/pool.js";
 import { ValidationError } from "../../../http/api-errors.js";
+import {
+  entityWriteBody,
+  assertTranslationsPermission,
+  runEntityWrite,
+} from "../../../http/entity-write.js";
 
 // idp_role: snake_case, lowercase letters / digits / underscores, 1-255 chars.
 const idpRoleSchema = z
@@ -61,17 +68,18 @@ const permissionStringSchema = z
   .regex(/^[a-z_]+\.[a-z_]+(\.[a-z_]+)*$/, { message: "system.settings.roles.validation.permissionFormat" })
   .refine((p) => !isPermissionSentinel(p), { message: "system.settings.roles.validation.permissionSentinelRejected" });
 
-const CreateBodySchema = z.object({
+// Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)
+const CreateBodySchema = entityWriteBody(z.object({
   idp_role: idpRoleSchema,
   idp_org: idpOrgSchema,
   label_key: z.string().max(255).optional().or(z.literal("")),
   is_admin: z.boolean().default(false),
   permissions: z.array(permissionStringSchema).default([]),
-});
+}));
 
 // On update, the body MUST NOT contain idp_role or idp_org (both immutable).
 // We use .strict() to reject unknown keys — but only for the two immutable ones.
-const UpdateBodySchema = z
+const UpdateBodySchema = entityWriteBody(z
   .object({
     idp_role: z.never().optional(),
     idp_org: z.never().optional(),
@@ -82,7 +90,7 @@ const UpdateBodySchema = z
   .refine((data) => !("idp_role" in data) && !("idp_org" in data), {
     message: "idp_role and idp_org are immutable on update",
     path: ["idp_role"],
-  });
+  }));
 
 export function roleMappingsRouter() {
   const router = makeProtectedRouter();
@@ -99,16 +107,33 @@ export function roleMappingsRouter() {
     res.json(role);
   });
 
+  const invalidateRolesCache = () =>
+    new RoleMappingRepo(getPool()).invalidateMappingsCache();
+
   const create: RequestHandler = asyncHandler(async (req, res) => {
     const actor = req.user?.id ?? "system";
-    const role = await service.createRole(req.body as z.infer<typeof CreateBodySchema>, actor);
+    const body = req.body as z.infer<typeof CreateBodySchema>;
+    assertTranslationsPermission(req, body.translations);
+    const role = await runEntityWrite(
+      getPool(),
+      body.translations,
+      (tx) => service.createRole(body.entity, actor, tx),
+      invalidateRolesCache,
+    );
     res.status(201).json(role);
   });
 
   const update: RequestHandler = asyncHandler(async (req, res) => {
     const { idp_role } = req.params;
     const actor = req.user?.id ?? "system";
-    const role = await service.updateRole(idp_role as string, req.body as z.infer<typeof UpdateBodySchema>, actor);
+    const body = req.body as z.infer<typeof UpdateBodySchema>;
+    assertTranslationsPermission(req, body.translations);
+    const role = await runEntityWrite(
+      getPool(),
+      body.translations,
+      (tx) => service.updateRole(idp_role as string, body.entity, actor, tx),
+      invalidateRolesCache,
+    );
     res.json(role);
   });
 
@@ -122,7 +147,14 @@ export function roleMappingsRouter() {
   // --- Entity-pattern handlers (keyed by :uuid) -----------------------------
 
   const getMeta: RequestHandler = asyncHandler(async (_req, res) => {
-    res.json(roleMappingsMeta);
+    res.json({
+      ...roleMappingsMeta,
+      actions: deriveEntityActions(
+        router,
+        "role_mapping",
+        roleMappingsMeta.list.actions_overrides,
+      ),
+    });
   });
 
   const entityList: RequestHandler = asyncHandler(async (req, res) => {
@@ -149,14 +181,28 @@ export function roleMappingsRouter() {
 
   const entityCreate: RequestHandler = asyncHandler(async (req, res) => {
     const actor = req.user?.id ?? "system";
-    const role = await service.createRole(req.body as z.infer<typeof CreateBodySchema>, actor);
+    const body = req.body as z.infer<typeof CreateBodySchema>;
+    assertTranslationsPermission(req, body.translations);
+    const role = await runEntityWrite(
+      getPool(),
+      body.translations,
+      (tx) => service.createRole(body.entity, actor, tx),
+      invalidateRolesCache,
+    );
     res.status(201).json({ success: true, role });
   });
 
   const entityUpdate: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params;
     const actor = req.user?.id ?? "system";
-    await service.updateRoleByUuid(uuid as string, req.body as z.infer<typeof UpdateBodySchema>, actor);
+    const body = req.body as z.infer<typeof UpdateBodySchema>;
+    assertTranslationsPermission(req, body.translations);
+    await runEntityWrite(
+      getPool(),
+      body.translations,
+      (tx) => service.updateRoleByUuid(uuid as string, body.entity, actor, tx),
+      invalidateRolesCache,
+    );
     res.json({ success: true });
   });
 
@@ -180,78 +226,78 @@ export function roleMappingsRouter() {
     {
       method: "get",
       path: "/api/v1/entities/role_mapping/meta",
-      permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_ALL, Permission.ROLE_MAPPINGS_READ_SINGLE]),
+      permission: rbacHandler([Permission.ROLE_MAPPING_READ_ALL, Permission.ROLE_MAPPING_READ_SINGLE]),
       handler: getMeta,
     },
     {
       method: "get",
       path: "/api/v1/entities/role_mapping/list",
-      permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_ALL]),
+      permission: rbacHandler([Permission.ROLE_MAPPING_READ_ALL]),
       handler: entityList,
     },
     {
       method: "get",
       path: "/api/v1/entities/role_mapping/:uuid",
-      permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_SINGLE]),
+      permission: rbacHandler([Permission.ROLE_MAPPING_READ_SINGLE]),
       handler: entityGetSingle,
     },
     {
       method: "post",
       path: "/api/v1/entities/role_mapping",
-      permission: rbacHandler([Permission.ROLE_MAPPINGS_CREATE]),
+      permission: rbacHandler([Permission.ROLE_MAPPING_CREATE_SINGLE]),
       middlewares: [validateBody(CreateBodySchema)],
       handler: entityCreate,
     },
     {
       method: "put",
       path: "/api/v1/entities/role_mapping/:uuid",
-      permission: rbacHandler([Permission.ROLE_MAPPINGS_UPDATE]),
+      permission: rbacHandler([Permission.ROLE_MAPPING_UPDATE_SINGLE]),
       middlewares: [validateBody(UpdateBodySchema)],
       handler: entityUpdate,
     },
     {
       method: "delete",
       path: "/api/v1/entities/role_mapping/:uuid",
-      permission: rbacHandler([Permission.ROLE_MAPPINGS_DELETE]),
+      permission: rbacHandler([Permission.ROLE_MAPPING_DELETE_SINGLE]),
       handler: entityRemove,
     },
     {
       method: "get",
       path: "/api/v1/entities/role_mapping/:uuid/audit",
-      permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_AUDIT]),
+      permission: rbacHandler([Permission.ROLE_MAPPING_READ_AUDIT]),
       handler: entityGetAudit,
     },
     // --- Legacy system-path routes (keyed by :idp_role) ---
     {
       method: "get",
       path: "/api/v1/system/role-mappings",
-      permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_ALL]),
+      permission: rbacHandler([Permission.ROLE_MAPPING_READ_ALL]),
       handler: list,
     },
     {
       method: "get",
       path: "/api/v1/system/role-mappings/:idp_role",
-      permission: rbacHandler([Permission.ROLE_MAPPINGS_READ_SINGLE]),
+      permission: rbacHandler([Permission.ROLE_MAPPING_READ_SINGLE]),
       handler: getSingle,
     },
     {
       method: "post",
       path: "/api/v1/system/role-mappings",
-      permission: rbacHandler([Permission.ROLE_MAPPINGS_CREATE]),
+      permission: rbacHandler([Permission.ROLE_MAPPING_CREATE_SINGLE]),
       middlewares: [validateBody(CreateBodySchema)],
       handler: create,
     },
     {
       method: "put",
       path: "/api/v1/system/role-mappings/:idp_role",
-      permission: rbacHandler([Permission.ROLE_MAPPINGS_UPDATE]),
+      permission: rbacHandler([Permission.ROLE_MAPPING_UPDATE_SINGLE]),
       middlewares: [validateBody(UpdateBodySchema)],
       handler: update,
     },
     {
       method: "delete",
       path: "/api/v1/system/role-mappings/:idp_role",
-      permission: rbacHandler([Permission.ROLE_MAPPINGS_DELETE]),
+      permission: rbacHandler([Permission.ROLE_MAPPING_DELETE_SINGLE]),
       handler: remove,
     },
   ]);

@@ -17,6 +17,7 @@ import type { Express } from "express";
 
 import { customersRouter } from "./customers/router.js";
 import { aiModelsRouter } from "./ai-models/router.js";
+import { aiCerebellumRouter } from "./ai-cerebellum/router.js";
 import { organizationsRouter } from "./auth/routers/organizations.router.js";
 import { systemRouter } from "./system/system-router.js";
 import { translationsRouter } from "./system/translations-router.js";
@@ -27,6 +28,7 @@ import { collaborationRouter } from "./collaboration/router.js";
 export function mountModules(app: Express): void {
   app.use(customersRouter());
   app.use(aiModelsRouter());
+  app.use(aiCerebellumRouter());
   app.use(organizationsRouter());
   app.use(systemRouter());
   // Translations — central CRUD gateway for all translation schemas.

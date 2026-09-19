@@ -9,7 +9,7 @@
  * Errors are thrown as `ApiError` subclasses so the centralized `errorHandler`
  * can convert them to RFC 7807 JSON.
  */
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 import { AiModelsDal } from "./ai_models_dal.js";
 import type {
@@ -74,7 +74,7 @@ export class AiModelsService {
 
   // --- Create / Update / Delete / Restore -----------------------------------
 
-  async createAiModel(body: AiModelCreateBody) {
+  async createAiModel(body: AiModelCreateBody, tx?: PoolClient) {
     // Check model_id uniqueness before creating
     const existing = await this.getDal().findByModelId(body.model_id);
     if (existing) {
@@ -82,10 +82,10 @@ export class AiModelsService {
         internal_code: "AI_MODEL_MODEL_ID_DUPLICATE",
       });
     }
-    return this.getDal().createAiModel(body);
+    return this.getDal().createAiModel(body, tx);
   }
 
-  async updateAiModel(uuid: string, body: AiModelUpdateBody) {
+  async updateAiModel(uuid: string, body: AiModelUpdateBody, tx?: PoolClient) {
     // If model_id is being changed, check uniqueness against other rows
     if (body.model_id !== undefined) {
       const existing = await this.getDal().findByModelId(body.model_id);
@@ -95,7 +95,7 @@ export class AiModelsService {
         });
       }
     }
-    await this.getDal().updateAiModel(uuid, body);
+    await this.getDal().updateAiModel(uuid, body, tx);
   }
 
   async deleteAiModel(uuid: string) {

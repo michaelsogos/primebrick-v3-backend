@@ -9,34 +9,34 @@ describe("rbacHandler — sentinel sanity check", () => {
     expect(typeof handler).toBe("function");
   });
 
-  it("rejects AUTHENTICATED_ADMIN combined with USERS_UPDATE_SINGLE", () => {
+  it("rejects AUTHENTICATED_ADMIN combined with USER_PROFILE_UPDATE_SINGLE", () => {
     // The sanity check runs at handler-build time. Combining a sentinel with
     // a CRUD perm is a bug — expect a throw.
     expect(() =>
-      rbacHandler([Permission.AUTHENTICATED_ADMIN, Permission.USERS_UPDATE_SINGLE]),
+      rbacHandler([Permission.AUTHENTICATED_ADMIN, Permission.USER_PROFILE_UPDATE_SINGLE]),
     ).toThrow();
   });
 
-  it("rejects AUTHENTICATED_USER combined with USERS_UPDATE_SINGLE (existing invariant)", () => {
+  it("rejects AUTHENTICATED_USER combined with USER_PROFILE_UPDATE_SINGLE (existing invariant)", () => {
     // Regression guard: the existing sentinel must still be enforced.
     expect(() =>
-      rbacHandler([Permission.AUTHENTICATED_USER, Permission.USERS_UPDATE_SINGLE]),
+      rbacHandler([Permission.AUTHENTICATED_USER, Permission.USER_PROFILE_UPDATE_SINGLE]),
     ).toThrow();
   });
 
-  it("rejects PUBLIC combined with USERS_UPDATE_SINGLE (existing invariant)", () => {
+  it("rejects PUBLIC combined with USER_PROFILE_UPDATE_SINGLE (existing invariant)", () => {
     expect(() =>
-      rbacHandler([Permission.PUBLIC, Permission.USERS_UPDATE_SINGLE]),
+      rbacHandler([Permission.PUBLIC, Permission.USER_PROFILE_UPDATE_SINGLE]),
     ).toThrow();
   });
 
   it("accepts a non-sentinel permission alone", () => {
-    const handler = rbacHandler([Permission.USERS_UPDATE_SINGLE]);
+    const handler = rbacHandler([Permission.USER_PROFILE_UPDATE_SINGLE]);
     expect(typeof handler).toBe("function");
   });
 
   it("accepts multiple non-sentinel permissions (OR semantics)", () => {
-    const handler = rbacHandler([Permission.USERS_READ_ALL, Permission.USERS_READ_SINGLE]);
+    const handler = rbacHandler([Permission.USER_PROFILE_READ_ALL, Permission.USER_PROFILE_READ_SINGLE]);
     expect(typeof handler).toBe("function");
   });
 });

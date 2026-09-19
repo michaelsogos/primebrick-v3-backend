@@ -47,6 +47,39 @@ GET    /api/v1/entities/:entity/check-availability → uniqueness check
 `:entity` is always snake_case **singular** (e.g. `customer`, `organization`,
 `user_profile`).
 
+### Write-payload standard (`{entity}` envelope)
+
+Single-entity `POST`/`PUT` bodies MUST wrap the entity fields under `entity`
+— flat entity fields at the body root are rejected with `400`:
+
+```jsonc
+{
+  "entity": { "code": "ACME", "name": "Acme Corp" },
+  "translations": [
+    { "key": "entities.customer.name", "language": "it-IT", "value": "Nome" }
+  ]
+}
+```
+
+- `translations` is optional: `{key, language, value}` rows persisted in the
+  SAME transaction as the entity write. Requires the
+  `translation.*` permission set (a missing/insufficient permission
+  returns `403`).
+- `/api/v1/entities/translation` itself takes `{entity}` only — a
+  `translations` sibling there is rejected.
+- Validation errors keep their shape; issue paths are prefixed with
+  `entity.` (e.g. `entity.idp_name`).
+- **Exempt** (keep their own bodies): bulk endpoints (`bulk-delete`,
+  `bulk-restore`, `bulk-update`, `duplicate` — already atomic via
+  streams/temp tables), action endpoints, `DELETE`, and all RPC endpoints
+  (`/api/v1/auth/*`, `/api/v1/system/*`).
+- Microservice entity endpoints (`/ws/:service/api/v1/entities/*`) use the
+  same `{entity}` envelope; `translations` is rejected there.
+- **Ext-JSON note:** `extJsonBodyParser` decodes every JSON integer as
+  `bigint`. Body schemas must accept `bigint` for integer fields — use
+  `zBoundedInt(min, max)` from `src/http/validation.ts` instead of
+  `z.number().int()`. Query params stay `z.coerce.number()`.
+
 ### curl examples
 
 ```bash
@@ -58,10 +91,10 @@ curl -H "Authorization: Bearer <jwt>" \
 curl -H "Authorization: Bearer <jwt>" \
   http://localhost:3001/api/v1/entities/customer/meta
 
-# Create a customer
+# Create a customer ({entity} envelope)
 curl -X POST -H "Authorization: Bearer <jwt>" -H "Content-Type: application/json" \
   http://localhost:3001/api/v1/entities/customer \
-  -d '{"code":"ACME","name":"Acme Corp"}'
+  -d '{"entity":{"code":"ACME","name":"Acme Corp"}}'
 
 # Soft-delete by UUID
 curl -X DELETE -H "Authorization: Bearer <jwt>" \

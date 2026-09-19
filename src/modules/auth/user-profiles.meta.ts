@@ -72,6 +72,10 @@ export const userProfileMeta = {
         },
       ],
     },
+    actions_overrides: {
+      "duplicate.single": { enabled: false },
+      "duplicate.bulk": { enabled: false },
+    },
     enableCreateAction: true,
     viewVisibility: {
       table: {

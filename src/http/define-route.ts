@@ -14,13 +14,13 @@
  *     {
  *       method: "get",
  *       path: "/api/v1/entities/customer/meta",
- *       permission: rbacHandler([Permission.CUSTOMERS_READ_ALL, Permission.CUSTOMERS_READ_SINGLE]),
+ *       permission: rbacHandler([Permission.CUSTOMER_READ_ALL, Permission.CUSTOMER_READ_SINGLE]),
  *       handler: ctrl.getMeta,
  *     },
  *     {
  *       method: "post",
  *       path: "/api/v1/auth/users",
- *       permission: rbacHandler([Permission.USERS_CREATE_SINGLE]),
+ *       permission: rbacHandler([Permission.USER_PROFILE_CREATE_SINGLE]),
  *       middlewares: [validateBody(CreateUserSchema)],
  *       handler: ctrl.create,
  *     },

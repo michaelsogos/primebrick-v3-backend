@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 import {
   entityDateToApiIso,
@@ -191,11 +191,12 @@ export class OrganizationsDal {
     idp_name?: string;
     display_name?: string;
     website_url?: string;
-  }): Promise<{ uuid: string }> {
+  }, tx?: PoolClient): Promise<{ uuid: string }> {
     const uuid = randomUUID();
     const actor = requireActor();
+    const repo = tx ? new Repository(tx) : this.repo;
 
-    await this.repo.add(
+    await repo.add(
       OrganizationEntity,
       {
         uuid,
@@ -213,9 +214,11 @@ export class OrganizationsDal {
 
   async updateOrganization(
     uuid: string,
-    data: { display_name?: string; website_url?: string; idp_owner?: string; idp_name?: string; last_synced_at?: Date }
+    data: { display_name?: string; website_url?: string; idp_owner?: string; idp_name?: string; last_synced_at?: Date },
+    tx?: PoolClient
   ): Promise<void> {
-    await this.repo.update(OrganizationEntity, { ...data, uuid }, { actor: requireActor(), audit: this.auditPort });
+    const repo = tx ? new Repository(tx) : this.repo;
+    await repo.update(OrganizationEntity, { ...data, uuid }, { actor: requireActor(), audit: this.auditPort });
   }
 
   async deleteOrganization(uuid: string): Promise<void> {

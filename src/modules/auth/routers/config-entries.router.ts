@@ -26,11 +26,17 @@ import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../rbac.middleware.js";
 import { Permission, validateConfigValue, coerceConfigValue, serializeConfigValue, ConfigValidationError, type ConfigType, type CacheEntry, etagMatches, CACHE_HEADERS, CACHE_CONTROL_CACHED } from "@primebrick/sdk";
+import {
+  entityWriteBody,
+  assertTranslationsPermission,
+  runEntityWrite,
+} from "../../../http/entity-write.js";
 import { getPool } from "../../../db/pool.js";
 import { ConfigEntriesDal, ReservedConfigError, ReservedConfigTypeError } from "../config_entries_dal.js";
 import { ConfigEntryEntity } from "../config_entry_entity.js";
 import { configEntriesMeta } from "../config-entries.meta.js";
 import { assembleMeta } from "../../../http/meta-assembler.js";
+import { deriveEntityActions } from "../../../http/entity-actions.js";
 import { requireMfaStepUp } from "../mfa-step-up.middleware.js";
 import { ApiError, ValidationError } from "../../../http/api-errors.js";
 
@@ -109,7 +115,8 @@ const UpdateBodySchema = z.object({
   value: z.union([z.string(), z.number(), z.bigint()]).optional(),
   type: z.string().min(1).max(50).optional(),
   type_config: z.string().nullable().optional(),
-  version: z.number().int().min(1),
+  // Ext-JSON decodes every integer as bigint — accept both.
+  version: z.union([z.number().int().min(1), z.bigint()]),
 });
 
 const BulkDeleteBodySchema = z.object({
@@ -123,12 +130,18 @@ const BulkUpdateBodySchema = z.object({
       value: z.union([z.string(), z.number(), z.bigint()]).optional(),
       type: z.string().min(1).max(50).optional(),
       type_config: z.string().nullable().optional(),
-      version: z.number().int().min(1),
+      version: z.union([z.number().int().min(1), z.bigint()]),
     })
   ).min(1),
 });
 
-const CreateBodySchema = z.object({
+/**
+ * Write-payload standard: `{ entity, translations? }` (see
+ * `src/http/entity-write.ts`). `entity` carries the row fields;
+ * `translations` rows are inserted in the SAME transaction as the entity
+ * (atomic: all-or-nothing, statement-level idempotent).
+ */
+const CreateEntitySchema = z.object({
   key: z.string().min(1).max(100),
   value: z.union([z.string(), z.number(), z.bigint()]),
   type: z.string().min(1).max(50),
@@ -139,11 +152,21 @@ const CreateBodySchema = z.object({
   reserved: z.boolean().optional(),
 });
 
+const CreateBodySchema = entityWriteBody(CreateEntitySchema);
+const UpdateBodySchemaWrapped = entityWriteBody(UpdateBodySchema);
+
 export function configEntriesRouter() {
   const router = makeProtectedRouter();
 
   const getMeta: RequestHandler = asyncHandler(async (_req, res) => {
-    res.json(assembleMeta(configEntriesMeta, ConfigEntryEntity));
+    res.json({
+      ...assembleMeta(configEntriesMeta, ConfigEntryEntity),
+      actions: deriveEntityActions(
+        router,
+        "config_entry",
+        configEntriesMeta.list.actions_overrides,
+      ),
+    });
   });
 
   const list: RequestHandler = asyncHandler(async (req, res) => {
@@ -181,14 +204,19 @@ export function configEntriesRouter() {
 
   const create: RequestHandler = asyncHandler(async (req, res) => {
     const body = req.body as z.infer<typeof CreateBodySchema>;
+    const entity = body.entity;
+    const translations = body.translations ?? [];
     const userUuid = requireUserUuid(req);
     const dal = makeDal();
+    const pool = getPool();
+
+    assertTranslationsPermission(req, translations);
 
     // 1. Check for duplicate key
-    const existing = await dal.findByKey(body.key);
+    const existing = await dal.findByKey(entity.key);
     if (existing) {
       throw new ValidationError(
-        `Config key "${body.key}" already exists`,
+        `Config key "${entity.key}" already exists`,
         { internal_code: "DUPLICATE_KEY" },
       );
     }
@@ -196,11 +224,11 @@ export function configEntriesRouter() {
     // 2. Serialize the incoming typed value to its DB string form.
     //    The FE sends native bigint/number for bigint/number/money types;
     //    the DB stores TEXT, so we serialize before validation + persistence.
-    const valueStr = serializeConfigValue(body.type as ConfigType, body.value);
+    const valueStr = serializeConfigValue(entity.type as ConfigType, entity.value);
 
     // 3. Validate the serialized string value using SDK validateConfigValue
     try {
-      validateConfigValue(body.type as ConfigType, body.type_config ?? undefined, valueStr, body.key);
+      validateConfigValue(entity.type as ConfigType, entity.type_config ?? undefined, valueStr, entity.key);
     } catch (err) {
       if (err instanceof ConfigValidationError) {
         throw new ValidationError(err.error_label_key, {
@@ -212,19 +240,33 @@ export function configEntriesRouter() {
       });
     }
 
-    // 4. DAL insert (pure data I/O)
-    const row = await dal.add(
-      {
-        key: body.key,
-        value: valueStr,
-        type: body.type,
-        type_config: body.type_config ?? null,
-        label_key: body.label_key ?? null,
-        description_key: body.description_key ?? null,
-        group_key: body.group_key ?? null,
-        reserved: body.reserved ?? false,
-      },
-      userUuid,
+    // 4. Insert — single tx when translations are piggybacked: entity row +
+    //    translation rows commit atomically (all-or-nothing). Translation
+    //    inserts are statement-level idempotent (createIfAbsent: false →
+    //    ON CONFLICT DO NOTHING): a duplicate (key, language) never aborts
+    //    the tx — first-writer-wins on shared global keys.
+    // Single tx when translations are piggybacked: entity row + translation
+    // rows commit atomically (all-or-nothing). Post-commit cache invalidation
+    // is handled by runEntityWrite.
+    const row = await runEntityWrite(
+      pool,
+      translations,
+      (tx) =>
+        dal.add(
+          {
+            key: entity.key,
+            value: valueStr,
+            type: entity.type,
+            type_config: entity.type_config ?? null,
+            label_key: entity.label_key ?? null,
+            description_key: entity.description_key ?? null,
+            group_key: entity.group_key ?? null,
+            reserved: entity.reserved ?? false,
+          },
+          userUuid,
+          tx,
+        ),
+      () => dal.refreshCache(),
     );
 
     res.status(201).json(maskSecretValue(row));
@@ -232,9 +274,14 @@ export function configEntriesRouter() {
 
   const update: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params;
-    const body = req.body as z.infer<typeof UpdateBodySchema>;
+    const body = req.body as z.infer<typeof UpdateBodySchemaWrapped>;
+    const entity = body.entity;
+    const translations = body.translations ?? [];
     const userUuid = requireUserUuid(req);
     const dal = makeDal();
+    const pool = getPool();
+
+    assertTranslationsPermission(req, translations);
 
     // 1. Fetch existing row for validation
     const existing = await dal.findByUuid(uuid as string);
@@ -251,16 +298,16 @@ export function configEntriesRouter() {
     // 2. Determine the effective type and type_config for validation.
     //    If the request includes a new type/type_config (non-reserved only),
     //    validate the value against the NEW type; otherwise use the existing.
-    const effectiveType = (body.type ?? existing.type) as ConfigType;
-    const effectiveTypeConfig = body.type_config !== undefined
-      ? body.type_config
+    const effectiveType = (entity.type ?? existing.type) as ConfigType;
+    const effectiveTypeConfig = entity.type_config !== undefined
+      ? entity.type_config
       : existing.type_config;
 
     // 3. Serialize the incoming typed value to its DB string form.
     //    If no value is provided, keep the existing value (type-only change).
     let valueStr: string;
-    if (body.value !== undefined) {
-      valueStr = serializeConfigValue(effectiveType, body.value);
+    if (entity.value !== undefined) {
+      valueStr = serializeConfigValue(effectiveType, entity.value);
     } else {
       valueStr = existing.value ?? "";
     }
@@ -285,15 +332,18 @@ export function configEntriesRouter() {
     // 5. DAL update — enforces reserved-row rule for type/type_config changes.
     //    The DAL throws ReservedConfigTypeError if a reserved row's type or
     //    type_config is changed.
+    const patch = {
+      value: entity.value !== undefined ? valueStr : undefined,
+      type: entity.type,
+      type_config: entity.type_config,
+      version: Number(entity.version),
+    };
     try {
-      await dal.update(
-        uuid as string,
-        {
-          value: body.value !== undefined ? valueStr : undefined,
-          type: body.type,
-          type_config: body.type_config,
-        },
-        userUuid,
+      await runEntityWrite(
+        pool,
+        translations,
+        (tx) => dal.update(uuid as string, patch, userUuid, tx),
+        () => dal.refreshCache(),
       );
     } catch (err) {
       if (err instanceof ReservedConfigTypeError) {
@@ -348,8 +398,9 @@ export function configEntriesRouter() {
         );
       }
 
-      // Optimistic concurrency check
-      if (existing.version !== item.version) {
+      // Optimistic concurrency check — normalize: ext-JSON delivers ints as
+      // bigint while `existing.version` is a JS number.
+      if (Number(existing.version) !== Number(item.version)) {
         throw new ValidationError(
           `Version mismatch for config key "${existing.key}": expected ${item.version}, got ${existing.version}`,
           { internal_code: "VERSION_MISMATCH" },
@@ -594,7 +645,7 @@ export function configEntriesRouter() {
       method: "put",
       path: "/api/v1/entities/config_entry/:uuid",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
-      middlewares: [validateBody(UpdateBodySchema)],
+      middlewares: [validateBody(UpdateBodySchemaWrapped)],
       handler: update,
     },
     {

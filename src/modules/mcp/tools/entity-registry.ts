@@ -183,14 +183,14 @@ export function registerBeEntities(): void {
     supported_operations: ["list", "get", "create", "update", "delete", "restore", "audit", "meta"],
     supported_bulk_operations: ["bulk_delete", "bulk_restore"],
     permissions: {
-      list: [Permission.CUSTOMERS_READ_ALL],
-      get: [Permission.CUSTOMERS_READ_SINGLE, Permission.CUSTOMERS_READ_ALL],
-      create: [Permission.CUSTOMERS_CREATE_SINGLE],
-      update: [Permission.CUSTOMERS_UPDATE_SINGLE],
-      delete: [Permission.CUSTOMERS_DELETE_SINGLE],
-      restore: [Permission.CUSTOMERS_RESTORE_SINGLE],
-      audit: [Permission.CUSTOMERS_READ_AUDIT],
-      meta: [Permission.CUSTOMERS_READ_ALL, Permission.CUSTOMERS_READ_SINGLE],
+      list: [Permission.CUSTOMER_READ_ALL],
+      get: [Permission.CUSTOMER_READ_SINGLE, Permission.CUSTOMER_READ_ALL],
+      create: [Permission.CUSTOMER_CREATE_SINGLE],
+      update: [Permission.CUSTOMER_UPDATE_SINGLE],
+      delete: [Permission.CUSTOMER_DELETE_SINGLE],
+      restore: [Permission.CUSTOMER_RESTORE_SINGLE],
+      audit: [Permission.CUSTOMER_READ_AUDIT],
+      meta: [Permission.CUSTOMER_READ_ALL, Permission.CUSTOMER_READ_SINGLE],
     },
   });
 
@@ -200,14 +200,14 @@ export function registerBeEntities(): void {
     label: "Organization",
     supported_operations: ["list", "get", "create", "update", "delete", "restore", "audit", "meta"],
     permissions: {
-      list: [Permission.ORGANIZATIONS_READ_ALL],
-      get: [Permission.ORGANIZATIONS_READ_SINGLE, Permission.ORGANIZATIONS_READ_ALL],
-      create: [Permission.ORGANIZATIONS_CREATE_SINGLE],
-      update: [Permission.ORGANIZATIONS_UPDATE_SINGLE],
-      delete: [Permission.ORGANIZATIONS_DELETE_SINGLE],
-      restore: [Permission.ORGANIZATIONS_RESTORE_SINGLE],
-      audit: [Permission.ORGANIZATIONS_READ_AUDIT],
-      meta: [Permission.ORGANIZATIONS_READ_ALL, Permission.ORGANIZATIONS_READ_SINGLE],
+      list: [Permission.ORGANIZATION_READ_ALL],
+      get: [Permission.ORGANIZATION_READ_SINGLE, Permission.ORGANIZATION_READ_ALL],
+      create: [Permission.ORGANIZATION_CREATE_SINGLE],
+      update: [Permission.ORGANIZATION_UPDATE_SINGLE],
+      delete: [Permission.ORGANIZATION_DELETE_SINGLE],
+      restore: [Permission.ORGANIZATION_RESTORE_SINGLE],
+      audit: [Permission.ORGANIZATION_READ_AUDIT],
+      meta: [Permission.ORGANIZATION_READ_ALL, Permission.ORGANIZATION_READ_SINGLE],
     },
   });
 
@@ -217,12 +217,12 @@ export function registerBeEntities(): void {
     label: "User Profile",
     supported_operations: ["list", "get", "update", "restore", "audit", "meta"],
     permissions: {
-      list: [Permission.USERS_READ_ALL],
-      get: [Permission.USERS_READ_SINGLE, Permission.USERS_READ_ALL],
-      update: [Permission.USERS_UPDATE_SINGLE],
-      restore: [Permission.USERS_RESTORE_SINGLE],
+      list: [Permission.USER_PROFILE_READ_ALL],
+      get: [Permission.USER_PROFILE_READ_SINGLE, Permission.USER_PROFILE_READ_ALL],
+      update: [Permission.USER_PROFILE_UPDATE_SINGLE],
+      restore: [Permission.USER_PROFILE_RESTORE_SINGLE],
       audit: [Permission.USER_PROFILE_READ_AUDIT],
-      meta: [Permission.USERS_READ_ALL, Permission.USERS_READ_SINGLE],
+      meta: [Permission.USER_PROFILE_READ_ALL, Permission.USER_PROFILE_READ_SINGLE],
     },
   });
 
@@ -232,9 +232,9 @@ export function registerBeEntities(): void {
     label: "Auth Events",
     supported_operations: ["list", "aggregate", "meta"],
     permissions: {
-      list: [Permission.AUTH_EVENTS_READ_ALL],
-      aggregate: [Permission.AUTH_EVENTS_READ_ALL],
-      meta: [Permission.AUTH_EVENTS_READ_ALL],
+      list: [Permission.AUTH_EVENT_READ_ALL],
+      aggregate: [Permission.AUTH_EVENT_READ_ALL],
+      meta: [Permission.AUTH_EVENT_READ_ALL],
     },
   });
 }

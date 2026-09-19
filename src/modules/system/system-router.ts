@@ -140,7 +140,7 @@ export function systemRouter() {
   // PATCH /api/v1/system/services/:code/toggle - Toggle is_enabled
   router.patch(
     "/api/v1/system/services/:code/toggle",
-    rbacHandler([Permission.MODULES_UPDATE]),
+    rbacHandler([Permission.MODULES_UPDATE_SINGLE]),
     asyncHandler(async (req, res) => {
       const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
       const repo = new ServiceRegistryRepo(getPool());
@@ -163,7 +163,7 @@ export function systemRouter() {
   // DELETE /api/v1/system/services/:code - Hard delete a service from registry
   router.delete(
     "/api/v1/system/services/:code",
-    rbacHandler([Permission.MODULES_DELETE]),
+    rbacHandler([Permission.MODULES_DELETE_SINGLE]),
     asyncHandler(async (req, res) => {
       const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
       const repo = new ServiceRegistryRepo(getPool());
@@ -185,7 +185,7 @@ export function systemRouter() {
   // PUT /api/v1/system/services/:code - Update service_registry fields (admin config)
   router.put(
     "/api/v1/system/services/:code",
-    rbacHandler([Permission.MODULES_UPDATE]),
+    rbacHandler([Permission.MODULES_UPDATE_SINGLE]),
     asyncHandler(async (req, res) => {
       const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
       const repo = new ServiceRegistryRepo(getPool());

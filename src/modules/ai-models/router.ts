@@ -36,8 +36,20 @@ import { aiModelMeta } from "./ai_models.meta.js";
 import { AiModelEntity } from "./ai_model_entity.js";
 import { AiModelsService } from "./ai_models.service.js";
 import { ValidationError } from "../../http/api-errors.js";
+import {
+  entityWriteBody,
+  assertTranslationsPermission,
+  runEntityWrite,
+} from "../../http/entity-write.js";
+import { getPool } from "../../db/pool.js";
+import { AiModelsDal } from "./ai_models_dal.js";
 import { assembleMeta } from "../../http/meta-assembler.js";
+import { deriveEntityActions } from "../../http/entity-actions.js";
 import { requireMfaStepUp } from "../auth/mfa-step-up.middleware.js";
+
+// Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)
+const AiModelCreateWriteSchema = entityWriteBody(AiModelCreateBodySchema);
+const AiModelUpdateWriteSchema = entityWriteBody(AiModelUpdateBodySchema);
 
 /** Inline UUID param validation middleware (preserves the original behavior). */
 function validateUuidParam(req: any, _res: any, next: any): void {
@@ -54,7 +66,10 @@ export function aiModelsRouter() {
   const service = new AiModelsService();
 
   const getMeta: RequestHandler = (_req, res) => {
-    res.json(assembleMeta(aiModelMeta, AiModelEntity));
+    res.json({
+      ...assembleMeta(aiModelMeta, AiModelEntity),
+      actions: deriveEntityActions(router, "ai_model", aiModelMeta.list.actions_overrides),
+    });
   };
 
   const list: RequestHandler = asyncHandler(async (req, res) => {
@@ -69,8 +84,15 @@ export function aiModelsRouter() {
   });
 
   const create: RequestHandler = asyncHandler(async (req, res) => {
-    const body = req.body as unknown as import("./dto.js").AiModelCreateBody;
-    const created = await service.createAiModel(body);
+    const body = req.body as z.infer<typeof AiModelCreateWriteSchema>;
+    assertTranslationsPermission(req, body.translations);
+    const dal = new AiModelsDal(getPool());
+    const created = await runEntityWrite(
+      getPool(),
+      body.translations,
+      (tx) => service.createAiModel(body.entity, tx),
+      () => dal.invalidateCache(),
+    );
     res.status(201).json(created);
   });
 
@@ -82,8 +104,15 @@ export function aiModelsRouter() {
 
   const update: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    const body = req.body as unknown as import("./dto.js").AiModelUpdateBody;
-    await service.updateAiModel(uuid, body);
+    const body = req.body as z.infer<typeof AiModelUpdateWriteSchema>;
+    assertTranslationsPermission(req, body.translations);
+    const dal = new AiModelsDal(getPool());
+    await runEntityWrite(
+      getPool(),
+      body.translations,
+      (tx) => service.updateAiModel(uuid, body.entity, tx),
+      () => dal.invalidateCache(),
+    );
     res.status(204).send();
   });
 
@@ -131,14 +160,14 @@ export function aiModelsRouter() {
       method: "post",
       path: "/api/v1/entities/ai_model",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
-      middlewares: [validateBody(AiModelCreateBodySchema)],
+      middlewares: [validateBody(AiModelCreateWriteSchema)],
       handler: create,
     },
     {
       method: "put",
       path: "/api/v1/entities/ai_model/:uuid",
       permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
-      middlewares: [validateUuidParam, validateBody(AiModelUpdateBodySchema)],
+      middlewares: [validateUuidParam, validateBody(AiModelUpdateWriteSchema)],
       handler: update,
     },
     {

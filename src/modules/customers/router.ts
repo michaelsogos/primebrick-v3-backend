@@ -43,7 +43,20 @@ import { customerMeta } from "./customers.meta.js";
 import { CustomerEntity } from "./customer_entity.js";
 import { CustomersService } from "./customers.service.js";
 import { ValidationError } from "../../http/api-errors.js";
+import {
+  entityWriteBody,
+  assertTranslationsPermission,
+  runEntityWrite,
+} from "../../http/entity-write.js";
+import { getPool } from "../../db/pool.js";
 import { assembleMeta } from "../../http/meta-assembler.js";
+import { deriveEntityActions } from "../../http/entity-actions.js";
+
+// Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)
+const CustomerCreateWriteSchema = entityWriteBody(CustomerCreateBodySchema);
+const CustomerUpdateWriteSchema = entityWriteBody(CustomerUpdateBodySchema);
+type CustomerCreateWrite = z.infer<typeof CustomerCreateWriteSchema>;
+type CustomerUpdateWrite = z.infer<typeof CustomerUpdateWriteSchema>;
 
 const BulkUuidsSchema = z.object({
   uuids: z.array(z.string().uuid()).min(1).max(100),
@@ -64,7 +77,10 @@ export function customersRouter() {
   const service = new CustomersService();
 
   const getMeta: RequestHandler = (_req, res) => {
-    res.json(assembleMeta(customerMeta, CustomerEntity));
+    res.json({
+      ...assembleMeta(customerMeta, CustomerEntity),
+      actions: deriveEntityActions(router, "customer"),
+    });
   };
 
   const list: RequestHandler = asyncHandler(async (req, res) => {
@@ -91,8 +107,13 @@ export function customersRouter() {
   });
 
   const create: RequestHandler = asyncHandler(async (req, res) => {
-    const body = req.body as unknown as import("./dto.js").CustomerCreateBody;
-    const created = await service.createCustomer(body);
+    const body = req.body as CustomerCreateWrite;
+    assertTranslationsPermission(req, body.translations);
+    const created = await runEntityWrite(
+      getPool(),
+      body.translations,
+      (tx) => service.createCustomer(body.entity, tx),
+    );
     res.status(201).json(created);
   });
 
@@ -110,8 +131,13 @@ export function customersRouter() {
 
   const update: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    const body = req.body as unknown as import("./dto.js").CustomerUpdateBody;
-    await service.updateCustomer(uuid, body);
+    const body = req.body as CustomerUpdateWrite;
+    assertTranslationsPermission(req, body.translations);
+    await runEntityWrite(
+      getPool(),
+      body.translations,
+      (tx) => service.updateCustomer(uuid, body.entity, tx),
+    );
     res.status(204).send();
   });
 
@@ -162,83 +188,83 @@ export function customersRouter() {
     {
       method: "get",
       path: "/api/v1/entities/customer/meta",
-      permission: rbacHandler([Permission.CUSTOMERS_READ_ALL, Permission.CUSTOMERS_READ_SINGLE]),
+      permission: rbacHandler([Permission.CUSTOMER_READ_ALL, Permission.CUSTOMER_READ_SINGLE]),
       handler: getMeta,
     },
     {
       method: "get",
       path: "/api/v1/entities/customer/list",
-      permission: rbacHandler([Permission.CUSTOMERS_READ_ALL]),
+      permission: rbacHandler([Permission.CUSTOMER_READ_ALL]),
       middlewares: [validateQuery(CustomerListQuerySchema)],
       handler: list,
     },
     {
       method: "get",
       path: "/api/v1/entities/customer/export",
-      permission: rbacHandler([Permission.CUSTOMERS_EXPORT]),
+      permission: rbacHandler([Permission.CUSTOMER_EXPORT]),
       middlewares: [validateQuery(CustomerExportQuerySchema)],
       handler: exportCustomers,
     },
     {
       method: "post",
       path: "/api/v1/entities/customer",
-      permission: rbacHandler([Permission.CUSTOMERS_CREATE_SINGLE]),
-      middlewares: [validateBody(CustomerCreateBodySchema)],
+      permission: rbacHandler([Permission.CUSTOMER_CREATE_SINGLE]),
+      middlewares: [validateBody(CustomerCreateWriteSchema)],
       handler: create,
     },
     {
       method: "post",
       path: "/api/v1/entities/customer/duplicate",
-      permission: rbacHandler([Permission.CUSTOMERS_DUPLICATE_BULK]),
+      permission: rbacHandler([Permission.CUSTOMER_DUPLICATE_BULK]),
       middlewares: [validateBody(CustomerDuplicateBodySchema)],
       handler: duplicate,
     },
     {
       method: "get",
       path: "/api/v1/entities/customer/:uuid",
-      permission: rbacHandler([Permission.CUSTOMERS_READ_SINGLE]),
+      permission: rbacHandler([Permission.CUSTOMER_READ_SINGLE]),
       middlewares: [validateUuidParam],
       handler: getSingle,
     },
     {
       method: "put",
       path: "/api/v1/entities/customer/:uuid",
-      permission: rbacHandler([Permission.CUSTOMERS_UPDATE_SINGLE]),
-      middlewares: [validateUuidParam, validateBody(CustomerUpdateBodySchema)],
+      permission: rbacHandler([Permission.CUSTOMER_UPDATE_SINGLE]),
+      middlewares: [validateUuidParam, validateBody(CustomerUpdateWriteSchema)],
       handler: update,
     },
     {
       method: "delete",
       path: "/api/v1/entities/customer/:uuid",
-      permission: rbacHandler([Permission.CUSTOMERS_DELETE_SINGLE]),
+      permission: rbacHandler([Permission.CUSTOMER_DELETE_SINGLE]),
       middlewares: [validateUuidParam],
       handler: remove,
     },
     {
       method: "post",
       path: "/api/v1/entities/customer/:uuid/restore",
-      permission: rbacHandler([Permission.CUSTOMERS_RESTORE_SINGLE]),
+      permission: rbacHandler([Permission.CUSTOMER_RESTORE_SINGLE]),
       middlewares: [validateUuidParam],
       handler: restore,
     },
     {
       method: "post",
       path: "/api/v1/entities/customer/bulk-delete",
-      permission: rbacHandler([Permission.CUSTOMERS_DELETE_BULK]),
+      permission: rbacHandler([Permission.CUSTOMER_DELETE_BULK]),
       middlewares: [validateBody(BulkUuidsSchema)],
       handler: bulkDelete,
     },
     {
       method: "post",
       path: "/api/v1/entities/customer/bulk-restore",
-      permission: rbacHandler([Permission.CUSTOMERS_RESTORE_BULK]),
+      permission: rbacHandler([Permission.CUSTOMER_RESTORE_BULK]),
       middlewares: [validateBody(BulkUuidsSchema)],
       handler: bulkRestore,
     },
     {
       method: "get",
       path: "/api/v1/entities/customer/:uuid/audit",
-      permission: rbacHandler([Permission.CUSTOMERS_READ_AUDIT]),
+      permission: rbacHandler([Permission.CUSTOMER_READ_AUDIT]),
       middlewares: [validateUuidParam, validateQuery(CustomerAuditQuerySchema)],
       handler: getAudit,
     },

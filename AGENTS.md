@@ -254,7 +254,8 @@ All endpoints are admin-only (`AUTHENTICATED_ADMIN`):
 | GET | `/api/v1/entities/config_entry/meta` | Entity metadata |
 | GET | `/api/v1/entities/config_entry/list` | All rows (secrets masked to `null`) |
 | GET | `/api/v1/entities/config_entry/:uuid` | Single row (secret masked) |
-| PUT | `/api/v1/entities/config_entry/:uuid` | Update value (validates type) |
+| POST | `/api/v1/entities/config_entry` | Create — `{entity, translations?}` envelope |
+| PUT | `/api/v1/entities/config_entry/:uuid` | Update value (validates type) — `{entity, translations?}` envelope |
 | DELETE | `/api/v1/entities/config_entry/:uuid` | Soft-delete (reserved rejected, step-up MFA) |
 | POST | `/api/v1/entities/config_entry/bulk-delete` | Bulk soft-delete (reserved rejected, step-up MFA) |
 | POST | `/api/v1/entities/config_entry/:uuid/restore` | Restore soft-deleted row |
@@ -276,7 +277,13 @@ All endpoints are admin-only (`AUTHENTICATED_ADMIN`):
   serializes typed input via `serializeConfigValue()` before storing it in
   the text `value` column, and coerces values before returning them to the FE.
 - **Request bodies** are parsed with the SDK's BigInt-safe `extJsonBodyParser()`
-  (replaces `express.json()`) so that large integer values preserve precision.
+  (replaces `express.json()`): EVERY JSON integer decodes as `bigint` — body
+  schemas must use `zBoundedInt(min, max)` from `src/http/validation.ts`
+  instead of `z.number().int()`. `version` arrives as `bigint` too.
+- **Write payloads** follow the `{entity, translations?}` envelope standard —
+  see `.devin/rules/api-path-conventions.md` (Write-payload standard). Flat
+  entity bodies are rejected with `400`. `translations` piggyback rows
+  require `TRANSLATIONS_MANAGE` and are written in the same transaction.
 
 ### Files
 
@@ -297,9 +304,9 @@ See `docs/ai/` for skills selection and suggested workflows.
 
 The backend uses a wildcard-based RBAC system with pattern matching:
 
-- **Source of truth**: `Permission` enum in `src/modules/auth/permissions.ts` defines all available permissions
+- **Source of truth**: `Permission` registry in `@primebrick/sdk` (`src/auth/permissions.ts`) defines all available permissions
 - **Role mappings**: Stored in `role_mappings` table (columns: `idp_role`, `permissions` array, `is_admin` boolean)
-- **Permission format**: Dot notation with wildcards (e.g., `customers.read.*`, `customers.read.single`)
+- **Permission format**: Lowercase dotted notation, **singular** entity scopes (e.g., `customer.read.all`, `customer.read.single`). Wildcards in role grants (`customer.*`, `customer.read.*`, `*`).
 - **Admin bypass**: Users with `is_admin=true` bypass all permission checks.
   For high-risk non-CRUD operations that must be **explicitly** admin-only
   (not just bypassed), use the `Permission.AUTHENTICATED_ADMIN` sentinel.
@@ -307,30 +314,60 @@ The backend uses a wildcard-based RBAC system with pattern matching:
   in the permission array (same rule as `PUBLIC` and `AUTHENTICATED_USER`).
   Example: `POST /api/v1/entities/user_profile/:uuid/change-password`.
 
-### Permission Structure
+### Permission Structure (closed grammar)
 
-Permissions follow the pattern: `module.action.granularity`
+Permissions follow the pattern: `{scope}.{action}.{qualifier}` — enforced by
+`src/http/__tests__/rbac-convention.test.ts`:
+
+- **Reads**: `{scope}.read.single|all|audit` + qualifier-free `{scope}.export`
+- **Writes**: `{scope}.{create|update|delete|restore|duplicate}.{single|bulk}`
+- **Service actions**: `{scope}.{verb}` where the verb is not a reserved entity
+  op (e.g. `emailsender.send`)
+- Scopes are **singular** snake_case and may be multi-segment
+  (`modules.config`, `emailsender.provider`)
+- `read.bulk`, `create.all`, `export.single`, `export.bulk` are invalid
 
 Examples:
-- `customers.read.all` - List all customers
-- `customers.read.single` - Read single customer
-- `customers.read.audit` - Read customer audit trail
-- `customers.create.single` - Create single customer
-- `customers.create.bulk` - Bulk create customers
-- `customers.update.single` - Update single customer
-- `customers.update.bulk` - Bulk update customers
-- `customers.delete.single` - Delete single customer
-- `customers.delete.bulk` - Bulk delete customers
-- `customers.restore.single` - Restore single customer
-- `customers.restore.bulk` - Bulk restore customers
-- `customers.duplicate.bulk` - Bulk duplicate customers
-- `customers.export` - Export customers
+- `customer.read.all` - List all customers
+- `customer.read.single` - Read single customer
+- `customer.read.audit` - Read customer audit trail
+- `customer.create.single` - Create single customer
+- `customer.create.bulk` - Bulk create customers
+- `customer.update.single` - Update single customer
+- `customer.update.bulk` - Bulk update customers
+- `customer.delete.single` - Delete single customer
+- `customer.delete.bulk` - Bulk delete customers
+- `customer.restore.single` - Restore single customer
+- `customer.restore.bulk` - Bulk restore customers
+- `customer.duplicate.bulk` - Bulk duplicate customers
+- `customer.export` - Export customers
 - `modules.read.all` - List all modules
+
+### Entity `/meta` actions contract
+
+Every entity `/meta` response includes an `actions` array **derived from the
+registered route table** (`src/http/entity-actions.ts` → `deriveEntityActions`).
+Each entry is `{ op, permissions[], sentinel?, enabled }`:
+
+- op **absent** → no endpoint exists → FE never renders the CTA (fail-closed)
+- op present, `enabled: false` → endpoint exists, hidden for everyone
+  (`actions_overrides` in `*.meta.ts` may only toggle `enabled`)
+- op present, `enabled: true` → FE renders subject to per-user permissions
+
+Ops are derived from `method + path suffix` (`POST /:uuid/restore` →
+`restore.single`, `POST /bulk-delete` → `delete.bulk`, etc.). Non-standard
+collection/single-record actions map to their last path segment
+(`check-availability`, `change-password`).
+
+Entity ops that live **outside** `/api/v1/entities/:entity` (e.g. user
+management under `/api/v1/auth/users`) are included via the `extraScans`
+parameter of `deriveEntityActions` — pass the mounted router + its prefix
+(see `userProfilesRouter(users)` in `src/modules/auth/router.ts`).
 
 ### Wildcard Support
 
-- `customers.*` matches all customer permissions
-- `customers.read.*` matches all customer read permissions
+- `customer.*` matches all customer permissions
+- `customer.read.*` matches all customer read permissions
 - `*` matches everything (equivalent to admin)
 
 ### Role Mappings (Casdoor™ Integration)
@@ -338,17 +375,18 @@ Examples:
 The system is integrated with Casdoor™ IDP. Role names must match Casdoor™ roles (snake_case):
 
 - `administrators` - Admin role (`is_admin=true`, bypasses all checks)
-- `collaborator` - Full access to customers (`permissions: ["customers.*"]`)
-- `guest` - Read-only access (`permissions: ["customers.read.*"]`)
+- `collaborator` - Full access to customers (`permissions: ["customer.*"]`)
+- `guest` - Read-only access (`permissions: ["customer.read.*"]`)
 
 ### Implementation Details
 
 **Files:**
-- `src/modules/auth/permissions.ts` - Permission enum and pattern matching logic
+- `@primebrick/sdk` → `src/auth/permissions.ts` - `Permission` registry (single source of truth)
 - `src/modules/auth/rbac.middleware.ts` - RBAC middleware with admin bypass
 - `src/modules/auth/auth.middleware.ts` - Auth middleware with permission expansion
 - `src/modules/auth/role-mapping-repo.ts` - Role mapping repository
-- `src/modules/auth/types.ts` - AuthUser type with `isAdmin` field
+- `src/http/entity-actions.ts` - `deriveEntityActions` (route table → `meta.actions`)
+- `src/http/__tests__/rbac-convention.test.ts` - Convention audit test
 
 **Key functions:**
 - `expandPermissions(roles, getRoleMappingFn)` - Returns `{ patterns, isAdmin }`

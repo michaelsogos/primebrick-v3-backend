@@ -34,7 +34,7 @@ Every HTTP endpoint falls into exactly ONE of these categories:
 ## Entity CRUD standard verbs
 
 ```
-GET    /api/v1/entities/:entity/meta              → entity metadata
+GET    /api/v1/entities/:entity/meta              → entity metadata (+ derived `actions` array — see note)
 GET    /api/v1/entities/:entity/list              → paginated list
 GET    /api/v1/entities/:entity/:uuid             → single record
 POST   /api/v1/entities/:entity                   → create
@@ -54,6 +54,29 @@ POST   /api/v1/entities/:entity/:uuid/:action     → entity-scoped action
 
 `:entity` is always snake_case **singular**.
 
+## Write-payload standard (`{entity}` envelope)
+
+Single-entity `POST`/`PUT` bodies MUST be wrapped — the entity fields live
+under `entity`, never flat at the body root:
+
+```ts
+{ entity: EntityPayload, translations?: { key, language, value }[] }
+```
+
+- Flat legacy bodies are rejected (hard break — no compatibility shim).
+- The wrapper is built by `entityWriteBody(entitySchema)` /
+  `entityOnlyWriteBody(entitySchema)` in `src/http/entity-write.ts`, which
+  reuse the existing Zod entity schemas unchanged — all field validations and
+  `superRefine` rules still apply, now under the `entity.*` error path.
+- A non-empty `translations` array requires `TRANSLATIONS_MANAGE` and is
+  persisted in the same transaction as the entity write.
+- `/api/v1/entities/translation` uses `entityOnlyWriteBody` — a `translations`
+  sibling there is rejected.
+- **Bulk/action endpoints are exempt** (`bulk-*`, `duplicate`, `restore`):
+  they already use stream/temp-table atomicity and keep their own bodies.
+- FE callers use `EntityWritePayload<E>` (`src/lib/api-types.ts`); the MCP
+  proxy dispatch wraps tool args into `{ entity }` for microservice writes.
+
 Notes on accepted extensions:
 
 - **Sub-actions** on a single row use `POST /api/v1/entities/:entity/:uuid/:action`
@@ -68,6 +91,16 @@ Notes on accepted extensions:
 - `/api/v1/system/role-mappings*` is a **documented legacy surface** keyed by
   `idp_role` (not uuid) used by FE role-mapping forms. The canonical CRUD is
   `/api/v1/entities/role_mapping/*`.
+
+## `/meta` actions contract
+
+Every entity `meta` response MUST include `actions`, derived by
+`deriveEntityActions(router, entity, overrides, extraScans?)`
+(`src/http/entity-actions.ts`) from the registered route table — never
+hand-written. `*.meta.ts` may only carry `actions_overrides` (visibility
+`enabled` toggles). Ops outside the `/entities/` prefix (e.g.
+`/api/v1/auth/users`) are folded in via `extraScans` — see
+`userProfilesRouter(users)` in `src/modules/auth/router.ts`.
 
 ## Naming convention
 
@@ -89,6 +122,38 @@ Notes on accepted extensions:
 - ❌ Entity routes outside `/api/v1/entities/` prefix
 - ❌ AUTH and SYSTEM mixed with CRUD verbs
 - ❌ MCP endpoints under `/api/v1/auth/...` or any other prefix — MCP stays under `/mcp/...`
+
+## Entity write payload standard — `{ entity, translations? }`
+
+Entity create/update endpoints that may carry user-created translation rows
+use a two-part body. `translations` is OPTIONAL: when absent, only the entity
+write runs.
+
+```json
+{
+  "entity": { "key": "my_key", "value": "...", "type": "string" },
+  "translations": [
+    { "key": "custom.config.my_key.errors.min", "language": "en-GB", "value": "Too short" }
+  ]
+}
+```
+
+Rules:
+
+- The entity insert/update AND every translation row run in **one database
+  transaction** (`runInTransaction` from `primebrick-dal-v3`) — all-or-nothing.
+- Translation inserts inside the tx MUST pass `createIfAbsent: false`
+  (`INSERT … ON CONFLICT DO NOTHING`, statement-level idempotency): a
+  duplicate `(key, language)` must never abort the atomic write — first
+  writer wins.
+- Updates keep optimistic locking: a version conflict raises `ERR01`, rolls
+  the whole tx back, and surfaces as **409 RFC7807** (`urn:primebrick:err01`).
+- Piggybacked translation writes require `TRANSLATIONS_MANAGE`, same as the
+  standalone translation endpoints.
+- Cache invalidation (Redis `translations:i18n:*`) runs **after commit only**,
+  covering every module the translation rows actually target.
+- Dal write methods accept an optional `tx?: PoolClient`; when present the
+  commands run on the transaction instead of the pool.
 
 ## Enforcement
 

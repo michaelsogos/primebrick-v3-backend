@@ -11,6 +11,7 @@
  * can convert them to RFC 7807 JSON.
  */
 
+import type { PoolClient } from "pg";
 import { getPool } from "../../../db/pool.js";
 import { OrganizationsDal, type OrganizationListQuery } from "../organizations_dal.js";
 import { CasdoorService } from "./casdoor.service.js";
@@ -85,7 +86,7 @@ export class OrganizationsService {
 
   // --- Create ---------------------------------------------------------------
 
-  async createOrganization(input: CreateOrganizationInput): Promise<OrganizationDetailDto> {
+  async createOrganization(input: CreateOrganizationInput, tx?: PoolClient): Promise<OrganizationDetailDto> {
     const { idp_owner, idp_name, display_name, website_url } = input;
     const idpCode = `${idp_owner}/${idp_name}`;
 
@@ -173,7 +174,7 @@ export class OrganizationsService {
       idp_name,
       display_name,
       website_url: website_url || undefined,
-    });
+    }, tx);
 
     const createdOrg = await this.getDal().getByUuid(result.uuid);
     if (!createdOrg) {
@@ -186,7 +187,7 @@ export class OrganizationsService {
 
   // --- Update ---------------------------------------------------------------
 
-  async updateOrganization(uuid: string, input: UpdateOrganizationInput): Promise<void> {
+  async updateOrganization(uuid: string, input: UpdateOrganizationInput, tx?: PoolClient): Promise<void> {
     const { display_name, website_url } = input;
     const org = await this.getDal().getByUuid(uuid);
     if (!org) {
@@ -238,7 +239,7 @@ export class OrganizationsService {
     if (website_url !== undefined) updateBody.website_url = website_url || undefined;
     updateBody.last_synced_at = new Date();
 
-    await this.getDal().updateOrganization(uuid, updateBody as any);
+    await this.getDal().updateOrganization(uuid, updateBody as any, tx);
   }
 
   // --- Delete ---------------------------------------------------------------

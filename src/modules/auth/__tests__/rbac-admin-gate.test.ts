@@ -83,7 +83,7 @@ describe("rbacHandler([AUTHENTICATED_ADMIN]) — admin-only gate", () => {
     expect(result.nextError.message).toContain("Admin privileges required");
   });
 
-  it("denies a non-admin user who holds USERS_UPDATE_SINGLE (the old permission)", async () => {
+  it("denies a non-admin user who holds USER_PROFILE_UPDATE_SINGLE (the old permission)", async () => {
     // This is the key security test: a non-admin with the OLD CRUD permission
     // must NOT pass the admin-only gate.
     const req = makeReq({ id: "u3", isAdmin: false, isSystem: false, roles: ["custom"], permissions: new Set(["users.update.single"]) });

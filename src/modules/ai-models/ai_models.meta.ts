@@ -30,6 +30,10 @@ export const aiModelMeta = {
       delete: true,
       edit: true,
     },
+    actions_overrides: {
+      "duplicate.single": { enabled: false },
+      "duplicate.bulk": { enabled: false },
+    },
     stickyColumns: AI_MODEL_STICKY_COLUMNS,
     auditingColumns: AI_MODEL_AUDITING_COLUMNS,
     defaultSort: AI_MODEL_DEFAULT_SORT,

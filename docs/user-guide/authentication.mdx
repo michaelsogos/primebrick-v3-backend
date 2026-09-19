@@ -68,7 +68,7 @@ curl http://localhost:3001/api/v1/auth/me -b cookies.txt
     "display_name": "Alice Admin",
     "is_admin": true
   },
-  "permissions": ["customers.*", "users.*", "modules.read.all"]
+  "permissions": ["customer.*", "user_profile.*", "modules.read.all"]
 }
 ```
 
@@ -101,7 +101,7 @@ const user: AuthUser = {
   email: "alice@example.com",
   name: "Alice",
   roles: ["administrators"],
-  permissions: new Set(["customers.*", "users.*"]),
+  permissions: new Set(["customer.*", "user_profile.*"]),
   isAdmin: true,                                // bypasses all RBAC checks
   isSystem: false,                              // true for system API keys
   idp_org: "admin",
@@ -240,7 +240,7 @@ the standard entity pattern at `/api/v1/entities/organization/...` — see
 The only organization-related endpoint under `/system` is
 `GET /api/v1/system/organizations/active` — an RPC that returns a minimal
 DTO for the sidebar organization switcher. It requires only
-`AUTHENTICATED_USER` (not `ORGANIZATIONS_READ_ALL`).
+`AUTHENTICATED_USER` (not `ORGANIZATION_READ_ALL`).
 
 Users can belong to multiple organizations. Role mappings are scoped per
 organization.

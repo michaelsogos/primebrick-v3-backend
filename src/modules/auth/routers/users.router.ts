@@ -96,20 +96,20 @@ export function usersRouter() {
     {
       method: "post",
       path: "/api/v1/auth/users",
-      permission: rbacHandler([Permission.USERS_CREATE_SINGLE]),
+      permission: rbacHandler([Permission.USER_PROFILE_CREATE_SINGLE]),
       handler: create,
     },
     {
       method: "patch",
       path: "/api/v1/auth/users/:uuid",
-      permission: rbacHandler([Permission.USERS_UPDATE_SINGLE]),
+      permission: rbacHandler([Permission.USER_PROFILE_UPDATE_SINGLE]),
       middlewares: [validateBody(UpdateUserSchema)],
       handler: update,
     },
     {
       method: "delete",
       path: "/api/v1/auth/users/:uuid",
-      permission: rbacHandler([Permission.USERS_DELETE_SINGLE]),
+      permission: rbacHandler([Permission.USER_PROFILE_DELETE_SINGLE]),
       handler: remove,
     },
   ]);

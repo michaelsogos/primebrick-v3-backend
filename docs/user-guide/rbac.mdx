@@ -15,19 +15,20 @@ Permissions follow the pattern: `module.action.granularity`
 
 | Permission | Description |
 |-----------|-------------|
-| `customers.read.all` | List all customers |
-| `customers.read.single` | Read a single customer |
-| `customers.read.audit` | Read customer audit trail |
-| `customers.create.single` | Create a single customer |
-| `customers.create.bulk` | Bulk create customers |
-| `customers.update.single` | Update a single customer |
-| `customers.update.bulk` | Bulk update customers |
-| `customers.delete.single` | Delete a single customer |
-| `customers.delete.bulk` | Bulk delete customers |
-| `customers.restore.single` | Restore a soft-deleted customer |
-| `customers.restore.bulk` | Bulk restore customers |
-| `customers.duplicate.bulk` | Bulk duplicate customers |
-| `customers.export` | Export customers |
+| `customer.read.all` | List all customers |
+| `customer.read.single` | Read a single customer |
+| `customer.read.audit` | Read customer audit trail |
+| `customer.create.single` | Create a single customer |
+| `customer.create.bulk` | Bulk create customers |
+| `customer.update.single` | Update a single customer |
+| `customer.update.bulk` | Bulk update customers |
+| `customer.delete.single` | Delete a single customer |
+| `customer.delete.bulk` | Bulk delete customers |
+| `customer.restore.single` | Restore a soft-deleted customer |
+| `customer.restore.bulk` | Bulk restore customers |
+| `customer.duplicate.single` | Duplicate a single customer |
+| `customer.duplicate.bulk` | Bulk duplicate customers |
+| `customer.export` | Export customers |
 | `modules.read.all` | List all registered modules |
 
 ## Wildcard support
@@ -36,8 +37,8 @@ Wildcards use `*` to match any segment:
 
 | Pattern | Matches |
 |---------|---------|
-| `customers.*` | All customer permissions |
-| `customers.read.*` | All customer read permissions |
+| `customer.*` | All customer permissions |
+| `customer.read.*` | All customer read permissions |
 | `*` | Everything (equivalent to admin) |
 
 The wildcard matching converts the pattern to a regex at runtime
@@ -59,8 +60,8 @@ stored in the `role_mappings` table:
 | Role | Permissions | Admin |
 |------|------------|-------|
 | `administrators` | (bypass) | `true` |
-| `collaborator` | `["customers.*"]` | `false` |
-| `guest` | `["customers.read.*"]` | `false` |
+| `collaborator` | `["customer.*"]` | `false` |
+| `guest` | `["customer.read.*"]` | `false` |
 
 ## Implementation
 
@@ -92,7 +93,7 @@ wrapper that calls the SDK's `checkRbac()`.
 - `checkRbac(user, requiredPermissions, mode)` — returns `{ allowed: boolean, missing?: string[] }`
 - `expandPermissions(roles, getRoleMappingFn)` — returns `{ patterns, isAdmin }`
 - `isPermissionGranted(userPermissions, requiredPermission)` — exact match or wildcard
-- `matchesWildcard(pattern, permission)` — converts `*` to regex (`customers.read.*` → `/^customers\.read\..*$/`)
+- `matchesWildcard(pattern, permission)` — converts `*` to regex (`customer.read.*` → `/^customer\.read\..*$/`)
 - `isPermissionSentinel(p)` — `true` for `PUBLIC` / `AUTHENTICATED_USER` / `AUTHENTICATED_ADMIN`
 - `listNonSentinelPermissions()` — all real permissions (used by the FE role-management UI)
 
@@ -123,12 +124,12 @@ read-single permission.
 import { rbacHandler } from "../auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
 
-// The user passes with EITHER customers.read.all OR customers.read.single.
+// The user passes with EITHER customer.read.all OR customer.read.single.
 registerRoutes(router, [
   {
     method: "get",
     path: "/api/v1/entities/customer/meta",
-    permission: rbacHandler([Permission.CUSTOMERS_READ_ALL, Permission.CUSTOMERS_READ_SINGLE]),
+    permission: rbacHandler([Permission.CUSTOMER_READ_ALL, Permission.CUSTOMER_READ_SINGLE]),
     handler: getMeta,
   },
 ]);
@@ -141,14 +142,14 @@ permission. Useful for high-risk operations that combine two concerns (e.g.
 "can delete AND can export").
 
 ```typescript
-// The user must hold BOTH customers.delete.bulk AND customers.export.
+// The user must hold BOTH customer.delete.bulk AND customer.export.
 registerRoutes(router, [
   {
     method: "post",
     path: "/api/v1/entities/customer/bulk-delete-and-export",
     permission: rbacHandler.all([
-      Permission.CUSTOMERS_DELETE_BULK,
-      Permission.CUSTOMERS_EXPORT,
+      Permission.CUSTOMER_DELETE_BULK,
+      Permission.CUSTOMER_EXPORT,
     ]),
     handler: bulkDeleteAndExport,
   },
@@ -203,8 +204,8 @@ show a precise "you need X" message.
   "extra": {
     "issues": [{
       "kind": "missing_any_of_permissions",
-      "required": ["customers.read.all"],
-      "missing": ["customers.read.all"],
+      "required": ["customer.read.all"],
+      "missing": ["customer.read.all"],
       "mode": "any",
       "user_roles": ["guest"]
     }]
@@ -222,15 +223,19 @@ and `extra.issues[0].kind === "missing_admin"`.
 ### 1. Add the constant to the `Permission` registry
 
 The `Permission` object in `@primebrick/sdk` → `src/auth/permissions.ts` is the
-single source of truth. Add a new entry following the `module.action.granularity`
-convention.
+single source of truth. Entries follow a closed grammar — entity ops are
+`{scope}.{action}.{qualifier}` where `read` allows `single|all|audit` (+ the
+qualifier-free `{scope}.export`) and writes allow
+`{create|update|delete|restore|duplicate}.{single|bulk}`. Non-CRUD operations
+use the service-action form `{scope}.{verb}` (e.g. `emailsender.send`). The
+convention test (`src/http/__tests__/rbac-convention.test.ts`) rejects any
+permission outside this grammar.
 
 ```typescript
 // @primebrick/sdk → src/auth/permissions.ts
 export const Permission = {
   // ...existing entries...
-  CUSTOMERS_IMPORT: "customers.import",          // new!
-  CUSTOMERS_IMPORT_BULK: "customers.import.bulk", // new!
+  CUSTOMER_IMPORT: "customer.import", // new! — service-action form {scope}.{verb}
 } as const;
 ```
 
@@ -244,7 +249,7 @@ registerRoutes(router, [
   {
     method: "post",
     path: "/api/v1/entities/customer/import",
-    permission: rbacHandler([Permission.CUSTOMERS_IMPORT]),
+    permission: rbacHandler([Permission.CUSTOMER_IMPORT]),
     middlewares: [validateBody(CustomerImportBodySchema)],
     handler: importCustomers,
   },
@@ -254,18 +259,13 @@ registerRoutes(router, [
 ### 3. Grant it via a role mapping (SQL)
 
 Insert a row into `role_mappings` (or update an existing one) to grant the new
-permission to a role. Wildcards work — `customers.*` already covers
-`customers.import` and `customers.import.bulk`.
+permission to a role. Wildcards work — `customer.*` already covers
+`customer.import`.
 
 ```sql
 -- Grant the new permission to the "collaborator" role.
 UPDATE role_mappings
-SET permissions = array_append(permissions, 'customers.import')
-WHERE idp_role = 'collaborator';
-
--- Or grant both new permissions at once:
-UPDATE role_mappings
-SET permissions = permissions || ARRAY['customers.import', 'customers.import.bulk']
+SET permissions = array_append(permissions, 'customer.import')
 WHERE idp_role = 'collaborator';
 ```
 

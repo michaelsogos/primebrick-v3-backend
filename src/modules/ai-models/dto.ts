@@ -6,6 +6,7 @@
  */
 import { z } from "zod";
 
+import { zBoundedInt } from "../../http/validation.js";
 import { AI_MODEL_FILTERABLE_KEYS, AI_MODEL_SORT_KEYS } from "./list-config.js";
 
 const csvToStringArray = z
@@ -72,6 +73,18 @@ export const FilterQueryArraySchema = z
   )
   .optional();
 
+// Query params arrive as strings — `filters` is sent as JSON-encoded array.
+// Malformed JSON falls through as the raw string → fails the array check (400).
+const filtersQueryParam = z
+  .preprocess(
+    (v) => {
+      if (typeof v !== "string") return v;
+      try { return JSON.parse(v); } catch { return v; }
+    },
+    FilterQueryArraySchema,
+  )
+  .optional();
+
 export const AiModelListQuerySchema = z.object({
   search: z.string().optional(),
   search_in: csvToStringArray.optional(),
@@ -79,7 +92,7 @@ export const AiModelListQuerySchema = z.object({
   sort_dir: z.enum(["asc", "desc"]).optional(),
   page: z.coerce.number().int().min(1).optional(),
   page_size: z.coerce.number().int().min(1).max(100).optional(),
-  filters: FilterQueryArraySchema,
+  filters: filtersQueryParam,
   connector: FilterConnectorSchema.optional(),
   deleted_records: z.enum(["EXCLUDED", "ONLY", "INCLUDED"]).optional(),
 });
@@ -93,17 +106,17 @@ const AiModelBaseSchema = z.object({
   name: z.string().min(1).max(100),
   label_key: z.string().min(1).max(200).optional(),
   description_key: z.string().min(1).max(200).optional(),
-  power_level: z.number().int().min(1).max(5).default(3),
+  power_level: zBoundedInt(1, 5).default(3),
   rank: z.number().min(0).max(5).default(1.0),
   test_scores: z.record(z.string(), z.any()).optional(),
   is_enabled: z.boolean().default(true),
   enable_thinking: z.boolean().default(false),
   temperature: z.number().min(0.1).max(2.0).default(0.7),
   top_p: z.number().min(0.01).max(1.0).default(0.9),
-  max_tokens: z.number().int().min(1).max(32768).default(256),
+  max_tokens: zBoundedInt(1, 32768).default(256),
   repetition_penalty: z.number().min(1.0).max(2.0).default(1.1),
-  sort_order: z.number().int().min(0).max(9999).default(100),
-  download_size_mb: z.number().int().min(0).optional(),
+  sort_order: zBoundedInt(0, 9999).default(100),
+  download_size_mb: zBoundedInt(0, Number.MAX_SAFE_INTEGER).optional(),
   vram_mb: z.number().min(0).optional(),
   compatibility_status: z.enum(["COMPATIBLE", "NOT_COMPATIBLE", "UNTESTED"]).default("UNTESTED"),
   execution_config: z.record(z.string(), z.any()).optional(),

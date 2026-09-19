@@ -8,11 +8,12 @@
  *   - public.translations  (AppTranslationEntity)
  *   - system.translations   (SystemTranslationEntity)
  *   - emailsender.translations (EmailsenderTranslationEntity)
+ *   - custom.translations     (CustomTranslationEntity — user-created keys)
  *
  * The actor for audit fields comes from `requireActor()`.
  */
 
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import {
   Repository,
   field,
@@ -25,10 +26,12 @@ import {
 } from "@primebrick/dal-pg";
 import { requireActor, TranslationsCache, type I18nDict, type CacheEntry, wrapCacheEntry } from "@primebrick/sdk";
 import { getCachePort } from "../../cache/cache-port-holder.js";
+import { ValidationError } from "../../http/api-errors.js";
 import {
   AppTranslationEntity,
   SystemTranslationEntity,
   EmailsenderTranslationEntity,
+  CustomTranslationEntity,
 } from "./translation_entities.js";
 
 /**
@@ -51,7 +54,31 @@ const MODULE_ENTITIES: Record<string, TranslationEntityCtor> = {
   system: SystemTranslationEntity as unknown as TranslationEntityCtor,
   settings: SystemTranslationEntity as unknown as TranslationEntityCtor,
   emailsender: EmailsenderTranslationEntity as unknown as TranslationEntityCtor,
+  custom: CustomTranslationEntity as unknown as TranslationEntityCtor,
 };
+
+/**
+ * User-created translations live only in custom.translations and their keys
+ * MUST start with `custom.`. Conversely, `custom.*` keys are forbidden in every
+ * module-owned schema. Enforced here so collisions are impossible by
+ * construction (seed/module keys are never shadowed by user keys).
+ */
+const CUSTOM_KEY_PREFIX = /^custom\./;
+
+function assertKeyModuleBoundary(moduleCode: string, key?: string): void {
+  if (key === undefined) return;
+  const isCustomModule = moduleCode.toLowerCase() === "custom";
+  if (isCustomModule && !CUSTOM_KEY_PREFIX.test(key)) {
+    throw new ValidationError(`Keys in module 'custom' must start with 'custom.' (got '${key}')`, {
+      internal_code: "VALIDATION_ERROR",
+    });
+  }
+  if (!isCustomModule && CUSTOM_KEY_PREFIX.test(key)) {
+    throw new ValidationError(`Keys starting with 'custom.' belong to module 'custom' (got '${key}')`, {
+      internal_code: "VALIDATION_ERROR",
+    });
+  }
+}
 
 /** Entity class → schema name (derived from DAL metadata). */
 function schemaOf(entity: TranslationEntityCtor): string {
@@ -169,17 +196,45 @@ export class TranslationsDal {
     );
   }
 
-  /** Create a new translation row. */
-  async create(moduleCode: string, data: TranslationCreateBody) {
+  /**
+   * Create a new translation row.
+   * `options.tx` — run inside an open transaction (PoolClient): the write is
+   * appended to the tx and cache invalidation is deferred to the caller
+   * (post-commit via `invalidateModuleCache`).
+   * `options.createIfAbsent` — forwarded to `Repository.add` (default true =
+   * strict insert; false = `ON CONFLICT DO NOTHING`, row skipped → returns undefined).
+   */
+  async create(
+    moduleCode: string,
+    data: TranslationCreateBody,
+    options?: { tx?: PoolClient; createIfAbsent?: boolean },
+  ) {
+    assertKeyModuleBoundary(moduleCode, data.key);
     const entity = this.resolveEntity(moduleCode);
     const actor = requireActor();
-    const row = await this.repo.add(entity, data, { actor });
-    await this.getCache(schemaOf(entity)).invalidate(data.language);
+    const repo = options?.tx ? new Repository(options.tx) : this.repo;
+    const row = await repo.add(entity, data, {
+      actor,
+      createIfAbsent: options?.createIfAbsent,
+    });
+    if (!options?.tx) {
+      await this.getCache(schemaOf(entity)).invalidate(data.language);
+    }
     return row;
+  }
+
+  /**
+   * Invalidate the Redis dict cache for a module — used by callers that ran
+   * creates inside a transaction (invalidation must happen post-commit).
+   */
+  async invalidateModuleCache(moduleCode: string, language?: string): Promise<void> {
+    const entity = this.resolveEntity(moduleCode);
+    await this.getCache(schemaOf(entity)).invalidate(language);
   }
 
   /** Update a translation row by uuid. */
   async update(moduleCode: string, uuid: string, data: TranslationUpdateBody) {
+    assertKeyModuleBoundary(moduleCode, data.key);
     const entity = this.resolveEntity(moduleCode);
     const actor = requireActor();
     const row = await this.repo.update(

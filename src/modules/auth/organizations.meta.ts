@@ -52,6 +52,10 @@ export const organizationMeta = {
       edit: true,
       preview: true,
     },
+    actions_overrides: {
+      "duplicate.single": { enabled: false },
+      "duplicate.bulk": { enabled: false },
+    },
     enableCreateAction: true,
     viewVisibility: {
       table: {

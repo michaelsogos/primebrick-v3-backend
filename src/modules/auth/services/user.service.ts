@@ -12,7 +12,7 @@
  */
 
 import { randomUUID, randomBytes } from "node:crypto";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 import { UserProfilesDal, type UserListQuery, type UserListResponse } from "../user-profiles-dal.js";
 import { CasdoorService } from "./casdoor.service.js";
@@ -311,7 +311,7 @@ export class UserService {
    * Syncs display_name / email / avatar / roles to Casdoor first (non-best-
    * effort), then updates the local DB.
    */
-  async updateUserProfile(uuid: string, body: UserUpdateBody): Promise<UserProfileDetailDto> {
+  async updateUserProfile(uuid: string, body: UserUpdateBody, tx?: PoolClient): Promise<UserProfileDetailDto> {
     const profile = await this.dal.getByUuid(uuid);
     if (!profile) {
       throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
@@ -362,7 +362,7 @@ export class UserService {
     if (body.avatar_initials !== undefined) updateBody.avatar_initials = body.avatar_initials;
     if (body.roles !== undefined) updateBody.roles = JSON.stringify(body.roles);
 
-    await this.dal.updateProfile(uuid, updateBody as any);
+    await this.dal.updateProfile(uuid, updateBody as any, tx);
 
     const updated = await this.dal.getByUuid(uuid);
     if (!updated) {

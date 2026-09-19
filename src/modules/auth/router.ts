@@ -46,10 +46,13 @@ export function authRouter() {
   router.use(authCheckRouter());
 
   // Admin user management (create / update / delete).
-  router.use(usersRouter());
+  const users = usersRouter();
+  router.use(users);
 
   // user_profiles entity CRUD (meta / list / get / restore / audit / put).
-  router.use(userProfilesRouter());
+  // `users` is passed so /meta derivation can include the user_profile ops
+  // that live under /api/v1/auth/users (create / update / delete).
+  router.use(userProfilesRouter(users));
 
   // Role mappings CRUD (Casdoor-synced, non-best-effort).
   router.use(roleMappingsRouter());

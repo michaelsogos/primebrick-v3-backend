@@ -69,13 +69,13 @@ export function authCheckRouter() {
     {
       method: "get",
       path: "/api/v1/auth/users/check-email",
-      permission: rbacHandler([Permission.USERS_READ_ALL]),
+      permission: rbacHandler([Permission.USER_PROFILE_READ_ALL]),
       handler: checkEmail,
     },
     {
       method: "get",
       path: "/api/v1/auth/users/check-username",
-      permission: rbacHandler([Permission.USERS_READ_ALL]),
+      permission: rbacHandler([Permission.USER_PROFILE_READ_ALL]),
       handler: checkUsername,
     },
   ]);

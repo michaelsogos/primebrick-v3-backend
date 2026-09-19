@@ -20,7 +20,7 @@
  *     GET /api/v1/system/translations/:module/:language
  *       → flat i18n dict from {schema}.translations
  *
- *   ADMIN CRUD (TRANSLATIONS_MANAGE — standard entity pattern):
+ *   ADMIN CRUD (translation.* perms — standard entity pattern):
  *     GET    /api/v1/entities/translation/list?module={code}&language={lang}&page=1&page_size=25
  *     POST   /api/v1/entities/translation?module={code}
  *     PUT    /api/v1/entities/translation/:uuid?module={code}
@@ -42,6 +42,7 @@ import { getPool } from "../../db/pool.js";
 import { TranslationsDal } from "./translations-dal.js";
 import { ValidationError } from "../../http/api-errors.js";
 import { etagMiddleware } from "../../http/etag-middleware.js";
+import { entityOnlyWriteBody } from "../../http/entity-write.js";
 
 const ModuleCodeSchema = z
   .string()
@@ -68,6 +69,11 @@ const TranslationUpdateSchema = z.object({
   language: LanguageSchema.optional(),
   value: z.string().optional(),
 });
+
+// Write-payload standard: `{entity}` — a translation row never carries
+// piggybacked translations (entityOnlyWriteBody rejects the sibling).
+const TranslationCreateWriteSchema = entityOnlyWriteBody(TranslationCreateSchema);
+const TranslationUpdateWriteSchema = entityOnlyWriteBody(TranslationUpdateSchema);
 
 const ListQuerySchema = z.object({
   module: ModuleCodeSchema,
@@ -134,14 +140,14 @@ export function translationsRouter() {
     }),
   );
 
-  // ─── ADMIN CRUD (TRANSLATIONS_MANAGE — standard entity pattern) ─────────
+  // ─── ADMIN CRUD (translation.* perms — standard entity pattern) ─────────
   // Follows the same pattern as /api/v1/entities/customer, /api/v1/entities/organization, etc.
   // Module is a query param (not a path param) — same as the plan specified.
 
   // GET /api/v1/entities/translation/list?module={code}&language={lang}&page=1&page_size=25
   router.get(
     "/api/v1/entities/translation/list",
-    rbacHandler([Permission.TRANSLATIONS_MANAGE]),
+    rbacHandler([Permission.TRANSLATION_READ_ALL]),
     asyncHandler(async (req, res) => {
       const queryResult = ListQuerySchema.safeParse(req.query);
       if (!queryResult.success) {
@@ -156,18 +162,18 @@ export function translationsRouter() {
   // POST /api/v1/entities/translation?module={code} — create
   router.post(
     "/api/v1/entities/translation",
-    rbacHandler([Permission.TRANSLATIONS_MANAGE]),
+    rbacHandler([Permission.TRANSLATION_CREATE_SINGLE]),
     asyncHandler(async (req, res) => {
       const queryResult = ModuleQuerySchema.safeParse(req.query);
       if (!queryResult.success) {
         throw new ValidationError("Missing or invalid module query param", { internal_code: "VALIDATION_ERROR" });
       }
-      const bodyResult = TranslationCreateSchema.safeParse(req.body);
+      const bodyResult = TranslationCreateWriteSchema.safeParse(req.body);
       if (!bodyResult.success) {
         throw new ValidationError("Invalid request body", { internal_code: "VALIDATION_ERROR" });
       }
       const dal = new TranslationsDal(getPool());
-      const created = await dal.create(queryResult.data.module, bodyResult.data);
+      const created = await dal.create(queryResult.data.module, bodyResult.data.entity);
       res.status(201).json(created);
     }),
   );
@@ -175,7 +181,7 @@ export function translationsRouter() {
   // PUT /api/v1/entities/translation/:uuid?module={code} — update
   router.put(
     "/api/v1/entities/translation/:uuid",
-    rbacHandler([Permission.TRANSLATIONS_MANAGE]),
+    rbacHandler([Permission.TRANSLATION_UPDATE_SINGLE]),
     asyncHandler(async (req, res) => {
       const queryResult = ModuleQuerySchema.safeParse(req.query);
       if (!queryResult.success) {
@@ -185,12 +191,12 @@ export function translationsRouter() {
       if (!uuidResult.success) {
         throw new ValidationError("Invalid UUID", { internal_code: "VALIDATION_ERROR" });
       }
-      const bodyResult = TranslationUpdateSchema.safeParse(req.body);
+      const bodyResult = TranslationUpdateWriteSchema.safeParse(req.body);
       if (!bodyResult.success) {
         throw new ValidationError("Invalid request body", { internal_code: "VALIDATION_ERROR" });
       }
       const dal = new TranslationsDal(getPool());
-      const updated = await dal.update(queryResult.data.module, uuidResult.data, bodyResult.data);
+      const updated = await dal.update(queryResult.data.module, uuidResult.data, bodyResult.data.entity);
       res.json(updated);
     }),
   );
@@ -198,7 +204,7 @@ export function translationsRouter() {
   // DELETE /api/v1/entities/translation/:uuid?module={code} — soft delete
   router.delete(
     "/api/v1/entities/translation/:uuid",
-    rbacHandler([Permission.TRANSLATIONS_MANAGE]),
+    rbacHandler([Permission.TRANSLATION_DELETE_SINGLE]),
     asyncHandler(async (req, res) => {
       const queryResult = ModuleQuerySchema.safeParse(req.query);
       if (!queryResult.success) {
@@ -217,7 +223,7 @@ export function translationsRouter() {
   // POST /api/v1/entities/translation/:uuid/restore?module={code} — restore
   router.post(
     "/api/v1/entities/translation/:uuid/restore",
-    rbacHandler([Permission.TRANSLATIONS_MANAGE]),
+    rbacHandler([Permission.TRANSLATION_RESTORE_SINGLE]),
     asyncHandler(async (req, res) => {
       const queryResult = ModuleQuerySchema.safeParse(req.query);
       if (!queryResult.success) {

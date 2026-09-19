@@ -10,7 +10,7 @@
  */
 import { randomUUID } from "node:crypto";
 
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 import {
   entityDateToApiIso,
@@ -287,10 +287,11 @@ export class AiModelsDal {
     };
   }
 
-  async createAiModel(body: AiModelCreateBody): Promise<{ uuid: string }> {
+  async createAiModel(body: AiModelCreateBody, tx?: PoolClient): Promise<{ uuid: string }> {
     const uuid = randomUUID();
     const actor = requireActor();
-    await this.repo.add(
+    const repo = tx ? new Repository(tx) : this.repo;
+    await repo.add(
       AiModelEntity,
       {
         uuid,
@@ -317,17 +318,18 @@ export class AiModelsDal {
       },
       { actor, audit: this.auditPort }
     );
-    await this.invalidateCache();
+    if (!tx) await this.invalidateCache();
     return { uuid };
   }
 
-  async updateAiModel(uuid: string, body: AiModelUpdateBody): Promise<void> {
-    await this.repo.update(
+  async updateAiModel(uuid: string, body: AiModelUpdateBody, tx?: PoolClient): Promise<void> {
+    const repo = tx ? new Repository(tx) : this.repo;
+    await repo.update(
       AiModelEntity,
       { ...body, uuid },
       { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
     );
-    await this.invalidateCache();
+    if (!tx) await this.invalidateCache();
   }
 
   async deleteAiModel(uuid: string): Promise<void> {

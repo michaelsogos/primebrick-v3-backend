@@ -83,10 +83,10 @@ provider (IDP). The authentication flow is:
 
 Permissions follow the pattern `module.action.granularity`:
 
-- `customers.read.all` — list all customers
-- `customers.read.single` — read a single customer
-- `customers.create.bulk` — bulk create customers
-- `customers.*` — wildcard matching all customer permissions
+- `customer.read.all` — list all customers
+- `customer.read.single` — read a single customer
+- `customer.create.bulk` — bulk create customers
+- `customer.*` — wildcard matching all customer permissions
 - `*` — admin bypass (matches everything)
 
 Role mappings are stored in the `role_mappings` table and linked to Casdoor
@@ -230,8 +230,8 @@ curl -i http://localhost:3001/api/v1/entities/customer/list \
   "extra": {
     "issues": [{
       "kind": "missing_any_of_permissions",
-      "required": ["customers.read.all"],
-      "missing": ["customers.read.all"],
+      "required": ["customer.read.all"],
+      "missing": ["customer.read.all"],
       "mode": "any",
       "user_roles": ["guest"]
     }]

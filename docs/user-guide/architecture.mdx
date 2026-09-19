@@ -131,14 +131,14 @@ registerRoutes(router, [
   {
     method: "get",
     path: "/api/v1/entities/customer/list",
-    permission: rbacHandler([Permission.CUSTOMERS_READ_ALL]),
+    permission: rbacHandler([Permission.CUSTOMER_READ_ALL]),
     middlewares: [validateQuery(CustomerListQuerySchema)],
     handler: list,
   },
   {
     method: "post",
     path: "/api/v1/entities/customer",
-    permission: rbacHandler([Permission.CUSTOMERS_CREATE_SINGLE]),
+    permission: rbacHandler([Permission.CUSTOMER_CREATE_SINGLE]),
     middlewares: [validateBody(CustomerCreateBodySchema)],
     handler: create,
   },
@@ -200,7 +200,7 @@ throw new ValidationError("Request validation failed", { internal_code: "VALIDAT
 // 403 — Forbidden (extra.issues is read by the FE)
 throw new ForbiddenError("Insufficient permissions", {
   internal_code: "RBAC_PERMISSION_DENIED",
-  extra: { issues: [{ kind: "missing_any_of_permissions", required: ["customers.read.all"] }] },
+  extra: { issues: [{ kind: "missing_any_of_permissions", required: ["customer.read.all"] }] },
 });
 
 // 401 — Unauthorized
@@ -367,14 +367,14 @@ export function customersRouter() {
     {
       method: "get",
       path: "/api/v1/entities/customer/list",
-      permission: rbacHandler([Permission.CUSTOMERS_READ_ALL]),
+      permission: rbacHandler([Permission.CUSTOMER_READ_ALL]),
       middlewares: [validateQuery(CustomerListQuerySchema)],
       handler: list,
     },
     {
       method: "post",
       path: "/api/v1/entities/customer",
-      permission: rbacHandler([Permission.CUSTOMERS_CREATE_SINGLE]),
+      permission: rbacHandler([Permission.CUSTOMER_CREATE_SINGLE]),
       middlewares: [validateBody(CustomerCreateBodySchema)],
       handler: create,
     },

@@ -14,7 +14,7 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 import { CustomersDal } from "./customers_dal.js";
 import type {
@@ -112,12 +112,12 @@ export class CustomersService {
 
   // --- Create / Update / Delete / Restore -----------------------------------
 
-  async createCustomer(body: CustomerCreateBody) {
-    return this.getDal().createCustomer(body);
+  async createCustomer(body: CustomerCreateBody, tx?: PoolClient) {
+    return this.getDal().createCustomer(body, tx);
   }
 
-  async updateCustomer(uuid: string, body: CustomerUpdateBody) {
-    await this.getDal().updateCustomer(uuid, body);
+  async updateCustomer(uuid: string, body: CustomerUpdateBody, tx?: PoolClient) {
+    await this.getDal().updateCustomer(uuid, body, tx);
   }
 
   async deleteCustomer(uuid: string) {

@@ -187,13 +187,13 @@ export function authInvitationRouter() {
     {
       method: "post",
       path: "/api/v1/auth/invitations/:uuid/revoke",
-      permission: rbacHandler([Permission.USERS_UPDATE_SINGLE]),
+      permission: rbacHandler([Permission.USER_PROFILE_UPDATE_SINGLE]),
       handler: revokeInvitation,
     },
     {
       method: "post",
       path: "/api/v1/auth/invitations/:uuid/resend",
-      permission: rbacHandler([Permission.USERS_UPDATE_SINGLE]),
+      permission: rbacHandler([Permission.USER_PROFILE_UPDATE_SINGLE]),
       handler: resendInvitation,
     },
     {

@@ -129,6 +129,16 @@ export function authSessionRouter() {
     }
   });
 
+  // Logout — PUBLIC on purpose: must work even with an expired access token.
+  // Both auth cookies are httpOnly → JS cannot clear them; only the server
+  // can. Clearing them is the auth boundary (the refresh token becomes
+  // unreachable to the browser even if still valid at the IdP).
+  const logout: RequestHandler = asyncHandler(async (_req, res) => {
+    res.clearCookie("access_token", { path: "/" });
+    clearRefreshCookie(res as Response);
+    res.json({ success: true });
+  });
+
   const updateMe: RequestHandler = asyncHandler(async (req, res) => {
     const userId = requireUserId(req);
     const { profile } = await service.updateMe(userId, req.body as z.infer<typeof ProfileUpdateSchema>);
@@ -138,7 +148,11 @@ export function authSessionRouter() {
   const getMe: RequestHandler = asyncHandler(async (req, res) => {
     const userId = requireUserId(req);
     const { profile, has_passkey, auth_method_enforcer_dismissed, has_mfa } = await service.getMe(userId);
-    res.json({ success: true, profile, has_passkey, auth_method_enforcer_dismissed, has_mfa });
+    // Expanded permission set — same data the RBAC middleware computes per
+    // request (roles → role_mappings → wildcard patterns). The FE uses it for
+    // per-CTA enablement; BE enforcement stays authoritative.
+    const permissions = req.user ? Array.from(req.user.permissions) : [];
+    res.json({ success: true, profile, has_passkey, auth_method_enforcer_dismissed, has_mfa, permissions });
   });
 
   const getMeMeta: RequestHandler = asyncHandler(async (_req, res) => {
@@ -206,6 +220,12 @@ export function authSessionRouter() {
       path: "/api/v1/auth/refresh",
       permission: rbacHandler([Permission.PUBLIC]),
       handler: refresh,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/logout",
+      permission: rbacHandler([Permission.PUBLIC]),
+      handler: logout,
     },
     {
       method: "get",

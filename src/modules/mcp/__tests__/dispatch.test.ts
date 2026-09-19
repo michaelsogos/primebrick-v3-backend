@@ -205,14 +205,14 @@ describe("MCP Dispatch — checkRbac", () => {
   });
 
   it("passes when user has the required permission (any-of semantics)", () => {
-    const userAuth = makeAuthInfoWithPermissions([Permission.CUSTOMERS_READ_ALL]);
+    const userAuth = makeAuthInfoWithPermissions([Permission.CUSTOMER_READ_ALL]);
     expect(() => checkRbac(userAuth, "be", "customer", "list")).not.toThrow();
-    // get requires CUSTOMERS_READ_SINGLE OR CUSTOMERS_READ_ALL
+    // get requires CUSTOMER_READ_SINGLE OR CUSTOMER_READ_ALL
     expect(() => checkRbac(userAuth, "be", "customer", "get")).not.toThrow();
   });
 
   it("passes when user has wildcard permission", () => {
-    const userAuth = makeAuthInfoWithPermissions(["customers.*"]);
+    const userAuth = makeAuthInfoWithPermissions(["customer.*"]);
     expect(() => checkRbac(userAuth, "be", "customer", "list")).not.toThrow();
     expect(() => checkRbac(userAuth, "be", "customer", "create")).not.toThrow();
     expect(() => checkRbac(userAuth, "be", "customer", "delete")).not.toThrow();

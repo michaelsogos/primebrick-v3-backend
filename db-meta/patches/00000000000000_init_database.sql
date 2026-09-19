@@ -22,11 +22,14 @@ END $$;
 -- === Schemas ===
 CREATE SCHEMA IF NOT EXISTS emailsender;
 CREATE SCHEMA IF NOT EXISTS system;
+CREATE SCHEMA IF NOT EXISTS "custom";
 
 GRANT ALL ON SCHEMA emailsender TO primebrick;
 GRANT ALL ON SCHEMA emailsender TO public;
 GRANT ALL ON SCHEMA system TO primebrick;
 GRANT ALL ON SCHEMA system TO public;
+GRANT ALL ON SCHEMA "custom" TO primebrick;
+GRANT ALL ON SCHEMA "custom" TO public;
 
 -- === Tables ===
 
@@ -655,6 +658,32 @@ CREATE INDEX IF NOT EXISTS "system_translations_language_idx"
   ON "system"."translations" ("language")
   WHERE "deleted_at" IS NULL;
 
+-- custom.translations (user-created keys: custom.* — global, shared, cross-org.
+-- The `custom` schema is the boundary for user-owned data: never project seed
+-- data, never service-module data.)
+CREATE TABLE IF NOT EXISTS "custom"."translations" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "uuid" UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  "key" VARCHAR(255) NOT NULL,
+  "language" VARCHAR(10) NOT NULL,
+  "value" TEXT NOT NULL,
+  "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "created_by" VARCHAR(255) NOT NULL,
+  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "updated_by" VARCHAR(255) NOT NULL,
+  "version" INTEGER NOT NULL DEFAULT 1,
+  "deleted_at" TIMESTAMPTZ,
+  "deleted_by" VARCHAR(255)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "custom_translations_key_language_uidx"
+  ON "custom"."translations" ("key", "language")
+  WHERE "deleted_at" IS NULL;
+
+CREATE INDEX IF NOT EXISTS "custom_translations_language_idx"
+  ON "custom"."translations" ("language")
+  WHERE "deleted_at" IS NULL;
+
 -- === Seed Data ===
 
 -- Seed the only auto-created role mapping: 'administrators' (is_admin=true).
@@ -685,7 +714,7 @@ AND NOT EXISTS (
 -- Dedicated role for security/compliance team to inspect login logs.
 -- Admin (is_admin=true) bypasses all checks; this role is for non-admin users.
 INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('auth_auditor', '["auth_events.read.all"]'::jsonb, false, '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1)
+VALUES ('auth_auditor', '["auth_event.read.all"]'::jsonb, false, '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1)
 ON CONFLICT (idp_role) DO NOTHING;
 
 -- Seed initial auth configuration values

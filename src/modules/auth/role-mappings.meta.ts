@@ -56,6 +56,12 @@ export const roleMappingsMeta = {
       preview: false,
       restore: false,
     },
+    actions_overrides: {
+      "duplicate.single": { enabled: false },
+      "duplicate.bulk": { enabled: false },
+      "restore.single": { enabled: false },
+      "restore.bulk": { enabled: false },
+    },
     enableCreateAction: true,
     viewVisibility: {
       table: {

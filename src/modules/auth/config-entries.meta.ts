@@ -10,12 +10,21 @@
  * The per-row `type` / `type_config` / `label_key` / `description_key` /
  * `reserved` columns are returned by the `list` endpoint and drive the FE
  * widget selection directly — they are NOT part of this static meta.
+ *
+ * `type_capabilities` is the canonical per-type capability matrix owned by
+ * `@primebrick/sdk` (`TYPE_CAPABILITIES`): it declares which `type_config`
+ * props apply to each `ConfigType` (validation bounds semantics, regex,
+ * unsigned, widget-level props). The FE uses it to render the right-column
+ * form dynamically and to scope the Smart JSON config assistant topics.
  */
+import { TYPE_CAPABILITIES } from "@primebrick/sdk";
+
 export const configEntriesMeta = {
   entity: "config_entry",
   translationKey: "config_entry",
   titleKey: "system.settings.configurations.title",
   uid: "uuid",
+  type_capabilities: TYPE_CAPABILITIES,
   list: {
     columns: [
       { key: "key", labelKey: "system.entities.config_entry.fields.key", type: "text", sortable: true, defaultVisible: true, filterable: true },
@@ -28,6 +37,10 @@ export const configEntriesMeta = {
     rowActions: {
       delete: true,
       edit: true,
+    },
+    actions_overrides: {
+      "create.single": { enabled: false },
+      "create.bulk": { enabled: false },
     },
     enableCreateAction: false,
   },

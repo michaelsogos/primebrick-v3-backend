@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import {
   Repository,
   Project,
@@ -347,9 +347,10 @@ export class RoleMappingRepo {
     permissions: string[],
     isAdmin: boolean,
     labelKey?: string,
-    extras?: { idp_org?: string; last_synced_at?: Date; actor?: string }
+    extras?: { idp_org?: string; last_synced_at?: Date; actor?: string; tx?: PoolClient }
   ): Promise<void> {
-    await this.repo.upsert(
+    const repo = extras?.tx ? new Repository(extras.tx) : this.repo;
+    await repo.upsert(
       RoleMappingEntity,
       {
         idp_role: idpRole,
@@ -361,6 +362,14 @@ export class RoleMappingRepo {
       },
       { actor: extras?.actor ?? "system", conflictTarget: "idp_role" }
     );
+    if (!extras?.tx) await this.invalidateRoleMappingsCache();
+  }
+
+  /**
+   * Public cache invalidation — for callers that ran writes inside a
+   * transaction (invalidation must happen post-commit).
+   */
+  async invalidateMappingsCache(): Promise<void> {
     await this.invalidateRoleMappingsCache();
   }
 
