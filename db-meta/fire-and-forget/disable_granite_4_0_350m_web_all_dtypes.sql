@@ -30,7 +30,7 @@ INSERT INTO public.ai_models (uuid, model_id, name, label_key, description_key,
   vram_mb, compatibility_status, rank, dtype, engine_type,
   test_scores)
 VALUES
-  ('a3333333-0000-0000-0000-000000000301',
+  ('a3333333-0000-4xxx0000-000000000301',
    'onnx-community/granite-4.0-350m-ONNX-web#fp16',
    'Granite 4.0 350M Web (fp16)',
    'ai_model_granite_4_0_350m_web', 'ai_model_granite_4_0_350m_web_desc',
@@ -38,7 +38,7 @@ VALUES
    'system_migration_not_compatible', 'system_migration_not_compatible',
    680, 350.00, 'NOT_COMPATIBLE', '1.0', 'fp16', 'transformersjs',
    '{"notes":"Marked NOT_COMPATIBLE without download: q4f16 sibling failed generation (natural language instead of regex JSON) — 350M instruction-following limit, precision cannot fix it","load_ok":false,"generation_ok":false,"tested_at":"2026-09-16T00:00:00.000Z","strategy":"not_tested"}'::jsonb),
-  ('a3333333-0000-0000-0000-000000000302',
+  ('a3333333-0000-4xxx0000-000000000302',
    'onnx-community/granite-4.0-350m-ONNX-web#q4',
    'Granite 4.0 350M Web (q4)',
    'ai_model_granite_4_0_350m_web', 'ai_model_granite_4_0_350m_web_desc',

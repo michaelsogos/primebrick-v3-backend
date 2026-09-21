@@ -2,13 +2,14 @@
  * user-profiles.router — thin controller for the `user_profiles` entity CRUD
  * surface (admin).
  *
- * Endpoints:
+ * Endpoints (READ-ONLY surface):
  *   GET   /api/v1/entities/user_profile/meta           → entity metadata
  *   GET   /api/v1/entities/user_profile/list           → paginated list
  *   GET   /api/v1/entities/user_profile/:uuid          → single user
- *   POST  /api/v1/entities/user_profile/:uuid/restore  → restore soft-deleted
  *   GET   /api/v1/entities/user_profile/:uuid/audit    → audit history
- *   PUT   /api/v1/entities/user_profile/:uuid          → admin profile update
+ *
+ * All lifecycle writes (create / update / delete / restore / change-password)
+ * live under `/api/v1/auth/users` — the AUTH module owns Casdoor coordination.
  *
  * The router contains NO business logic. All errors are thrown as `ApiError`
  * subclasses and converted to RFC 7807 by the centralized `errorHandler`.
@@ -98,12 +99,6 @@ export function userProfilesRouter(usersRoutes?: IRouter) {
     res.json(user);
   });
 
-  const restore: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params;
-    await service.restoreUser(uuid as string);
-    res.json({ success: true });
-  });
-
   /** Inline param + query validation for the audit endpoint. */
   const validateAuditParams: RequestHandler = (req, res, next) => {
     const r = UuidParamSchema.safeParse(req.params);
@@ -121,48 +116,7 @@ export function userProfilesRouter(usersRoutes?: IRouter) {
     res.json(result);
   });
 
-  const update: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params;
-    const body = req.body as z.infer<typeof UserUpdateBodySchemaWrapped>;
-    assertTranslationsPermission(req, body.translations);
-    const updated = await runEntityWrite(
-      getPool(),
-      body.translations,
-      (tx) => service.updateUserProfile(uuid as string, body.entity, tx),
-    );
-    res.json(updated);
-  });
 
-  const changePassword: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params;
-    // Load the active password policy from DB and build the schema dynamically.
-    const cfg = await loadAuthConfigFromDb(getPool());
-    const policy = parsePasswordPolicy(cfg.password_policy!);
-    const schema = makeChangePasswordSchema(policy);
-    const parsed = schema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({
-        type: '/errors/validation-error',
-        title: 'Validation error',
-        status: 400,
-        detail: 'Request validation failed',
-        severity: 'HIGH' as const,
-        internal_code: 'VALIDATION_ERROR',
-        instance: req.path,
-        extra: {
-          issues: parsed.error.issues.map((i) => ({
-            path: i.path.join("."),
-            code: i.code,
-            message: i.message,
-          })),
-        },
-      });
-      return;
-    }
-    const { newPassword } = parsed.data as ChangePasswordBody;
-    const result = await service.changePassword(uuid as string, newPassword);
-    res.json(result);
-  });
 
   registerRoutes(router, [
     {
@@ -184,30 +138,11 @@ export function userProfilesRouter(usersRoutes?: IRouter) {
       handler: getSingle,
     },
     {
-      method: "post",
-      path: "/api/v1/entities/user_profile/:uuid/restore",
-      permission: rbacHandler([Permission.USER_PROFILE_RESTORE_SINGLE]),
-      handler: restore,
-    },
-    {
       method: "get",
       path: "/api/v1/entities/user_profile/:uuid/audit",
       permission: rbacHandler([Permission.USER_PROFILE_READ_AUDIT]),
       middlewares: [validateAuditParams],
       handler: getAudit,
-    },
-    {
-      method: "put",
-      path: "/api/v1/entities/user_profile/:uuid",
-      permission: rbacHandler([Permission.USER_PROFILE_UPDATE_SINGLE]),
-      middlewares: [validateBody(UserUpdateBodySchemaWrapped)],
-      handler: update,
-    },
-    {
-      method: "post",
-      path: "/api/v1/entities/user_profile/:uuid/change-password",
-      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
-      handler: changePassword,
     },
   ]);
 

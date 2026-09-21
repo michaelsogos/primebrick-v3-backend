@@ -33,6 +33,8 @@ export interface CreateOrganizationInput {
 export interface UpdateOrganizationInput {
   display_name?: string;
   website_url?: string;
+  /** Caller-observed row version — optimistic-concurrency token (ERR02 if absent). */
+  version?: number;
 }
 
 export class OrganizationsService {
@@ -233,8 +235,11 @@ export class OrganizationsService {
       }
     }
 
-    // Update local DB with last_synced_at.
-    const updateBody: { display_name?: string; website_url?: string; last_synced_at?: Date } = {};
+    // Update local DB with last_synced_at. `version` is the caller-observed
+    // version from the API input — NOT org.version (the DB row we just read is
+    // the observation for displayName fallbacks, not a substitute for the
+    // caller's concurrency token).
+    const updateBody: { display_name?: string; website_url?: string; last_synced_at?: Date; version?: number } = { version: input.version };
     if (display_name !== undefined) updateBody.display_name = display_name;
     if (website_url !== undefined) updateBody.website_url = website_url || undefined;
     updateBody.last_synced_at = new Date();
@@ -244,7 +249,7 @@ export class OrganizationsService {
 
   // --- Delete ---------------------------------------------------------------
 
-  async deleteOrganization(uuid: string): Promise<void> {
+  async deleteOrganization(uuid: string, version: number): Promise<unknown> {
     const org = await this.getDal().getByUuid(uuid);
     if (!org) {
       throw new NotFoundError("Organization not found in database", {
@@ -271,12 +276,12 @@ export class OrganizationsService {
       }
     }
 
-    await this.getDal().deleteOrganization(uuid);
+    return await this.getDal().deleteOrganization(uuid, version);
   }
 
   // --- Restore --------------------------------------------------------------
 
-  async restoreOrganization(uuid: string): Promise<void> {
+  async restoreOrganization(uuid: string, version: number): Promise<unknown> {
     const org = await this.getDal().getByUuid(uuid);
     if (!org) {
       throw new NotFoundError("Organization not found in database", {
@@ -307,7 +312,7 @@ export class OrganizationsService {
       }
     }
 
-    await this.getDal().restoreOrganization(uuid);
+    return await this.getDal().restoreOrganization(uuid, version);
   }
 
   // --- Audit ----------------------------------------------------------------

@@ -298,15 +298,15 @@ describe("MCP Dispatch — BE in-process dispatch", () => {
 
   it("dispatchBeDelete calls deleteCustomer and returns success", async () => {
     mockCustomersService.deleteCustomer.mockResolvedValue(undefined);
-    const result = await dispatchBeDelete("customer", "abc");
-    expect(mockCustomersService.deleteCustomer).toHaveBeenCalledWith("abc");
+    const result = await dispatchBeDelete("customer", "abc", 3);
+    expect(mockCustomersService.deleteCustomer).toHaveBeenCalledWith("abc", 3);
     expect(result).toEqual({ success: true });
   });
 
   it("dispatchBeRestore calls restoreCustomer and returns success", async () => {
     mockCustomersService.restoreCustomer.mockResolvedValue(undefined);
-    const result = await dispatchBeRestore("customer", "abc");
-    expect(mockCustomersService.restoreCustomer).toHaveBeenCalledWith("abc");
+    const result = await dispatchBeRestore("customer", "abc", 3);
+    expect(mockCustomersService.restoreCustomer).toHaveBeenCalledWith("abc", 3);
     expect(result).toEqual({ success: true });
   });
 
@@ -340,7 +340,7 @@ describe("MCP Dispatch — BE bulk dispatch", () => {
 
   it("dispatchBeBulk delete processes all UUIDs and returns per-UUID results", async () => {
     mockCustomersService.deleteCustomer.mockResolvedValue(undefined);
-    const result = await dispatchBeBulk("customer", "delete", ["uuid-1", "uuid-2", "uuid-3"]);
+    const result = await dispatchBeBulk("customer", "delete", [{ uuid: "uuid-1", version: 1 }, { uuid: "uuid-2", version: 1 }, { uuid: "uuid-3", version: 1 }]);
     expect(mockCustomersService.deleteCustomer).toHaveBeenCalledTimes(3);
     expect(result).toEqual({
       results: [
@@ -353,8 +353,8 @@ describe("MCP Dispatch — BE bulk dispatch", () => {
 
   it("dispatchBeBulk restore processes all UUIDs", async () => {
     mockCustomersService.restoreCustomer.mockResolvedValue(undefined);
-    const result = await dispatchBeBulk("customer", "restore", ["uuid-1"]);
-    expect(mockCustomersService.restoreCustomer).toHaveBeenCalledWith("uuid-1");
+    const result = await dispatchBeBulk("customer", "restore", [{ uuid: "uuid-1", version: 2 }]);
+    expect(mockCustomersService.restoreCustomer).toHaveBeenCalledWith("uuid-1", 2);
     expect(result).toEqual({ results: [{ uuid: "uuid-1", success: true }] });
   });
 
@@ -363,7 +363,7 @@ describe("MCP Dispatch — BE bulk dispatch", () => {
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("Not found"));
 
-    const result = await dispatchBeBulk("customer", "delete", ["ok-uuid", "bad-uuid"]);
+    const result = await dispatchBeBulk("customer", "delete", [{ uuid: "ok-uuid", version: 1 }, { uuid: "bad-uuid", version: 1 }]);
     const results = result as { results: Array<{ uuid: string; success: boolean; error?: string }> };
     expect(results.results).toHaveLength(2);
     expect(results.results[0]).toEqual({ uuid: "ok-uuid", success: true });

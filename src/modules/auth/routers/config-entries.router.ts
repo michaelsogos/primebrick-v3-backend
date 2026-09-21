@@ -120,7 +120,11 @@ const UpdateBodySchema = z.object({
 });
 
 const BulkDeleteBodySchema = z.object({
-  uuids: z.array(z.string().min(1)).min(1),
+  items: z.array(z.object({
+    uuid: z.string().min(1),
+    // Caller-observed version — per-row optimistic-concurrency guard.
+    version: z.union([z.number().int().min(1), z.bigint()]),
+  })).min(1),
 });
 
 const BulkUpdateBodySchema = z.object({
@@ -528,10 +532,13 @@ export function configEntriesRouter() {
 
   const softDelete: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params;
+    // Caller-observed version (ERR02 if absent — enforced by the DAL).
+    const version = req.query.version !== undefined ? Number(req.query.version) : (undefined as unknown as number);
     const userUuid = requireUserUuid(req);
     const dal = makeDal();
+    let row: ConfigEntryEntity;
     try {
-      await dal.softDelete(uuid as string, userUuid);
+      row = await dal.softDelete(uuid as string, version, userUuid);
     } catch (err) {
       if (err instanceof ReservedConfigError) {
         throw new ApiError(
@@ -557,7 +564,7 @@ export function configEntriesRouter() {
       }
       throw err;
     }
-    res.json({ success: true });
+    res.json(maskSecretValue(row));
   });
 
   const bulkDelete: RequestHandler = asyncHandler(async (req, res) => {
@@ -565,7 +572,10 @@ export function configEntriesRouter() {
     const userUuid = requireUserUuid(req);
     const dal = makeDal();
     try {
-      await dal.bulkSoftDelete(body.uuids, userUuid);
+      await dal.bulkSoftDelete(
+        body.items.map((i) => ({ uuid: i.uuid, version: Number(i.version) })),
+        userUuid
+      );
     } catch (err) {
       if (err instanceof ReservedConfigError) {
         throw new ApiError(
@@ -591,15 +601,18 @@ export function configEntriesRouter() {
       }
       throw err;
     }
-    res.json({ success: true });
+    res.status(204).send();
   });
 
   const restore: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params;
+    // Caller-observed version (ERR02 if absent — enforced by the DAL).
+    const version = req.query.version !== undefined ? Number(req.query.version) : (undefined as unknown as number);
     const userUuid = requireUserUuid(req);
     const dal = makeDal();
+    let row: ConfigEntryEntity;
     try {
-      await dal.restore(uuid as string, userUuid);
+      row = await dal.restore(uuid as string, version, userUuid);
     } catch (err) {
       if (err instanceof Error && err.message.includes("not found")) {
         throw new ApiError(
@@ -612,7 +625,7 @@ export function configEntriesRouter() {
       }
       throw err;
     }
-    res.json({ success: true });
+    res.json(maskSecretValue(row));
   });
 
   registerRoutes(router, [

@@ -207,16 +207,16 @@ export async function dispatchBeUpdate(
 /**
  * Dispatch a delete operation (soft-delete) to the BE service layer.
  */
-export async function dispatchBeDelete(entity: string, uuid: string): Promise<unknown> {
+export async function dispatchBeDelete(entity: string, uuid: string, version: number): Promise<unknown> {
   switch (entity) {
     case "customer":
-      await getCustomerService().deleteCustomer(uuid);
+      await getCustomerService().deleteCustomer(uuid, version);
       return { success: true };
     case "organization":
-      await getOrganizationService().deleteOrganization(uuid);
+      await getOrganizationService().deleteOrganization(uuid, version);
       return { success: true };
     case "user_profile":
-      await getUserService().deleteUser(uuid);
+      await getUserService().deleteUser(uuid, version);
       return { success: true };
     default:
       throw new EntityNotFoundError("be", entity);
@@ -226,16 +226,16 @@ export async function dispatchBeDelete(entity: string, uuid: string): Promise<un
 /**
  * Dispatch a restore operation to the BE service layer.
  */
-export async function dispatchBeRestore(entity: string, uuid: string): Promise<unknown> {
+export async function dispatchBeRestore(entity: string, uuid: string, version: number): Promise<unknown> {
   switch (entity) {
     case "customer":
-      await getCustomerService().restoreCustomer(uuid);
+      await getCustomerService().restoreCustomer(uuid, version);
       return { success: true };
     case "organization":
-      await getOrganizationService().restoreOrganization(uuid);
+      await getOrganizationService().restoreOrganization(uuid, version);
       return { success: true };
     case "user_profile":
-      await getUserService().restoreUser(uuid);
+      await getUserService().restoreUser(uuid, version);
       return { success: true };
     default:
       throw new EntityNotFoundError("be", entity);
@@ -285,15 +285,15 @@ export async function dispatchBeMeta(entity: string): Promise<unknown> {
 export async function dispatchBeBulk(
   entity: string,
   action: "delete" | "restore",
-  uuids: string[],
+  items: Array<{ uuid: string; version: number }>,
 ): Promise<unknown> {
   const results: Array<{ uuid: string; success: boolean; error?: string }> = [];
-  for (const uuid of uuids) {
+  for (const { uuid, version } of items) {
     try {
       if (action === "delete") {
-        await dispatchBeDelete(entity, uuid);
+        await dispatchBeDelete(entity, uuid, version);
       } else {
-        await dispatchBeRestore(entity, uuid);
+        await dispatchBeRestore(entity, uuid, version);
       }
       results.push({ uuid, success: true });
     } catch (err) {
@@ -462,8 +462,9 @@ export async function dispatchProxyDelete(
   module: string,
   entity: string,
   uuid: string,
+  version: number,
 ): Promise<unknown> {
-  const path = buildProxyPath(module, entity, "delete", uuid);
+  const path = `${buildProxyPath(module, entity, "delete", uuid)}?version=${version}`;
   return proxyToMicroservice(authInfo, "DELETE", path);
 }
 
@@ -475,8 +476,9 @@ export async function dispatchProxyRestore(
   module: string,
   entity: string,
   uuid: string,
+  version: number,
 ): Promise<unknown> {
-  const path = buildProxyPath(module, entity, "restore", uuid);
+  const path = `${buildProxyPath(module, entity, "restore", uuid)}?version=${version}`;
   return proxyToMicroservice(authInfo, "POST", path);
 }
 

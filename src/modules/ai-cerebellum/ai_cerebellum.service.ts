@@ -84,15 +84,15 @@ export class AiCerebellumService {
   }
 
   async updateAiCerebellum(uuid: string, body: AiCerebellumUpdateBody, tx?: PoolClient) {
-    await this.getDal().updateAiCerebellum(uuid, body, tx);
+    return await this.getDal().updateAiCerebellum(uuid, body, tx);
   }
 
-  async deleteAiCerebellum(uuid: string) {
-    await this.getDal().deleteAiCerebellum(uuid);
+  async deleteAiCerebellum(uuid: string, version: number) {
+    return await this.getDal().deleteAiCerebellum(uuid, version);
   }
 
-  async restoreAiCerebellum(uuid: string) {
-    await this.getDal().restoreAiCerebellum(uuid);
+  async restoreAiCerebellum(uuid: string, version: number) {
+    return await this.getDal().restoreAiCerebellum(uuid, version);
   }
 
   // --- Audit ----------------------------------------------------------------

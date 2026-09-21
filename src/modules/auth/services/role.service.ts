@@ -50,6 +50,8 @@ export interface UpdateRoleInput {
   label_key?: string;
   is_admin?: boolean;
   permissions?: string[];
+  /** Caller's observed row version — required for the optimistic-concurrency guard. */
+  version?: number;
 }
 
 export class RoleService {
@@ -161,7 +163,7 @@ export class RoleService {
 
     // 5. Create in local DB.
     const now = new Date();
-    await this.getRepo().upsertMapping(idp_role, permissions, is_admin, label_key, {
+    await this.getRepo().createMapping(idp_role, permissions, is_admin, label_key, {
       idp_org,
       last_synced_at: now,
       actor,
@@ -245,15 +247,15 @@ export class RoleService {
       );
     }
 
-    // 5. Update local DB.
+    // 5. Update local DB — guarded by the caller's observed version (client).
     const now = new Date();
-    await this.getRepo().upsertMapping(
+    await this.getRepo().updateMapping(
       idpRole,
       permissions ?? existing.permissions,
       is_admin ?? existing.is_admin,
       label_key ?? existing.label_key,
+      input.version!,
       {
-        idp_org: existing.idp_org,
         last_synced_at: now,
         actor,
         tx,
@@ -332,7 +334,7 @@ export class RoleService {
     }
 
     // 5. Delete in local DB.
-    await this.getRepo().deleteMapping(idpRole, actor);
+    await this.getRepo().deleteMapping(idpRole, actor, existing.version);
   }
 
   // --- Entity-pattern methods (keyed by uuid) -------------------------------

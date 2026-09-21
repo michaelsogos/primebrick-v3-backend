@@ -21,6 +21,7 @@
 
 import type { RequestHandler } from "express";
 import { z } from "zod";
+import { zBoundedInt } from "../../../http/validation.js";
 
 import { makeProtectedRouter } from "../../../http/protected-router.js";
 import { registerRoutes } from "../../../http/define-route.js";
@@ -54,6 +55,7 @@ const CreateBodySchema = entityWriteBody(z.object({
 const UpdateBodySchema = entityWriteBody(z.object({
   display_name: displayNameSchema(z.string()).optional(),
   website_url: z.string().url().max(2048).optional().or(z.literal("")),
+  version: zBoundedInt(0, Number.MAX_SAFE_INTEGER),
 }));
 
 export function organizationsRouter() {
@@ -134,14 +136,15 @@ export function organizationsRouter() {
 
   const remove: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params;
-    await service.deleteOrganization(uuid as string);
-    res.json({ success: true });
+    // Caller-observed version (ERR02 if absent — enforced by the DAL).
+    const version = req.query.version !== undefined ? Number(req.query.version) : (undefined as unknown as number);
+    res.json(await service.deleteOrganization(uuid as string, version));
   });
 
   const restore: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params;
-    await service.restoreOrganization(uuid as string);
-    res.json({ success: true });
+    const version = req.query.version !== undefined ? Number(req.query.version) : (undefined as unknown as number);
+    res.json(await service.restoreOrganization(uuid as string, version));
   });
 
   const getAudit: RequestHandler = asyncHandler(async (req, res) => {

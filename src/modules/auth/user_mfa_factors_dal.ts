@@ -116,11 +116,18 @@ export class UserMfaFactorsDal {
    */
   async update(uuid: string, data: Partial<Pick<UserMfaFactorEntity, "label" | "is_enabled" | "is_preferred" | "last_used_at" | "version">>): Promise<void> {
     const actor = requireActor();
+    let version = data.version;
+    if (version === undefined) {
+      const existing = await this.findByUuid(uuid);
+      if (!existing) return;
+      version = existing.version;
+    }
     await this.repo.update(
       UserMfaFactorEntity,
       {
         uuid,
         ...data,
+        version,
       },
       { actor, matchBy: "uuid" },
     );
@@ -140,6 +147,7 @@ export class UserMfaFactorsDal {
           {
             uuid: f.uuid,
             is_preferred: false,
+            version: f.version,
           },
           { actor, matchBy: "uuid" },
         );
@@ -155,7 +163,7 @@ export class UserMfaFactorsDal {
   async deleteByUuid(uuid: string): Promise<void> {
     const existing = await this.findByUuid(uuid);
     if (existing) {
-      await this.repo.hardDelete(UserMfaFactorEntity, { id: existing.id }, { actor: requireActor() });
+      await this.repo.hardDelete(UserMfaFactorEntity, { id: existing.id, version: existing.version }, { actor: requireActor() });
     }
   }
 }

@@ -161,12 +161,13 @@ export class ConfigEntriesDal {
   }
 
   /**
-   * Insert or update a config row by key.
-   * If the key exists, updates the value; otherwise inserts a new row.
+   * Set a config row by key — find-then-branch (add when absent, update when
+   * present). The `findByKey` read serves the branch decision itself, so its
+   * `existing.version` is a legitimate observation for the guarded update.
    * Invalidates + reloads the in-memory auth config cache so the change
    * is visible immediately to all hot-path readers (getAuthConfig()).
    */
-  async upsert(
+  async setByKey(
     key: string,
     value: string,
     updatedBy: string
@@ -187,10 +188,11 @@ export class ConfigEntriesDal {
       await this.repo.update(
         ConfigEntryEntity,
         {
-          id: existing.id,
+          uuid: existing.uuid,
           value,
+          version: existing.version,
         },
-        { actor: updatedBy }
+        { actor: updatedBy, matchBy: "uuid" as any }
       );
     }
     await this.reloadCache();
@@ -345,7 +347,10 @@ export class ConfigEntriesDal {
    * Invalidates + reloads the in-memory auth config cache.
    * Throws if the row is not found or is reserved.
    */
-  async softDelete(uuid: string, deletedBy: string): Promise<void> {
+  async softDelete(uuid: string, version: number, deletedBy: string): Promise<ConfigEntryEntity> {
+    // The read below exists ONLY for the reserved-row business rule and the
+    // not-found check — it is NOT used to manufacture a version. The write is
+    // guarded by the caller-observed `version` (ERR02/ERR01 via Repository).
     const existing = await this.findByUuid(uuid);
     if (!existing) {
       throw new Error(`Auth config row with uuid ${uuid} not found`);
@@ -353,12 +358,13 @@ export class ConfigEntriesDal {
     if (existing.reserved) {
       throw new ReservedConfigError(existing.key);
     }
-    await this.repo.delete(
+    const row = await this.repo.delete(
       ConfigEntryEntity,
-      { id: existing.id },
-      { actor: deletedBy }
+      { uuid, version },
+      { actor: deletedBy, matchBy: "uuid" as never }
     );
     await this.reloadCache();
+    return row as ConfigEntryEntity;
   }
 
   /**
@@ -367,23 +373,23 @@ export class ConfigEntriesDal {
    * Invalidates + reloads the in-memory auth config cache.
    * Throws if any row is not found or is reserved.
    */
-  async bulkSoftDelete(uuids: string[], deletedBy: string): Promise<void> {
-    const rows: ConfigEntryEntity[] = [];
-    for (const uuid of uuids) {
-      const row = await this.findByUuid(uuid);
+  async bulkSoftDelete(items: Array<{ uuid: string; version: number }>, deletedBy: string): Promise<void> {
+    // Per-item caller-observed versions — no re-read for the version. The
+    // findByUuid reads exist ONLY for the reserved-row business rule.
+    for (const item of items) {
+      const row = await this.findByUuid(item.uuid);
       if (!row) {
-        throw new Error(`Auth config row with uuid ${uuid} not found`);
+        throw new Error(`Auth config row with uuid ${item.uuid} not found`);
       }
       if (row.reserved) {
         throw new ReservedConfigError(row.key);
       }
-      rows.push(row);
     }
-    for (const row of rows) {
+    for (const item of items) {
       await this.repo.delete(
         ConfigEntryEntity,
-        { id: row.id },
-        { actor: deletedBy }
+        { uuid: item.uuid, version: item.version },
+        { actor: deletedBy, matchBy: "uuid" as never }
       );
     }
     await this.reloadCache();
@@ -394,7 +400,8 @@ export class ConfigEntriesDal {
    * Invalidates + reloads the in-memory auth config cache.
    * Throws if the row is not found.
    */
-  async restore(uuid: string, updatedBy: string): Promise<void> {
+  async restore(uuid: string, version: number, updatedBy: string): Promise<ConfigEntryEntity> {
+    // Read for not-found only — version is caller-observed (ERR02/ERR01).
     const existing = await this.repo.findByUUID<ConfigEntryEntity, ConfigEntryEntity>(
       ConfigEntryEntity,
       uuid,
@@ -403,12 +410,13 @@ export class ConfigEntriesDal {
     if (!existing) {
       throw new Error(`Auth config row with uuid ${uuid} not found`);
     }
-    await this.repo.restore(
+    const row = await this.repo.restore(
       ConfigEntryEntity,
-      { id: existing.id },
-      { actor: updatedBy }
+      { uuid, version },
+      { actor: updatedBy, matchBy: "uuid" as never }
     );
     await this.reloadCache();
+    return row as ConfigEntryEntity;
   }
 
   /**

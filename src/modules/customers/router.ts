@@ -47,6 +47,7 @@ import {
   entityWriteBody,
   assertTranslationsPermission,
   runEntityWrite,
+  requireVersionQuery,
 } from "../../http/entity-write.js";
 import { getPool } from "../../db/pool.js";
 import { assembleMeta } from "../../http/meta-assembler.js";
@@ -133,46 +134,48 @@ export function customersRouter() {
     const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
     const body = req.body as CustomerUpdateWrite;
     assertTranslationsPermission(req, body.translations);
-    await runEntityWrite(
+    const updated = await runEntityWrite(
       getPool(),
       body.translations,
       (tx) => service.updateCustomer(uuid, body.entity, tx),
     );
-    res.status(204).send();
+    res.status(200).json(updated);
   });
 
   const remove: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    await service.deleteCustomer(uuid);
-    res.status(204).send();
+    const version = requireVersionQuery(req);
+    const deleted = await service.deleteCustomer(uuid, version);
+    res.status(200).json(deleted);
   });
 
   const restore: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    await service.restoreCustomer(uuid);
-    res.status(204).send();
+    const version = requireVersionQuery(req);
+    const restored = await service.restoreCustomer(uuid, version);
+    res.status(200).json(restored);
   });
 
   const bulkDelete: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuids } = req.body as { uuids: string[] };
+    const { items } = req.body as { items: Array<{ uuid: string; version?: number }> };
     const outcome = await runBulkAction({
       kind: "delete",
-      uuids,
+      items,
       instance: req.originalUrl,
       entityLabel: "customer",
-      run: (uuid) => service.deleteCustomer(uuid),
+      run: (item) => service.deleteCustomer(item.uuid, item.version!),
     });
     sendBulkOutcome(res, outcome);
   });
 
   const bulkRestore: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuids } = req.body as { uuids: string[] };
+    const { items } = req.body as { items: Array<{ uuid: string; version?: number }> };
     const outcome = await runBulkAction({
       kind: "restore",
-      uuids,
+      items,
       instance: req.originalUrl,
       entityLabel: "customer",
-      run: (uuid) => service.restoreCustomer(uuid),
+      run: (item) => service.restoreCustomer(item.uuid, item.version!),
     });
     sendBulkOutcome(res, outcome);
   });

@@ -369,7 +369,7 @@ export class AuthSessionService {
     }
 
     const actor = requireActor();
-    await this.dal.updateProfile(userUuid, { auth_method_enforcer_dismissed: true });
+    await this.dal.updateProfileInternal(userUuid, { auth_method_enforcer_dismissed: true });
     return { success: true };
   }
 
@@ -446,7 +446,7 @@ export class AuthSessionService {
     }
 
     updateBody.last_synced_at = syncTimestamp;
-    await this.dal.updateProfile(userUuid, updateBody as any);
+    await this.dal.updateProfileInternal(userUuid, updateBody as any);
 
     const updated = await this.dal.getByUuid(userUuid);
     if (!updated) {

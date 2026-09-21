@@ -214,19 +214,48 @@ export class OrganizationsDal {
 
   async updateOrganization(
     uuid: string,
+    data: { display_name?: string; website_url?: string; idp_owner?: string; idp_name?: string; last_synced_at?: Date; version?: number },
+    tx?: PoolClient
+  ): Promise<OrganizationEntity> {
+    const repo = tx ? new Repository(tx) : this.repo;
+    // API path: `data.version` is the caller-observed version. If absent the
+    // Repository.update() version guard throws ERR02 — we NEVER manufacture a
+    // version by re-reading the row (that would elide the concurrency check).
+    return await repo.update(OrganizationEntity, { ...data, uuid }, { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }) as OrganizationEntity;
+  }
+
+  /**
+   * INTERNAL write path — Casdoor sync stamps and other system writes that do
+   * not carry a caller-observed version. Reads the current row version
+   * DB-first, then updates. NEVER call this from an API route.
+   */
+  async updateOrganizationInternal(
+    uuid: string,
     data: { display_name?: string; website_url?: string; idp_owner?: string; idp_name?: string; last_synced_at?: Date },
     tx?: PoolClient
-  ): Promise<void> {
+  ): Promise<OrganizationEntity> {
     const repo = tx ? new Repository(tx) : this.repo;
-    await repo.update(OrganizationEntity, { ...data, uuid }, { actor: requireActor(), audit: this.auditPort });
+    const version = (await this.freshRowByUuid(uuid, repo))!.version;
+    return await repo.update(OrganizationEntity, { ...data, uuid, version }, { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }) as OrganizationEntity;
   }
 
-  async deleteOrganization(uuid: string): Promise<void> {
-    await this.repo.delete(OrganizationEntity, { uuid }, { actor: requireActor(), audit: this.auditPort });
+  // DB-first read for INTERNAL read-modify-write only (Casdoor sync stamps) —
+  // `findByUUID`/`findById` may serve a stale cached row. NEVER use this to
+  // manufacture a version for an API caller: API writes must carry the
+  // caller-observed version (ERR02 otherwise).
+  private async freshRowByUuid(uuid: string, repo?: Repository): Promise<OrganizationEntity> {
+    return (await (repo ?? this.repo).find<OrganizationEntity, OrganizationEntity>(OrganizationEntity, null, {
+      filters: [Filter.fieldValue(field(OrganizationEntity, "uuid" as any), "=", uuid)] as any,
+      deletedRecords: "INCLUDED",
+    }))!;
   }
 
-  async restoreOrganization(uuid: string): Promise<void> {
-    await this.repo.restore(OrganizationEntity, { uuid }, { actor: requireActor(), audit: this.auditPort });
+  async deleteOrganization(uuid: string, version: number): Promise<OrganizationEntity> {
+    return await this.repo.delete(OrganizationEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }) as OrganizationEntity;
+  }
+
+  async restoreOrganization(uuid: string, version: number): Promise<OrganizationEntity> {
+    return await this.repo.restore(OrganizationEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }) as OrganizationEntity;
   }
 
   async getUserCountForOrganization(idpCode: string): Promise<number> {

@@ -339,10 +339,10 @@ export class RoleMappingRepo {
   }
 
   /**
-   * Create or update a role mapping.
-   * Pass `idp_org` and `last_synced_at` for Casdoor-synced roles.
+   * Create a role mapping — caller expects the row to be absent.
+   * A conflict raises a unique violation: visible, correct.
    */
-  async upsertMapping(
+  async createMapping(
     idpRole: string,
     permissions: string[],
     isAdmin: boolean,
@@ -350,7 +350,7 @@ export class RoleMappingRepo {
     extras?: { idp_org?: string; last_synced_at?: Date; actor?: string; tx?: PoolClient }
   ): Promise<void> {
     const repo = extras?.tx ? new Repository(extras.tx) : this.repo;
-    await repo.upsert(
+    await repo.add(
       RoleMappingEntity,
       {
         idp_role: idpRole,
@@ -360,7 +360,35 @@ export class RoleMappingRepo {
         is_admin: isAdmin,
         last_synced_at: extras?.last_synced_at,
       },
-      { actor: extras?.actor ?? "system", conflictTarget: "idp_role" }
+      { actor: extras?.actor ?? "system" }
+    );
+    if (!extras?.tx) await this.invalidateRoleMappingsCache();
+  }
+
+  /**
+   * Update a role mapping — `version` is the caller's observed version
+   * (client-provided on API paths; optimistic concurrency guard).
+   */
+  async updateMapping(
+    idpRole: string,
+    permissions: string[],
+    isAdmin: boolean,
+    labelKey: string | undefined,
+    version: number,
+    extras?: { idp_org?: string; last_synced_at?: Date; actor?: string; tx?: PoolClient }
+  ): Promise<void> {
+    const repo = extras?.tx ? new Repository(extras.tx) : this.repo;
+    await repo.update(
+      RoleMappingEntity,
+      {
+        idp_role: idpRole,
+        label_key: labelKey,
+        permissions,
+        is_admin: isAdmin,
+        last_synced_at: extras?.last_synced_at,
+        version,
+      },
+      { actor: extras?.actor ?? "system", matchBy: "idp_role" as any }
     );
     if (!extras?.tx) await this.invalidateRoleMappingsCache();
   }
@@ -376,10 +404,10 @@ export class RoleMappingRepo {
   /**
    * Delete a role mapping.
    */
-  async deleteMapping(idpRole: string, actor?: string): Promise<void> {
+  async deleteMapping(idpRole: string, actor?: string, version?: number): Promise<void> {
     await this.repo.hardDelete(
       RoleMappingEntity,
-      { idp_role: idpRole },
+      { idp_role: idpRole, version },
       { actor: actor ?? "system", matchBy: "idp_role" }
     );
     await this.invalidateRoleMappingsCache();

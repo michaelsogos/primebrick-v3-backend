@@ -367,20 +367,21 @@ export function registerGenericTools(server: McpServer): void {
       inputSchema: z.object({
         ...moduleEntitySchema,
         uuid: z.string().describe("The UUID of the record to soft-delete."),
+        version: z.number().int().describe("The record's current version (from a prior read) — optimistic concurrency guard."),
       }),
     },
     withErrorHandling(async (args, ctx) => {
       const authInfo = getAuthInfo(ctx);
-      const { module, entity, uuid } = args;
+      const { module, entity, uuid, version } = args;
       validateEntity(module, entity, "delete");
       checkRbac(authInfo, module, entity, "delete");
 
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeDelete(entity, uuid);
+        result = await dispatchBeDelete(entity, uuid, version);
       } else {
-        result = await dispatchProxyDelete(authInfo, module, entity, uuid);
+        result = await dispatchProxyDelete(authInfo, module, entity, uuid, version);
       }
       return textResult(result);
     }),
@@ -396,20 +397,21 @@ export function registerGenericTools(server: McpServer): void {
       inputSchema: z.object({
         ...moduleEntitySchema,
         uuid: z.string().describe("The UUID of the soft-deleted record to restore."),
+        version: z.number().int().describe("The record's current version (from a prior read) — optimistic concurrency guard."),
       }),
     },
     withErrorHandling(async (args, ctx) => {
       const authInfo = getAuthInfo(ctx);
-      const { module, entity, uuid } = args;
+      const { module, entity, uuid, version } = args;
       validateEntity(module, entity, "restore");
       checkRbac(authInfo, module, entity, "restore");
 
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeRestore(entity, uuid);
+        result = await dispatchBeRestore(entity, uuid, version);
       } else {
-        result = await dispatchProxyRestore(authInfo, module, entity, uuid);
+        result = await dispatchProxyRestore(authInfo, module, entity, uuid, version);
       }
       return textResult(result);
     }),
@@ -518,23 +520,26 @@ export function registerGenericTools(server: McpServer): void {
       title: "Bulk Entity Action",
       description:
         "Perform a bulk action (delete or restore) on multiple entity records by UUID. " +
-        "Processes each UUID individually and returns a per-UUID result array. " +
+        "Processes each item individually and returns a per-UUID result array. " +
         "Only entities that support bulk operations can be used with this tool.",
       inputSchema: z.object({
         ...moduleEntitySchema,
         action: z
           .enum(["delete", "restore"])
           .describe("The bulk action to perform: 'delete' (soft-delete) or 'restore'."),
-        uuids: z
-          .array(z.string())
+        items: z
+          .array(z.object({
+            uuid: z.string().describe("The UUID of the record."),
+            version: z.number().int().describe("The record's current version (from a prior read) — optimistic concurrency guard."),
+          }))
           .min(1)
           .max(100)
-          .describe("Array of UUIDs to apply the action to (1-100 items)."),
+          .describe("Array of {uuid, version} pairs to apply the action to (1-100 items)."),
       }),
     },
     withErrorHandling(async (args, ctx) => {
       const authInfo = getAuthInfo(ctx);
-      const { module, entity, action, uuids } = args;
+      const { module, entity, action, items } = args;
 
       const entry = entityRegistry.get(module, entity);
       if (!entry) {
@@ -551,16 +556,16 @@ export function registerGenericTools(server: McpServer): void {
 
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeBulk(entity, action, uuids);
+        result = await dispatchBeBulk(entity, action, items);
       } else {
         // Microservice bulk: loop through proxy calls
         const results: Array<{ uuid: string; success: boolean; error?: string }> = [];
-        for (const uuid of uuids) {
+        for (const { uuid, version } of items) {
           try {
             if (action === "delete") {
-              await dispatchProxyDelete(authInfo, module, entity, uuid);
+              await dispatchProxyDelete(authInfo, module, entity, uuid, version);
             } else {
-              await dispatchProxyRestore(authInfo, module, entity, uuid);
+              await dispatchProxyRestore(authInfo, module, entity, uuid, version);
             }
             results.push({ uuid, success: true });
           } catch (err) {

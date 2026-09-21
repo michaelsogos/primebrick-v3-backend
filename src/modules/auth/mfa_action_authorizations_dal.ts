@@ -72,11 +72,14 @@ export class MfaActionAuthorizationsDal {
    */
   async markUsed(jti: string): Promise<void> {
     const actor = requireActor();
+    const existing = await this.findByJti(jti);
+    if (!existing) return;
     await this.repo.update(
       MfaActionAuthorizationEntity,
       {
         jti,
         used_at: new Date(),
+        version: existing.version,
       },
       { actor, matchBy: "jti" },
     );

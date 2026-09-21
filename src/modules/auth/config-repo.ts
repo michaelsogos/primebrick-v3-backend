@@ -166,7 +166,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
 
 /**
  * Update a configuration value in the database.
- * Uses the DAL's upsert method — NO raw SQL.
+ * Uses the DAL's setByKey (explicit findByKey → add/update) — NO raw SQL.
  */
 export async function updateAuthConfig(
   pool: Pool,
@@ -175,5 +175,5 @@ export async function updateAuthConfig(
   updatedBy: string = "system"
 ): Promise<void> {
   const dal = new ConfigEntriesDal(pool);
-  await dal.upsert(key, value, updatedBy);
+  await dal.setByKey(key, value, updatedBy);
 }

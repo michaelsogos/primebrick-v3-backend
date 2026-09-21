@@ -39,6 +39,7 @@ import {
   entityWriteBody,
   assertTranslationsPermission,
   runEntityWrite,
+  requireVersionQuery,
 } from "../../http/entity-write.js";
 import { getPool } from "../../db/pool.js";
 import { AiCerebellumDal } from "./ai_cerebellum_dal.js";
@@ -105,25 +106,25 @@ export function aiCerebellumRouter() {
     const body = req.body as z.infer<typeof AiCerebellumUpdateWriteSchema>;
     assertTranslationsPermission(req, body.translations);
     const dal = new AiCerebellumDal(getPool());
-    await runEntityWrite(
+    const updated = await runEntityWrite(
       getPool(),
       body.translations,
       (tx) => service.updateAiCerebellum(uuid, body.entity, tx),
       () => dal.invalidateCache(),
     );
-    res.status(204).send();
+    res.status(200).json(updated);
   });
 
   const remove: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    await service.deleteAiCerebellum(uuid);
-    res.status(204).send();
+    const version = requireVersionQuery(req);
+    res.status(200).json(await service.deleteAiCerebellum(uuid, version));
   });
 
   const restore: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    await service.restoreAiCerebellum(uuid);
-    res.status(204).send();
+    const version = requireVersionQuery(req);
+    res.status(200).json(await service.restoreAiCerebellum(uuid, version));
   });
 
   const getAudit: RequestHandler = asyncHandler(async (req, res) => {

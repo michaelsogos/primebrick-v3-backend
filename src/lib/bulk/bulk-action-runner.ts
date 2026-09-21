@@ -35,15 +35,21 @@ import type { Response } from "express";
 
 export type BulkActionKind = "delete" | "restore";
 
+export interface BulkActionItem {
+  uuid: string;
+  /** Observed row version — required on guarded (auditable) actions. */
+  version?: number;
+}
+
 export interface BulkActionInput {
   kind: BulkActionKind;
-  uuids: readonly string[];
+  items: readonly BulkActionItem[];
   /** `req.originalUrl` for the RFC 7807 `instance` field. */
   instance: string;
   /** Singular entity label, used for the human-readable error detail. */
   entityLabel: string;
-  /** Per-uuid worker. Throw to mark the uuid as failed. */
-  run: (uuid: string) => Promise<void>;
+  /** Per-item worker. Throw to mark the item as failed. */
+  run: (item: BulkActionItem) => Promise<unknown>;
 }
 
 interface BulkOutcomeOk {
@@ -62,7 +68,12 @@ interface BulkOutcomeFatal {
 
 export type BulkOutcome = BulkOutcomeOk | BulkOutcomePartial | BulkOutcomeFatal;
 
-function classify(kind: BulkActionKind, message: string): "business" | "infra" {
+function classify(kind: BulkActionKind, err: unknown): "business" | "infra" {
+  const code = (err as { code?: string })?.code;
+  // Optimistic-concurrency conflicts and missing/gone rows are per-record
+  // business failures — collected into the stale list for the caller.
+  if (code === "ERR01" || code === "ERR02" || code === "ERR03") return "business";
+  const message = err instanceof Error ? err.message : String(err);
   const lower = message.toLowerCase();
   if (lower.includes("no rows affected") || lower.includes("record not found")) {
     return "business";
@@ -76,20 +87,20 @@ function classify(kind: BulkActionKind, message: string): "business" | "infra" {
 }
 
 export async function runBulkAction(input: BulkActionInput): Promise<BulkOutcome> {
-  const { kind, uuids, instance, entityLabel, run } = input;
+  const { kind, items, instance, entityLabel, run } = input;
   const ok: string[] = [];
   const failed: Array<{ uuid: string; error: string }> = [];
 
-  for (const uuid of uuids) {
+  for (const item of items) {
     try {
-      await run(uuid);
-      ok.push(uuid);
+      await run(item);
+      ok.push(item.uuid);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      console.error(`[bulk-${kind} ${entityLabel}:${uuid}]`, e);
-      const cls = classify(kind, message);
+      console.error(`[bulk-${kind} ${entityLabel}:${item.uuid}]`, e);
+      const cls = classify(kind, e);
       if (cls === "business") {
-        failed.push({ uuid, error: message });
+        failed.push({ uuid: item.uuid, error: message });
       } else {
         return {
           status: 500,
@@ -118,7 +129,7 @@ export async function runBulkAction(input: BulkActionInput): Promise<BulkOutcome
       type: "/errors/partial-failure",
       title: `Partial bulk ${kind} failure`,
       status: 422,
-      detail: `${failed.length} of ${uuids.length} ${entityLabel} records could not be ${kind}d`,
+      detail: `${failed.length} of ${items.length} ${entityLabel} records could not be ${kind}d`,
       instance,
       internal_code: "PARTIAL_FAILURE",
       severity: "HIGH",

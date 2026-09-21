@@ -26,6 +26,7 @@ export interface ServiceRegistryEntry {
   icon_type: string;
   is_reserved: boolean;
   uuid?: string;
+  version?: number;
 }
 
 export class ServiceRegistryRepo {
@@ -84,9 +85,11 @@ export class ServiceRegistryRepo {
   }
 
   async updateByCode(code: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
+    const existing = await this.findByCode(code);
+    if (!existing) return;
     await this.repo.update(
       ServiceRegistryEntity,
-      { code, ...row } as any,
+      { code, ...row, version: existing.version } as any,
       { actor: "system", matchBy: "code" },
     );
   }
@@ -100,7 +103,7 @@ export class ServiceRegistryRepo {
     }
     await this.repo.update(
       ServiceRegistryEntity,
-      { uuid: existing.uuid, ...row } as any,
+      { uuid: existing.uuid, ...row, version: existing.version } as any,
       { actor: "system", matchBy: "uuid" },
     );
   }
@@ -110,31 +113,37 @@ export class ServiceRegistryRepo {
     if (!existing || !existing.uuid) return;
     await this.repo.hardDelete(
       ServiceRegistryEntity,
-      { uuid: existing.uuid } as any,
+      { uuid: existing.uuid, version: existing.version } as any,
       { actor: "system", matchBy: "uuid" },
     );
   }
 
   async hardDeleteByCode(code: string): Promise<void> {
+    const existing = await this.findByCode(code);
+    if (!existing) return;
     await this.repo.hardDelete(
       ServiceRegistryEntity,
-      { code } as any,
+      { code, version: existing.version } as any,
       { actor: "system", matchBy: "code" },
     );
   }
 
   async toggleEnabled(code: string, isEnabled: boolean): Promise<void> {
+    const existing = await this.findByCode(code);
+    if (!existing) return;
     await this.repo.update(
       ServiceRegistryEntity,
-      { code, is_enabled: isEnabled } as any,
+      { code, is_enabled: isEnabled, version: existing.version } as any,
       { actor: "system", matchBy: "code" },
     );
   }
 
   async updateByCodeAdmin(code: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
+    const existing = await this.findByCode(code);
+    if (!existing) return;
     await this.repo.update(
       ServiceRegistryEntity,
-      { code, ...row } as any,
+      { code, ...row, version: existing.version } as any,
       { actor: "system", matchBy: "code" },
     );
   }
@@ -157,6 +166,7 @@ export class ServiceRegistryRepo {
       Project.field(field(ServiceRegistryEntity, "icon_type" as any)),
       Project.field(field(ServiceRegistryEntity, "is_reserved" as any)),
       Project.field(field(ServiceRegistryEntity, "uuid" as any)),
+      Project.field(field(ServiceRegistryEntity, "version" as any)),
     ];
   }
 }

@@ -66,12 +66,13 @@ export async function resolveInternalUuid(
   const auditPort = new BeAuditPortAdapter(repo);
 
   // 2. Try a fast SELECT first — most requests hit existing users.
-  const row = await repo.find<UserProfileEntity, { uuid: string; idp_org?: string; idp_username?: string }>(
+  const row = await repo.find<UserProfileEntity, { uuid: string; idp_org?: string; idp_username?: string; version?: number }>(
     UserProfileEntity,
     [
       { kind: "field", field: field(UserProfileEntity, "uuid" as any) },
       { kind: "field", field: field(UserProfileEntity, "idp_org" as any) },
       { kind: "field", field: field(UserProfileEntity, "idp_username" as any) },
+      { kind: "field", field: field(UserProfileEntity, "version" as any) },
     ],
     {
       filters: [Filter.fieldValue(field(UserProfileEntity, "idp_code" as any), "=", input.idp_code)],
@@ -85,7 +86,7 @@ export async function resolveInternalUuid(
       (input.idp_org !== undefined && input.idp_org !== null && row.idp_org !== input.idp_org) ||
       (input.idp_username !== undefined && input.idp_username !== null && row.idp_username !== input.idp_username);
     if (needsUpdate) {
-      const updates: Record<string, unknown> = { idp_code: input.idp_code };
+      const updates: Record<string, unknown> = { idp_code: input.idp_code, version: row.version };
       if (input.idp_org !== undefined && input.idp_org !== null) {
         updates.idp_org = input.idp_org;
       }
@@ -113,7 +114,10 @@ export async function resolveInternalUuid(
   // first auth bootstraps their own profile, hence `actor = newUuid`.
   const newUuid = randomUUID();
 
-  const upserted = await repo.upsert(
+  // find→NULL above proved absence → this is a pure INSERT. A concurrent
+  // first-login for the same idp_code loses the race with a unique violation —
+  // visible failure, correct per the optimistic-concurrency contract.
+  const inserted = await repo.add(
     UserProfileEntity,
     {
       uuid: newUuid,
@@ -123,10 +127,10 @@ export async function resolveInternalUuid(
       idp_org: input.idp_org,
       idp_username: input.idp_username,
     },
-    { actor: newUuid, conflictTarget: "idp_code", audit: auditPort }
+    { actor: newUuid, audit: auditPort }
   );
 
-  const uuid = (upserted as any)?.uuid ?? newUuid;
+  const uuid = (inserted as any)?.uuid ?? newUuid;
   // 5. Cache the result in Redis
   if (port) {
     try {

@@ -33,6 +33,7 @@
 
 import type { RequestHandler } from "express";
 import { z } from "zod";
+import { zBoundedInt } from "../../http/validation.js";
 
 import { makeProtectedRouter } from "../../http/protected-router.js";
 import { asyncHandler } from "../../http/async-handler.js";
@@ -68,6 +69,7 @@ const TranslationUpdateSchema = z.object({
   key: z.string().min(1).max(255).optional(),
   language: LanguageSchema.optional(),
   value: z.string().optional(),
+  version: zBoundedInt(0, Number.MAX_SAFE_INTEGER),
 });
 
 // Write-payload standard: `{entity}` — a translation row never carries
@@ -99,7 +101,6 @@ export function translationsRouter() {
   router.get(
     "/api/v1/system/translations/public/:language",
     rbacHandler([Permission.PUBLIC]),
-    etagMiddleware(),
     asyncHandler(async (req, res, next) => {
       const langResult = LanguageSchema.safeParse(req.params.language);
       if (!langResult.success) {
@@ -109,6 +110,7 @@ export function translationsRouter() {
       res.locals.cacheEntry = await dal.getI18nDictWithCache("app", langResult.data);
       next();
     }),
+    etagMiddleware(),
     asyncHandler(async (req, res) => {
       res.json((res.locals.cacheEntry as CacheEntry<I18nDict>).data);
     }),
@@ -121,7 +123,6 @@ export function translationsRouter() {
   router.get(
     "/api/v1/system/translations/:module/:language",
     rbacHandler([Permission.AUTHENTICATED_USER]),
-    etagMiddleware(),
     asyncHandler(async (req, res, next) => {
       const moduleResult = ModuleCodeSchema.safeParse(req.params.module);
       if (!moduleResult.success) {
@@ -135,6 +136,7 @@ export function translationsRouter() {
       res.locals.cacheEntry = await dal.getI18nDictWithCache(moduleResult.data, langResult.data);
       next();
     }),
+    etagMiddleware(),
     asyncHandler(async (req, res) => {
       res.json((res.locals.cacheEntry as CacheEntry<I18nDict>).data);
     }),

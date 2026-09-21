@@ -33,6 +33,19 @@ function isRecordVanishedError(err: unknown): boolean {
   return (err as Record<string, unknown>).code === "ERR03";
 }
 
+/**
+ * Generic DAL errors carry a stable `code` string (`DalError.code`):
+ * `NOT_FOUND` → 404, `VALIDATION` / `UNKNOWN_COLUMN` / `MULTIPLE_ROWS` → 400.
+ * Without this mapping they fall through to an opaque 500.
+ */
+function dalErrorStatus(err: unknown): number | null {
+  if (!err || typeof err !== "object") return null;
+  const code = (err as Record<string, unknown>).code;
+  if (code === "NOT_FOUND") return 404;
+  if (code === "VALIDATION" || code === "UNKNOWN_COLUMN" || code === "MULTIPLE_ROWS") return 400;
+  return null;
+}
+
 export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   // Log all errors to console with full details including stack trace
   console.error("[Backend Error]", {
@@ -97,6 +110,21 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
       severity: 'MEDIUM',
     };
     res.status(404).json(payload);
+    return;
+  }
+
+  // Handle generic DAL errors (NOT_FOUND / VALIDATION / UNKNOWN_COLUMN / MULTIPLE_ROWS)
+  const dalStatus = dalErrorStatus(err);
+  if (dalStatus !== null) {
+    res.status(dalStatus).json({
+      type: dalStatus === 404 ? '/errors/not-found' : '/errors/validation-error',
+      title: dalStatus === 404 ? 'Not found' : 'Validation error',
+      status: dalStatus,
+      detail: err.message || 'Request validation failed',
+      instance,
+      internal_code: (err as Record<string, unknown>).code as string,
+      severity: 'MEDIUM' as const,
+    });
     return;
   }
 

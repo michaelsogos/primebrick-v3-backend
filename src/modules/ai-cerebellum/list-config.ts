@@ -74,20 +74,6 @@ export const AI_CEREBELLUM_LIST_COLUMNS: AiCerebellumListColumn[] = [
   { key: "max_tokens", labelKey: "system.entities.ai_cerebellum.fields.max_tokens", type: "text", sortable: true, defaultVisible: true },
   { key: "repetition_penalty", labelKey: "system.entities.ai_cerebellum.fields.repetition_penalty", type: "text", sortable: false, defaultVisible: false },
   {
-    key: "is_default",
-    labelKey: "system.entities.ai_cerebellum.fields.is_default",
-    type: "badge",
-    sortable: true,
-    searchable: false,
-    filterable: true,
-    badge: {
-      values: {
-        true: { labelKey: "system.entities.ai_cerebellum.default.true", color: "emerald-300" },
-        false: { labelKey: "system.entities.ai_cerebellum.default.false", color: "zinc-300" },
-      },
-    },
-  },
-  {
     key: "is_enabled",
     labelKey: "system.entities.ai_cerebellum.fields.is_enabled",
     type: "badge",

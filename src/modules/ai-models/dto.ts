@@ -126,7 +126,7 @@ export const AiModelCreateBodySchema = AiModelBaseSchema;
 
 export type AiModelCreateBody = z.infer<typeof AiModelCreateBodySchema>;
 
-export const AiModelUpdateBodySchema = AiModelBaseSchema.partial();
+export const AiModelUpdateBodySchema = AiModelBaseSchema.partial().extend({ version: zBoundedInt(0, Number.MAX_SAFE_INTEGER) });
 
 export type AiModelUpdateBody = z.infer<typeof AiModelUpdateBodySchema>;
 

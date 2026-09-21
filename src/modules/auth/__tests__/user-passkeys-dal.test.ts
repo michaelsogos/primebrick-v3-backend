@@ -234,6 +234,7 @@ describe("UserPasskeysDal", () => {
 
   describe("updateLabel", () => {
     it("should update the label of a passkey", async () => {
+      mockRepo.find.mockResolvedValue(makePasskeyRow({ uuid: "pk-uuid" }));
       await dal.updateLabel("pk-uuid", "My New Label");
 
       expect(mockRepo.update).toHaveBeenCalledTimes(1);

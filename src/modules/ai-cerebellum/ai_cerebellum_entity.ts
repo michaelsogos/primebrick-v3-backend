@@ -9,7 +9,11 @@
  * enabled cerebellum rows for (assistant_key, model_id); the selected row's
  * non-NULL values override the model defaults, NULLs inherit.
  *
- * `is_default` marks the tuning auto-selected when the assistant opens;
+ * The assistant's dedicated tuning for a model is auto-selected on open
+ * (first enabled row by sort_order); there is no per-cerebellum "default" —
+ * the defaults live on the model (`ai_models`), cerebellum rows are only
+ * overrides.
+ *
  * `test_scores` stores per-tuning measurements keyed by test case so the
  * harness can rank tunings independently of the model-level scores.
  */
@@ -77,10 +81,6 @@ export class AiCerebellumEntity implements IAuditableEntity, IExposableEntity {
    *  NULL = inherit the whole execution_config. */
   @Column({ pgType: "jsonb", nullable: true })
   execution_config?: Record<string, any>;
-
-  /** If true, this tuning is auto-selected for (assistant_key, model_id). */
-  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
-  is_default: boolean;
 
   /** If false, the tuning is hidden from the footer dropdown. */
   @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })

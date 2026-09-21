@@ -322,32 +322,36 @@ export class AiModelsDal {
     return { uuid };
   }
 
-  async updateAiModel(uuid: string, body: AiModelUpdateBody, tx?: PoolClient): Promise<void> {
+  async updateAiModel(uuid: string, body: AiModelUpdateBody, tx?: PoolClient): Promise<AiModelDetailDto> {
     const repo = tx ? new Repository(tx) : this.repo;
-    await repo.update(
+    // body.version is REQUIRED — the caller's observed version (client).
+    const row = await repo.update<AiModelEntity, AiModelDetailRow>(
       AiModelEntity,
       { ...body, uuid },
       { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
     );
     if (!tx) await this.invalidateCache();
+    return this.toDto(row);
   }
 
-  async deleteAiModel(uuid: string): Promise<void> {
-    await this.repo.delete(
+  async deleteAiModel(uuid: string, version: number): Promise<AiModelDetailDto> {
+    const row = await this.repo.delete<AiModelEntity, AiModelDetailRow>(
       AiModelEntity,
-      { uuid },
+      { uuid, version },
       { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
     );
     await this.invalidateCache();
+    return this.toDto(row);
   }
 
-  async restoreAiModel(uuid: string): Promise<void> {
-    await this.repo.restore(
+  async restoreAiModel(uuid: string, version: number): Promise<AiModelDetailDto> {
+    const row = await this.repo.restore<AiModelEntity, AiModelDetailRow>(
       AiModelEntity,
-      { uuid },
+      { uuid, version },
       { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
     );
     await this.invalidateCache();
+    return this.toDto(row);
   }
 
   async getAiModelAudit(uuid: string, page: number, limit: number) {

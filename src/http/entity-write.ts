@@ -27,7 +27,26 @@ import { z } from "zod";
 import { Permission, checkRbac } from "@primebrick/sdk";
 import { runInTransaction } from "@primebrick/dal-pg";
 
-import { ForbiddenError } from "./api-errors.js";
+import { ForbiddenError, ValidationError } from "./api-errors.js";
+
+/**
+ * Optimistic-concurrency guard for DELETE/restore — `?version=N` travels with
+ * the uuid (resource in path, params in query string). Required on every
+ * auditable entity write: it is the caller's observed version, never fetched
+ * server-side (that would elude the guard).
+ */
+const VersionQuerySchema = z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+
+export function requireVersionQuery(req: Request): number {
+  const parsed = VersionQuerySchema.safeParse(req.query.version);
+  if (!parsed.success) {
+    throw new ValidationError("Query param 'version' (int) is required for this write", {
+      instance: req.originalUrl,
+      internal_code: "VERSION_REQUIRED",
+    });
+  }
+  return parsed.data;
+}
 import { TranslationsDal } from "../modules/system/translations-dal.js";
 
 export const PendingTranslationSchema = z.object({

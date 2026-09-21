@@ -110,7 +110,10 @@ export class InvitationService {
     if (!row || !row.value || row.value.trim() === "") {
       // Auto-generate a 32-byte hex secret
       const secret = randomBytes(32).toString("hex");
-      await this.configDal.upsert("notification_alert_secret", secret, "system");
+      await this.configDal.add(
+        { key: "notification_alert_secret", value: secret, type: "secret" },
+        "system",
+      );
       return secret;
     }
     return row.value;

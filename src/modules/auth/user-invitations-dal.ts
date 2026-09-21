@@ -109,6 +109,8 @@ export class UserInvitationsDal {
     otp_verified_at?: Date;
   }): Promise<void> {
     const actor = requireActor();
+    const existing = await this.findByUuid(uuid);
+    if (!existing) return;
     await this.repo.update(
       UserInvitationEntity,
       {
@@ -116,8 +118,9 @@ export class UserInvitationsDal {
         status,
         ...extra,
         updated_by: actor,
+        version: existing.version,
       },
-      { actor },
+      { actor, matchBy: "uuid" as any },
     );
   }
 
@@ -136,8 +139,9 @@ export class UserInvitationsDal {
         uuid,
         otp_attempts: existing.otp_attempts + 1,
         updated_by: actor,
+        version: existing.version,
       },
-      { actor },
+      { actor, matchBy: "uuid" as any },
     );
   }
 
@@ -147,6 +151,8 @@ export class UserInvitationsDal {
    */
   async setOtp(uuid: string, otpHash: string, otpExpiresAt: Date): Promise<void> {
     const actor = requireActor();
+    const existing = await this.findByUuid(uuid);
+    if (!existing) return;
     await this.repo.update(
       UserInvitationEntity,
       {
@@ -156,8 +162,9 @@ export class UserInvitationsDal {
         otp_attempts: 0,
         status: "OTP_SENT" as InvitationStatus,
         updated_by: actor,
+        version: existing.version,
       },
-      { actor },
+      { actor, matchBy: "uuid" as any },
     );
   }
 
@@ -166,14 +173,17 @@ export class UserInvitationsDal {
    */
   async markOtpVerified(uuid: string): Promise<void> {
     const actor = requireActor();
+    const existing = await this.findByUuid(uuid);
+    if (!existing) return;
     await this.repo.update(
       UserInvitationEntity,
       {
         uuid,
         otp_verified_at: new Date(),
         updated_by: actor,
+        version: existing.version,
       },
-      { actor },
+      { actor, matchBy: "uuid" as any },
     );
   }
 
@@ -182,6 +192,8 @@ export class UserInvitationsDal {
    */
   async markCompleted(uuid: string): Promise<void> {
     const actor = requireActor();
+    const existing = await this.findByUuid(uuid);
+    if (!existing) return;
     await this.repo.update(
       UserInvitationEntity,
       {
@@ -189,8 +201,9 @@ export class UserInvitationsDal {
         status: "COMPLETED" as InvitationStatus,
         completed_at: new Date(),
         updated_by: actor,
+        version: existing.version,
       },
-      { actor },
+      { actor, matchBy: "uuid" as any },
     );
   }
 }

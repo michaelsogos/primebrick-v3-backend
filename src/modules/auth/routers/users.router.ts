@@ -2,9 +2,14 @@
  * users.router — thin controller for admin user management.
  *
  * Endpoints:
- *   POST   /api/v1/auth/users        → create user (Casdoor + local)
- *   PATCH  /api/v1/auth/users/:uuid  → update user
- *   DELETE /api/v1/auth/users/:uuid  → soft-delete user
+ *   POST   /api/v1/auth/users                        → create user (Casdoor + local)
+ *   PUT    /api/v1/auth/users/:uuid                  → update user profile (Casdoor sync)
+ *   DELETE /api/v1/auth/users/:uuid?version=N        → soft-delete user (Casdoor disable FIRST — critical)
+ *   POST   /api/v1/auth/users/:uuid/restore?version=N → restore user (local first, then Casdoor re-enable — critical)
+ *   POST   /api/v1/auth/users/:uuid/change-password  → change password (Casdoor)
+ *
+ * All user lifecycle/credential operations live here (AUTH module surface).
+ * `/api/v1/entities/user_profile` is read-only (meta / list / :uuid / :audit).
  *
  * The router contains NO business logic: it parses the request, calls
  * `UserService`, and shapes the JSON response. All errors are thrown as
@@ -25,10 +30,19 @@ import { getPool } from "../../../db/pool.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
 import { CasdoorService } from "../services/casdoor.service.js";
 import { UserService } from "../services/user.service.js";
-import { makeCreateUserSchema, UpdateUserSchema, type CreateUserBody } from "../dto.js";
+import { makeCreateUserSchema, UserUpdateBodySchema, makeChangePasswordSchema, type CreateUserBody, type ChangePasswordBody } from "../dto.js";
 import { loadAuthConfigFromDb } from "../config-repo.js";
 import { parsePasswordPolicy } from "../password-policy.js";
 import { ValidationError } from "../../../http/api-errors.js";
+import {
+  entityWriteBody,
+  assertTranslationsPermission,
+  runEntityWrite,
+  requireVersionQuery,
+} from "../../../http/entity-write.js";
+
+// Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)
+const UserUpdateBodySchemaWrapped = entityWriteBody(UserUpdateBodySchema);
 
 const UuidSchema = z.string().uuid();
 
@@ -82,14 +96,58 @@ export function usersRouter() {
 
   const update: RequestHandler = asyncHandler(async (req, res) => {
     const uuid = requireValidUuid(req.params.uuid);
-    const profile = await service.updateUser(uuid, req.body as z.infer<typeof UpdateUserSchema>);
-    res.json({ success: true, profile });
+    const body = req.body as z.infer<typeof UserUpdateBodySchemaWrapped>;
+    assertTranslationsPermission(req, body.translations);
+    const updated = await runEntityWrite(
+      getPool(),
+      body.translations,
+      (tx) => service.updateUserProfile(uuid, body.entity, tx),
+    );
+    res.json(updated);
   });
 
   const remove: RequestHandler = asyncHandler(async (req, res) => {
     const uuid = requireValidUuid(req.params.uuid);
-    await service.deleteUser(uuid);
-    res.json({ success: true });
+    // Caller-observed version (ERR02 → 400 VERSION_REQUIRED if absent).
+    const version = requireVersionQuery(req);
+    res.json(await service.deleteUser(uuid, version));
+  });
+
+  const restore: RequestHandler = asyncHandler(async (req, res) => {
+    const uuid = requireValidUuid(req.params.uuid);
+    const version = requireVersionQuery(req);
+    res.json(await service.restoreUser(uuid, version));
+  });
+
+  const changePassword: RequestHandler = asyncHandler(async (req, res) => {
+    const uuid = requireValidUuid(req.params.uuid);
+    // Load the active password policy from DB and build the schema dynamically.
+    const cfg = await loadAuthConfigFromDb(getPool());
+    const policy = parsePasswordPolicy(cfg.password_policy!);
+    const schema = makeChangePasswordSchema(policy);
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        type: '/errors/validation-error',
+        title: 'Validation error',
+        status: 400,
+        detail: 'Request validation failed',
+        severity: 'HIGH' as const,
+        internal_code: 'VALIDATION_ERROR',
+        instance: req.path,
+        extra: {
+          issues: parsed.error.issues.map((i) => ({
+            path: i.path.join("."),
+            code: i.code,
+            message: i.message,
+          })),
+        },
+      });
+      return;
+    }
+    const { newPassword } = parsed.data as ChangePasswordBody;
+    const result = await service.changePassword(uuid, newPassword);
+    res.json(result);
   });
 
   registerRoutes(router, [
@@ -100,10 +158,10 @@ export function usersRouter() {
       handler: create,
     },
     {
-      method: "patch",
+      method: "put",
       path: "/api/v1/auth/users/:uuid",
       permission: rbacHandler([Permission.USER_PROFILE_UPDATE_SINGLE]),
-      middlewares: [validateBody(UpdateUserSchema)],
+      middlewares: [validateBody(UserUpdateBodySchemaWrapped)],
       handler: update,
     },
     {
@@ -111,6 +169,18 @@ export function usersRouter() {
       path: "/api/v1/auth/users/:uuid",
       permission: rbacHandler([Permission.USER_PROFILE_DELETE_SINGLE]),
       handler: remove,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/users/:uuid/restore",
+      permission: rbacHandler([Permission.USER_PROFILE_RESTORE_SINGLE]),
+      handler: restore,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/users/:uuid/change-password",
+      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+      handler: changePassword,
     },
   ]);
 

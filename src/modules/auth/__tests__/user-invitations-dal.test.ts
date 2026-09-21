@@ -40,10 +40,12 @@ function makeInvitationRow(overrides: Partial<{
   otp_expires_at: Date | null;
   otp_attempts: number;
   otp_verified_at: Date | null;
+  version: number;
 }> = {}) {
   return {
     id: 1n,
     uuid: "inv-uuid-123",
+    version: 1,
     user_profile_id: 10n,
     token_hash: "abc123hash",
     status: "PENDING",
@@ -159,6 +161,7 @@ describe("UserInvitationsDal", () => {
 
   describe("updateStatus", () => {
     it("should update status with completed_at", async () => {
+      mockRepo.find.mockResolvedValue(makeInvitationRow());
       const completedAt = new Date("2026-07-18T00:00:00Z");
       await dal.updateStatus("inv-uuid", "COMPLETED", { completed_at: completedAt });
 
@@ -171,6 +174,7 @@ describe("UserInvitationsDal", () => {
     });
 
     it("should update status without extra fields", async () => {
+      mockRepo.find.mockResolvedValue(makeInvitationRow());
       await dal.updateStatus("inv-uuid", "REVOKED");
 
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
@@ -202,6 +206,7 @@ describe("UserInvitationsDal", () => {
 
   describe("setOtp", () => {
     it("should set otp_hash, otp_expires_at, reset attempts, and set status to OTP_SENT", async () => {
+      mockRepo.find.mockResolvedValue(makeInvitationRow());
       const expiresAt = new Date("2026-07-17T12:05:00Z");
       await dal.setOtp("inv-uuid", "otphash", expiresAt);
 
@@ -217,6 +222,7 @@ describe("UserInvitationsDal", () => {
 
   describe("markOtpVerified", () => {
     it("should set otp_verified_at to current time", async () => {
+      mockRepo.find.mockResolvedValue(makeInvitationRow());
       const before = new Date();
       await dal.markOtpVerified("inv-uuid");
       const after = new Date();
@@ -232,6 +238,7 @@ describe("UserInvitationsDal", () => {
 
   describe("markCompleted", () => {
     it("should set status to COMPLETED and completed_at to current time", async () => {
+      mockRepo.find.mockResolvedValue(makeInvitationRow());
       const before = new Date();
       await dal.markCompleted("inv-uuid");
       const after = new Date();

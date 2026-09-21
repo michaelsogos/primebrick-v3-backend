@@ -8,12 +8,13 @@
  * 4. If no match → sets `ETag` + `X-PB-Cached` + `Cache-Control` headers, lets the
  *    handler send the body.
  *
- * Usage:
+ * Usage — the middleware MUST run AFTER the handler that sets
+ * `res.locals.cacheEntry` (Express runs middleware in registration order):
  * ```ts
- * router.get("/list", etagMiddleware(), async (req, res, next) => {
+ * router.get("/list", async (req, res, next) => {
  *   res.locals.cacheEntry = await dal.findAll(); // returns CacheEntry<T>
- *   next(); // let etagMiddleware decide 304 vs 200
- * }, (req, res) => {
+ *   next();
+ * }, etagMiddleware(), (req, res) => {
  *   // If we get here, ETag didn't match → send body
  *   res.json((res.locals.cacheEntry as CacheEntry<any>).data);
  * });

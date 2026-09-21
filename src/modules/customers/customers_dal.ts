@@ -742,26 +742,44 @@ export class CustomersDal {
     return { uuid };
   }
 
-  async updateCustomer(uuid: string, body: CustomerUpdateBody, tx?: PoolClient): Promise<void> {
+  async updateCustomer(uuid: string, body: CustomerUpdateBody, tx?: PoolClient): Promise<CustomerDetailDto> {
     const repo = tx ? new Repository(tx) : this.repo;
-    await repo.update(CustomerEntity, { ...body, uuid }, { actor: requireActor(), audit: this.auditPort });
+    // body.version is REQUIRED — the caller's observed version (client).
+    // RETURNING projects all entity columns except `id` — the write response
+    // IS the new observation (new version included); no follow-up SELECT.
+    const row = await repo.update<CustomerEntity, CustomerDetailRow>(
+      CustomerEntity,
+      { ...body, uuid },
+      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any, returning: projectAllExceptId() }
+    );
+    return this.toDto(row);
   }
 
-  async deleteCustomer(uuid: string): Promise<void> {
-    await this.repo.delete(CustomerEntity, { uuid }, { actor: requireActor(), audit: this.auditPort });
+  async deleteCustomer(uuid: string, version: number): Promise<CustomerDetailDto> {
+    const row = await this.repo.delete<CustomerEntity, CustomerDetailRow>(
+      CustomerEntity,
+      { uuid, version },
+      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any, returning: projectAllExceptId() }
+    );
+    return this.toDto(row);
   }
 
-  async restoreCustomer(uuid: string): Promise<void> {
-    await this.repo.restore(CustomerEntity, { uuid }, { actor: requireActor(), audit: this.auditPort });
+  async restoreCustomer(uuid: string, version: number): Promise<CustomerDetailDto> {
+    const row = await this.repo.restore<CustomerEntity, CustomerDetailRow>(
+      CustomerEntity,
+      { uuid, version },
+      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any, returning: projectAllExceptId() }
+    );
+    return this.toDto(row);
   }
 
-  async restoreCustomers(uuids: string[]): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {
+  async restoreCustomers(items: Array<{ uuid: string; version: number }>): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {
     const results: string[] = [];
     const errors: Array<{ uuid: string; error: string }> = [];
 
-    for (const uuid of uuids) {
+    for (const { uuid, version } of items) {
       try {
-        await this.restoreCustomer(uuid);
+        await this.restoreCustomer(uuid, version);
         results.push(uuid);
       } catch (e) {
         console.error('[Customer Restore Error]', {

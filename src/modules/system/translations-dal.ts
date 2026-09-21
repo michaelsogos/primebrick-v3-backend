@@ -250,7 +250,8 @@ export class TranslationsDal {
   async softDelete(moduleCode: string, uuid: string) {
     const entity = this.resolveEntity(moduleCode);
     const actor = requireActor();
-    await this.repo.delete(entity, { uuid }, { actor, matchBy: "uuid" });
+    const row = (await this.repo.findByUUID<any, any>(entity, uuid, { deletedRecords: "INCLUDED" }))!;
+    await this.repo.delete(entity, { uuid, version: row.version }, { actor, matchBy: "uuid" });
     await this.getCache(schemaOf(entity)).invalidate();
   }
 
@@ -258,7 +259,8 @@ export class TranslationsDal {
   async restore(moduleCode: string, uuid: string) {
     const entity = this.resolveEntity(moduleCode);
     const actor = requireActor();
-    await this.repo.restore(entity, { uuid }, { actor, matchBy: "uuid" });
+    const row = (await this.repo.findByUUID<any, any>(entity, uuid, { deletedRecords: "INCLUDED" }))!;
+    await this.repo.restore(entity, { uuid, version: row.version }, { actor, matchBy: "uuid" });
     await this.getCache(schemaOf(entity)).invalidate();
   }
 }

@@ -21,7 +21,7 @@ import { sendEmail } from "./email-sender.js";
 import { getAuthConfig } from "../config.js";
 import { requireActor } from "@primebrick/sdk";
 import { ApiError, NotFoundError, ValidationError } from "../../../http/api-errors.js";
-import type { CreateUserBody, UpdateUserBody, UserUpdateBody } from "../dto.js";
+import type { CreateUserBody, UserUpdateBody } from "../dto.js";
 import type { UserProfileDetailDto } from "../user-profiles-dal.js";
 
 /**
@@ -163,129 +163,87 @@ export class UserService {
     return { profile, invitation_uuid };
   }
 
-  // --- Update ---------------------------------------------------------------
-
-  async updateUser(uuid: string, body: UpdateUserBody): Promise<UserProfileDetailDto> {
-    const updateBody: Record<string, unknown> = {};
-    if (body.display_name !== undefined) updateBody.display_name = body.display_name;
-    if (body.email !== undefined) updateBody.email = body.email;
-    if (body.avatar_color !== undefined) updateBody.avatar_color = body.avatar_color;
-    if (body.is_active !== undefined) updateBody.is_active = body.is_active;
-    if (body.is_admin !== undefined) updateBody.is_admin = body.is_admin;
-    if (body.is_verified !== undefined) updateBody.is_verified = body.is_verified;
-    if (body.email_verified !== undefined) updateBody.email_verified = body.email_verified;
-    if (body.roles !== undefined) updateBody.roles = JSON.stringify(body.roles);
-
-    if (Object.keys(updateBody).length === 0) {
-      throw new ValidationError("No fields to update", { internal_code: "NO_FIELDS" });
-    }
-
-    const existing = await this.dal.getByUuid(uuid);
-    if (!existing) {
-      throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
-    }
-
-    // Sync to Casdoor first (non-best-effort: fail if sync fails)
-    const cdClient = await this.casdoor.getClient();
-    if (cdClient) {
-      const casdoorUpdate: Record<string, unknown> = {
-        id: existing.idp_code,
-        owner: existing.idp_org || undefined,
-        name: existing.idp_username || undefined,
-      };
-      if (body.display_name !== undefined) casdoorUpdate.displayName = body.display_name;
-      if (body.email !== undefined) casdoorUpdate.email = body.email;
-      if (body.is_active !== undefined) casdoorUpdate.isForbidden = !body.is_active;
-      if (body.is_admin !== undefined) casdoorUpdate.isAdmin = body.is_admin;
-      if (body.is_verified !== undefined) casdoorUpdate.isVerified = body.is_verified;
-      if (body.email_verified !== undefined) casdoorUpdate.emailVerified = body.email_verified;
-
-      const syncSuccess = await cdClient.updateUser(casdoorUpdate as any);
-      if (!syncSuccess) {
-        throw new ApiError(
-          "/errors/internal-error",
-          "Casdoor™ sync failed",
-          502,
-          "Failed to sync user to Casdoor™",
-          {
-            instance: "/api/v1/auth/users/:uuid",
-            internal_code: "CASDOOR_SYNC_FAILED",
-            severity: "HIGH",
-            extra: {
-              issues: {
-                error_details: "Casdoor API returned non-success status",
-                casdoor_user_id: existing.idp_code,
-                attempted_fields: Object.keys(updateBody),
-              },
-            },
-          },
-        );
-      }
-    }
-
-    // Casdoor sync succeeded (or skipped) → update local DB with last_synced_at
-    updateBody.last_synced_at = new Date();
-    await this.dal.updateProfile(uuid, updateBody as any);
-
-    const updated = await this.dal.getByUuid(uuid);
-    if (!updated) {
-      throw new NotFoundError("User profile not found after update", { internal_code: "USER_NOT_FOUND" });
-    }
-    return updated;
-  }
-
   // --- Delete (soft) --------------------------------------------------------
 
-  async deleteUser(uuid: string): Promise<void> {
+  async deleteUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
     const existing = await this.dal.getByUuid(uuid);
     if (!existing) {
       throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
     }
 
-    // Soft delete in local DB
-    await this.dal.softDelete(uuid);
-
-    // Disable in Casdoor (best-effort, non-critical)
-    try {
-      const cdClient = await this.casdoor.getClient();
-      if (cdClient) {
+    // CRITICAL ordering (fail-closed): disable the IdP user FIRST.
+    // If Casdoor fails → nothing changed locally, the operation errors out.
+    // If the local soft-delete then fails (ERR01/ERR03) → the IdP user stays
+    // disabled while the profile is still alive: locked out, but no security
+    // hole — and a retry of the delete is idempotent.
+    const cdClient = await this.casdoor.getClient();
+    if (cdClient) {
+      try {
         await cdClient.updateUser({
           id: existing.idp_code,
           owner: existing.idp_org || undefined,
           name: existing.idp_username || undefined,
           isForbidden: true,
         } as any);
+      } catch (syncError) {
+        throw new ApiError(
+          "/errors/internal-error",
+          "Casdoor™ sync failed",
+          502,
+          "Failed to disable user in Casdoor™ — local delete NOT performed",
+          {
+            instance: "/api/v1/auth/users/:uuid",
+            internal_code: "CASDOOR_SYNC_FAILED",
+            severity: "HIGH",
+            extra: { casdoor_user_id: existing.idp_code, cause: String(syncError) },
+          },
+        );
       }
-    } catch (syncError) {
-      // Non-critical: local soft-delete already succeeded.
-      console.error("[UserService] Casdoor disable failed (non-critical):", syncError);
     }
+
+    return await this.dal.softDelete(uuid, version);
   }
 
   // --- Restore (un-soft-delete) --------------------------------------------
 
-  async restoreUser(uuid: string): Promise<void> {
+  async restoreUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
     const existing = await this.dal.getByUuid(uuid);
     if (!existing) {
       throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
     }
 
-    await this.dal.restore(uuid);
+    // CRITICAL ordering (fail-closed): restore locally FIRST, then re-enable
+    // the IdP user. If Casdoor re-enable fails → the profile is restored but
+    // the IdP user stays forbidden (locked out, no security hole) and the
+    // caller sees the failure — a retry re-attempts the re-enable.
+    const restored = await this.dal.restore(uuid, version);
 
-    // Re-enable in Casdoor (best-effort, non-critical).
-    try {
-      const cdClient = await this.casdoor.getClient();
-      if (cdClient) {
+    const cdClient = await this.casdoor.getClient();
+    if (cdClient) {
+      try {
         await cdClient.updateUser({
           id: existing.idp_code,
           owner: existing.idp_org || undefined,
           name: existing.idp_username || undefined,
           isForbidden: false,
         } as any);
+      } catch (syncError) {
+        throw new ApiError(
+          "/errors/internal-error",
+          "Casdoor™ sync failed",
+          502,
+          "Profile restored locally but Casdoor™ re-enable failed — user remains forbidden at the IdP; retry the restore",
+          {
+            instance: "/api/v1/auth/users/:uuid/restore",
+            internal_code: "CASDOOR_SYNC_FAILED",
+            severity: "HIGH",
+            extra: { casdoor_user_id: existing.idp_code, cause: String(syncError) },
+          },
+        );
       }
-    } catch (syncError) {
-      console.error("[UserService] Casdoor re-enable failed (non-critical):", syncError);
     }
+
+    return restored;
   }
 
   // --- Entity CRUD (admin surface) -----------------------------------------
@@ -355,20 +313,16 @@ export class UserService {
       }
     }
 
-    const updateBody: Record<string, unknown> = { last_synced_at: syncTimestamp };
+    // Caller-observed version forwarded as-is — the DAL enforces ERR02/ERR01.
+    const updateBody: Record<string, unknown> = { last_synced_at: syncTimestamp, version: body.version };
     if (body.display_name !== undefined) updateBody.display_name = body.display_name;
     if (body.email !== undefined) updateBody.email = body.email || undefined;
     if (body.avatar_color !== undefined) updateBody.avatar_color = body.avatar_color;
     if (body.avatar_initials !== undefined) updateBody.avatar_initials = body.avatar_initials;
     if (body.roles !== undefined) updateBody.roles = JSON.stringify(body.roles);
 
-    await this.dal.updateProfile(uuid, updateBody as any, tx);
-
-    const updated = await this.dal.getByUuid(uuid);
-    if (!updated) {
-      throw new NotFoundError("User profile not found after update", { internal_code: "USER_NOT_FOUND" });
-    }
-    return updated;
+    // The write response IS the new observation — no follow-up GET.
+    return await this.dal.updateProfile(uuid, updateBody as any, tx);
   }
 
   // --- Password change ------------------------------------------------------

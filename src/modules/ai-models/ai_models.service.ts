@@ -95,15 +95,15 @@ export class AiModelsService {
         });
       }
     }
-    await this.getDal().updateAiModel(uuid, body, tx);
+    return await this.getDal().updateAiModel(uuid, body, tx);
   }
 
-  async deleteAiModel(uuid: string) {
-    await this.getDal().deleteAiModel(uuid);
+  async deleteAiModel(uuid: string, version: number) {
+    return await this.getDal().deleteAiModel(uuid, version);
   }
 
-  async restoreAiModel(uuid: string) {
-    await this.getDal().restoreAiModel(uuid);
+  async restoreAiModel(uuid: string, version: number) {
+    return await this.getDal().restoreAiModel(uuid, version);
   }
 
   // --- Audit ----------------------------------------------------------------

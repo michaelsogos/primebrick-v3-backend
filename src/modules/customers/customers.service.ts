@@ -117,15 +117,15 @@ export class CustomersService {
   }
 
   async updateCustomer(uuid: string, body: CustomerUpdateBody, tx?: PoolClient) {
-    await this.getDal().updateCustomer(uuid, body, tx);
+    return await this.getDal().updateCustomer(uuid, body, tx);
   }
 
-  async deleteCustomer(uuid: string) {
-    await this.getDal().deleteCustomer(uuid);
+  async deleteCustomer(uuid: string, version: number) {
+    return await this.getDal().deleteCustomer(uuid, version);
   }
 
-  async restoreCustomer(uuid: string) {
-    await this.getDal().restoreCustomer(uuid);
+  async restoreCustomer(uuid: string, version: number) {
+    return await this.getDal().restoreCustomer(uuid, version);
   }
 
   // --- Duplicate (bulk) -----------------------------------------------------

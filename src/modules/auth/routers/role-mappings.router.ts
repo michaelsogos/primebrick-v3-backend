@@ -29,6 +29,7 @@
 
 import type { RequestHandler } from "express";
 import { z } from "zod";
+import { zBoundedInt } from "../../../http/validation.js";
 
 import { makeProtectedRouter } from "../../../http/protected-router.js";
 import { registerRoutes } from "../../../http/define-route.js";
@@ -86,6 +87,7 @@ const UpdateBodySchema = entityWriteBody(z
     label_key: z.string().max(255).optional().or(z.literal("")),
     is_admin: z.boolean().optional(),
     permissions: z.array(permissionStringSchema).optional(),
+    version: zBoundedInt(0, Number.MAX_SAFE_INTEGER),
   })
   .refine((data) => !("idp_role" in data) && !("idp_org" in data), {
     message: "idp_role and idp_org are immutable on update",

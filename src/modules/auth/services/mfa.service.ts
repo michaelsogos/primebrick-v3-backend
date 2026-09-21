@@ -288,7 +288,10 @@ export class MfaService {
       const secret = randomBytes(32).toString("hex");
       // The verify endpoint is PUBLIC (no session context) — wrap in runAsSystem
       // so the upsert's audit fields can be set.
-      await runAsSystem(() => dal.upsert("mfa_challenge_signing_secret", secret, "system"));
+      await runAsSystem(() => dal.add(
+        { key: "mfa_challenge_signing_secret", value: secret, type: "secret" },
+        "system",
+      ));
       return secret;
     }
     return row.value;

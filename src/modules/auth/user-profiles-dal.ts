@@ -145,11 +145,37 @@ export class UserProfilesDal {
 
   async updateProfile(
     uuid: string,
+    body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string; auth_method_enforcer_dismissed?: boolean; onboarding_completed?: boolean; version?: number },
+    tx?: PoolClient
+  ): Promise<UserProfileDetailDto> {
+    const repo = tx ? new Repository(tx) : this.repo;
+    // API path: `body.version` is the caller-observed version. If absent the
+    // Repository.update() version guard throws ERR02 — we NEVER manufacture a
+    // version by re-reading the row (that would elide the concurrency check).
+    const row = await repo.update<UserProfileEntity, UserProfileDetailRow>(
+      UserProfileEntity, { ...body, uuid },
+      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+    );
+    return this.toDto(row);
+  }
+
+  /**
+   * INTERNAL write path — session/Casdoor sync stamps that do not carry a
+   * caller-observed version. Reads the current row version DB-first, then
+   * updates. NEVER call this from an API route.
+   */
+  async updateProfileInternal(
+    uuid: string,
     body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string; auth_method_enforcer_dismissed?: boolean; onboarding_completed?: boolean },
     tx?: PoolClient
-  ): Promise<void> {
+  ): Promise<UserProfileDetailDto> {
     const repo = tx ? new Repository(tx) : this.repo;
-    await repo.update(UserProfileEntity, { ...body, uuid }, { actor: requireActor(), audit: this.auditPort });
+    const version = (await this.freshRowByUuid(uuid, repo))!.version;
+    const row = await repo.update<UserProfileEntity, UserProfileDetailRow>(
+      UserProfileEntity, { ...body, uuid, version },
+      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+    );
+    return this.toDto(row);
   }
 
   /**
@@ -159,9 +185,29 @@ export class UserProfilesDal {
    */
   async updateProfileById(
     id: bigint | number,
-    body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string; auth_method_enforcer_dismissed?: boolean; onboarding_completed?: boolean }
-  ): Promise<void> {
-    await this.repo.update(UserProfileEntity, { ...body, id }, { actor: requireActor(), audit: this.auditPort });
+    body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string; auth_method_enforcer_dismissed?: boolean; onboarding_completed?: boolean; version?: number }
+  ): Promise<UserProfileDetailDto> {
+    // Internal FK-driven write — the read below is the observation step of this
+    // unit of work (the caller legitimately has `id`, not a prior version).
+    const version = body.version ?? (await this.repo.find<UserProfileEntity, UserProfileEntity>(
+      UserProfileEntity,
+      null,
+      { filters: [Filter.fieldValue(field(UserProfileEntity, "id" as any), "=", typeof id === "number" ? BigInt(id) : id)] as any, deletedRecords: "INCLUDED" }
+    ))!.version;
+    const row = await this.repo.update<UserProfileEntity, UserProfileDetailRow>(
+      UserProfileEntity, { ...body, id, version }, { actor: requireActor(), audit: this.auditPort }
+    );
+    return this.toDto(row);
+  }
+
+  // DB-first read — `findByUUID`/`findById` may serve a stale cached row
+  // (@Cached entities) whose `version` would trip the optimistic-concurrency
+  // guard (ERR01) on the write that follows.
+  private async freshRowByUuid(uuid: string, repo?: Repository): Promise<UserProfileEntity> {
+    return (await (repo ?? this.repo).find<UserProfileEntity, UserProfileEntity>(UserProfileEntity, null, {
+      filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
+      deletedRecords: "INCLUDED",
+    }))!;
   }
 
   async getByIdpCode(idpCode: string): Promise<UserProfileDetailDto | null> {
@@ -228,12 +274,18 @@ export class UserProfilesDal {
     return row ? this.toDto(row) : null;
   }
 
-  async softDelete(uuid: string): Promise<void> {
-    await this.repo.delete(UserProfileEntity, { uuid }, { actor: requireActor(), audit: this.auditPort });
+  async softDelete(uuid: string, version: number): Promise<UserProfileDetailDto> {
+    const row = await this.repo.delete<UserProfileEntity, UserProfileDetailRow>(
+      UserProfileEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+    );
+    return this.toDto(row);
   }
 
-  async restore(uuid: string): Promise<void> {
-    await this.repo.restore(UserProfileEntity, { uuid }, { actor: requireActor(), audit: this.auditPort });
+  async restore(uuid: string, version: number): Promise<UserProfileDetailDto> {
+    const row = await this.repo.restore<UserProfileEntity, UserProfileDetailRow>(
+      UserProfileEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+    );
+    return this.toDto(row);
   }
 
   private enrichAuditDeltaWithDisplayNames(

@@ -13,6 +13,7 @@
  */
 
 import { z } from "zod";
+import { zBoundedInt } from "../../http/validation.js";
 import { PasswordPolicy, passwordZodSchema } from "./password-policy.js";
 import { displayNameSchema, idpNameSchema } from "./validation.js";
 
@@ -77,20 +78,6 @@ export function makeCreateUserSchema(policy: PasswordPolicy) {
 }
 export type CreateUserBody = z.infer<ReturnType<typeof makeCreateUserSchema>>;
 
-export const UpdateUserSchema = z
-  .object({
-    display_name: displayNameSchema(z.string()).optional(),
-    email: z.string().email().optional(),
-    avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-    is_active: z.boolean().optional(),
-    is_admin: z.boolean().optional(),
-    is_verified: z.boolean().optional(),
-    email_verified: z.boolean().optional(),
-    roles: z.array(z.string()).optional(),
-  })
-  .strict();
-export type UpdateUserBody = z.infer<typeof UpdateUserSchema>;
-
 // --- User profiles entity CRUD --------------------------------------------
 
 export const UuidParamSchema = z.object({ uuid: z.string().uuid() });
@@ -109,6 +96,7 @@ export const UserUpdateBodySchema = z
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
     avatar_initials: z.string().min(1).max(10).optional(),
     roles: z.array(z.string()).optional(),
+    version: zBoundedInt(0, Number.MAX_SAFE_INTEGER),
   })
   .strict();
 export type UserUpdateBody = z.infer<typeof UserUpdateBodySchema>;

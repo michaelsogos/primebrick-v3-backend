@@ -74,6 +74,22 @@ export class UserPasskeysDal {
   }
 
   /**
+   * Find a passkey by UUID.
+   */
+  async findByUuid(uuid: string): Promise<UserPasskeyEntity | null> {
+    return this.repo.find<UserPasskeyEntity, UserPasskeyEntity>(
+      UserPasskeyEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(field(UserPasskeyEntity, "uuid" as any), "=", uuid),
+        ],
+        throwIfNotFound: false,
+      },
+    );
+  }
+
+  /**
    * Find all passkeys for a user profile (by user_profile_id).
    */
   async findByUserProfileId(userProfileId: bigint): Promise<UserPasskeyEntity[]> {
@@ -130,7 +146,7 @@ export class UserPasskeysDal {
       },
     );
     if (existing) {
-      await this.repo.delete(UserPasskeyEntity, { id: existing.id }, { actor: requireActor() });
+      await this.repo.delete(UserPasskeyEntity, { id: existing.id, version: existing.version }, { actor: requireActor() });
     }
   }
 
@@ -141,7 +157,7 @@ export class UserPasskeysDal {
   async deleteByCredentialId(credentialId: string): Promise<void> {
     const existing = await this.findByCredentialId(credentialId);
     if (existing) {
-      await this.repo.delete(UserPasskeyEntity, { id: existing.id }, { actor: requireActor() });
+      await this.repo.delete(UserPasskeyEntity, { id: existing.id, version: existing.version }, { actor: requireActor() });
     }
   }
 
@@ -150,14 +166,17 @@ export class UserPasskeysDal {
    */
   async updateLabel(uuid: string, label: string): Promise<void> {
     const actor = requireActor();
+    const existing = await this.findByUuid(uuid);
+    if (!existing) return;
     await this.repo.update(
       UserPasskeyEntity,
       {
         uuid,
         label,
         updated_by: actor,
+        version: existing.version,
       },
-      { actor },
+      { actor, matchBy: "uuid" as any },
     );
   }
 
@@ -186,7 +205,7 @@ export class UserPasskeysDal {
         // "multiple assignments to same column" (PG error 42601).
         version: existing.version,
       },
-      { actor },
+      { actor, matchBy: "id" as any },
     );
   }
 }

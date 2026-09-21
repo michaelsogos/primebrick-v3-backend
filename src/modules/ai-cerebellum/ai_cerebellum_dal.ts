@@ -44,7 +44,6 @@ export type AiCerebellumDetailRow = {
   max_tokens?: number;
   repetition_penalty?: number;
   execution_config?: Record<string, any>;
-  is_default: boolean;
   is_enabled: boolean;
   sort_order: number;
   test_scores?: Record<string, any>;
@@ -79,7 +78,6 @@ function projectAllExceptId(): FieldProjector[] {
     "max_tokens",
     "repetition_penalty",
     "execution_config",
-    "is_default",
     "is_enabled",
     "sort_order",
     "test_scores",
@@ -270,7 +268,6 @@ export class AiCerebellumDal {
         max_tokens: body.max_tokens,
         repetition_penalty: body.repetition_penalty,
         execution_config: body.execution_config,
-        is_default: body.is_default,
         is_enabled: body.is_enabled,
         sort_order: body.sort_order,
         test_scores: body.test_scores,
@@ -281,32 +278,36 @@ export class AiCerebellumDal {
     return { uuid };
   }
 
-  async updateAiCerebellum(uuid: string, body: AiCerebellumUpdateBody, tx?: PoolClient): Promise<void> {
+  async updateAiCerebellum(uuid: string, body: AiCerebellumUpdateBody, tx?: PoolClient): Promise<AiCerebellumDetailDto> {
     const repo = tx ? new Repository(tx) : this.repo;
-    await repo.update(
+    // body.version is REQUIRED — the caller's observed version (client).
+    const row = await repo.update<AiCerebellumEntity, AiCerebellumDetailRow>(
       AiCerebellumEntity,
       { ...body, uuid },
       { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
     );
     if (!tx) await this.invalidateCache();
+    return this.toDto(row);
   }
 
-  async deleteAiCerebellum(uuid: string): Promise<void> {
-    await this.repo.delete(
+  async deleteAiCerebellum(uuid: string, version: number): Promise<AiCerebellumDetailDto> {
+    const row = await this.repo.delete<AiCerebellumEntity, AiCerebellumDetailRow>(
       AiCerebellumEntity,
-      { uuid },
+      { uuid, version },
       { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
     );
     await this.invalidateCache();
+    return this.toDto(row);
   }
 
-  async restoreAiCerebellum(uuid: string): Promise<void> {
-    await this.repo.restore(
+  async restoreAiCerebellum(uuid: string, version: number): Promise<AiCerebellumDetailDto> {
+    const row = await this.repo.restore<AiCerebellumEntity, AiCerebellumDetailRow>(
       AiCerebellumEntity,
-      { uuid },
+      { uuid, version },
       { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
     );
     await this.invalidateCache();
+    return this.toDto(row);
   }
 
   async getAiCerebellumAudit(uuid: string, page: number, limit: number) {

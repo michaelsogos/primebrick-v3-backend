@@ -40,6 +40,7 @@ import {
   entityWriteBody,
   assertTranslationsPermission,
   runEntityWrite,
+  requireVersionQuery,
 } from "../../http/entity-write.js";
 import { getPool } from "../../db/pool.js";
 import { AiModelsDal } from "./ai_models_dal.js";
@@ -107,25 +108,25 @@ export function aiModelsRouter() {
     const body = req.body as z.infer<typeof AiModelUpdateWriteSchema>;
     assertTranslationsPermission(req, body.translations);
     const dal = new AiModelsDal(getPool());
-    await runEntityWrite(
+    const updated = await runEntityWrite(
       getPool(),
       body.translations,
       (tx) => service.updateAiModel(uuid, body.entity, tx),
       () => dal.invalidateCache(),
     );
-    res.status(204).send();
+    res.status(200).json(updated);
   });
 
   const remove: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    await service.deleteAiModel(uuid);
-    res.status(204).send();
+    const version = requireVersionQuery(req);
+    res.status(200).json(await service.deleteAiModel(uuid, version));
   });
 
   const restore: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    await service.restoreAiModel(uuid);
-    res.status(204).send();
+    const version = requireVersionQuery(req);
+    res.status(200).json(await service.restoreAiModel(uuid, version));
   });
 
   const getAudit: RequestHandler = asyncHandler(async (req, res) => {

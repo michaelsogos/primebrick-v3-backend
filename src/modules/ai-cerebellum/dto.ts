@@ -110,7 +110,6 @@ const AiCerebellumBaseSchema = z.object({
   max_tokens: zBoundedInt(1, 32768).nullish(),
   repetition_penalty: z.number().min(1.0).max(2.0).nullish(),
   execution_config: z.record(z.string(), z.any()).nullish(),
-  is_default: z.boolean().default(false),
   is_enabled: z.boolean().default(true),
   sort_order: zBoundedInt(0, 9999).default(100),
   test_scores: z.record(z.string(), z.any()).nullish(),
@@ -120,7 +119,7 @@ export const AiCerebellumCreateBodySchema = AiCerebellumBaseSchema;
 
 export type AiCerebellumCreateBody = z.infer<typeof AiCerebellumCreateBodySchema>;
 
-export const AiCerebellumUpdateBodySchema = AiCerebellumBaseSchema.partial();
+export const AiCerebellumUpdateBodySchema = AiCerebellumBaseSchema.partial().extend({ version: zBoundedInt(0, Number.MAX_SAFE_INTEGER) });
 
 export type AiCerebellumUpdateBody = z.infer<typeof AiCerebellumUpdateBodySchema>;
 
