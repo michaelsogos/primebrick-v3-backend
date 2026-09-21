@@ -36,6 +36,7 @@ export class UserInvitationEntity implements IAuditableEntity {
   uuid: string;
 
   /** FK to user_profiles.id (not a @Column — it's a raw FK, no ORM relationship). */
+  @Column({ pgType: "bigint", nullable: false })
   user_profile_id: bigint;
 
   /** SHA-256 hash of the invitation token (raw token never stored). */

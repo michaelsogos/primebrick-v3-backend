@@ -62,19 +62,19 @@ export class AiCerebellumEntity implements IAuditableEntity, IExposableEntity {
   enable_thinking?: boolean;
 
   /** NULL = inherit ai_models.temperature. */
-  @Column({ nullable: true })
+  @Column({ pgType: "numeric", nullable: true })
   temperature?: number;
 
   /** NULL = inherit ai_models.top_p. */
-  @Column({ nullable: true })
+  @Column({ pgType: "numeric", nullable: true })
   top_p?: number;
 
   /** NULL = inherit ai_models.max_tokens. */
-  @Column({ nullable: true })
+  @Column({ pgType: "integer", nullable: true })
   max_tokens?: number;
 
   /** NULL = inherit ai_models.repetition_penalty. */
-  @Column({ nullable: true })
+  @Column({ pgType: "numeric", nullable: true })
   repetition_penalty?: number;
 
   /** Partial execution-config override — merged over ai_models.execution_config.
@@ -87,7 +87,7 @@ export class AiCerebellumEntity implements IAuditableEntity, IExposableEntity {
   is_enabled: boolean;
 
   /** Display order inside the footer dropdown (ascending). */
-  @Column({ nullable: false, defaultSql: "100" })
+  @Column({ pgType: "integer", nullable: false, defaultSql: "100" })
   sort_order: number;
 
   /** Per-tuning test measurements keyed by test case. JSONB — same shape as

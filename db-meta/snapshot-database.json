@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-21T14:35:12.205Z",
+  "generatedAt": "2026-09-21T16:04:42.821Z",
   "source": "database",
   "tables": {
     "public.ai_cerebellum": {
@@ -2024,7 +2024,7 @@
           "formatType": "text",
           "numericPrecision": null,
           "numericScale": null,
-          "isNullable": true,
+          "isNullable": false,
           "isPrimaryKey": false
         }
       }
@@ -2363,7 +2363,7 @@
           "formatType": "boolean",
           "numericPrecision": null,
           "numericScale": null,
-          "isNullable": true,
+          "isNullable": false,
           "isPrimaryKey": false
         },
         "is_admin": {
@@ -2376,7 +2376,7 @@
           "formatType": "boolean",
           "numericPrecision": null,
           "numericScale": null,
-          "isNullable": true,
+          "isNullable": false,
           "isPrimaryKey": false
         },
         "roles": {
@@ -2577,19 +2577,6 @@
         "onboarding_completed": {
           "name": "onboarding_completed",
           "ordinalPosition": 25,
-          "dataType": "bool",
-          "typname": "bool",
-          "typeOid": 16,
-          "typcategory": "B",
-          "formatType": "boolean",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false
-        },
-        "passkey_prompt_dismissed": {
-          "name": "passkey_prompt_dismissed",
-          "ordinalPosition": 26,
           "dataType": "bool",
           "typname": "bool",
           "typeOid": 16,

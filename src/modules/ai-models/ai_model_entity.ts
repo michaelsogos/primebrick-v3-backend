@@ -65,7 +65,7 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   description_key?: string;
 
   /** Power indicator 1-5 (1=Lowest, 5=Highest). Drives the 5-bar UI. */
-  @Column({ nullable: false, defaultSql: "3" })
+  @Column({ pgType: "integer", nullable: false, defaultSql: "3" })
   power_level: number;
 
   /** Quality rank 0.0-5.0 — speed-aware refined test score:
@@ -75,7 +75,7 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
    *  response_s (<=3s→5 … <=60s→1, timeout→0). >=2 timeouts of 5 turns
    *  => NOT_COMPATIBLE. power_level is not part of rank.
    *  See docs/modules/ai-models.md for the full scoring spec. */
-  @Column({ nullable: false, defaultSql: "1.0" })
+  @Column({ pgType: "numeric", nullable: false, defaultSql: "1.0" })
   rank: number;
 
   /** Test case scores with full runs[] arrays. JSONB.
@@ -92,31 +92,31 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   enable_thinking: boolean;
 
   /** Sampling temperature (0.10-2.00). */
-  @Column({ nullable: false, defaultSql: "0.70" })
+  @Column({ pgType: "numeric", nullable: false, defaultSql: "0.70" })
   temperature: number;
 
   /** Nucleus sampling top_p (0.01-1.00). */
-  @Column({ nullable: false, defaultSql: "0.90" })
+  @Column({ pgType: "numeric", nullable: false, defaultSql: "0.90" })
   top_p: number;
 
   /** Max generation tokens. */
-  @Column({ nullable: false, defaultSql: "256" })
+  @Column({ pgType: "integer", nullable: false, defaultSql: "256" })
   max_tokens: number;
 
   /** Repetition penalty (1.00-2.00). */
-  @Column({ nullable: false, defaultSql: "1.10" })
+  @Column({ pgType: "numeric", nullable: false, defaultSql: "1.10" })
   repetition_penalty: number;
 
   /** Display order (ascending). */
-  @Column({ nullable: false, defaultSql: "100" })
+  @Column({ pgType: "integer", nullable: false, defaultSql: "100" })
   sort_order: number;
 
   /** Download size in MB (total repo size from HuggingFace). */
-  @Column({ nullable: true })
+  @Column({ pgType: "integer", nullable: true })
   download_size_mb?: number;
 
   /** VRAM required in MB (from WebLLM prebuiltAppConfig vram_required_MB). */
-  @Column({ nullable: true })
+  @Column({ pgType: "numeric", nullable: true })
   vram_mb?: number;
 
   /** Compatibility status: COMPATIBLE, NOT_COMPATIBLE, UNTESTED. */

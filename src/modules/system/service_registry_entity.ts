@@ -40,7 +40,7 @@ export class ServiceRegistryEntity implements IAuditableEntity {
   @Column({ nullable: true })
   service_version?: string;
 
-  @Column({ nullable: false, defaultSql: "false" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   is_behind_scaler: boolean;
 
   @Column({ nullable: false, defaultSql: "'unknown'" })
@@ -49,7 +49,7 @@ export class ServiceRegistryEntity implements IAuditableEntity {
   @Column({ pgType: "timestamptz", nullable: true })
   last_health_check_at?: Date;
 
-  @Column({ nullable: false, defaultSql: "true" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })
   is_enabled: boolean;
 
   @Column({ nullable: true })
@@ -58,7 +58,7 @@ export class ServiceRegistryEntity implements IAuditableEntity {
   @Column({ nullable: false, defaultSql: "'icon'" })
   icon_type: string;
 
-  @Column({ nullable: false, defaultSql: "false" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   is_reserved: boolean;
 
   @AuditableField(AuditableFieldType.CREATED_AT)

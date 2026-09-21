@@ -94,6 +94,7 @@ export class CustomerEntity implements IAuditableEntity, IExposableEntity, IClon
   @DeletableField(DeletableFieldType.DELETED_BY)
   deleted_by?: string;
 
+  @Column({ pgType: "uuid", nullable: true })
   @CloneField()
   cloned_from?: string;
 }

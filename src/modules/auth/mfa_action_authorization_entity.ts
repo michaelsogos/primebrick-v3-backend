@@ -33,6 +33,7 @@ export class MfaActionAuthorizationEntity implements IAuditableEntity {
   jti: string;
 
   /** FK to user_profiles.id. */
+  @Column({ pgType: "bigint", nullable: false })
   user_profile_id: bigint;
 
   /** The action being authorized (create, update, delete, restore). */

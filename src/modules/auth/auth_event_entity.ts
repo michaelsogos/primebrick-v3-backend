@@ -25,7 +25,7 @@ export class AuthEventEntity {
   id: bigint;
 
   /** FK to user_profiles.uuid. NULL for failed login (no resolvable user). */
-  @Column({ nullable: true })
+  @Column({ pgType: "uuid", nullable: true })
   user_profile_uuid?: string;
 
   /** Username that was attempted (mainly for failed login). */
@@ -41,7 +41,7 @@ export class AuthEventEntity {
   event_at: Date;
 
   /** Client IP address. */
-  @Column({ nullable: true })
+  @Column({ pgType: "inet", nullable: true })
   ip_address?: string;
 
   /** User-Agent header from the client. */
@@ -49,7 +49,7 @@ export class AuthEventEntity {
   user_agent?: string;
 
   /** Whether the auth attempt succeeded. */
-  @Column({ nullable: false })
+  @Column({ pgType: "boolean", nullable: false })
   success: boolean;
 
   /** Reason for failure (NULL on success). */
