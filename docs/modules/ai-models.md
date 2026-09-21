@@ -96,19 +96,37 @@ It was superseded because mixing compute cost into the quality rank made the
 column ambiguous. If old rows show a composite-looking rank, recompute with the
 refined formula.
 
-## Test protocols (`test_scores` keys)
+## Canonical `test_scores` shape (since 2026-09-21)
 
-| Key | Protocol | Path |
-|-----|----------|------|
-| `e2e_5turn_s1_fixed_v2` | 5-turn incremental regex, KV-cache path | `kv_cache_reuse=true` |
-| `e2e_5turn_s1_fixed_v2_retest` | Same protocol, repeated run (determinism check) | `kv_cache_reuse=true` |
-| `e2e_5turn` | Same 5 turns, no-cache baseline (S2) | `kv_cache_reuse=false` |
-| `e2e_5turn_s2_poll6s_x10` | 5-turn incremental regex, bounded polling | `kv_cache_reuse` per `execution_config`; each poll ≤6 s, max 10 polls (≈60 s) per turn before marking a generation timeout |
-| `regex_test_score` | Legacy WebLLM 2-run × 4-turn weighted format | engine `webllm` |
+Every test case lives under a `*_test_score` key holding **raw evidence only**:
 
-**Effective score for rank**: the score of the *active* path —
-`e2e_5turn_s1_fixed_v2` (or its retest) when `execution_config.kv_cache_reuse`
-is `true`, otherwise `e2e_5turn`.
+```json
+{
+  "regex_test_score":            { "protocol": "…", "turns": [...], "generation_config": {...},
+                                   "execution_config": {...}, "load": {...}, "note": "…",
+                                   "tested_at": "…", "load_ok": true, "generation_ok": true },
+  "json_editor_with_schema_test_score": { "…same shape…" }
+}
+```
+
+Aggregates (`quality`, `speed`, `score`, `success`, `avg_response_s`) are
+**computed on the fly** by the FE parser (`summarizeTestScores`) — they are
+deterministic functions of `turns` and are NEVER stored. `score_detail`,
+top-level `score`/`perf` were removed by `normalize_test_scores_cases.sql`
+(originals in `ai_models_test_scores_backup_20260921`); legacy nested objects
+were preserved under `regex_test_score.prior_runs` or top-level `prior_runs`.
+
+Global model score = `mean(score)` across all `*_test_score` cases — each case
+weighs equally. Only keys ending in `_test_score` count as cases.
+
+## Test protocols (`test_scores.<case>.protocol`)
+
+| Protocol | Meaning | Case key |
+|----------|---------|----------|
+| `e2e_5turn_s1_fixed_v2` | 5-turn incremental regex, KV-cache path | `regex_test_score` |
+| `e2e_5turn` | Same 5 turns, no-cache baseline (S2) | `regex_test_score` |
+| `e2e_5turn_s2_poll6s_x10` | 5-turn incremental regex, bounded polling | `regex_test_score` |
+| `e2e_5turn_json_schema_v1` | 5-turn incremental type_config editing via the smart-json assistant — Playwright spec `src/e2e/ai-json-schema-quality.spec.ts` | `json_editor_with_schema_test_score` |
 
 5-turn test prompts (S1 v2 / S2):
 
@@ -141,26 +159,36 @@ timeouts, ~3-4 s per turn). Record the tuned params in
 `test_scores.generation_config` and update the model row's `temperature` /
 `max_tokens` columns.
 
-`test_scores` JSONB shape (S1 v2 / S2):
+`test_scores` case JSONB shape (canonical — evidence only):
 
 ```json
 {
-  "e2e_5turn_s1_fixed_v2": {
-    "t1": { "pass": true, "expected": "^[a-zA-Z0-9]+$", "response": "...",
-            "response_s": 4.2 },
-    "...": {},
-    "score": "4/5",
+  "regex_test_score": {
+    "protocol": "e2e_5turn_s2_poll6s_x10",
+    "turns": [
+      { "n": 1, "prompt": "…", "expected": "^[a-zA-Z0-9]+$",
+        "actual": "…", "actual_response": "…", "score": 5,
+        "verdict": "pass", "reason": "exact",
+        "response_s": 4.2, "tokens_per_second": 7.8,
+        "kv_cache_hit_ratio": 0 }
+    ],
+    "generation_config": { "temperature": 0.7, "top_p": 0.8, "max_tokens": 1024 },
+    "execution_config": { "kv_cache_reuse": false, "max_history_turns": 6 },
+    "load": { "load_time_ms": 64000 },
+    "load_ok": true, "generation_ok": true,
     "tested_at": "2026-09-15T...",
-    "avg_response_s": 12.4,
-    "speed_score": 2.4,
-    "kv_hit_ratio": [0, 91.9, 93.2, 93.7, 95.1]
+    "note": "…"
   }
 }
 ```
 
+Deprecated shape (pre-2026-09-21, preserved under `prior_runs`): cases stored
+as protocol-named objects with `t1/t2/…` keys and precomputed `score` /
+`avg_response_s` / `speed_score`.
+
 **Operational rule:** every E2E test MUST persist `test_scores` — including
-per-turn `response_s` — and recompute `rank` with the speed-aware formula in
-the same transaction.
+per-turn `response_s` — and recompute `rank` as `mean(score)` across all
+`*_test_score` cases in the same transaction.
 Harness errors (`outcome: "harness_error"`) are NOT quality scores — they only
 record infrastructure failures.
 
