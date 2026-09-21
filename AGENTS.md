@@ -107,7 +107,7 @@ If `db-meta/diff-entities-vs-database.json` has `renameHeuristicUserReviewRequir
 
 ### Database patches vs migrations
 
-- **`pnpm run db:meta:compare`** — run when **entity / model code** changes. It refreshes JSON snapshots and may add a new file under `db-meta/patches/`. Do **not** wire this to **post-merge** (it is not a migration runner).
+- **`pnpm run db:meta:compare`** — run when **entity / model code** changes. It refreshes JSON snapshots and may add a new file under `db-meta/patches/`. Do **not** wire this to **post-merge** (it is not a migration runner). It scans `ENTITY_REGISTRY` (`src/domain/entities/registry.ts`) — **every new `@Entity` class MUST be registered there**, and decorator metadata comes from `@primebrick/dal-pg` (there is no local decorators module — `src/domain/entities/` only holds the registry).
 - **`pnpm run db:migrate`** — applies pending `.sql` files in order, using `public.primebrick_database_patches` (patch_id + `content_sha256`) so already-applied files are skipped and the first missing patch is applied next.
 
 ### Patch SHA256 management

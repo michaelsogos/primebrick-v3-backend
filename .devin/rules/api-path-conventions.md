@@ -39,8 +39,8 @@ GET    /api/v1/entities/:entity/list              → paginated list
 GET    /api/v1/entities/:entity/:uuid             → single record
 POST   /api/v1/entities/:entity                   → create
 PUT    /api/v1/entities/:entity/:uuid             → update
-DELETE /api/v1/entities/:entity/:uuid             → soft-delete
-POST   /api/v1/entities/:entity/:uuid/restore     → restore
+DELETE /api/v1/entities/:entity/:uuid?version=N   → soft-delete (version required)
+POST   /api/v1/entities/:entity/:uuid/restore     → restore (entity body must carry version)
 GET    /api/v1/entities/:entity/:uuid/audit       → audit history
 POST   /api/v1/entities/:entity/bulk-delete       → bulk soft-delete
 POST   /api/v1/entities/:entity/bulk-restore      → bulk restore
@@ -53,6 +53,18 @@ POST   /api/v1/entities/:entity/:uuid/:action     → entity-scoped action
 ```
 
 `:entity` is always snake_case **singular**.
+
+**Optimistic concurrency & write responses:**
+
+- Single writes (`POST`, `PUT`, `DELETE`, `restore`) return **200 + the
+  `RETURNING` row** — the FE/MCP caller MUST consume the response entity
+  (it carries the incremented `version`); never re-fetch after a write.
+- `DELETE` requires `?version=` (query param); `restore` requires `version`
+  in the `{entity}` body. A stale/missing version → **409 ERR01**.
+- `update`/`delete`/`restore` never re-read the row for the response — the
+  DAL `RETURNING` row is the authoritative post-write state.
+- Bulk endpoints (`bulk-*`) keep the **204** contract — no body, per-item
+  outcomes only where the API explicitly returns them.
 
 ## Write-payload standard (`{entity}` envelope)
 
