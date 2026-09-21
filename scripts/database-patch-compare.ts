@@ -22,7 +22,7 @@ import { buildPatchFilename, patchIdFromFilename, sha256Hex } from "../src/db/da
 import { isPatchBodyAlreadyRecorded, PATCH_REGISTRY_FQNAME } from "../src/db/database-patch-registry.js";
 import { buildSqlPatchFromMetaDiff } from "../src/db/database-patch-to-sql.js";
 import { compareSnapshots } from "../src/db/schema-snapshot.js";
-import { getEntityPersistenceMeta, type EntityClass } from "../src/domain/entities/entity-decorators.js";
+import { getEntityPersistenceMeta, type EntityClass } from "@primebrick/dal-pg";
 import { ENTITY_REGISTRY } from "../src/domain/entities/registry.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
