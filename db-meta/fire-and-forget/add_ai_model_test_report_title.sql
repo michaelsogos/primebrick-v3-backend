@@ -9,7 +9,13 @@
 
 BEGIN;
 
-INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
+-- system.* keys are served from the system.translations schema
+-- (module 'system'/'settings' → SystemTranslationEntity). An earlier version
+-- of this script wrongly targeted public.translations; clean those rows up.
+DELETE FROM public.translations
+WHERE key = 'system.entities.ai_model.test_report.title';
+
+INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_model.test_report.title', 'en-GB', 'Test report', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.test_report.title', 'it-IT', 'Report del test', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.test_report.title', 'fr-FR', 'Rapport de test', now(), 'initial-setup', now(), 'initial-setup', 1),
