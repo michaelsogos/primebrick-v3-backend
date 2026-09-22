@@ -314,8 +314,13 @@ export class WebauthnService {
 
     // Casdoor returns {status:"error", msg:"..."} on failure even with HTTP 200
     if (data.status !== "ok") {
-      throw new UnauthorizedError(data.msg || "WebAuthn signin failed", {
-        internal_code: "webauthn_ceremony_failed",
+      // "user not exist" = the browser holds a passkey whose credential is no
+      // longer registered in the IDP (e.g. after a data reset). Give it a
+      // dedicated internal_code so the FE can show a specific message.
+      const msg = data.msg || "WebAuthn signin failed";
+      const notRegistered = /user not exist/i.test(msg);
+      throw new UnauthorizedError(msg, {
+        internal_code: notRegistered ? "webauthn_credential_not_found" : "webauthn_ceremony_failed",
       });
     }
 

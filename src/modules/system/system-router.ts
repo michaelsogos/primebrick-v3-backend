@@ -13,11 +13,14 @@ import {
   PASSWORD_SPECIAL_CHARS,
 } from "../auth/password-policy.js";
 import { servicesEventsRouter } from "./services-events-route.js";
+import { docsSearchRouter } from "./docs-search-route.js";
 
 export function systemRouter() {
   const router = makeProtectedRouter();
   // Mount the SSE events endpoint for service registry
   router.use(servicesEventsRouter());
+  // Mount the documentation KB search endpoint
+  router.use(docsSearchRouter());
 
   // GET /api/v1/system/organizations/active - Active organizations for sidebar switcher
   router.get(

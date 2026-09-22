@@ -21,6 +21,10 @@ export interface CasdoorUser {
   isForbidden?: boolean;
   isAdmin?: boolean;
   roles?: Array<{ name: string; displayName?: string }>;
+  /** Registered WebAuthn credentials — echoed back on update-user calls so
+   * partial updates don't wipe enrolled passkeys (Casdoor writes the column
+   * unconditionally when `columns` is empty). */
+  webauthnCredentials?: unknown[];
   [key: string]: unknown;
 }
 
@@ -169,6 +173,25 @@ export class CasdoorApiClient {
     if (user.isAdmin !== undefined) requestBody.isAdmin = user.isAdmin;
     if (user.isVerified !== undefined) requestBody.isVerified = user.isVerified;
     if (user.emailVerified !== undefined) requestBody.emailVerified = user.emailVerified;
+
+    // Casdoor's /api/update-user with empty `columns` updates a FIXED column
+    // list that includes webauthnCredentials — a partial body without that
+    // field writes NULL and wipes every enrolled passkey. Read the user and
+    // echo the field back so partial updates (profile sync, isForbidden,
+    // avatar) preserve registered passkeys.
+    if (user.webauthnCredentials === undefined) {
+      try {
+        const existing = await this.getUser(user.id, finalOwner, finalName);
+        if (existing?.webauthnCredentials) {
+          requestBody.webauthnCredentials = existing.webauthnCredentials;
+        }
+      } catch {
+        // Best-effort: if the read fails, proceed without it rather than
+        // blocking the update.
+      }
+    } else {
+      requestBody.webauthnCredentials = user.webauthnCredentials;
+    }
 
     const response = await fetch(url, {
       method: "POST",

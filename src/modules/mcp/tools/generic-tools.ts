@@ -17,6 +17,7 @@
  *   9. get_entity_meta        — discovery: field schema for create/update
  *  10. bulk_entity_action     — delete/restore array of UUIDs
  *  11. manage_service         — service management (list/get/activate/update/delete)
+ *  12. search_docs            — docs KB vector+keyword search (pre-computed embedding)
  */
 
 import { z } from "zod";
@@ -58,6 +59,8 @@ import {
   deleteService,
 } from "./dispatch.js";
 import type { AuthInfo } from "@modelcontextprotocol/server";
+import { getPool } from "../../../db/pool.js";
+import { searchDocsKb } from "../../system/docs-search-dal.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -632,6 +635,50 @@ export function registerGenericTools(server: McpServer): void {
         default:
           throw new Error(`Unknown action: ${action}`);
       }
+    }),
+  );
+
+  // 12. search_docs
+  server.registerTool(
+    "search_docs",
+    {
+      title: "Search Documentation",
+      description:
+        "Semantic search over the documentation knowledge base (user guides, API docs). " +
+        "The caller MUST provide a pre-computed 384-dim `embedding` vector — the server never " +
+        "embeds text. Pass literal technical terms in `keywords` (identifiers, config keys, " +
+        "error codes) to boost exact matches alongside vector similarity. " +
+        "Returns the top-k chunks with title, path, content and similarity score.",
+      inputSchema: z.object({
+        embedding: z
+          .array(z.number())
+          .nonempty()
+          .describe("Pre-computed 384-dim query embedding (cosine space)."),
+        keywords: z
+          .array(z.string())
+          .optional()
+          .describe("Literal terms to boost via exact match (e.g. 'IDP Code', 'x-user-is-admin')."),
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("Max results (default 6, max 20)."),
+        repo: z
+          .string()
+          .optional()
+          .describe("Optional repository filter (e.g. 'primebrick-v3-docs')."),
+      }),
+    },
+    withErrorHandling(async (args, _ctx) => {
+      getAuthInfo(_ctx); // authenticated users only — docs KB is not public
+      const results = await searchDocsKb(getPool(), {
+        embedding: args.embedding,
+        keywords: args.keywords,
+        limit: args.limit,
+        repo: args.repo,
+      });
+      return textResult({ results });
     }),
   );
 }
