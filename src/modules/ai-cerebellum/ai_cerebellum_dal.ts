@@ -47,6 +47,7 @@ export type AiCerebellumDetailRow = {
   is_enabled: boolean;
   sort_order: number;
   test_scores?: Record<string, any>;
+  recommendation?: string;
   created_at: Date;
   created_by: string;
   updated_at: Date;
@@ -81,6 +82,7 @@ function projectAllExceptId(): FieldProjector[] {
     "is_enabled",
     "sort_order",
     "test_scores",
+    "recommendation",
     "created_at",
     "created_by",
     "updated_at",
@@ -271,6 +273,7 @@ export class AiCerebellumDal {
         is_enabled: body.is_enabled,
         sort_order: body.sort_order,
         test_scores: body.test_scores,
+        recommendation: body.recommendation,
       },
       { actor, audit: this.auditPort }
     );

@@ -96,6 +96,11 @@ export class AiCerebellumEntity implements IAuditableEntity, IExposableEntity {
   @Column({ pgType: "jsonb", nullable: true })
   test_scores?: Record<string, any>;
 
+  /** Visual recommendation badge ('RECOMMENDED' | 'NOT_RECOMMENDED' | NULL).
+   *  Purely cosmetic — does NOT affect selection or execution. */
+  @Column({ length: 20, nullable: true })
+  recommendation?: string;
+
   @AuditableField(AuditableFieldType.CREATED_AT)
   created_at: Date;
 

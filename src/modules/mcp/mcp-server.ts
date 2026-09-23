@@ -7,6 +7,7 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/server";
+import { logger } from "@primebrick/sdk";
 import { registerGenericTools } from "./tools/generic-tools.js";
 import { registerBeEntities, entityRegistry } from "./tools/entity-registry.js";
 
@@ -36,23 +37,16 @@ export function logMcpStartupInfo(): void {
   const modules = entityRegistry.listModules();
   const entityCount = modules.reduce((sum, m) => sum + m.entities.length, 0);
 
-  const entityLines = modules
-    .map(
-      (m) =>
-        `    ${m.module}: ${m.entities.map((e) => e.entity).join(", ")}`,
-    )
-    .join("\n");
-
-  console.log(
-    [
-      "[MCP] Server initialized — 11 tools available:",
-      ...MCP_TOOL_NAMES.map((name) => `    - ${name}`),
-      `[MCP] Registered entities (${entityCount} across ${modules.length} module(s)):`,
-      entityLines,
-      "[MCP] Endpoint: POST /mcp (Streamable HTTP, stateless mode)",
-      "[MCP] Auth: Bearer token (Casdoor JWT via requireBearerAuth)",
-    ].join("\n"),
-  );
+  // One logger call per line — the console bridge timestamps each call, so a
+  // single multi-line message would leave every line after the first bare.
+  logger.info(`[MCP] Server initialized — ${MCP_TOOL_NAMES.length} tools available:`);
+  for (const name of MCP_TOOL_NAMES) logger.info(`    - ${name}`);
+  logger.info(`[MCP] Registered entities (${entityCount} across ${modules.length} module(s)):`);
+  for (const m of modules) {
+    logger.info(`    ${m.module}: ${m.entities.map((e) => e.entity).join(", ")}`);
+  }
+  logger.info("[MCP] Endpoint: POST /mcp (Streamable HTTP, stateless mode)");
+  logger.info("[MCP] Auth: Bearer token (Casdoor JWT via requireBearerAuth)");
 }
 
 /**

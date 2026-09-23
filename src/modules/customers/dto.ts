@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { zBoundedInt } from "../../http/validation.js";
+import { zBoundedInt, zPartialNoDefaults } from "../../http/validation.js";
 
 import type { CustomerStatus } from "./customer_entity.js";
 import { CUSTOMER_FILTERABLE_KEYS, CUSTOMER_SORT_KEYS } from "./list-config.js";
@@ -144,7 +144,9 @@ export const CustomerCreateBodySchema = CustomerBaseSchema.superRefine((val, ctx
 export type CustomerCreateBody = z.infer<typeof CustomerCreateBodySchema>;
 
 // Update schema: partial version of base schema with separate refinement for update case
-export const CustomerUpdateBodySchema = CustomerBaseSchema.partial().extend({ version: zBoundedInt(0, Number.MAX_SAFE_INTEGER) }).superRefine((val, ctx) => {
+export const CustomerUpdateBodySchema = zPartialNoDefaults(
+  CustomerBaseSchema.extend({ version: zBoundedInt(0, Number.MAX_SAFE_INTEGER) }),
+).superRefine((val, ctx) => {
   // For updates, only validate the cross-field constraint if both fields are provided
   const hasAt = val.onboarding_at !== undefined;
   const hasTz = val.onboarding_time_zone !== undefined;

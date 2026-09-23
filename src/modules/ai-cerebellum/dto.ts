@@ -6,7 +6,7 @@
  */
 import { z } from "zod";
 
-import { zBoundedInt } from "../../http/validation.js";
+import { zBoundedInt, zBoundedNumber, zPartialNoDefaults } from "../../http/validation.js";
 import { AI_CEREBELLUM_FILTERABLE_KEYS, AI_CEREBELLUM_SORT_KEYS } from "./list-config.js";
 
 const csvToStringArray = z
@@ -105,21 +105,24 @@ const AiCerebellumBaseSchema = z.object({
   name: z.string().min(1).max(80),
   description_key: z.string().min(1).max(200).optional(),
   enable_thinking: z.boolean().nullish(),
-  temperature: z.number().min(0.0).max(2.0).nullish(),
-  top_p: z.number().min(0.01).max(1.0).nullish(),
+  temperature: zBoundedNumber(0.0, 2.0).nullish(),
+  top_p: zBoundedNumber(0.01, 1.0).nullish(),
   max_tokens: zBoundedInt(1, 32768).nullish(),
-  repetition_penalty: z.number().min(1.0).max(2.0).nullish(),
+  repetition_penalty: zBoundedNumber(1.0, 2.0).nullish(),
   execution_config: z.record(z.string(), z.any()).nullish(),
   is_enabled: z.boolean().default(true),
   sort_order: zBoundedInt(0, 9999).default(100),
   test_scores: z.record(z.string(), z.any()).nullish(),
+  recommendation: z.enum(["RECOMMENDED", "NOT_RECOMMENDED"]).nullish(),
 });
 
 export const AiCerebellumCreateBodySchema = AiCerebellumBaseSchema;
 
 export type AiCerebellumCreateBody = z.infer<typeof AiCerebellumCreateBodySchema>;
 
-export const AiCerebellumUpdateBodySchema = AiCerebellumBaseSchema.partial().extend({ version: zBoundedInt(0, Number.MAX_SAFE_INTEGER) });
+export const AiCerebellumUpdateBodySchema = zPartialNoDefaults(
+  AiCerebellumBaseSchema.extend({ version: zBoundedInt(0, Number.MAX_SAFE_INTEGER) }),
+);
 
 export type AiCerebellumUpdateBody = z.infer<typeof AiCerebellumUpdateBodySchema>;
 

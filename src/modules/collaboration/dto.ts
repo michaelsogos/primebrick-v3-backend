@@ -10,13 +10,15 @@
 
 import { z } from "zod";
 
+import { zBoundedInt } from "../../http/validation.js";
+
 // --- Presence signal (POST body) -----------------------------------------
 
 export const PresenceSignalSchema = z.object({
   action: z.enum(["READING", "EDITING", "LEAVE", "HEARTBEAT"]),
   field: z.string().optional(),
   value: z.unknown().optional(),
-  loaded_version: z.number().int().nonnegative().optional(),
+  loaded_version: zBoundedInt(0, Number.MAX_SAFE_INTEGER).optional(),
   session_id: z.string().uuid().optional(),
 });
 export type PresenceSignalBody = z.infer<typeof PresenceSignalSchema>;

@@ -6,7 +6,7 @@
  */
 import { z } from "zod";
 
-import { zBoundedInt } from "../../http/validation.js";
+import { zBoundedInt, zBoundedNumber, zPartialNoDefaults } from "../../http/validation.js";
 import { AI_MODEL_FILTERABLE_KEYS, AI_MODEL_SORT_KEYS } from "./list-config.js";
 
 const csvToStringArray = z
@@ -107,17 +107,17 @@ const AiModelBaseSchema = z.object({
   label_key: z.string().min(1).max(200).optional(),
   description_key: z.string().min(1).max(200).optional(),
   power_level: zBoundedInt(1, 5).default(3),
-  rank: z.number().min(0).max(5).default(1.0),
+  rank: zBoundedNumber(0, 5).default(1.0),
   test_scores: z.record(z.string(), z.any()).optional(),
   is_enabled: z.boolean().default(true),
   enable_thinking: z.boolean().default(false),
-  temperature: z.number().min(0.1).max(2.0).default(0.7),
-  top_p: z.number().min(0.01).max(1.0).default(0.9),
+  temperature: zBoundedNumber(0.1, 2.0).default(0.7),
+  top_p: zBoundedNumber(0.01, 1.0).default(0.9),
   max_tokens: zBoundedInt(1, 32768).default(256),
-  repetition_penalty: z.number().min(1.0).max(2.0).default(1.1),
+  repetition_penalty: zBoundedNumber(1.0, 2.0).default(1.1),
   sort_order: zBoundedInt(0, 9999).default(100),
   download_size_mb: zBoundedInt(0, Number.MAX_SAFE_INTEGER).optional(),
-  vram_mb: z.number().min(0).optional(),
+  vram_mb: zBoundedInt(0, Number.MAX_SAFE_INTEGER).optional(),
   compatibility_status: z.enum(["COMPATIBLE", "NOT_COMPATIBLE", "UNTESTED"]).default("UNTESTED"),
   execution_config: z.record(z.string(), z.any()).optional(),
 });
@@ -126,7 +126,9 @@ export const AiModelCreateBodySchema = AiModelBaseSchema;
 
 export type AiModelCreateBody = z.infer<typeof AiModelCreateBodySchema>;
 
-export const AiModelUpdateBodySchema = AiModelBaseSchema.partial().extend({ version: zBoundedInt(0, Number.MAX_SAFE_INTEGER) });
+export const AiModelUpdateBodySchema = zPartialNoDefaults(
+  AiModelBaseSchema.extend({ version: zBoundedInt(0, Number.MAX_SAFE_INTEGER) }),
+);
 
 export type AiModelUpdateBody = z.infer<typeof AiModelUpdateBodySchema>;
 
