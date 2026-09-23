@@ -441,6 +441,10 @@ export class ConfigEntriesDal {
     try {
       const { loadAuthConfig } = await import("./config.js");
       await loadAuthConfig(this.pool);
+      // Telemetry/logging rows live in config_entries too — re-apply in
+      // process (no restarts) and broadcast `config.changed` to microservices.
+      const { applyTelemetryConfigFromDb } = await import("../../observability/telemetry.js");
+      await applyTelemetryConfigFromDb();
     } catch (err) {
       console.warn(
         "[ConfigEntriesDal] Failed to reload auth config cache after write. " +

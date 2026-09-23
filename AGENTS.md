@@ -421,3 +421,10 @@ These are synced to `docs.primebrick.dev` by the docs repo's CI pipeline.
 - **Do NOT hand-edit** files in `docs/ai/` or `docs/skills/` — those are internal
 - **Internal docs** (`docs/ai/`, `docs/skills/`, `docs/gitflow.md`) are NOT synced
   to the docs site — they stay in this repo for AI agents only
+
+## Logging & Telemetry
+
+- Use `logger` from `@primebrick/sdk` — never `console.*` in new code.
+- Telemetry/logging settings are `config_entries` rows (`telemetry_enabled`, `otel_*`, `log_*`) — the single point of configuration. No env vars besides `DATABASE_URL`.
+- `src/observability/logging-init.ts` installs the console bridge (first import in `src/index.ts`); `src/observability/telemetry.ts` loads config, inits/restarts OTel, and broadcasts `config.changed` on config writes (wired in `ConfigEntriesDal.reloadCache`).
+- See [.devin/rules/logging-telemetry.md](./.devin/rules/logging-telemetry.md).

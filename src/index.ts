@@ -1,3 +1,4 @@
+import "./observability/logging-init.js"; // must stay first import — async console bridge
 import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
@@ -30,6 +31,8 @@ import { ServiceLifecycleSubscriber } from "./modules/proxy/service-lifecycle-su
 import { StaleDetectionJob } from "./modules/proxy/stale-detection-job.js";
 import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
+import { initBackendTelemetry, getTelemetryShared } from "./observability/telemetry.js";
+import { shutdownTelemetry, flushLogsSync } from "@primebrick/sdk";
 
 // Keyspace listener cleanup function (set during startup, called during shutdown)
 let stopKeyspaceListener: (() => Promise<void>) | null = null;
@@ -379,6 +382,8 @@ async function refreshRoleMappings(): Promise<void> {
 async function refreshAuthConfig(): Promise<void> {
   try {
     await loadAuthConfig(getPool());
+    // Telemetry/logging config lives in config_entries — init once DB is up.
+    await initBackendTelemetry("primebrick-api", BACKEND_VERSION);
     // Log PostgreSQL version after successful DB connection
     try {
       const result = await getPool().query("select version() as pg_version");
@@ -406,7 +411,7 @@ async function startServiceLifecycle(): Promise<void> {
     // Microservices discover redis_url from the BE via this NATS request/reply.
     await subscribeSharedConfig(NatsClient, () => {
       const cfg = getAuthConfig();
-      return { redis_url: cfg.redis_url };
+      return { redis_url: cfg.redis_url, telemetry: getTelemetryShared() };
     });
     const subscriber = new ServiceLifecycleSubscriber();
     await subscriber.start();
@@ -460,6 +465,12 @@ async function gracefulShutdown(): Promise<void> {
     }
     stopKeyspaceListener = null;
   }
+  try {
+    await shutdownTelemetry();
+  } catch (err) {
+    console.warn("[shutdown] shutdownTelemetry failed:", err);
+  }
+  flushLogsSync();
 }
 
 process.on("SIGTERM", () => void gracefulShutdown().finally(() => process.exit(0)));
