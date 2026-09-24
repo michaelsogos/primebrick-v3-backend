@@ -272,6 +272,20 @@ The backend supports multi-tenant organizations. Organization CRUD follows
 the standard entity pattern at `/api/v1/entities/organization/...` — see
 [API Conventions](./api-conventions) for the full endpoint list.
 
+Organization writes are synchronized to Casdoor (the IdP) **before** the local
+database write: `create`, `update`, `delete`, and `restore` each call the
+matching Casdoor organization operation via the record's `idp_code`, and fail
+with `502 CASDOOR_SYNC_FAILED` if the IdP call fails.
+
+**Bulk operations are architecturally impossible for this entity.** A bulk op
+is an atomic set operation — a single transaction applying one change to many
+rows — which cannot interleave N synchronous per-record IdP calls. A loop of
+single deletes is not a bulk op, it is just N single deletes with partial
+failure semantics. Therefore `bulk-delete`, `bulk-restore`, `duplicate`, and
+`export` do not and cannot exist for `organization` unless the Casdoor sync
+contract itself changes. `meta.actions` reports no bulk ops and the frontend
+never renders bulk CTAs on the organizations list.
+
 The only organization-related endpoint under `/system` is
 `GET /api/v1/system/organizations/active` — an RPC that returns a minimal
 DTO for the sidebar organization switcher. It requires only

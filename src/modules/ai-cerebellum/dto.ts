@@ -110,7 +110,6 @@ const AiCerebellumBaseSchema = z.object({
   max_tokens: zBoundedInt(1, 32768).nullish(),
   repetition_penalty: zBoundedNumber(1.0, 2.0).nullish(),
   execution_config: z.record(z.string(), z.any()).nullish(),
-  is_enabled: z.boolean().default(true),
   test_scores: z.record(z.string(), z.any()).nullish(),
   recommendation: z.enum(["RECOMMENDED", "NOT_RECOMMENDED"]).nullish(),
 });

@@ -83,10 +83,6 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   @Column({ pgType: "jsonb", nullable: true })
   test_scores?: Record<string, any>;
 
-  /** If false, the model is not shown in dropdowns / not available for selection. */
-  @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })
-  is_enabled: boolean;
-
   /** Whether to pass `enable_thinking: true` to WebLLM for this model. */
   @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   enable_thinking: boolean;
@@ -122,6 +118,19 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   /** Compatibility status: COMPATIBLE, NOT_COMPATIBLE, UNTESTED. */
   @Column({ length: 30, nullable: false, defaultSql: "'UNTESTED'" })
   compatibility_status: string;
+
+  /** KV cache bytes per token — derived from HF config.json
+   *  (2 × layers × kv_heads × head_dim × dtype_bytes). Agnostic, machine-independent. */
+  @Column({ pgType: "bigint", nullable: true })
+  kv_cache_bytes_per_token?: number;
+
+  /** Approx FLOPs per generated token (~2 × params). Agnostic, machine-independent. */
+  @Column({ pgType: "numeric", nullable: true })
+  flops_per_token?: number;
+
+  /** Working set in MB at the reference context (weights + KV). Agnostic. */
+  @Column({ pgType: "numeric", nullable: true })
+  working_set_mb?: number;
 
   /** Execution config — drives the FE worker cache behavior.
    *  Set empirically by the test harness. NULL = safe fallback (no KV cache reuse).

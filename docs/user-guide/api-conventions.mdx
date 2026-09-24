@@ -47,6 +47,15 @@ GET    /api/v1/entities/:entity/check-availability → uniqueness check
 `:entity` is always snake_case **singular** (e.g. `customer`, `organization`,
 `user_profile`).
 
+Bulk routes (`bulk-delete`, `bulk-restore`, `bulk-update`, `duplicate`,
+`export`) are **per-entity opt-in**: an entity exposes them only when its
+router registers them, and a bulk op must be an atomic set operation — never
+a loop of single writes. `organization` has no bulk routes by architectural
+necessity (per-record IdP sync) — see
+[Authentication → Organizations](./authentication#organizations). Since
+`meta.actions` is derived from the registered route table, absent routes
+automatically hide the corresponding UI actions.
+
 ### Write-payload standard (`{entity}` envelope)
 
 Single-entity `POST`/`PUT` bodies MUST wrap the entity fields under `entity`

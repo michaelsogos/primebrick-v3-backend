@@ -73,20 +73,7 @@ export const AI_CEREBELLUM_LIST_COLUMNS: AiCerebellumListColumn[] = [
   { key: "top_p", labelKey: "system.entities.ai_cerebellum.fields.top_p", type: "text", sortable: false, defaultVisible: true },
   { key: "max_tokens", labelKey: "system.entities.ai_cerebellum.fields.max_tokens", type: "text", sortable: true, defaultVisible: true },
   { key: "repetition_penalty", labelKey: "system.entities.ai_cerebellum.fields.repetition_penalty", type: "text", sortable: false, defaultVisible: false },
-  {
-    key: "is_enabled",
-    labelKey: "system.entities.ai_cerebellum.fields.is_enabled",
-    type: "badge",
-    sortable: true,
-    searchable: false,
-    filterable: true,
-    badge: {
-      values: {
-        true: { labelKey: "system.entities.ai_cerebellum.enabled.true", color: "emerald-300" },
-        false: { labelKey: "system.entities.ai_cerebellum.enabled.false", color: "zinc-300" },
-      },
-    },
-  },
+
 
   // Auditing columns (hidden by default)
   { key: "uuid", labelKey: "system.entities.ai_cerebellum.fields.uuid", type: "text", sortable: true, defaultVisible: false },

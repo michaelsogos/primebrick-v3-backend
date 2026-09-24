@@ -82,10 +82,6 @@ export class AiCerebellumEntity implements IAuditableEntity, IExposableEntity {
   @Column({ pgType: "jsonb", nullable: true })
   execution_config?: Record<string, any>;
 
-  /** If false, the tuning is hidden from the footer dropdown. */
-  @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })
-  is_enabled: boolean;
-
   /** Per-tuning test measurements keyed by test case. JSONB — same shape as
    *  ai_models.test_scores, kept separate so tuning scores never overwrite
    *  model-level scores. */

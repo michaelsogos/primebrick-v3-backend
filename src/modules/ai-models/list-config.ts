@@ -96,20 +96,6 @@ export const AI_MODEL_LIST_COLUMNS: AiModelListColumn[] = [
     filterable: true,
   },
   {
-    key: "is_enabled",
-    labelKey: "system.entities.ai_model.fields.is_enabled",
-    type: "badge",
-    sortable: true,
-    searchable: false,
-    filterable: true,
-    badge: {
-      values: {
-        true: { labelKey: "system.entities.ai_model.enabled.true", color: "emerald-300" },
-        false: { labelKey: "system.entities.ai_model.enabled.false", color: "zinc-300" },
-      },
-    },
-  },
-  {
     key: "enable_thinking",
     labelKey: "system.entities.ai_model.fields.enable_thinking",
     type: "badge",

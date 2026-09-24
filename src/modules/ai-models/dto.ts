@@ -109,7 +109,6 @@ const AiModelBaseSchema = z.object({
   power_level: zBoundedInt(1, 5).default(3),
   rank: zBoundedNumber(0, 5).default(1.0),
   test_scores: z.record(z.string(), z.any()).optional(),
-  is_enabled: z.boolean().default(true),
   enable_thinking: z.boolean().default(false),
   temperature: zBoundedNumber(0.1, 2.0).default(0.7),
   top_p: zBoundedNumber(0.01, 1.0).default(0.9),
@@ -118,6 +117,9 @@ const AiModelBaseSchema = z.object({
   sort_order: zBoundedInt(0, 9999).default(100),
   download_size_mb: zBoundedInt(0, Number.MAX_SAFE_INTEGER).optional(),
   vram_mb: zBoundedInt(0, Number.MAX_SAFE_INTEGER).optional(),
+  kv_cache_bytes_per_token: zBoundedInt(0, Number.MAX_SAFE_INTEGER).optional(),
+  flops_per_token: zBoundedNumber(0, Number.MAX_SAFE_INTEGER).optional(),
+  working_set_mb: zBoundedNumber(0, Number.MAX_SAFE_INTEGER).optional(),
   compatibility_status: z.enum(["COMPATIBLE", "NOT_COMPATIBLE", "UNTESTED"]).default("UNTESTED"),
   execution_config: z.record(z.string(), z.any()).optional(),
 });

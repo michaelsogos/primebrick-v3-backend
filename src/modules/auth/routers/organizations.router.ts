@@ -12,6 +12,16 @@
  *   POST   /api/v1/entities/organization/:uuid/restore     → restore
  *   GET    /api/v1/entities/organization/:uuid/audit       → audit history
  *
+ * NO BULK ROUTES — architectural constraint, mandatory. Every write must
+ * sync to Casdoor (IdP) BEFORE the local DB write (`OrganizationsService`),
+ * and the sync is per-organization via `org.idp_code`. A real bulk op is an
+ * atomic set operation (single DAL transaction, temp-table strategy) — it
+ * cannot interleave N synchronous per-item IdP calls, and a mere loop of
+ * single deletes is NOT a bulk op. Therefore `bulk-delete`, `bulk-restore`,
+ * `duplicate`, and `export` can NEVER exist for this entity unless the
+ * Casdoor sync contract itself changes. `meta.actions` correctly reports no
+ * bulk ops and the FE hides those CTAs. Do NOT add bulk routes here.
+ *
  * The router contains NO business logic. All errors are thrown as `ApiError`
  * subclasses and converted to RFC 7807 by the centralized `errorHandler`.
  *

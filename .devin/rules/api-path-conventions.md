@@ -54,6 +54,18 @@ POST   /api/v1/entities/:entity/:uuid/:action     → entity-scoped action
 
 `:entity` is always snake_case **singular**.
 
+**Bulk routes are per-entity opt-in, NOT universal.** `bulk-delete`,
+`bulk-restore`, `bulk-update`, `duplicate`, and `export` exist only where the
+entity router explicitly registers them. A bulk op is an atomic set operation
+(single transaction / temp-table strategy) — NOT a loop of single writes.
+Entities whose writes must sync to an external system per record (e.g.
+`organization` → Casdoor via per-org `idp_code`) architecturally CANNOT expose
+bulk routes: a loop of single deletes is not a bulk op. `organization`
+therefore registers no bulk routes — mandatory, do NOT add them. Because
+`meta.actions` is derived from the route table, absent bulk routes
+automatically hide the corresponding CTAs — do NOT add overrides or fake ops
+to work around this.
+
 **Optimistic concurrency & write responses:**
 
 - Single writes (`POST`, `PUT`, `DELETE`, `restore`) return **200 + the

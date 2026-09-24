@@ -42,7 +42,6 @@ export type AiModelDetailRow = {
   power_level: number;
   rank: number;
   test_scores?: Record<string, any>;
-  is_enabled: boolean;
   enable_thinking: boolean;
   temperature: number;
   top_p: number;
@@ -51,6 +50,9 @@ export type AiModelDetailRow = {
   sort_order: number;
   download_size_mb?: number;
   vram_mb?: number;
+  kv_cache_bytes_per_token?: number;
+  flops_per_token?: number;
+  working_set_mb?: number;
   compatibility_status: string;
   dtype?: string;
   engine_type?: string;
@@ -83,7 +85,6 @@ function projectAllExceptId(): FieldProjector[] {
     "power_level",
     "rank",
     "test_scores",
-    "is_enabled",
     "enable_thinking",
     "temperature",
     "top_p",
@@ -92,6 +93,9 @@ function projectAllExceptId(): FieldProjector[] {
     "sort_order",
     "download_size_mb",
     "vram_mb",
+    "kv_cache_bytes_per_token",
+    "flops_per_token",
+    "working_set_mb",
     "compatibility_status",
     "dtype",
     "engine_type",
@@ -302,7 +306,6 @@ export class AiModelsDal {
         power_level: body.power_level,
         rank: body.rank,
         test_scores: body.test_scores,
-        is_enabled: body.is_enabled,
         enable_thinking: body.enable_thinking,
         temperature: body.temperature,
         top_p: body.top_p,
@@ -311,6 +314,9 @@ export class AiModelsDal {
         sort_order: body.sort_order,
         download_size_mb: body.download_size_mb,
         vram_mb: body.vram_mb,
+        kv_cache_bytes_per_token: body.kv_cache_bytes_per_token,
+        flops_per_token: body.flops_per_token,
+        working_set_mb: body.working_set_mb,
         compatibility_status: body.compatibility_status,
         dtype: body.dtype,
         engine_type: body.engine_type,

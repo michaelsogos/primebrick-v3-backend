@@ -44,7 +44,6 @@ export type AiCerebellumDetailRow = {
   max_tokens?: number;
   repetition_penalty?: number;
   execution_config?: Record<string, any>;
-  is_enabled: boolean;
   test_scores?: Record<string, any>;
   recommendation?: string;
   created_at: Date;
@@ -78,7 +77,6 @@ function projectAllExceptId(): FieldProjector[] {
     "max_tokens",
     "repetition_penalty",
     "execution_config",
-    "is_enabled",
     "test_scores",
     "recommendation",
     "created_at",
@@ -174,7 +172,6 @@ export class AiCerebellumDal {
         filters: [
           Filter.fieldValue(field(AiCerebellumEntity, "assistant_key"), "=", assistant_key, "AND"),
           Filter.fieldValue(field(AiCerebellumEntity, "model_id"), "=", model_id, "AND"),
-          Filter.fieldValue(field(AiCerebellumEntity, "is_enabled"), "=", true, "AND"),
         ] as any,
         deletedRecords: "EXCLUDED",
       }
@@ -267,7 +264,6 @@ export class AiCerebellumDal {
         max_tokens: body.max_tokens,
         repetition_penalty: body.repetition_penalty,
         execution_config: body.execution_config,
-        is_enabled: body.is_enabled,
         test_scores: body.test_scores,
         recommendation: body.recommendation,
       },
