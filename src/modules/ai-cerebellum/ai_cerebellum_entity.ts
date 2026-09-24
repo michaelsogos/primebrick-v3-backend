@@ -9,10 +9,10 @@
  * enabled cerebellum rows for (assistant_key, model_id); the selected row's
  * non-NULL values override the model defaults, NULLs inherit.
  *
- * The assistant's dedicated tuning for a model is auto-selected on open
- * (first enabled row by sort_order); there is no per-cerebellum "default" —
- * the defaults live on the model (`ai_models`), cerebellum rows are only
- * overrides.
+ * The assistant's dedicated tuning for a model is auto-selected on open —
+ * the (assistant_key, model_id) pair is unique, so at most one enabled row
+ * exists per pair. There is no per-cerebellum "default" — the defaults live
+ * on the model (`ai_models`), cerebellum rows are only overrides.
  *
  * `test_scores` stores per-tuning measurements keyed by test case so the
  * harness can rank tunings independently of the model-level scores.
@@ -85,10 +85,6 @@ export class AiCerebellumEntity implements IAuditableEntity, IExposableEntity {
   /** If false, the tuning is hidden from the footer dropdown. */
   @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })
   is_enabled: boolean;
-
-  /** Display order inside the footer dropdown (ascending). */
-  @Column({ pgType: "integer", nullable: false, defaultSql: "100" })
-  sort_order: number;
 
   /** Per-tuning test measurements keyed by test case. JSONB — same shape as
    *  ai_models.test_scores, kept separate so tuning scores never overwrite

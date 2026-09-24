@@ -32,7 +32,7 @@ export type AiCerebellumListColumn = {
   };
 };
 
-export const AI_CEREBELLUM_DEFAULT_SORT = { key: "sort_order", dir: "asc" as const };
+export const AI_CEREBELLUM_DEFAULT_SORT = { key: "name", dir: "asc" as const };
 export const AI_CEREBELLUM_DEFAULT_VIEW: ViewName = "table";
 
 export const AI_CEREBELLUM_STICKY_COLUMN_KEYS = ["uuid", "assistant_key"] as const;
@@ -87,7 +87,6 @@ export const AI_CEREBELLUM_LIST_COLUMNS: AiCerebellumListColumn[] = [
       },
     },
   },
-  { key: "sort_order", labelKey: "system.entities.ai_cerebellum.fields.sort_order", type: "text", sortable: true, defaultVisible: false },
 
   // Auditing columns (hidden by default)
   { key: "uuid", labelKey: "system.entities.ai_cerebellum.fields.uuid", type: "text", sortable: true, defaultVisible: false },
@@ -133,7 +132,6 @@ const HIDDEN_DEFAULT = [
   "uuid",
   "description_key",
   "repetition_penalty",
-  "sort_order",
   "created_at",
   "created_by",
   "updated_at",

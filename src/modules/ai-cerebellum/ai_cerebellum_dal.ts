@@ -45,7 +45,6 @@ export type AiCerebellumDetailRow = {
   repetition_penalty?: number;
   execution_config?: Record<string, any>;
   is_enabled: boolean;
-  sort_order: number;
   test_scores?: Record<string, any>;
   recommendation?: string;
   created_at: Date;
@@ -80,7 +79,6 @@ function projectAllExceptId(): FieldProjector[] {
     "repetition_penalty",
     "execution_config",
     "is_enabled",
-    "sort_order",
     "test_scores",
     "recommendation",
     "created_at",
@@ -104,7 +102,7 @@ export class AiCerebellumDal {
   }
 
   /**
-   * Load all ai_cerebellum rows (excluding soft-deleted), sorted by sort_order ASC.
+   * Load all ai_cerebellum rows (excluding soft-deleted).
    */
   async findAll(): Promise<AiCerebellumEntity[]> {
     const entry = await this.findAllWithCache();
@@ -127,7 +125,7 @@ export class AiCerebellumDal {
       null,
       {
         deletedRecords: "EXCLUDED",
-        sorting: [Sort.by(field(AiCerebellumEntity, "sort_order" as any), "ASC")],
+        sorting: [Sort.by(field(AiCerebellumEntity, "name" as any), "ASC")],
       }
     );
     const result = rows as AiCerebellumEntity[];
@@ -179,7 +177,6 @@ export class AiCerebellumDal {
           Filter.fieldValue(field(AiCerebellumEntity, "is_enabled"), "=", true, "AND"),
         ] as any,
         deletedRecords: "EXCLUDED",
-        sorting: [Sort.by(field(AiCerebellumEntity, "sort_order" as any), "ASC")],
       }
     )) as AiCerebellumDetailRow[];
     return rows.map((r) => this.toDto(r));
@@ -227,7 +224,7 @@ export class AiCerebellumDal {
       }
     }
 
-    const sort_key = (q.sort_key ?? "sort_order") as string;
+    const sort_key = (q.sort_key ?? "name") as string;
     const sort_dir = (q.sort_dir ?? "asc").toUpperCase() === "ASC" ? "ASC" : "DESC";
     const sorting = [Sort.by(field(AiCerebellumEntity, sort_key as any), sort_dir as any)];
 
@@ -271,7 +268,6 @@ export class AiCerebellumDal {
         repetition_penalty: body.repetition_penalty,
         execution_config: body.execution_config,
         is_enabled: body.is_enabled,
-        sort_order: body.sort_order,
         test_scores: body.test_scores,
         recommendation: body.recommendation,
       },
