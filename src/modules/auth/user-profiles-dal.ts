@@ -17,6 +17,11 @@ import { requireActor } from "@primebrick/sdk";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { findAuditPage } from "../../db/audit-query-helper.js";
 import { createRepository } from "../../db/repository-factory.js";
+import { deriveSearchableKeys } from "../../lib/search-keys.js";
+import { userProfileMeta } from "./user-profiles.meta.js";
+
+const DEFAULT_SEARCH_KEYS = deriveSearchableKeys(userProfileMeta, UserProfileEntity);
+const SEARCH_IN_ALLOWED = new Set([...DEFAULT_SEARCH_KEYS, "uuid"]);
 
 export type UserProfileDetailRow = WithAuditableDisplayNames<{
   uuid: string;
@@ -364,7 +369,10 @@ export class UserProfilesDal {
 
     // Search filter
     if (search && search.trim()) {
-      const searchFields = search_in && search_in.length > 0 ? search_in : ["display_name", "email", "idp_code"];
+      const searchFields =
+        search_in && search_in.length > 0
+          ? search_in.filter((f) => SEARCH_IN_ALLOWED.has(f))
+          : DEFAULT_SEARCH_KEYS;
       const searchFilters = searchFields.map((f) =>
         Filter.fieldValue(field(UserProfileEntity, f as any), "ILIKE", `%${search}%`)
       );

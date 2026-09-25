@@ -68,7 +68,7 @@ If **you** started `pnpm run dev` only to verify, **stop it** when done. Do not 
 - No secrets in git (`.env`, credentials).
 - **Team-facing `*.md`:** English only.
 - **API errors:** Use stable error codes with `impact` field for the frontend.
-- **Translation keys:** MUST be snake_case singular — see [`.devin/rules/translation-key-convention.md`](./.devin/rules/translation-key-convention.md). Every meta file MUST include a `translationKey` field (snake_case singular) alongside `entity` (snake_case singular). All `labelKey`/`titleKey`/`tooltip` values MUST use the `translationKey` as the entity segment.
+- **Translation keys:** MUST be snake_case singular — see [`.devin/rules/translation-key-convention.md`](./.devin/rules/translation-key-convention.md). Every meta file MUST be typed `EntityMeta` (see [`.devin/rules/entity-meta-schema.md`](./.devin/rules/entity-meta-schema.md)) and include `translation_key` (snake_case singular) alongside `entity` (snake_case singular) and `display_field`. All `label_key`/`title_key`/`tooltip` values MUST use the `translation_key` as the entity segment.
 
 ## API Endpoint Conventions
 
@@ -347,17 +347,22 @@ Examples:
 
 Every entity `/meta` response includes an `actions` array **derived from the
 registered route table** (`src/http/entity-actions.ts` → `deriveEntityActions`).
-Each entry is `{ op, permissions[], sentinel?, enabled }`:
+Each entry is `{ op, permissions[], sentinel?, enabled }`. The array ALWAYS
+contains the full standard op vocabulary — an op whose route is absent is
+emitted explicitly with `enabled: false`:
 
-- op **absent** → no endpoint exists → FE never renders the CTA (fail-closed)
-- op present, `enabled: false` → endpoint exists, hidden for everyone
-  (`actions_overrides` in `*.meta.ts` may only toggle `enabled`)
-- op present, `enabled: true` → FE renders subject to per-user permissions
+- `enabled: false` → unavailable for everyone (route missing OR product-disabled
+  via `actions_overrides` in `*.meta.ts`) → FE never renders the CTA
+- `enabled: true` → FE renders subject to per-user permissions
 
-Ops are derived from `method + path suffix` (`POST /:uuid/restore` →
-`restore.single`, `POST /bulk-delete` → `delete.bulk`, etc.). Non-standard
-collection/single-record actions map to their last path segment
-(`check-availability`, `change-password`).
+Standard ops: `list`, `meta`, `get`, `create.single`, `update.single`,
+`delete.single`, `restore.single`, `read.audit`, `export`, `delete.bulk`,
+`restore.bulk`, `duplicate.single`, `duplicate.bulk`. Ops are derived from
+`method + path suffix` (`POST /:uuid/restore` → `restore.single`,
+`POST /bulk-delete` → `delete.bulk`, etc.). Non-standard collection/single-record
+actions map to their last path segment (`check-availability`, `change-password`).
+`actions_overrides` may only toggle `enabled` on existing ops — it never
+invents operations.
 
 Entity ops that live **outside** `/api/v1/entities/:entity` (e.g. user
 management under `/api/v1/auth/users`) are included via the `extraScans`

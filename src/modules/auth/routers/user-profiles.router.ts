@@ -68,7 +68,7 @@ export function userProfilesRouter(usersRoutes?: IRouter) {
       actions: deriveEntityActions(
         router,
         "user_profile",
-        userProfileMeta.list.actions_overrides,
+        userProfileMeta.actions_overrides,
         // create/update/delete live under /api/v1/auth/users (Casdoor-aware
         // user management) — same entity ops, non-standard prefix.
         usersRoutes ? [{ router: usersRoutes, prefix: "/api/v1/auth/users" }] : undefined,

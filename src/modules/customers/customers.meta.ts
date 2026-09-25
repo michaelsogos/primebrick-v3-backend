@@ -2,38 +2,28 @@
  * `customer` entity metadata — the JSON returned by
  * `GET /api/v1/entities/customer/meta`.
  *
- * Pure data, no logic. Extracted from the inline block that used to live in
- * `router.ts` so the meta is scannable and reusable.
+ * Pure data, no logic. Canonical `EntityMeta` shape (see
+ * `src/http/entity-meta.types.ts`). `display_name` is omitted —
+ * `assembleMeta` materializes it as `"${code}"` from `display_field`.
  */
 
+import type { EntityMeta } from "../../http/entity-meta.types.js";
 import {
-  CUSTOMER_AUDITING_COLUMNS,
   CUSTOMER_DEFAULT_SORT,
-  CUSTOMER_DEFAULT_VIEW,
-  CUSTOMER_DEFAULT_VIEW_VISIBILITY,
   CUSTOMER_LIST_COLUMNS,
-  CUSTOMER_STICKY_COLUMNS,
 } from "./list-config.js";
 
-export const customerMeta = {
+export const customerMeta: EntityMeta = {
   entity: "customer",
-  translationKey: "customer",
-  titleKey: "system.entities.customer.title",
+  translation_key: "customer",
+  title_key: "system.entities.customer.title",
   uid: "uuid",
-  defaultView: CUSTOMER_DEFAULT_VIEW,
-  list: {
-    searchPlaceholderKey: "system.entities.list.searchPlaceholder",
-    defaultPageSize: 25,
-    pageSizeOptions: [10, 25, 50, 100],
-    columns: CUSTOMER_LIST_COLUMNS,
-    rowActions: {
-      duplicate: true,
-      delete: true,
-      edit: true,
-    },
-    stickyColumns: CUSTOMER_STICKY_COLUMNS,
-    auditingColumns: CUSTOMER_AUDITING_COLUMNS,
-    defaultSort: CUSTOMER_DEFAULT_SORT,
-    viewVisibility: CUSTOMER_DEFAULT_VIEW_VISIBILITY,
+  display_field: "code",
+  columns: CUSTOMER_LIST_COLUMNS,
+  table: {
+    default_view: "table",
+    default_sort: CUSTOMER_DEFAULT_SORT,
+    default_page_size: 25,
+    page_size_options: [10, 25, 50, 100],
   },
-} as const;
+};

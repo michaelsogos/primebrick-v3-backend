@@ -2,41 +2,28 @@
  * `ai_cerebellum` entity metadata — the JSON returned by
  * `GET /api/v1/entities/ai_cerebellum/meta`.
  *
- * Pure data, no logic. Mirrors `ai_models.meta.ts`.
+ * Pure data, no logic. Canonical `EntityMeta` shape (see
+ * `src/http/entity-meta.types.ts`). `display_name` is omitted —
+ * `assembleMeta` materializes it as `"${assistant_key}"` from `display_field`.
  */
 
+import type { EntityMeta } from "../../http/entity-meta.types.js";
 import {
-  AI_CEREBELLUM_AUDITING_COLUMNS,
   AI_CEREBELLUM_DEFAULT_SORT,
-  AI_CEREBELLUM_DEFAULT_VIEW,
-  AI_CEREBELLUM_DEFAULT_VIEW_VISIBILITY,
   AI_CEREBELLUM_LIST_COLUMNS,
-  AI_CEREBELLUM_STICKY_COLUMNS,
 } from "./list-config.js";
 
-export const aiCerebellumMeta = {
+export const aiCerebellumMeta: EntityMeta = {
   entity: "ai_cerebellum",
-  translationKey: "ai_cerebellum",
-  titleKey: "system.entities.ai_cerebellum.title",
+  translation_key: "ai_cerebellum",
+  title_key: "system.entities.ai_cerebellum.title",
   uid: "uuid",
-  defaultView: AI_CEREBELLUM_DEFAULT_VIEW,
-  list: {
-    searchPlaceholderKey: "system.entities.list.searchPlaceholder",
-    defaultPageSize: 25,
-    pageSizeOptions: [10, 25, 50, 100],
-    columns: AI_CEREBELLUM_LIST_COLUMNS,
-    rowActions: {
-      duplicate: false,
-      delete: true,
-      edit: true,
-    },
-    actions_overrides: {
-      "duplicate.single": { enabled: false },
-      "duplicate.bulk": { enabled: false },
-    },
-    stickyColumns: AI_CEREBELLUM_STICKY_COLUMNS,
-    auditingColumns: AI_CEREBELLUM_AUDITING_COLUMNS,
-    defaultSort: AI_CEREBELLUM_DEFAULT_SORT,
-    viewVisibility: AI_CEREBELLUM_DEFAULT_VIEW_VISIBILITY,
+  display_field: "assistant_key",
+  columns: AI_CEREBELLUM_LIST_COLUMNS,
+  table: {
+    default_view: "table",
+    default_sort: AI_CEREBELLUM_DEFAULT_SORT,
+    default_page_size: 25,
+    page_size_options: [10, 25, 50, 100],
   },
-} as const;
+};

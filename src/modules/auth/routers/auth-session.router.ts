@@ -37,6 +37,9 @@ import {
 import { LoginBodySchema, ProfileUpdateSchema, makeChangeOwnPasswordSchema } from "../dto.js";
 import { PasswordPolicy, DEFAULT_PASSWORD_POLICY } from "../password-policy.js";
 import { UnauthorizedError, ApiError } from "../../../http/api-errors.js";
+import type { EntityMeta } from "../../../http/entity-meta.types.js";
+import { assembleMeta } from "../../../http/meta-assembler.js";
+import { UserProfileEntity } from "../user_profile_entity.js";
 
 function makeService(): AuthSessionService {
   const pool = getPool();
@@ -55,31 +58,31 @@ function makeUserService(): UserService {
 // Schema for self-service password change — requires current_password + newPassword
 const ChangeMyPasswordSchema = makeChangeOwnPasswordSchema(DEFAULT_PASSWORD_POLICY);
 
-/** Metadata for the self-service profile form (`GET /api/v1/auth/me/meta`). */
-const meMeta = {
+/** Metadata for the self-service profile form (`GET /api/v1/auth/me/meta`).
+ *  Canonical `EntityMeta` shape — no `table` (form-only meta). */
+const meMeta: EntityMeta = {
   entity: "user_profile",
-  translationKey: "user_profile",
-  titleKey: "system.entities.user_profile.title",
-  updatePageTitle: "${display_name}",
+  translation_key: "user_profile",
+  title_key: "system.entities.user_profile.title",
   uid: "uuid",
-  list: {
-    columns: [
-      { key: "is_admin", labelKey: "system.entities.user_profile.fields.is_admin", type: "boolean", tooltip: "system.entities.user_profile.hints.is_admin", tooltipPriority: "WARNING", tooltipTitle: "system.entities.user_profile.hints.is_admin_title", showFormTooltip: true },
-      { key: "is_verified", labelKey: "system.entities.user_profile.fields.is_verified", type: "boolean", tooltip: "system.entities.user_profile.hints.is_verified", tooltipPriority: "HINT", tooltipTitle: "system.entities.user_profile.hints.is_verified_title", showFormTooltip: true },
-      { key: "email_verified", labelKey: "system.entities.user_profile.fields.email_verified", type: "boolean", tooltip: "system.entities.user_profile.hints.email_verified", tooltipPriority: "HINT", tooltipTitle: "system.entities.user_profile.hints.email_verified_title", showFormTooltip: true },
-    ],
-    auditingColumns: [
-      { key: "deleted_at", labelKey: "system.entities.user_profile.fields.deleted_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
-      { key: "deleted_by", labelKey: "system.entities.user_profile.fields.deleted_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
-      { key: "updated_at", labelKey: "system.entities.user_profile.fields.updated_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
-      { key: "updated_by", labelKey: "system.entities.user_profile.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
-      { key: "last_synced_at", labelKey: "system.entities.user_profile.fields.last_synced_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
-      { key: "created_at", labelKey: "system.entities.user_profile.fields.created_at", type: "datetime", sortable: true, defaultVisible: false, filterable: true },
-      { key: "created_by", labelKey: "system.entities.user_profile.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
-      { key: "version", labelKey: "system.entities.user_profile.fields.version", type: "text", sortable: false, defaultVisible: false, searchable: false },
-    ],
-  },
-} as const;
+  display_field: "display_name",
+  // Explicit because this meta is served directly, not via `assembleMeta`
+  // (which would default `display_name` to `"${" + display_field + "}"`).
+  display_name: "${display_name}",
+  columns: [
+    { key: "is_admin", label_key: "system.entities.user_profile.fields.is_admin", type: "boolean", order: 0, tooltip: "system.entities.user_profile.hints.is_admin", tooltip_priority: "WARNING", tooltip_title: "system.entities.user_profile.hints.is_admin_title", show_form_tooltip: true },
+    { key: "is_verified", label_key: "system.entities.user_profile.fields.is_verified", type: "boolean", order: 1, tooltip: "system.entities.user_profile.hints.is_verified", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.is_verified_title", show_form_tooltip: true },
+    { key: "email_verified", label_key: "system.entities.user_profile.fields.email_verified", type: "boolean", order: 2, tooltip: "system.entities.user_profile.hints.email_verified", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.email_verified_title", show_form_tooltip: true },
+    { key: "deleted_at", label_key: "system.entities.user_profile.fields.deleted_at", type: "datetime", order: 3, sortable: true, default_visible: false, filterable: true, audited: true },
+    { key: "deleted_by", label_key: "system.entities.user_profile.fields.deleted_by", type: "text", order: 4, sortable: false, default_visible: false, searchable: false, audited: true },
+    { key: "updated_at", label_key: "system.entities.user_profile.fields.updated_at", type: "datetime", order: 5, sortable: true, default_visible: false, filterable: true, audited: true },
+    { key: "updated_by", label_key: "system.entities.user_profile.fields.updated_by", type: "text", order: 6, sortable: false, default_visible: false, searchable: false, audited: true },
+    { key: "last_synced_at", label_key: "system.entities.user_profile.fields.last_synced_at", type: "datetime", order: 7, sortable: true, default_visible: false, filterable: true, audited: true },
+    { key: "created_at", label_key: "system.entities.user_profile.fields.created_at", type: "datetime", order: 8, sortable: true, default_visible: false, filterable: true, audited: true },
+    { key: "created_by", label_key: "system.entities.user_profile.fields.created_by", type: "text", order: 9, sortable: false, default_visible: false, searchable: false, audited: true },
+    { key: "version", label_key: "system.entities.user_profile.fields.version", type: "text", order: 10, sortable: false, default_visible: false, searchable: false, audited: true },
+  ],
+};
 
 function requireUserId(req: { user?: { id?: string } }): string {
   const userId = (req as any).user?.id;
@@ -156,7 +159,7 @@ export function authSessionRouter() {
   });
 
   const getMeMeta: RequestHandler = asyncHandler(async (_req, res) => {
-    res.json(meMeta);
+    res.json(assembleMeta(meMeta, UserProfileEntity));
   });
 
   /**

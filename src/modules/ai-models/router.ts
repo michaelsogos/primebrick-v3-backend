@@ -69,7 +69,7 @@ export function aiModelsRouter() {
   const getMeta: RequestHandler = (_req, res) => {
     res.json({
       ...assembleMeta(aiModelMeta, AiModelEntity),
-      actions: deriveEntityActions(router, "ai_model", aiModelMeta.list.actions_overrides),
+      actions: deriveEntityActions(router, "ai_model", aiModelMeta.actions_overrides),
     });
   };
 

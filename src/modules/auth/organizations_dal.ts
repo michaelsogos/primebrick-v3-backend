@@ -18,6 +18,11 @@ import { requireActor } from "@primebrick/sdk";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { findAuditPage } from "../../db/audit-query-helper.js";
 import { createRepository } from "../../db/repository-factory.js";
+import { deriveSearchableKeys } from "../../lib/search-keys.js";
+import { organizationMeta } from "./organizations.meta.js";
+
+const DEFAULT_SEARCH_KEYS = deriveSearchableKeys(organizationMeta, OrganizationEntity);
+const SEARCH_IN_ALLOWED = new Set([...DEFAULT_SEARCH_KEYS, "uuid"]);
 
 export type OrganizationDetailRow = WithAuditableDisplayNames<{
   uuid: string;
@@ -137,7 +142,10 @@ export class OrganizationsDal {
 
     // Search filter
     if (search && search.trim()) {
-      const searchFields = search_in && search_in.length > 0 ? search_in : ["display_name", "idp_code"];
+      const searchFields =
+        search_in && search_in.length > 0
+          ? search_in.filter((f) => SEARCH_IN_ALLOWED.has(f))
+          : DEFAULT_SEARCH_KEYS;
       const searchFilters = searchFields.map((f) =>
         Filter.fieldValue(field(OrganizationEntity, f as any), "ILIKE", `%${search}%`)
       );

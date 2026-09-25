@@ -6,35 +6,14 @@
  * Mirrors the `customers/list-config.ts` pattern but simplified for a small
  * reference table (~3-10 rows).
  */
-export type ViewName = "table" | "cards" | "cards_list";
+import type { MetaColumn } from "../../http/entity-meta.types.js";
 
-export type ViewVisibilityConfig = {
-  visible?: string[];
-  hidden?: string[];
-  notDisplayable?: string[];
-  notHideable?: string[];
-};
-
-export type ListMetaViewVisibility = {
-  [K in ViewName]: ViewVisibilityConfig;
-};
-
-export type AiModelListColumn = {
-  key: string;
-  labelKey: string;
-  type: "text" | "badge" | "datetime" | "color";
-  sortable: boolean;
-  searchable?: boolean;
-  hideable?: boolean;
-  defaultVisible?: boolean;
-  filterable?: boolean;
-  badge?: {
-    values: Record<string, { labelKey: string; color: string }>;
-  };
-};
+/** Raw list column literal — canonical `MetaColumn` shape minus the
+ *  flags injected by the normalize step (`sticky`, `audited`).
+ *  `order` is explicit per column — array position MUST NOT matter. */
+export type AiModelListColumn = Omit<MetaColumn, "sticky" | "audited">;
 
 export const AI_MODEL_DEFAULT_SORT = { key: "sort_order", dir: "asc" as const };
-export const AI_MODEL_DEFAULT_VIEW: ViewName = "table";
 
 export const AI_MODEL_STICKY_COLUMN_KEYS = ["uuid", "model_id"] as const;
 
@@ -50,102 +29,118 @@ export const AI_MODEL_AUDITING_COLUMN_KEYS = [
 
 const auditingKeySet = new Set<string>(AI_MODEL_AUDITING_COLUMN_KEYS);
 
-export const AI_MODEL_LIST_COLUMNS: AiModelListColumn[] = [
-  { key: "model_id", labelKey: "system.entities.ai_model.fields.model_id", type: "text", sortable: true, hideable: false, filterable: true },
+const AI_MODEL_RAW_COLUMNS: AiModelListColumn[] = [
+  // uuid is the canonical first sticky column (order -1), hidden but selectable
+  { key: "uuid", label_key: "system.entities.ai_model.fields.uuid", type: "text", order: -1, sortable: true, default_visible: false },
+  { key: "model_id", label_key: "system.entities.ai_model.fields.model_id", type: "text", order: 0, sortable: true, hideable: false, filterable: true },
   {
     key: "engine_type",
-    labelKey: "system.entities.ai_model.fields.engine_type",
+    label_key: "system.entities.ai_model.fields.engine_type",
     type: "badge",
+    order: 1,
     sortable: true,
     searchable: false,
-    defaultVisible: true,
+    default_visible: true,
     filterable: true,
     badge: {
       values: {
-        webllm: { labelKey: "system.entities.ai_model.engine_type.webllm", color: "zinc-300" },
-        onnx: { labelKey: "system.entities.ai_model.engine_type.onnx", color: "violet-300" },
+        webllm: { label_key: "system.entities.ai_model.engine_type.webllm", color: "zinc-300" },
+        onnx: { label_key: "system.entities.ai_model.engine_type.onnx", color: "violet-300" },
       },
     },
   },
-  { key: "dtype", labelKey: "system.entities.ai_model.fields.dtype", type: "text", sortable: true, defaultVisible: true },
-  { key: "name", labelKey: "system.entities.ai_model.fields.name", type: "text", sortable: true, filterable: true },
+  { key: "dtype", label_key: "system.entities.ai_model.fields.dtype", type: "text", order: 2, sortable: true, default_visible: true },
+  { key: "name", label_key: "system.entities.ai_model.fields.name", type: "text", order: 3, sortable: true, filterable: true },
   {
     key: "power_level",
-    labelKey: "system.entities.ai_model.fields.power_level",
+    label_key: "system.entities.ai_model.fields.power_level",
     type: "badge",
+    order: 4,
     sortable: true,
     searchable: false,
     hideable: false,
     filterable: true,
     badge: {
       values: {
-        "1": { labelKey: "system.entities.ai_model.power_level.1", color: "zinc-300" },
-        "2": { labelKey: "system.entities.ai_model.power_level.2", color: "blue-300" },
-        "3": { labelKey: "system.entities.ai_model.power_level.3", color: "emerald-300" },
-        "4": { labelKey: "system.entities.ai_model.power_level.4", color: "amber-300" },
-        "5": { labelKey: "system.entities.ai_model.power_level.5", color: "rose-300" },
+        "1": { label_key: "system.entities.ai_model.power_level.1", color: "zinc-300" },
+        "2": { label_key: "system.entities.ai_model.power_level.2", color: "blue-300" },
+        "3": { label_key: "system.entities.ai_model.power_level.3", color: "emerald-300" },
+        "4": { label_key: "system.entities.ai_model.power_level.4", color: "amber-300" },
+        "5": { label_key: "system.entities.ai_model.power_level.5", color: "rose-300" },
       },
     },
   },
   {
     key: "rank",
-    labelKey: "system.entities.ai_model.fields.rank",
+    label_key: "system.entities.ai_model.fields.rank",
     type: "text",
+    order: 5,
     sortable: true,
     searchable: false,
     filterable: true,
   },
   {
     key: "enable_thinking",
-    labelKey: "system.entities.ai_model.fields.enable_thinking",
+    label_key: "system.entities.ai_model.fields.enable_thinking",
     type: "badge",
+    order: 6,
     sortable: true,
     searchable: false,
-    defaultVisible: true,
+    default_visible: true,
     filterable: true,
     badge: {
       values: {
-        true: { labelKey: "system.entities.ai_model.thinking.true", color: "violet-300" },
-        false: { labelKey: "system.entities.ai_model.thinking.false", color: "zinc-300" },
+        true: { label_key: "system.entities.ai_model.thinking.true", color: "violet-300" },
+        false: { label_key: "system.entities.ai_model.thinking.false", color: "zinc-300" },
       },
     },
   },
-  { key: "temperature", labelKey: "system.entities.ai_model.fields.temperature", type: "text", sortable: true, defaultVisible: true },
-  { key: "top_p", labelKey: "system.entities.ai_model.fields.top_p", type: "text", sortable: false, defaultVisible: true },
-  { key: "max_tokens", labelKey: "system.entities.ai_model.fields.max_tokens", type: "text", sortable: true, defaultVisible: true },
-  { key: "repetition_penalty", labelKey: "system.entities.ai_model.fields.repetition_penalty", type: "text", sortable: false, defaultVisible: false },
-  { key: "sort_order", labelKey: "system.entities.ai_model.fields.sort_order", type: "text", sortable: true, defaultVisible: false },
-  { key: "download_size_mb", labelKey: "system.entities.ai_model.fields.download_size_mb", type: "text", sortable: true, defaultVisible: true },
-  { key: "vram_mb", labelKey: "system.entities.ai_model.fields.vram_mb", type: "text", sortable: true, defaultVisible: true },
+  { key: "temperature", label_key: "system.entities.ai_model.fields.temperature", type: "text", order: 7, sortable: true, default_visible: true },
+  { key: "top_p", label_key: "system.entities.ai_model.fields.top_p", type: "text", order: 8, sortable: false, default_visible: true },
+  { key: "max_tokens", label_key: "system.entities.ai_model.fields.max_tokens", type: "text", order: 9, sortable: true, default_visible: true },
+  { key: "repetition_penalty", label_key: "system.entities.ai_model.fields.repetition_penalty", type: "text", order: 10, sortable: false, default_visible: false },
+  { key: "sort_order", label_key: "system.entities.ai_model.fields.sort_order", type: "text", order: 11, sortable: true, default_visible: false },
+  { key: "download_size_mb", label_key: "system.entities.ai_model.fields.download_size_mb", type: "text", order: 12, sortable: true, default_visible: true },
+  { key: "vram_mb", label_key: "system.entities.ai_model.fields.vram_mb", type: "text", order: 13, sortable: true, default_visible: true },
   {
     key: "compatibility_status",
-    labelKey: "system.entities.ai_model.fields.compatibility_status",
+    label_key: "system.entities.ai_model.fields.compatibility_status",
     type: "badge",
+    order: 14,
     sortable: true,
     searchable: false,
-    defaultVisible: true,
+    default_visible: true,
     filterable: true,
     badge: {
       values: {
-        COMPATIBLE: { labelKey: "system.entities.ai_model.compatibility.COMPATIBLE", color: "emerald-300" },
-        NOT_COMPATIBLE: { labelKey: "system.entities.ai_model.compatibility.NOT_COMPATIBLE", color: "rose-300" },
-        UNTESTED: { labelKey: "system.entities.ai_model.compatibility.UNTESTED", color: "zinc-300" },
+        COMPATIBLE: { label_key: "system.entities.ai_model.compatibility.COMPATIBLE", color: "emerald-300" },
+        NOT_COMPATIBLE: { label_key: "system.entities.ai_model.compatibility.NOT_COMPATIBLE", color: "rose-300" },
+        UNTESTED: { label_key: "system.entities.ai_model.compatibility.UNTESTED", color: "zinc-300" },
       },
     },
   },
-  { key: "label_key", labelKey: "system.entities.ai_model.fields.label_key", type: "text", sortable: false, defaultVisible: false },
-  { key: "description_key", labelKey: "system.entities.ai_model.fields.description_key", type: "text", sortable: false, defaultVisible: false },
+  { key: "label_key", label_key: "system.entities.ai_model.fields.label_key", type: "text", order: 15, sortable: false, default_visible: false },
+  { key: "description_key", label_key: "system.entities.ai_model.fields.description_key", type: "text", order: 16, sortable: false, default_visible: false },
 
   // Auditing columns (hidden by default)
-  { key: "uuid", labelKey: "system.entities.ai_model.fields.uuid", type: "text", sortable: true, defaultVisible: false },
-  { key: "created_at", labelKey: "system.entities.ai_model.fields.created_at", type: "datetime", sortable: true, searchable: false, defaultVisible: false },
-  { key: "updated_at", labelKey: "system.entities.ai_model.fields.updated_at", type: "datetime", sortable: true, searchable: false, defaultVisible: false },
-  { key: "created_by", labelKey: "system.entities.ai_model.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
-  { key: "updated_by", labelKey: "system.entities.ai_model.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
-  { key: "version", labelKey: "system.entities.ai_model.fields.version", type: "text", sortable: false, defaultVisible: false, searchable: false },
-  { key: "deleted_at", labelKey: "system.entities.ai_model.fields.deleted_at", type: "datetime", sortable: true, searchable: false, defaultVisible: false },
-  { key: "deleted_by", labelKey: "system.entities.ai_model.fields.deleted_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+  { key: "created_at", label_key: "system.entities.ai_model.fields.created_at", type: "datetime", order: 17, sortable: true, searchable: false, default_visible: false },
+  { key: "updated_at", label_key: "system.entities.ai_model.fields.updated_at", type: "datetime", order: 18, sortable: true, searchable: false, default_visible: false },
+  { key: "created_by", label_key: "system.entities.ai_model.fields.created_by", type: "text", order: 19, sortable: false, default_visible: false, searchable: false },
+  { key: "updated_by", label_key: "system.entities.ai_model.fields.updated_by", type: "text", order: 20, sortable: false, default_visible: false, searchable: false },
+  { key: "version", label_key: "system.entities.ai_model.fields.version", type: "text", order: 21, sortable: false, default_visible: false, searchable: false },
+  { key: "deleted_at", label_key: "system.entities.ai_model.fields.deleted_at", type: "datetime", order: 22, sortable: true, searchable: false, default_visible: false },
+  { key: "deleted_by", label_key: "system.entities.ai_model.fields.deleted_by", type: "text", order: 23, sortable: false, default_visible: false, searchable: false },
 ];
+
+const stickyKeySet = new Set<string>(AI_MODEL_STICKY_COLUMN_KEYS);
+
+/** Canonical `MetaColumn[]`: injects `sticky`, `audited`.
+ *  `order` is declared explicitly per column. */
+export const AI_MODEL_LIST_COLUMNS: MetaColumn[] = AI_MODEL_RAW_COLUMNS.map((c) => ({
+  ...c,
+  ...(stickyKeySet.has(c.key) ? { sticky: true } : {}),
+  ...(auditingKeySet.has(c.key) ? { audited: true } : {}),
+}));
 
 export const AI_MODEL_SEARCHABLE_KEYS = AI_MODEL_LIST_COLUMNS
   .filter((c) => c.searchable !== false)
@@ -159,37 +154,6 @@ export const AI_MODEL_FILTERABLE_KEYS = AI_MODEL_LIST_COLUMNS
   .filter((c) => c.filterable !== false)
   .map((c) => c.key);
 
-export const AI_MODEL_AUDITING_COLUMNS: AiModelListColumn[] = AI_MODEL_AUDITING_COLUMN_KEYS
-  .map((k) => AI_MODEL_LIST_COLUMNS.find((c) => c.key === k))
-  .filter((c): c is AiModelListColumn => !!c);
-
-export const AI_MODEL_STICKY_COLUMNS: AiModelListColumn[] = (() => {
-  const out: AiModelListColumn[] = [];
-  for (const key of AI_MODEL_STICKY_COLUMN_KEYS) {
-    const col = AI_MODEL_LIST_COLUMNS.find((c) => c.key === key);
-    if (col) out.push(col);
-  }
-  return out;
-})();
-
-export const AI_MODEL_DATA_COLUMNS: AiModelListColumn[] = AI_MODEL_LIST_COLUMNS.filter(
+export const AI_MODEL_DATA_COLUMNS: MetaColumn[] = AI_MODEL_LIST_COLUMNS.filter(
   (c) => !auditingKeySet.has(c.key),
 );
-
-export const AI_MODEL_DEFAULT_VIEW_VISIBILITY: ListMetaViewVisibility = {
-  table: {
-    notHideable: ["model_id"],
-    hidden: ["uuid", "label_key", "description_key", "repetition_penalty", "sort_order", "created_at", "created_by", "updated_at", "updated_by", "version", "deleted_at", "deleted_by"],
-    notDisplayable: ["id"],
-  },
-  cards: {
-    notHideable: ["model_id"],
-    hidden: ["uuid", "label_key", "description_key", "repetition_penalty", "sort_order", "created_at", "created_by", "updated_at", "updated_by", "version", "deleted_at", "deleted_by"],
-    notDisplayable: ["id"],
-  },
-  cards_list: {
-    notHideable: ["model_id"],
-    hidden: ["uuid", "label_key", "description_key", "repetition_penalty", "sort_order", "created_at", "created_by", "updated_at", "updated_by", "version", "deleted_at", "deleted_by"],
-    notDisplayable: ["id"],
-  },
-};

@@ -154,7 +154,7 @@ export function roleMappingsRouter() {
       actions: deriveEntityActions(
         router,
         "role_mapping",
-        roleMappingsMeta.list.actions_overrides,
+        roleMappingsMeta.actions_overrides,
       ),
     });
   });

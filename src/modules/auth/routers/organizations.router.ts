@@ -78,7 +78,7 @@ export function organizationsRouter() {
       actions: deriveEntityActions(
         router,
         "organization",
-        organizationMeta.list.actions_overrides,
+        organizationMeta.actions_overrides,
       ),
     });
   });

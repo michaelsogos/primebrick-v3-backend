@@ -23,7 +23,7 @@ import { describe, it, expect } from "vitest";
 import { Router } from "express";
 import { Permission, isPermissionSentinel } from "@primebrick/sdk";
 import { PERMISSION_DECLARED } from "../../modules/auth/rbac.middleware.js";
-import { deriveEntityActions } from "../entity-actions.js";
+import { deriveEntityActions, STANDARD_OPS } from "../entity-actions.js";
 
 // ─── Grammar tables ─────────────────────────────────────────────────────────
 
@@ -172,18 +172,23 @@ describe("deriveEntityActions", () => {
     for (const a of actions) expect(a.enabled).toBe(true);
   });
 
-  it("op absent when the route is not registered (capability axis)", () => {
+  it("op emitted with enabled:false when the route is not registered", () => {
     const router = Router();
     router.get("/api/v1/entities/organization/list", declaredHandler([Permission.ORGANIZATION_READ_ALL]));
     const actions = deriveEntityActions(router, "organization");
-    expect(actions.find((a) => a.op === "delete.bulk")).toBeUndefined();
+    const bulk = actions.find((a) => a.op === "delete.bulk");
+    expect(bulk).toBeDefined();
+    expect(bulk!.enabled).toBe(false);
+    expect(bulk!.permissions).toEqual([]);
   });
 
   it("routes without PERMISSION_DECLARED are not actions (default-deny)", () => {
     const router = Router();
     router.get("/api/v1/entities/customer/secret", (_req, _res, next) => (next as () => void)());
     const actions = deriveEntityActions(router, "customer");
-    expect(actions).toEqual([]);
+    // only the standard vocabulary — the undeclared route adds nothing
+    expect(actions).toHaveLength(STANDARD_OPS.length);
+    expect(actions.every((a) => a.enabled === false)).toBe(true);
   });
 
   it("sentinels are separated from concrete permissions", () => {
@@ -192,9 +197,9 @@ describe("deriveEntityActions", () => {
       "/api/v1/entities/customer/list",
       declaredHandler([Permission.AUTHENTICATED_USER, Permission.CUSTOMER_READ_ALL])
     );
-    const [action] = deriveEntityActions(router, "customer");
-    expect(action.sentinel).toBe(Permission.AUTHENTICATED_USER);
-    expect(action.permissions).toEqual([Permission.CUSTOMER_READ_ALL]);
+    const list = deriveEntityActions(router, "customer").find((a) => a.op === "list")!;
+    expect(list.sentinel).toBe(Permission.AUTHENTICATED_USER);
+    expect(list.permissions).toEqual([Permission.CUSTOMER_READ_ALL]);
   });
 
   it("actions_overrides can only toggle enabled — never invent ops", () => {
@@ -202,10 +207,23 @@ describe("deriveEntityActions", () => {
     router.get("/api/v1/entities/customer/list", declaredHandler([Permission.CUSTOMER_READ_ALL]));
     const actions = deriveEntityActions(router, "customer", {
       list: { enabled: false },
-      "delete.bulk": { enabled: false }, // non-existent op → no effect
+      "totally.fake": { enabled: false }, // non-existent op → no effect
     });
-    expect(actions).toHaveLength(1);
-    expect(actions[0].enabled).toBe(false);
+    // full standard vocabulary is always emitted
+    expect(actions).toHaveLength(STANDARD_OPS.length);
+    expect(actions.find((a) => a.op === "list")!.enabled).toBe(false);
+    // route-missing ops are explicitly disabled
+    expect(actions.find((a) => a.op === "delete.bulk")!.enabled).toBe(false);
+    // no invented ops
+    expect(actions.some((a) => a.op === "totally.fake")).toBe(false);
+  });
+
+  it("route-missing standard ops are emitted with enabled: false", () => {
+    const router = Router();
+    router.get("/api/v1/entities/customer/list", declaredHandler([Permission.CUSTOMER_READ_ALL]));
+    const actions = deriveEntityActions(router, "customer");
+    const missing = actions.filter((a) => a.op !== "list");
+    expect(missing.every((a) => a.enabled === false && a.permissions.length === 0)).toBe(true);
   });
 
   it("non-standard routes surface their last segment as the op", () => {
@@ -215,7 +233,9 @@ describe("deriveEntityActions", () => {
       declaredHandler([Permission.AUTHENTICATED_USER])
     );
     const actions = deriveEntityActions(router, "organization");
-    expect(actions[0].op).toBe("check-availability");
+    const custom = actions.find((a) => a.op === "check-availability");
+    expect(custom).toBeDefined();
+    expect(custom!.enabled).toBe(true);
   });
 
   it("only routes under the given entity prefix are collected", () => {
@@ -223,7 +243,9 @@ describe("deriveEntityActions", () => {
     router.get("/api/v1/entities/customer/list", declaredHandler([Permission.CUSTOMER_READ_ALL]));
     router.get("/api/v1/entities/organization/list", declaredHandler([Permission.ORGANIZATION_READ_ALL]));
     const actions = deriveEntityActions(router, "customer");
-    expect(actions).toHaveLength(1);
-    expect(actions[0].op).toBe("list");
+    expect(actions).toHaveLength(STANDARD_OPS.length);
+    const list = actions.find((a) => a.op === "list")!;
+    expect(list.enabled).toBe(true);
+    expect(list.permissions).toEqual([Permission.CUSTOMER_READ_ALL]);
   });
 });

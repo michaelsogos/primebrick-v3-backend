@@ -2,13 +2,15 @@
  * entity-actions — derive the `actions` capability map emitted in `/meta`.
  *
  * The actions array is the per-entity contract consumed by the FE for every
- * CTA (row actions, bulk actions, toolbar actions):
+ * CTA (row actions, bulk actions, toolbar actions). EVERY standard op is
+ * always present — there is a single `enabled` flag for availability:
  *
- *   - op ABSENT from the array      → no endpoint exists → CTA never rendered
- *   - op present, `enabled: false`  → endpoint exists, hidden for everyone
- *                                     (product visibility choice)
- *   - op present, `enabled: true`   → rendered; per-user enablement is
- *                                     evaluated against `permissions`
+ *   - op present, `enabled: true`   → endpoint exists; per-user enablement
+ *                                     is evaluated against `permissions`
+ *   - op present, `enabled: false`  → op unavailable for everyone — either
+ *                                     no endpoint exists (route missing) or
+ *                                     it was disabled via `actions_overrides`
+ *                                     (product choice)
  *
  * The array is DERIVED from the registered route table — it cannot be
  * hand-edited to hide features, because it is computed by walking
@@ -38,6 +40,28 @@ export interface EntityAction {
 }
 
 export type ActionsOverrides = Record<string, { enabled?: boolean }>;
+
+/**
+ * The canonical vocabulary of standard entity ops. Every op is always
+ * present in `meta.actions` — ops whose route is not registered are emitted
+ * with `enabled: false` (explicitly unavailable) instead of being omitted.
+ */
+export const STANDARD_OPS = [
+  "list",
+  "meta",
+  "get",
+  "create.single",
+  "update.single",
+  "delete.single",
+  "restore.single",
+  "read.audit",
+  "export",
+  "delete.bulk",
+  "restore.bulk",
+  "duplicate.bulk",
+] as const;
+
+export type StandardOp = (typeof STANDARD_OPS)[number];
 
 interface ExpressLayer {
   route?: {
@@ -146,6 +170,14 @@ export function deriveEntityActions(
           enabled: true,
         });
       }
+    }
+  }
+
+  // Fill in the standard vocabulary: ops with no registered route are
+  // explicitly unavailable (enabled: false, empty permissions).
+  for (const op of STANDARD_OPS) {
+    if (!actions.has(op)) {
+      actions.set(op, { op, permissions: [], enabled: false });
     }
   }
 

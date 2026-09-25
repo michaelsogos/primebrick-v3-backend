@@ -325,20 +325,23 @@ All three follow RFC 7807 (`application/problem+json`):
 
 ## Meta auto-inject
 
-`assembleMeta()` wraps each entity's static meta object with a `collaboration`
-fragment before returning it to the frontend. The `enabled` flag is derived from
+`assembleMeta()` wraps each entity's static `EntityMeta` object with a
+`collaboration` fragment before returning it to the frontend — it also
+materializes `display_name` as `"${" + display_field + "}"` when the static
+meta does not declare an explicit template. The `enabled` flag is derived from
 the entity's persistence metadata — specifically `getEntityPersistenceMeta(ctor).isAuditable`.
 
 ```ts
-export function assembleMeta<T extends Record<string, unknown>>(
-  meta: T,
+export function assembleMeta(
+  meta: EntityMeta,
   entityClass: new () => unknown,
-): T & { collaboration: { enabled: boolean; expose_editing_value: boolean } } {
+): EntityMeta & { display_name: string; collaboration: CollaborationMeta } {
   const persistenceMeta = getEntityPersistenceMeta(entityClass);
   const isAuditable = persistenceMeta.isAuditable === true;
 
   return {
     ...meta,
+    display_name: meta.display_name ?? `\${${meta.display_field}}`,
     collaboration: {
       enabled: isAuditable,
       expose_editing_value: true,

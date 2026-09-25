@@ -1,43 +1,11 @@
-export type ViewName = "table" | "cards" | "cards_list";
+import type { MetaColumn } from "../../http/entity-meta.types.js";
 
-export type ViewVisibilityConfig = {
-  visible?: string[];
-  hidden?: string[];
-  notDisplayable?: string[];
-  notHideable?: string[];
-};
-
-export type ListMetaViewVisibility = {
-  [K in ViewName]: ViewVisibilityConfig;
-};
-
-export type CustomerListColumn = {
-  key: string;
-  labelKey: string;
-  type: "text" | "badge" | "datetime" | "color";
-  sortable: boolean;
-  /** If false, column is excluded from "search in fields" dropdown and backend default search scope. */
-  searchable?: boolean;
-  /** If false, user cannot hide it in the UI column picker. */
-  hideable?: boolean;
-  /** If false, column is hidden by default in the UI. */
-  defaultVisible?: boolean;
-  /** If true, column supports filter operations (=, !=, ILIKE, etc.) */
-  filterable?: boolean;
-  badge?: {
-    values: Record<string, { labelKey: string; color: string }>;
-  };
-  /**
-   * FE-only: `datetime` columns may show a header toggle between browser-local formatting
-   * and formatting in the IANA zone from `recordIanaField` on each row.
-   */
-  datetimeIanaToggle?: {
-    recordIanaField: string;
-  };
-};
+/** Raw list column literal — canonical `MetaColumn` shape minus the
+ *  flags injected by the normalize step (`sticky`, `audited`).
+ *  `order` is explicit per column — array position MUST NOT matter. */
+export type CustomerListColumn = Omit<MetaColumn, "sticky" | "audited">;
 
 export const CUSTOMER_DEFAULT_SORT = { key: "updated_at", dir: "desc" as const };
-export const CUSTOMER_DEFAULT_VIEW: ViewName = "table";
 
 /**
  * Sticky columns: always visible and pinned to the left.
@@ -67,106 +35,82 @@ const auditingKeySet = new Set<string>(CUSTOMER_AUDITING_COLUMN_KEYS);
  * - Which columns exist in meta (UI columns, visible picker, search scope)
  * - Which fields are sortable/searchable/filterable
  */
-export const CUSTOMER_LIST_COLUMNS: CustomerListColumn[] = [
-  { key: "code", labelKey: "system.entities.customer.fields.code", type: "text", sortable: true, hideable: false, filterable: true },
-  { key: "first_name", labelKey: "system.entities.customer.fields.first_name", type: "text", sortable: true, filterable: true },
-  { key: "last_name", labelKey: "system.entities.customer.fields.last_name", type: "text", sortable: true, filterable: true },
-  { key: "company_name", labelKey: "system.entities.customer.fields.company_name", type: "text", sortable: true, filterable: true },
-  { key: "email", labelKey: "system.entities.customer.fields.email", type: "text", sortable: true, filterable: true },
-  { key: "phone", labelKey: "system.entities.customer.fields.phone", type: "text", sortable: false, defaultVisible: false },
+const CUSTOMER_RAW_COLUMNS: CustomerListColumn[] = [
+  // uuid is the canonical first sticky column (order -1), hidden but selectable
+  { key: "uuid", label_key: "system.entities.customer.fields.uuid", type: "text", order: -1, sortable: true, default_visible: false },
+  { key: "code", label_key: "system.entities.customer.fields.code", type: "text", order: 0, sortable: true, hideable: false, filterable: true },
+  { key: "first_name", label_key: "system.entities.customer.fields.first_name", type: "text", order: 1, sortable: true, filterable: true },
+  { key: "last_name", label_key: "system.entities.customer.fields.last_name", type: "text", order: 2, sortable: true, filterable: true },
+  { key: "company_name", label_key: "system.entities.customer.fields.company_name", type: "text", order: 3, sortable: true, filterable: true },
+  { key: "email", label_key: "system.entities.customer.fields.email", type: "text", order: 4, sortable: true, filterable: true },
+  { key: "phone", label_key: "system.entities.customer.fields.phone", type: "text", order: 5, sortable: false, default_visible: false },
   {
     key: "status",
-    labelKey: "system.entities.customer.fields.status",
+    label_key: "system.entities.customer.fields.status",
     type: "badge",
+    order: 6,
     sortable: true,
     searchable: false,
     hideable: false,
     filterable: true,
     badge: {
       values: {
-        ACTIVE: { labelKey: "system.entities.customer.status.active", color: "emerald-300" },
-        INACTIVE: { labelKey: "system.entities.customer.status.inactive", color: "zinc-300" },
+        ACTIVE: { label_key: "system.entities.customer.status.active", color: "emerald-300" },
+        INACTIVE: { label_key: "system.entities.customer.status.inactive", color: "zinc-300" },
       },
     },
   },
   {
     key: "onboarding_at",
-    labelKey: "system.entities.customer.fields.onboarding_at",
+    label_key: "system.entities.customer.fields.onboarding_at",
     type: "datetime",
+    order: 7,
     sortable: true,
     searchable: false,
-    defaultVisible: true,
+    default_visible: true,
     filterable: true,
-    datetimeIanaToggle: { recordIanaField: "onboarding_time_zone" },
+    datetime_iana_toggle: { record_iana_field: "onboarding_time_zone" },
   },
 
   // Extra DTO-exposed fields (hidden by default)
-  { key: "uuid", labelKey: "system.entities.customer.fields.uuid", type: "text", sortable: true, defaultVisible: false },
-  { key: "status_reason", labelKey: "system.entities.customer.fields.status_reason", type: "text", sortable: false, defaultVisible: false },
-  { key: "local_address", labelKey: "system.entities.customer.fields.local_address", type: "text", sortable: false, defaultVisible: false },
-  { key: "local_city", labelKey: "system.entities.customer.fields.local_city", type: "text", sortable: true, defaultVisible: false, filterable: true },
-  { key: "local_state", labelKey: "system.entities.customer.fields.local_state", type: "text", sortable: true, defaultVisible: false, filterable: true },
-  { key: "local_country", labelKey: "system.entities.customer.fields.local_country", type: "text", sortable: true, defaultVisible: false, filterable: true },
-  { key: "local_zip", labelKey: "system.entities.customer.fields.local_zip", type: "text", sortable: false, defaultVisible: false },
+  { key: "status_reason", label_key: "system.entities.customer.fields.status_reason", type: "text", order: 8, sortable: false, default_visible: false },
+  { key: "local_address", label_key: "system.entities.customer.fields.local_address", type: "text", order: 9, sortable: false, default_visible: false },
+  { key: "local_city", label_key: "system.entities.customer.fields.local_city", type: "text", order: 10, sortable: true, default_visible: false, filterable: true },
+  { key: "local_state", label_key: "system.entities.customer.fields.local_state", type: "text", order: 11, sortable: true, default_visible: false, filterable: true },
+  { key: "local_country", label_key: "system.entities.customer.fields.local_country", type: "text", order: 12, sortable: true, default_visible: false, filterable: true },
+  { key: "local_zip", label_key: "system.entities.customer.fields.local_zip", type: "text", order: 13, sortable: false, default_visible: false },
   {
     key: "onboarding_time_zone",
-    labelKey: "system.entities.customer.fields.onboarding_time_zone",
+    label_key: "system.entities.customer.fields.onboarding_time_zone",
     type: "text",
+    order: 14,
     sortable: true,
     searchable: false,
-    defaultVisible: false,
+    default_visible: false,
   },
-  { key: "created_at", labelKey: "system.entities.customer.fields.created_at", type: "datetime", sortable: true, searchable: false, defaultVisible: false },
-  { key: "updated_at", labelKey: "system.entities.customer.fields.updated_at", type: "datetime", sortable: true, searchable: false, defaultVisible: false },
-  { key: "created_by", labelKey: "system.entities.customer.fields.created_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
-  { key: "updated_by", labelKey: "system.entities.customer.fields.updated_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
-  { key: "version", labelKey: "system.entities.customer.fields.version", type: "text", sortable: false, defaultVisible: false, searchable: false },
-  { key: "deleted_at", labelKey: "system.entities.customer.fields.deleted_at", type: "datetime", sortable: true, searchable: false, defaultVisible: false },
-  { key: "deleted_by", labelKey: "system.entities.customer.fields.deleted_by", type: "text", sortable: false, defaultVisible: false, searchable: false },
+  { key: "created_at", label_key: "system.entities.customer.fields.created_at", type: "datetime", order: 15, sortable: true, searchable: false, default_visible: false },
+  { key: "updated_at", label_key: "system.entities.customer.fields.updated_at", type: "datetime", order: 16, sortable: true, searchable: false, default_visible: false },
+  { key: "created_by", label_key: "system.entities.customer.fields.created_by", type: "text", order: 17, sortable: false, default_visible: false, searchable: false },
+  { key: "updated_by", label_key: "system.entities.customer.fields.updated_by", type: "text", order: 18, sortable: false, default_visible: false, searchable: false },
+  { key: "version", label_key: "system.entities.customer.fields.version", type: "text", order: 19, sortable: false, default_visible: false, searchable: false },
+  { key: "deleted_at", label_key: "system.entities.customer.fields.deleted_at", type: "datetime", order: 20, sortable: true, searchable: false, default_visible: false },
+  { key: "deleted_by", label_key: "system.entities.customer.fields.deleted_by", type: "text", order: 21, sortable: false, default_visible: false, searchable: false },
 ];
+
+const stickyKeySet = new Set<string>(CUSTOMER_STICKY_COLUMN_KEYS);
+
+/**
+ * Canonical `MetaColumn[]`: injects `sticky` and `audited` flags so the
+ * served meta is a single columns dictionary — no duplicated sticky/auditing
+ * column arrays. `order` is declared explicitly per column.
+ */
+export const CUSTOMER_LIST_COLUMNS: MetaColumn[] = CUSTOMER_RAW_COLUMNS.map((c) => ({
+  ...c,
+  ...(stickyKeySet.has(c.key) ? { sticky: true } : {}),
+  ...(auditingKeySet.has(c.key) ? { audited: true } : {}),
+}));
 
 export const CUSTOMER_SEARCHABLE_KEYS = CUSTOMER_LIST_COLUMNS.filter((c) => c.searchable !== false).map((c) => c.key);
 export const CUSTOMER_SORT_KEYS = CUSTOMER_LIST_COLUMNS.filter((c) => c.sortable).map((c) => c.key);
 export const CUSTOMER_FILTERABLE_KEYS = CUSTOMER_LIST_COLUMNS.filter((c) => c.filterable !== false).map((c) => c.key);
-
-export const CUSTOMER_AUDITING_COLUMNS: CustomerListColumn[] = CUSTOMER_AUDITING_COLUMN_KEYS
-  .map((k) => CUSTOMER_LIST_COLUMNS.find((c) => c.key === k))
-  .filter((c): c is CustomerListColumn => !!c);
-
-export const CUSTOMER_STICKY_COLUMNS: CustomerListColumn[] = (() => {
-  const out: CustomerListColumn[] = [];
-  for (const key of CUSTOMER_STICKY_COLUMN_KEYS) {
-    const col = CUSTOMER_LIST_COLUMNS.find((c) => c.key === key);
-    if (col) out.push(col);
-  }
-  return out;
-})();
-
-export const CUSTOMER_DATA_COLUMNS: CustomerListColumn[] = CUSTOMER_LIST_COLUMNS.filter(
-  (c) => !auditingKeySet.has(c.key) && !auditingKeySet.has(c.key)
-);
-
-/**
- * Default view visibility config.
- * - sticky columns (uuid, code) are always visible
- * - code is not hideable (sticky by design)
- * - uuid is hidden by default but sticky
- */
-export const CUSTOMER_DEFAULT_VIEW_VISIBILITY: ListMetaViewVisibility = {
-  table: {
-    notHideable: ["code"],
-    hidden: ["phone", "uuid", "status_reason", "local_address", "local_zip", "onboarding_time_zone"],
-    notDisplayable: ["id"],
-  },
-  cards: {
-    notHideable: ["code"],
-    hidden: ["uuid", "status_reason", "local_address", "local_zip", "onboarding_time_zone", "created_at", "created_by", "updated_at", "updated_by", "version", "deleted_at", "deleted_by"],
-    notDisplayable: ["id"],
-  },
-  cards_list: {
-    notHideable: ["code"],
-    hidden: ["uuid", "status_reason", "local_address", "local_zip", "onboarding_time_zone", "created_at", "created_by", "updated_at", "updated_by", "version", "deleted_at", "deleted_by"],
-    notDisplayable: ["id"],
-  },
-};
 

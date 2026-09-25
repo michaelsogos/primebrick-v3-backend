@@ -15,6 +15,11 @@ import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { findAuditPage } from "../../db/audit-query-helper.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
+import { deriveSearchableKeys } from "../../lib/search-keys.js";
+import { roleMappingsMeta } from "./role-mappings.meta.js";
+
+const DEFAULT_SEARCH_KEYS = deriveSearchableKeys(roleMappingsMeta, RoleMappingEntity);
+const SEARCH_IN_ALLOWED = new Set([...DEFAULT_SEARCH_KEYS, "uuid"]);
 
 const ROLE_MAPPINGS_CACHE_KEY = "be:role_mappings:all";
 
@@ -232,7 +237,10 @@ export class RoleMappingRepo {
 
     // Search filter
     if (search && search.trim()) {
-      const searchFields = search_in && search_in.length > 0 ? search_in : ["idp_role", "idp_org", "label_key"];
+      const searchFields =
+        search_in && search_in.length > 0
+          ? search_in.filter((f) => SEARCH_IN_ALLOWED.has(f))
+          : DEFAULT_SEARCH_KEYS;
       const searchFilters = searchFields.map((f) =>
         Filter.fieldValue(field(RoleMappingEntity, f as any), "ILIKE", `%${search}%`)
       );

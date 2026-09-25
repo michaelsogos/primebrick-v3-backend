@@ -71,7 +71,7 @@ export function aiCerebellumRouter() {
       actions: deriveEntityActions(
         router,
         "ai_cerebellum",
-        aiCerebellumMeta.list.actions_overrides,
+        aiCerebellumMeta.actions_overrides,
       ),
     });
   };

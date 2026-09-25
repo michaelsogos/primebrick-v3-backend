@@ -1041,104 +1041,120 @@ export const openapi = {
       },
       EntityMetaResponse: {
         type: "object",
-        required: ["entity", "titleKey", "uid", "defaultView", "list"],
+        required: ["entity", "translation_key", "title_key", "uid", "display_field", "display_name", "columns", "actions"],
         properties: {
-          entity: { type: "string" },
-          titleKey: { type: "string" },
-          uid: { type: "string", description: "List row unique identifier column key (e.g. uuid)" },
-          defaultView: { type: "string", enum: ["table", "cards", "cards_list"] },
-          list: {
+          entity: { type: "string", description: "Entity key, snake_case singular" },
+          translation_key: { type: "string", description: "snake_case singular i18n prefix" },
+          title_key: { type: "string", description: "i18n key for the entity title" },
+          uid: { type: "string", description: "Column key used as row identity (e.g. uuid)" },
+          display_field: { type: "string", description: "Key of the primary display column" },
+          display_name: { type: "string", description: "Display template (${field} syntax). Defaults to \"${display_field}\" — materialized by assembleMeta" },
+          actions_overrides: {
             type: "object",
-            required: ["columns", "viewVisibility"],
+            description: "Per-op enabled toggles — may only affect existing ops, never invent them",
+            additionalProperties: {
+              type: "object",
+              properties: { enabled: { type: "boolean" } },
+            },
+          },
+          columns: {
+            type: "array",
+            description: "Root-level field dictionary, transversal to all page types",
+            items: {
+              type: "object",
+              required: ["key", "label_key", "type", "order"],
+              properties: {
+                key: { type: "string" },
+                label_key: { type: "string" },
+                type: { type: "string", enum: ["text", "badge", "date", "datetime", "color", "boolean", "number"] },
+                order: { type: "integer", description: "Explicit position within its rendering group (uuid = -1 canonical first sticky, display_field = 0)" },
+                sticky: { type: "boolean", description: "Pinned left — typically the display_field column" },
+                audited: { type: "boolean", description: "System audit column — rendered last" },
+                sortable: { type: "boolean" },
+                searchable: { type: "boolean" },
+                hideable: { type: "boolean" },
+                default_visible: { type: "boolean", description: "false = selectable but hidden by default" },
+                filterable: { type: "boolean" },
+                badge: {
+                  type: "object",
+                  properties: {
+                    values: {
+                      type: "object",
+                      additionalProperties: {
+                        type: "object",
+                        properties: {
+                          label_key: { type: "string" },
+                          label_text: { type: "string" },
+                          color: { type: "string" },
+                        },
+                      },
+                    },
+                  },
+                },
+                datetime_iana_toggle: {
+                  type: "object",
+                  properties: { record_iana_field: { type: "string" } },
+                },
+                tooltip: { type: "string", description: "i18n key for tooltip content shown in form and/or list contexts" },
+                tooltip_priority: { type: "string", enum: ["INFORMATION", "WARNING", "ERROR", "QUESTION", "HINT", "SUCCESS"], description: "Priority/severity for tooltip icon and title color" },
+                tooltip_title: { type: "string", description: "i18n key for tooltip title (shown in priority color)" },
+                show_form_tooltip: { type: "boolean", description: "Show tooltip in form context (default: true if tooltip is set)" },
+                show_list_tooltip: { type: "boolean", description: "Show tooltip in list/table/card context (default: true if tooltip is set)" },
+              },
+            },
+          },
+          table: {
+            type: "object",
+            description: "EntityListTable options — absent on form-only metas (e.g. /auth/me/meta)",
             properties: {
-              searchPlaceholderKey: { type: "string" },
-              defaultSort: {
+              default_view: { type: "string", enum: ["table", "cards", "cards_list"] },
+              default_sort: {
                 type: "object",
                 properties: {
                   key: { type: "string" },
                   dir: { type: "string", enum: ["asc", "desc"] },
                 },
               },
-              columns: {
+              default_page_size: { type: "integer" },
+              page_size_options: { type: "array", items: { type: "integer" } },
+              row_custom_actions: {
                 type: "array",
+                description: "Custom row CTA display config for non-standard ops",
                 items: {
                   type: "object",
-                  required: ["key", "labelKey", "type"],
+                  required: ["action_name", "translation_key"],
                   properties: {
-                    key: { type: "string" },
-                    labelKey: { type: "string" },
-                    type: { type: "string" },
-                    sortable: { type: "boolean" },
-                    searchable: { type: "boolean" },
-                    hideable: { type: "boolean" },
-                    defaultVisible: { type: "boolean" },
-                    filterable: { type: "boolean" },
-                    formDescription: { type: "string", description: "i18n key for form help tooltip (deprecated — use tooltip + showFormTooltip)" },
-                    listDescription: { type: "string", description: "i18n key for list header help tooltip (deprecated — use tooltip + showListTooltip)" },
-                    tooltip: { type: "string", description: "i18n key for tooltip content shown in form and/or list contexts" },
-                    tooltipPriority: { type: "string", enum: ["INFORMATION", "WARNING", "ERROR", "QUESTION", "HINT", "SUCCESS"], description: "Priority/severity for tooltip icon and title color" },
-                    tooltipTitle: { type: "string", description: "i18n key for tooltip title (shown in priority color)" },
-                    showFormTooltip: { type: "boolean", description: "Show tooltip in form context (default: true if tooltip is set)" },
-                    showListTooltip: { type: "boolean", description: "Show tooltip in list/table/card context (default: true if tooltip is set)" },
+                    action_name: { type: "string" },
+                    translation_key: { type: "string" },
+                    icon: { type: "string" },
+                    text_color: { type: "string" },
+                    disabled_when_deleted: { type: "boolean" },
+                    required_permission: { type: "string" },
                   },
                 },
               },
-              stickyColumns: {
-                type: "array",
-                items: {
-                  type: "object",
-                  required: ["key", "labelKey", "type"],
-                  properties: {
-                    key: { type: "string" },
-                    labelKey: { type: "string" },
-                    type: { type: "string" },
-                  },
-                },
+            },
+          },
+          actions: {
+            type: "array",
+            description: "Derived capability contract — full standard op vocabulary, enabled:false when the route is absent or product-disabled",
+            items: {
+              type: "object",
+              required: ["op", "enabled"],
+              properties: {
+                op: { type: "string" },
+                enabled: { type: "boolean" },
+                permissions: { type: "array", items: { type: "string" } },
+                sentinel: { type: "string", enum: ["_public", "_authenticated_user", "_authenticated_admin"] },
               },
-              auditingColumns: {
-                type: "array",
-                items: {
-                  type: "object",
-                  required: ["key", "labelKey", "type"],
-                  properties: {
-                    key: { type: "string" },
-                    labelKey: { type: "string" },
-                    type: { type: "string" },
-                  },
-                },
-              },
-              viewVisibility: {
-                type: "object",
-                properties: {
-                  table: {
-                    type: "object",
-                    properties: {
-                      visible: { type: "array", items: { type: "string" } },
-                      hidden: { type: "array", items: { type: "string" } },
-                      notDisplayable: { type: "array", items: { type: "string" } },
-                      notHideable: { type: "array", items: { type: "string" } },
-                    },
-                  },
-                  cards: {
-                    type: "object",
-                    properties: {
-                      visible: { type: "array", items: { type: "string" } },
-                      hidden: { type: "array", items: { type: "string" } },
-                      notDisplayable: { type: "array", items: { type: "string" } },
-                      notHideable: { type: "array", items: { type: "string" } },
-                    },
-                  },
-                  cards_list: {
-                    type: "object",
-                    properties: {
-                      visible: { type: "array", items: { type: "string" } },
-                      hidden: { type: "array", items: { type: "string" } },
-                      notDisplayable: { type: "array", items: { type: "string" } },
-                      notHideable: { type: "array", items: { type: "string" } },
-                    },
-                  },
-                },
-              },
+            },
+          },
+          collaboration: {
+            type: "object",
+            description: "Injected by assembleMeta from entity auditability",
+            properties: {
+              enabled: { type: "boolean" },
+              expose_editing_value: { type: "boolean" },
             },
           },
         },

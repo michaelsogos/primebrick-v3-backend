@@ -1,0 +1,160 @@
+---
+title: Entity metadata contract
+description: The canonical EntityMeta schema served by GET /api/v1/entities/{entity}/meta — anatomy, runtime assembly, actions derivation, and search semantics.
+---
+
+# Entity metadata contract
+
+`GET /api/v1/entities/{entity}/meta` returns the entity metadata — a typed
+JSON document describing how the entity is displayed and which operations it
+supports. The canonical type is `EntityMeta` in
+`src/http/entity-meta.types.ts`: a **closed** interface (no index signature),
+so any property not declared in the schema is a compile-time error. Every
+static meta object (`*.meta.ts`) MUST be annotated `EntityMeta`.
+
+## Source and assembly
+
+<Mermaid chart={`flowchart LR
+  SM["*.meta.ts<br/>static EntityMeta"] --> AM["assembleMeta()"]
+  RT["route table"] --> DA["deriveEntityActions()"]
+  AM --> RESP["GET /meta response"]
+  DA --> RESP
+`} />
+
+- The **static meta** declares identity, `display_field`, `columns`, optional
+  `table` options, and optional `actions_overrides`.
+- `assembleMeta(meta, entityClass)` injects runtime fragments:
+  `display_name` (defaulted to `"${display_field}"` when omitted) and
+  `collaboration` (from `getEntityPersistenceMeta().isAuditable`).
+- `deriveEntityActions(router, entity, actions_overrides)` scans the
+  registered route table and emits the `actions` array.
+
+## Anatomy
+
+```jsonc
+{
+  "entity": "user_profile",
+  "translation_key": "user_profile",
+  "title_key": "system.entities.user_profile.title",
+  "uid": "uuid",
+  "display_field": "display_name",
+  "display_name": "${display_name}",
+  "actions_overrides": {
+    "duplicate.bulk": { "enabled": false }
+  },
+  "columns": [ /* MetaColumn[] — see props sheet */ ],
+  "table": {
+    "default_view": "table",
+    "default_sort": { "key": "created_at", "dir": "desc" },
+    "default_page_size": 25,
+    "page_size_options": [10, 25, 50, 100],
+    "row_custom_actions": [
+      {
+        "action_name": "change_password",
+        "translation_key": "system.settings.users.change_password",
+        "icon": "key-round",
+        "required_permission": "AUTHENTICATED_ADMIN"
+      }
+    ]
+  },
+  "actions": [
+    { "op": "list", "enabled": true, "permissions": ["user_profile.read.all"] },
+    { "op": "duplicate.bulk", "enabled": false }
+  ],
+  "collaboration": { "enabled": true, "expose_editing_value": true }
+}
+```
+
+## Root properties
+
+| Field | Where | Required | Purpose |
+|-------|-------|----------|---------|
+| `entity` | static | yes | Entity key, snake_case singular — route segment |
+| `translation_key` | static | yes | snake_case singular i18n prefix |
+| `title_key` | static | yes | i18n key for the entity title |
+| `uid` | static | yes | Column key used as row identity |
+| `display_field` | static | yes | Key of the primary display column |
+| `display_name` | response | yes | Display template (`${field}`). Optional in static meta — `assembleMeta` defaults it to `"${display_field}"` |
+| `actions_overrides` | static | no | Per-op `enabled` toggles — may only affect existing ops |
+| `columns` | static | yes | Root-level field dictionary, transversal to all page types |
+| `table` | static | no | `EntityListTable` options — absent on form-only metas |
+| `actions` | response | yes | Derived capability contract |
+| `collaboration` | response | yes | `{ enabled, expose_editing_value }` |
+
+`display_name` is the generic display representation — edit-page titles,
+comboboxes, related-object labels. It supports `${field}` template syntax
+(interpolated client-side) so composed expressions like
+`"${first_name} ${last_name}"` are possible.
+
+## `columns` props sheet (`MetaColumn`)
+
+| Prop | Required | Purpose |
+|------|----------|---------|
+| `key` | yes | Row field key (snake_case) |
+| `label_key` | yes | i18n key for header/form label |
+| `type` | yes | `text` \| `badge` \| `date` \| `datetime` \| `color` \| `boolean` \| `number` |
+| `order` | yes | Explicit position within its rendering group — array position in `columns` MUST NOT matter. Convention: `uuid` is `order: -1` (canonical first sticky column, hidden but selectable), the `display_field` column is `order: 0` |
+| `sticky` | | Pinned left — `uuid` and the `display_field` column are the standard sticky pair |
+| `audited` | | System audit column — rendered last |
+| `sortable` / `searchable` / `filterable` / `hideable` | | Capability flags (default `true`) |
+| `default_visible` | | `false` = selectable but hidden by default |
+| `badge` | | `{ values: Record<string, { label_key?, label_text?, color? }> }` |
+| `datetime_iana_toggle` | | `{ record_iana_field }` |
+| `tooltip`, `tooltip_priority`, `tooltip_title` | | Tooltip keys/priority |
+| `show_form_tooltip`, `show_list_tooltip` | | Tooltip visibility per context |
+
+Rendering order derives from flags: `sticky` → normal → `audited`, each
+sorted by `order` (`orderedColumns` on the FE).
+
+## `table` options
+
+| Prop | Purpose |
+|------|---------|
+| `default_view` | `table` \| `cards` \| `cards_list` |
+| `default_sort` | `{ key, dir }` |
+| `default_page_size` | Initial rows per page |
+| `page_size_options` | Dropdown values |
+| `row_custom_actions` | Custom row CTA display config for non-standard ops |
+
+`table` is absent on form-only metas (e.g. `GET /api/v1/auth/me/meta` —
+`meMeta` in `auth-session.router.ts` is a plain `EntityMeta` without
+`table`).
+
+## `actions` — standard vocabulary
+
+`deriveEntityActions` always emits every standard op; missing routes produce
+explicit `enabled: false` entries:
+
+`list`, `meta`, `get`, `create.single`, `update.single`, `delete.single`,
+`restore.single`, `read.audit`, `export`, `delete.bulk`, `restore.bulk`,
+`duplicate.single`, `duplicate.bulk`
+
+- `enabled: true` → op exists; per-user gating via `permissions`/`sentinel`
+- `enabled: false` → route absent OR product-disabled via
+  `actions_overrides` — CTA hidden everywhere
+- `actions_overrides` never invents ops — it can only toggle `enabled`
+- Non-standard routes surface as additional bare ops (`change-password`,
+  `check-availability`)
+- Ops outside `/api/v1/entities/:entity` (e.g. `/api/v1/auth/users`) are
+  included via the `extraScans` parameter
+
+## Search semantics
+
+Default "all fields" search covers **visible ∩ searchable ∩ text-physical**
+columns. The BE derives fallback search keys per entity via
+`src/lib/search-keys.ts` — meta `searchable` flag ∩ DAL `pgType`
+(`varchar`/`text`/`uuid`; `uuid` uses the existing text cast). JSONB and
+other non-text columns MUST be `searchable: false`.
+
+## Specializations
+
+- `ConfigEntryMeta extends EntityMeta` adds required `type_capabilities`
+  (from `@primebrick/sdk`) — used by `config_entry` only.
+- `EntityMetaResponse` is the served shape: `EntityMeta` plus required
+  `display_name`, `actions`, `collaboration`.
+
+## Next steps
+
+- [API conventions](./api-conventions) — endpoint taxonomy
+- [Collaboration](./collaboration) — the `collaboration` fragment
+- [RBAC](./rbac) — permissions behind `actions[].permissions`

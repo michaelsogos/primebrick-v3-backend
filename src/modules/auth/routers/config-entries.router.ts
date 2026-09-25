@@ -168,7 +168,7 @@ export function configEntriesRouter() {
       actions: deriveEntityActions(
         router,
         "config_entry",
-        configEntriesMeta.list.actions_overrides,
+        configEntriesMeta.actions_overrides,
       ),
     });
   });

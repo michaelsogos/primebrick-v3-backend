@@ -53,8 +53,9 @@ router registers them, and a bulk op must be an atomic set operation — never
 a loop of single writes. `organization` has no bulk routes by architectural
 necessity (per-record IdP sync) — see
 [Authentication → Organizations](./authentication#organizations). Since
-`meta.actions` is derived from the registered route table, absent routes
-automatically hide the corresponding UI actions.
+`meta.actions` is derived from the registered route table and always emits
+the full standard op vocabulary, absent routes surface as explicit
+`enabled: false` entries and the UI hides the corresponding actions.
 
 ### Write-payload standard (`{entity}` envelope)
 
