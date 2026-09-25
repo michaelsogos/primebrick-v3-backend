@@ -99,7 +99,7 @@ ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.settings.ai.machine.machine_rank', 'en-GB', 'Machine Rank', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.ai.machine.machine_rank', 'en-US', 'Machine Rank', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.ai.machine.machine_rank', 'it-IT', 'Rank Macchina', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.machine_rank', 'it-IT', 'Classe Macchina', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.ai.machine.machine_rank', 'fr-FR', 'Rang Machine', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.ai.machine.machine_rank', 'es-ES', 'Rango de Máquina', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.ai.machine.machine_rank', 'de-DE', 'Maschinenrang', now(), 'initial-setup', now(), 'initial-setup', 1),
