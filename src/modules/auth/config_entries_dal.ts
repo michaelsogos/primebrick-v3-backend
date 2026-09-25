@@ -447,7 +447,7 @@ export class ConfigEntriesDal {
       await applyTelemetryConfigFromDb();
     } catch (err) {
       console.warn(
-        "[ConfigEntriesDal] Failed to reload auth config cache after write. " +
+        "Failed to reload auth config cache after write. " +
           "The DB was updated but the in-memory cache is stale — restart the server to pick up the change.",
         err,
       );

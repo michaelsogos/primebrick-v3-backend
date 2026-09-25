@@ -141,15 +141,15 @@ export async function discoverEntitiesFromService(baseUrl: string): Promise<Disc
   try {
     const response = await fetch(specUrl, { signal: AbortSignal.timeout(5000) });
     if (!response.ok) {
-      console.warn(`[mcp-discovery] Failed to fetch OpenAPI spec from ${specUrl}: ${response.status}`);
+      console.warn(`Failed to fetch OpenAPI spec from ${specUrl}: ${response.status}`);
       return [];
     }
     const spec = await response.json();
     const entities = discoverEntitiesFromSpec(spec);
-    console.log(`[mcp-discovery] Discovered ${entities.length} entities from ${specUrl}: ${entities.map((e) => e.entity).join(", ")}`);
+    console.log(`Discovered ${entities.length} entities from ${specUrl}: ${entities.map((e) => e.entity).join(", ")}`);
     return entities;
   } catch (err) {
-    console.warn(`[mcp-discovery] Error fetching OpenAPI spec from ${specUrl}:`, err instanceof Error ? err.message : String(err));
+    console.warn(`Error fetching OpenAPI spec from ${specUrl}:`, err instanceof Error ? err.message : String(err));
     return [];
   }
 }

@@ -102,7 +102,7 @@ export function oauthMetadataRouter(): Router {
       const metadata = await buildAuthorizationServerMetadata(baseUrl, cfg);
       res.status(200).json(metadata);
     } catch (err) {
-      console.error("[MCP OAuth Metadata] AS metadata error:", err);
+      console.error("AS metadata error:", err);
       res.status(500).json({
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Failed to build AS metadata",
@@ -120,7 +120,7 @@ export function oauthMetadataRouter(): Router {
       const prm = buildProtectedResourceMetadata(oauthMetadata, resourceServerUrl);
       res.status(200).json(prm);
     } catch (err) {
-      console.error("[MCP OAuth Metadata] PRM error:", err);
+      console.error("PRM error:", err);
       res.status(500).json({
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Failed to build PRM",

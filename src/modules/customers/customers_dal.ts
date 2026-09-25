@@ -782,7 +782,7 @@ export class CustomersDal {
         await this.restoreCustomer(uuid, version);
         results.push(uuid);
       } catch (e) {
-        console.error('[Customer Restore Error]', {
+        console.error('Customer Restore Error', {
           uuid,
           error: e,
           stack: e instanceof Error ? e.stack : undefined,
@@ -810,7 +810,7 @@ export class CustomersDal {
         const result = await this.duplicateCustomer(uuid);
         results.push(result.uuid);
       } catch (e) {
-        console.error('[Customer Duplicate Error]', {
+        console.error('Customer Duplicate Error', {
           uuid,
           error: e,
           stack: e instanceof Error ? e.stack : undefined,

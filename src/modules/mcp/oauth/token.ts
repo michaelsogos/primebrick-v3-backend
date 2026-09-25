@@ -186,7 +186,7 @@ export function tokenRouter(): Router {
         scope: params.scope ?? client.scope,
       });
     } catch (err) {
-      console.error("[MCP OAuth Token] Error:", err);
+      console.error("Error:", err);
       sendJson(res, 500, {
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Token exchange failed",
@@ -196,7 +196,7 @@ export function tokenRouter(): Router {
 
   // Router-level error handler
   router.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("[MCP OAuth Token] Unhandled error:", err);
+    console.error("Unhandled error:", err);
     sendJson(res, 500, { error: "server_error", error_description: err.message });
   });
 

@@ -28,7 +28,7 @@ export interface SendEmailParams {
 export async function sendEmail(params: SendEmailParams): Promise<void> {
   if (!NatsClient.isConnected()) {
     console.warn(
-      `[email] NATS not connected — skipping email send (template: ${params.template_code}, to: ${params.to.join(", ")})`,
+      `NATS not connected — skipping email send (template: ${params.template_code}, to: ${params.to.join(", ")})`,
     );
     return;
   }
@@ -45,7 +45,7 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     await NatsClient.publish("emailsender.send", request);
   } catch (err) {
     console.error(
-      `[email] Failed to publish email send request to NATS (template: ${params.template_code}):`,
+      `Failed to publish email send request to NATS (template: ${params.template_code}):`,
       err,
     );
   }

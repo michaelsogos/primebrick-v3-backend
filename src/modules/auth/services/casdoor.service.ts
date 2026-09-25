@@ -60,7 +60,7 @@ export class CasdoorService {
       const adminClientId = clientIdRow?.value;
       const adminClientSecret = clientSecretRow?.value;
       if (!adminClientId || !adminClientSecret) {
-        console.warn("[CasdoorService] Admin credentials not configured; skipping Casdoor sync");
+        console.warn("Admin credentials not configured; skipping Casdoor sync");
         return null;
       }
       this.client = new CasdoorApiClient({
@@ -71,7 +71,7 @@ export class CasdoorService {
       });
       return this.client;
     } catch (error) {
-      console.error("[CasdoorService] Failed to create Casdoor API client:", error);
+      console.error("Failed to create Casdoor API client:", error);
       return null;
     }
   }

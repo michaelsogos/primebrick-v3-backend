@@ -78,7 +78,7 @@ export async function insertAuthEvent(params: InsertAuthEventParams): Promise<vo
     await repo.add(AuthEventEntity, record, {});
   } catch (err) {
     // Best-effort — never break the auth flow over an audit log failure.
-    console.error("[auth-event-logger] Failed to insert auth event:", {
+    console.error("Failed to insert auth event:", {
       event_type,
       success,
       user_profile_uuid,

@@ -35,15 +35,15 @@ export async function initPresenceStore(
   logger: { warn: (msg: string) => void; info: (msg: string) => void },
 ): Promise<void> {
   if (!redisUrl) {
-    logger.warn("[presence] redis_url not set — presence disabled (best-effort, system valid without it)");
+    logger.warn("redis_url not set — presence disabled (best-effort, system valid without it)");
     return;
   }
   try {
     const redis = await createRedisClient(redisUrl);
     presencePort = new RedisPresencePort(redis);
-    logger.info("[presence] Redis presence store connected");
+    logger.info("Redis presence store connected");
   } catch (err) {
-    logger.warn(`[presence] Redis connection failed — presence disabled: ${err}`);
+    logger.warn(`Redis connection failed — presence disabled: ${err}`);
     // presencePort stays null — all presence calls are no-ops
   }
 }

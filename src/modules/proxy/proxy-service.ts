@@ -138,7 +138,7 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
       } catch {
         // Body is not JSON — log as-is
       }
-      console.error(`[proxy] ${req.method} ${targetUrl} → ${response.status}`, {
+      console.error(`${req.method} ${targetUrl} → ${response.status}`, {
         service_code: serviceCode,
         method: req.method,
         path: req.url,
@@ -162,7 +162,7 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
     res.send(body);
   } catch (err) {
     // Network error — US is unreachable
-    console.error(`[proxy] Failed to reach ${targetUrl}:`, {
+    console.error(`Failed to reach ${targetUrl}:`, {
       message: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack : undefined,
       service_code: serviceCode,
@@ -312,7 +312,7 @@ export async function proxyRequestSse(req: Request, res: Response): Promise<void
       } catch {
         // Body is not JSON — log as-is
       }
-      console.error(`[proxy-sse] ${req.method} ${targetUrl} → ${response.status}`, {
+      console.error(`${req.method} ${targetUrl} → ${response.status}`, {
         service_code: serviceCode,
         method: req.method,
         path: req.url,
@@ -353,7 +353,7 @@ export async function proxyRequestSse(req: Request, res: Response): Promise<void
       // Client disconnected — not an error, just stop.
       return;
     }
-    console.error(`[proxy-sse] Failed to reach ${targetUrl}:`, {
+    console.error(`Failed to reach ${targetUrl}:`, {
       message: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack : undefined,
       service_code: serviceCode,

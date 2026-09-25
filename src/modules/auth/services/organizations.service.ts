@@ -165,7 +165,7 @@ export class OrganizationsService {
           await cdClient.setApplicationWebAuthn(casdoorApp, casdoorAppOwner, true);
         }
       } catch (webauthnErr) {
-        console.error("[organizations] Failed to auto-enable WebAuthn on Casdoor app:", webauthnErr);
+        console.error("Failed to auto-enable WebAuthn on Casdoor app:", webauthnErr);
       }
     }
 
@@ -231,7 +231,7 @@ export class OrganizationsService {
         const casdoorAppOwner = "admin";
         await cdClient.setApplicationWebAuthn(casdoorApp, casdoorAppOwner, cfg.enable_webauthn);
       } catch (webauthnErr) {
-        console.error("[organizations] Failed to sync WebAuthn flag on update:", webauthnErr);
+        console.error("Failed to sync WebAuthn flag on update:", webauthnErr);
       }
     }
 

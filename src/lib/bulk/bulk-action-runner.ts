@@ -97,7 +97,7 @@ export async function runBulkAction(input: BulkActionInput): Promise<BulkOutcome
       ok.push(item.uuid);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      console.error(`[bulk-${kind} ${entityLabel}:${item.uuid}]`, e);
+      console.error(`bulk-${kind} ${entityLabel}:${item.uuid} failed`, e);
       const cls = classify(kind, e);
       if (cls === "business") {
         failed.push({ uuid: item.uuid, error: message });

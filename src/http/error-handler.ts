@@ -48,7 +48,7 @@ function dalErrorStatus(err: unknown): number | null {
 
 export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   // Log all errors to console with full details including stack trace
-  console.error("[Backend Error]", {
+  console.error("Backend Error", {
     message: err.message,
     stack: err.stack,
     name: err.name,

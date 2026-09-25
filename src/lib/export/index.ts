@@ -647,7 +647,7 @@ export async function exportDataWithTemplateToStream(
         };
       }) : [];
 
-    console.log('[Export] Table columns:', tableColumns.map(c => c.name));
+    console.log('Table columns:', tableColumns.map(c => c.name));
 
     // Stream data and insert rows into worksheet
     let rowCount = dataStartRow; // Start from data row (header is at dataStartRow - 1)
@@ -687,7 +687,7 @@ export async function exportDataWithTemplateToStream(
         rowData[index] = value !== undefined && value !== null ? value : '';
       });
 
-      console.log('[Export] Row data:', rowData);
+      console.log('Row data:', rowData);
       
       let newRow;
       if (firstRecord) {
@@ -735,7 +735,7 @@ export async function exportDataWithTemplateToStream(
       const endColumnLetter = columnNumberToLetter(maxColNumber);
       const headerRow = dataStartRow - 1;
       const tableRef = `A${headerRow}:${endColumnLetter}${actualLastRow}`;
-      console.log('[Export] Creating table with ref:', tableRef);
+      console.log('Creating table with ref:', tableRef);
       
       // Create fake rows array to force ExcelJS to calculate correct table height
       const fakeRows = Array.from({ length: actualLastRow - headerRow }, () => []);

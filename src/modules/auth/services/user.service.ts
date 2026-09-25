@@ -384,7 +384,7 @@ export class UserService {
           },
         });
       } catch (emailErr) {
-        console.error("[UserService] Failed to send password_changed email:", emailErr);
+        console.error("Failed to send password_changed email:", emailErr);
       }
     }
 
@@ -469,7 +469,7 @@ export class UserService {
           },
         });
       } catch (emailErr) {
-        console.error("[UserService] Failed to send password_changed email:", emailErr);
+        console.error("Failed to send password_changed email:", emailErr);
       }
     }
 

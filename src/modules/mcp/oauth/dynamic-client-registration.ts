@@ -136,7 +136,7 @@ export function dcrRouter(): Router {
 
       sendJson(res, 201, toRegistrationResponse(client));
     } catch (err) {
-      console.error("[MCP OAuth DCR] Registration error:", err);
+      console.error("Registration error:", err);
       sendJson(res, 500, {
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Registration failed",
@@ -157,7 +157,7 @@ export function dcrRouter(): Router {
       }
       res.status(204).send();
     } catch (err) {
-      console.error("[MCP OAuth DCR] Delete error:", err);
+      console.error("Delete error:", err);
       sendJson(res, 500, {
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Delete failed",
@@ -167,7 +167,7 @@ export function dcrRouter(): Router {
 
   // Router-level error handler — catches any unhandled errors
   router.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("[MCP OAuth DCR] Unhandled error:", err);
+    console.error("Unhandled error:", err);
     sendJson(res, 500, { error: "server_error", error_description: err.message });
   });
 

@@ -431,7 +431,7 @@ export class RoleMappingRepo {
       try {
         await port.del(ROLE_MAPPINGS_CACHE_KEY);
       } catch (e) {
-        console.warn(`[cache] role_mappings invalidate failed: ${e}`);
+        console.warn(`role_mappings invalidate failed: ${e}`);
       }
     }
   }

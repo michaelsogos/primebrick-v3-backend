@@ -58,7 +58,7 @@ export async function resolveInternalUuid(
       const cached = await port.get<string>(idpCodeCacheKey(input.idp_code));
       if (cached) return cached;
     } catch (e) {
-      console.warn(`[cache] user_profiles get failed: ${e}`);
+      console.warn(`user_profiles get failed: ${e}`);
     }
   }
 
@@ -104,7 +104,7 @@ export async function resolveInternalUuid(
       try {
         await port.set(idpCodeCacheKey(input.idp_code), row.uuid, USER_PROFILE_CACHE_TTL_MS);
       } catch (e) {
-        console.warn(`[cache] user_profiles set failed: ${e}`);
+        console.warn(`user_profiles set failed: ${e}`);
       }
     }
     return row.uuid;
@@ -136,7 +136,7 @@ export async function resolveInternalUuid(
     try {
       await port.set(idpCodeCacheKey(input.idp_code), uuid, USER_PROFILE_CACHE_TTL_MS);
     } catch (e) {
-      console.warn(`[cache] user_profiles set failed: ${e}`);
+      console.warn(`user_profiles set failed: ${e}`);
     }
   }
   return uuid;

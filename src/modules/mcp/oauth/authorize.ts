@@ -176,7 +176,7 @@ export function authorizeRouter(): Router {
       // Redirect to Casdoor's authorize endpoint
       res.redirect(302, `${casdoorAuthorizeUrl}?${casdoorParams.toString()}`);
     } catch (err) {
-      console.error("[MCP OAuth Authorize] Error:", err);
+      console.error("Error:", err);
       sendJson(res, 500, {
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Authorization failed",
@@ -245,7 +245,7 @@ export function authorizeRouter(): Router {
 
       res.redirect(302, `${state.client_redirect_uri}?${clientParams.toString()}`);
     } catch (err) {
-      console.error("[MCP OAuth Callback] Error:", err);
+      console.error("Error:", err);
       sendJson(res, 500, {
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Callback failed",
@@ -255,7 +255,7 @@ export function authorizeRouter(): Router {
 
   // Router-level error handler
   router.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("[MCP OAuth Authorize] Unhandled error:", err);
+    console.error("Unhandled error:", err);
     sendJson(res, 500, { error: "server_error", error_description: err.message });
   });
 

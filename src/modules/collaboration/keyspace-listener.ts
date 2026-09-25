@@ -95,7 +95,7 @@ export async function startKeyspaceListener(
     }
   });
 
-  logger.info(`[presence] keyspace listener started on channel ${channel}`);
+  logger.info(`keyspace listener started on channel ${channel}`);
 
   return async () => {
     try {

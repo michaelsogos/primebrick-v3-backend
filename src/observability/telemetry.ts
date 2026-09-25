@@ -109,7 +109,7 @@ export async function initBackendTelemetry(name: string, version: string): Promi
   try {
     cached = await readTelemetryFromDb();
   } catch (err) {
-    logger.warn("[telemetry] failed to read config_entries — telemetry disabled", {
+    logger.warn("failed to read config_entries — telemetry disabled", {
       error: err instanceof Error ? err.message : String(err),
     });
     cached = { enabled: false };
@@ -128,7 +128,7 @@ export async function applyTelemetryConfigFromDb(): Promise<void> {
   try {
     cached = await readTelemetryFromDb();
   } catch (err) {
-    logger.error("[telemetry] failed to reload config — keeping previous telemetry config", {
+    logger.error("failed to reload config — keeping previous telemetry config", {
       error: err instanceof Error ? err.message : String(err),
     });
     return;
@@ -138,7 +138,7 @@ export async function applyTelemetryConfigFromDb(): Promise<void> {
   try {
     await NatsClient.publish(CONFIG_CHANGED_SUBJECT, { keys: [...TELEMETRY_KEYS] });
   } catch (err) {
-    logger.warn("[telemetry] config.changed broadcast failed (NATS down?)", {
+    logger.warn("config.changed broadcast failed (NATS down?)", {
       error: err instanceof Error ? err.message : String(err),
     });
   }

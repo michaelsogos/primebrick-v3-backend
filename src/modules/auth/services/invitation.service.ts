@@ -623,7 +623,7 @@ export class InvitationService {
     // Get admin email
     const adminEmail = await this.getAdminContactEmail();
     if (!adminEmail) {
-      console.warn("[auth] No admin contact email configured — cannot send alert");
+      console.warn("No admin contact email configured — cannot send alert");
       return;
     }
 

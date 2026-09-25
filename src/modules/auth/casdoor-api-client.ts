@@ -123,9 +123,9 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] getUser failed: ${response.status} ${text}`);
+      console.error(`getUser failed: ${response.status} ${text}`);
       if (response.status === 404) {
-        console.error(`[CasdoorApi] getUser: User not found (404): ${queryId}`);
+        console.error(`getUser: User not found (404): ${queryId}`);
         return null;
       }
       return null;
@@ -203,7 +203,7 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] updateUser failed: ${response.status} ${text}`);
+      console.error(`updateUser failed: ${response.status} ${text}`);
       return false;
     }
 
@@ -232,7 +232,7 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] changePassword failed: ${response.status} ${text}`);
+      console.error(`changePassword failed: ${response.status} ${text}`);
       return { status: "error", msg: text };
     }
 
@@ -257,13 +257,13 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] addUser failed: ${response.status} ${text}`);
+      console.error(`addUser failed: ${response.status} ${text}`);
       return null;
     }
 
     const data = await response.json();
     if (data.status !== "ok" && data.success !== true) {
-      console.error(`[CasdoorApi] addUser returned error:`, data);
+      console.error(`addUser returned error:`, data);
       return null;
     }
 
@@ -298,7 +298,7 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] deleteUser failed: ${response.status} ${text}`);
+      console.error(`deleteUser failed: ${response.status} ${text}`);
       return false;
     }
 
@@ -318,9 +318,9 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] getOrganization failed: ${response.status} ${text}`);
+      console.error(`getOrganization failed: ${response.status} ${text}`);
       if (response.status === 404) {
-        console.error(`[CasdoorApi] getOrganization: Organization not found (404): ${name}`);
+        console.error(`getOrganization: Organization not found (404): ${name}`);
         return null;
       }
       return null;
@@ -361,7 +361,7 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] updateOrganization failed: ${response.status} ${text}`);
+      console.error(`updateOrganization failed: ${response.status} ${text}`);
       return false;
     }
 
@@ -386,13 +386,13 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] addOrganization failed: ${response.status} ${text}`);
+      console.error(`addOrganization failed: ${response.status} ${text}`);
       return null;
     }
 
     const data = await response.json();
     if (data.status !== "ok" && data.success !== true) {
-      console.error(`[CasdoorApi] addOrganization returned error:`, data);
+      console.error(`addOrganization returned error:`, data);
       return null;
     }
 
@@ -418,7 +418,7 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] deleteOrganization failed: ${response.status} ${text}`);
+      console.error(`deleteOrganization failed: ${response.status} ${text}`);
       return false;
     }
 
@@ -452,7 +452,7 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] checkUserPassword failed: ${response.status} ${text}`);
+      console.error(`checkUserPassword failed: ${response.status} ${text}`);
       return { status: "error", msg: `HTTP ${response.status}` };
     }
 
@@ -475,7 +475,7 @@ export class CasdoorApiClient {
     });
 
     if (!response.ok) {
-      console.error(`[CasdoorApi] getApplication failed: ${response.status}`);
+      console.error(`getApplication failed: ${response.status}`);
       return null;
     }
 
@@ -504,7 +504,7 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] updateApplication failed: ${response.status} ${text}`);
+      console.error(`updateApplication failed: ${response.status} ${text}`);
       return false;
     }
 
@@ -529,13 +529,13 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] addApplication failed: ${response.status} ${text}`);
+      console.error(`addApplication failed: ${response.status} ${text}`);
       return null;
     }
 
     const data = (await response.json()) as { status?: string; data?: Record<string, unknown> };
     if (data.status !== "ok" && data.status !== "success") {
-      console.error(`[CasdoorApi] addApplication returned error:`, data);
+      console.error(`addApplication returned error:`, data);
       return null;
     }
     return data.data ?? application;
@@ -549,7 +549,7 @@ export class CasdoorApiClient {
   async setApplicationWebAuthn(appName: string, appOwner: string, enabled: boolean): Promise<boolean> {
     const app = await this.getApplication(appName, appOwner);
     if (!app) {
-      console.warn(`[CasdoorApi] setApplicationWebAuthn: application ${appOwner}/${appName} not found`);
+      console.warn(`setApplicationWebAuthn: application ${appOwner}/${appName} not found`);
       return false;
     }
 
@@ -584,9 +584,9 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] getRole failed: ${response.status} ${text}`);
+      console.error(`getRole failed: ${response.status} ${text}`);
       if (response.status === 404) {
-        console.error(`[CasdoorApi] getRole: Role not found (404): ${roleId}`);
+        console.error(`getRole: Role not found (404): ${roleId}`);
         return null;
       }
       return null;
@@ -624,13 +624,13 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] addRole failed: ${response.status} ${text}`);
+      console.error(`addRole failed: ${response.status} ${text}`);
       return null;
     }
 
     const data = await response.json();
     if (data.status !== "ok" && data.success !== true) {
-      console.error(`[CasdoorApi] addRole returned error:`, data);
+      console.error(`addRole returned error:`, data);
       return null;
     }
     return (data.data || data) as CasdoorRole;
@@ -662,7 +662,7 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] updateRole failed: ${response.status} ${text}`);
+      console.error(`updateRole failed: ${response.status} ${text}`);
       return false;
     }
 
@@ -687,7 +687,7 @@ export class CasdoorApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] deleteRole failed: ${response.status} ${text}`);
+      console.error(`deleteRole failed: ${response.status} ${text}`);
       return false;
     }
 
@@ -725,17 +725,17 @@ export class CasdoorApiClient {
     const form = new URLSearchParams();
     form.append("mfaType", mfaType);
 
-    console.log(`[CasdoorApi] mfaSetupInitiate: owner=${owner}, name=${name}`);
+    console.log(`mfaSetupInitiate: owner=${owner}, name=${name}`);
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form.toString(),
     });
-    console.log(`[CasdoorApi] mfaSetupInitiate response: ${response.status} ${response.statusText}`);
+    console.log(`mfaSetupInitiate response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] mfaSetupInitiate failed: ${response.status} ${text}`);
+      console.error(`mfaSetupInitiate failed: ${response.status} ${text}`);
       throw new Error(`Casdoor mfaSetupInitiate failed: ${response.status} ${text}`);
     }
 
@@ -771,17 +771,17 @@ export class CasdoorApiClient {
     form.append("secret", secret);
     form.append("passcode", passcode);
 
-    console.log(`[CasdoorApi] mfaSetupVerify: mfaType=${mfaType}`);
+    console.log(`mfaSetupVerify: mfaType=${mfaType}`);
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form.toString(),
     });
-    console.log(`[CasdoorApi] mfaSetupVerify response: ${response.status} ${response.statusText}`);
+    console.log(`mfaSetupVerify response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] mfaSetupVerify failed: ${response.status} ${text}`);
+      console.error(`mfaSetupVerify failed: ${response.status} ${text}`);
       return false;
     }
 
@@ -812,17 +812,17 @@ export class CasdoorApiClient {
     form.append("passcode", passcode);
     form.append("recoveryCodes", recoveryCode);
 
-    console.log(`[CasdoorApi] mfaSetupEnable: owner=${owner}, name=${name}`);
+    console.log(`mfaSetupEnable: owner=${owner}, name=${name}`);
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form.toString(),
     });
-    console.log(`[CasdoorApi] mfaSetupEnable response: ${response.status} ${response.statusText}`);
+    console.log(`mfaSetupEnable response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] mfaSetupEnable failed: ${response.status} ${text}`);
+      console.error(`mfaSetupEnable failed: ${response.status} ${text}`);
       return false;
     }
 
@@ -845,17 +845,17 @@ export class CasdoorApiClient {
     const form = new URLSearchParams();
     form.append("mfaType", mfaType);
 
-    console.log(`[CasdoorApi] setPreferredMfa: owner=${owner}, name=${name}, mfaType=${mfaType}`);
+    console.log(`setPreferredMfa: owner=${owner}, name=${name}, mfaType=${mfaType}`);
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form.toString(),
     });
-    console.log(`[CasdoorApi] setPreferredMfa response: ${response.status} ${response.statusText}`);
+    console.log(`setPreferredMfa response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] setPreferredMfa failed: ${response.status} ${text}`);
+      console.error(`setPreferredMfa failed: ${response.status} ${text}`);
       return false;
     }
 
@@ -878,17 +878,17 @@ export class CasdoorApiClient {
     const form = new URLSearchParams();
     form.append("mfaType", mfaType);
 
-    console.log(`[CasdoorApi] deleteMfa: owner=${owner}, name=${name}, mfaType=${mfaType}`);
+    console.log(`deleteMfa: owner=${owner}, name=${name}, mfaType=${mfaType}`);
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form.toString(),
     });
-    console.log(`[CasdoorApi] deleteMfa response: ${response.status} ${response.statusText}`);
+    console.log(`deleteMfa response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CasdoorApi] deleteMfa failed: ${response.status} ${text}`);
+      console.error(`deleteMfa failed: ${response.status} ${text}`);
       return false;
     }
 

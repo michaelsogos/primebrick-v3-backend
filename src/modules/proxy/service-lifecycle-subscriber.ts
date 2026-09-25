@@ -51,7 +51,7 @@ export class ServiceLifecycleSubscriber {
       SERVICE_SUBJECTS.STALE,
       (payload) => this.handleStale(payload),
     );
-    console.log("[service-lifecycle] Subscribed to service.register, service.heartbeat, service.unregister, service.stale");
+    console.log("Subscribed to service.register, service.heartbeat, service.unregister, service.stale");
 
     // Discover entities for services that are already online at startup.
     // This handles the case where the BE restarts while microservices are running.
@@ -73,7 +73,7 @@ export class ServiceLifecycleSubscriber {
         }
       }
     } catch (err) {
-      console.warn("[mcp-discovery] Failed to discover existing services:", err instanceof Error ? err.message : String(err));
+      console.warn("Failed to discover existing services:", err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -130,7 +130,7 @@ export class ServiceLifecycleSubscriber {
           status,
           last_health_check_at: now,
         });
-        console.log(`[service] ${code} registered (scaler mode) at ${base_url}`);
+        console.log(`${code} registered (scaler mode) at ${base_url}`);
         const inserted = await this.repo.findByCode(code);
         if (inserted) this.emitServiceEvent("service.register", inserted);
       }
@@ -170,7 +170,7 @@ export class ServiceLifecycleSubscriber {
           status,
           last_health_check_at: now,
         });
-        console.log(`[service] ${code} registered (direct mode) at ${base_url}`);
+        console.log(`${code} registered (direct mode) at ${base_url}`);
         const inserted = await this.repo.findByCodeAndBaseUrl(code, base_url);
         if (inserted) this.emitServiceEvent("service.register", inserted);
       }
@@ -224,7 +224,7 @@ export class ServiceLifecycleSubscriber {
     if (this.registeredServices.has(code)) {
       entityRegistry.unregisterModule(code);
       this.registeredServices.delete(code);
-      console.log(`[mcp-discovery] Unregistered entities for service ${code}`);
+      console.log(`Unregistered entities for service ${code}`);
     }
 
     if (is_behind_scaler) {
@@ -238,7 +238,7 @@ export class ServiceLifecycleSubscriber {
         last_health_check_at: now,
       });
     }
-    console.log(`[service] ${code} at ${base_url} unregistered → offline`);
+    console.log(`${code} at ${base_url} unregistered → offline`);
     this.emitServiceEvent("service.unregister", {
       code,
       base_url,
@@ -276,7 +276,7 @@ export class ServiceLifecycleSubscriber {
 
   private logStatusChange(code: string, baseUrl: string, oldStatus: string, newStatus: string): void {
     if (oldStatus !== newStatus) {
-      console.log(`[health] ${code} ${baseUrl} changed: ${oldStatus} → ${newStatus}`);
+      console.log(`${code} ${baseUrl} changed: ${oldStatus} → ${newStatus}`);
     }
   }
 
@@ -306,9 +306,9 @@ export class ServiceLifecycleSubscriber {
       }
 
       this.registeredServices.add(code);
-      console.log(`[mcp-discovery] Registered ${entities.length} entities for service ${code}: ${entities.map((e) => e.entity).join(", ")}`);
+      console.log(`Registered ${entities.length} entities for service ${code}: ${entities.map((e) => e.entity).join(", ")}`);
     } catch (err) {
-      console.warn(`[mcp-discovery] Failed to register entities for service ${code}:`, err instanceof Error ? err.message : String(err));
+      console.warn(`Failed to register entities for service ${code}:`, err instanceof Error ? err.message : String(err));
     }
   }
 }

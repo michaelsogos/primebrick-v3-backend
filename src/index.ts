@@ -91,7 +91,7 @@ async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
         clientSecret = dbConfig.idp_client_secret || clientSecret;
         orgName = dbConfig.idp_organization || orgName;
       } catch (error) {
-        console.warn("[IDP Health Check] Could not load configuration from database, using fallback:", error);
+        console.warn("Could not load configuration from database, using fallback:", error);
       }
     }
 
@@ -108,7 +108,7 @@ async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
     });
 
     if (!versionResponse.ok) {
-      console.error(`[IDP Health Check] Version endpoint returned non-OK status: ${versionResponse.status}`);
+      console.error(`Version endpoint returned non-OK status: ${versionResponse.status}`);
       return { ok: false };
     }
 
@@ -119,7 +119,7 @@ async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
       version: versionData.data?.version || "unknown",
     };
   } catch (e) {
-    console.error(`[IDP Health Check] Error:`, (e as Error).message);
+    console.error(`Error:`, (e as Error).message);
     return { ok: false };
   }
 }
@@ -291,7 +291,7 @@ app.use(errorHandler);
 // hit it. It only fires on zombie connections (no data for 5 min), allowing the
 // server to reclaim resources. Never set to 0 (zombie accumulation).
 const server = app.listen(port, () => {
-  logServiceStartup("primebrick-api", BACKEND_VERSION, `http://localhost:${port}`);
+  logServiceStartup(`http://localhost:${port}`);
 });
 server.timeout = 300_000;
 
@@ -300,7 +300,7 @@ server.timeout = 300_000;
 // (503 from DB-unavailable errors, or 403 from empty role cache) until
 // the role mappings are successfully loaded.
 void runStartupTasks().catch((err) => {
-  console.error("[startup] background task failed:", err);
+  console.error("background task failed:", err);
 });
 
 async function runStartupTasks(): Promise<void> {
@@ -315,7 +315,7 @@ async function runStartupTasks(): Promise<void> {
   if (ports) {
     initMcpModule(ports);
   } else {
-    console.warn("[startup] MCP module not initialized — auth ports unavailable");
+    console.warn("MCP module not initialized — auth ports unavailable");
   }
   await startServiceLifecycle();
 }
@@ -333,7 +333,7 @@ async function initCacheFromConfig(): Promise<void> {
     await initCache(cfg.redis_url, console);
   } catch (err) {
     console.warn(
-      "[startup] initCache failed (Redis unavailable?). Retrying in 5s.",
+      "initCache failed (Redis unavailable?). Retrying in 5s.",
       err
     );
     setTimeout(() => void initCacheFromConfig().catch(() => {}), 5000);
@@ -355,12 +355,12 @@ async function initPresenceStoreFromConfig(): Promise<void> {
       try {
         stopKeyspaceListener = await startKeyspaceListener(cfg.redis_url, console);
       } catch (err) {
-        console.warn("[startup] keyspace listener failed (best-effort):", err);
+        console.warn("keyspace listener failed (best-effort):", err);
       }
     }
   } catch (err) {
     console.warn(
-      "[startup] initPresenceStore failed (Redis unavailable?). Retrying in 5s.",
+      "initPresenceStore failed (Redis unavailable?). Retrying in 5s.",
       err
     );
     setTimeout(() => void initPresenceStoreFromConfig().catch(() => {}), 5000);
@@ -372,7 +372,7 @@ async function refreshRoleMappings(): Promise<void> {
     await loadRoleMappings();
   } catch (err) {
     console.warn(
-      "[startup] loadRoleMappings failed (database unavailable?). Retrying in 5s.",
+      "loadRoleMappings failed (database unavailable?). Retrying in 5s.",
       err
     );
     setTimeout(() => void refreshRoleMappings().catch(() => {}), 5000);
@@ -396,7 +396,7 @@ async function refreshAuthConfig(): Promise<void> {
     }
   } catch (err) {
     console.warn(
-      "[startup] loadAuthConfig failed (database unavailable?). Retrying in 5s.",
+      "loadAuthConfig failed (database unavailable?). Retrying in 5s.",
       err
     );
     setTimeout(() => void refreshAuthConfig().catch(() => {}), 5000);
@@ -419,7 +419,7 @@ async function startServiceLifecycle(): Promise<void> {
     staleJob.start();
   } catch (err) {
     console.warn(
-      "[startup] NATS connection failed (service lifecycle subscriber not started). Retrying in 5s.",
+      "NATS connection failed (service lifecycle subscriber not started). Retrying in 5s.",
       err
     );
     setTimeout(() => void startServiceLifecycle().catch(() => {}), 5000);
@@ -445,30 +445,30 @@ async function gracefulShutdown(): Promise<void> {
   try {
     await closeCache();
   } catch (err) {
-    console.warn("[shutdown] closeCache failed:", err);
+    console.warn("closeCache failed:", err);
   }
   try {
     await closePresenceStore();
   } catch (err) {
-    console.warn("[shutdown] closePresenceStore failed:", err);
+    console.warn("closePresenceStore failed:", err);
   }
   try {
     collaborationBusRegistry.closeAll();
   } catch (err) {
-    console.warn("[shutdown] collaborationBusRegistry.closeAll failed:", err);
+    console.warn("collaborationBusRegistry.closeAll failed:", err);
   }
   if (stopKeyspaceListener) {
     try {
       await stopKeyspaceListener();
     } catch (err) {
-      console.warn("[shutdown] keyspace listener stop failed:", err);
+      console.warn("keyspace listener stop failed:", err);
     }
     stopKeyspaceListener = null;
   }
   try {
     await shutdownTelemetry();
   } catch (err) {
-    console.warn("[shutdown] shutdownTelemetry failed:", err);
+    console.warn("shutdownTelemetry failed:", err);
   }
   flushLogsSync();
 }

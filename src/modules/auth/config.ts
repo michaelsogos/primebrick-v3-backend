@@ -53,7 +53,7 @@ export async function loadAuthConfig(pool: Pool): Promise<AuthConfig> {
     try {
       await port.set(AUTH_CONFIG_CACHE_KEY, config, AUTH_CONFIG_TTL_MS);
     } catch (e) {
-      console.warn(`[cache] auth_config set failed: ${e}`);
+      console.warn(`auth_config set failed: ${e}`);
     }
   }
   return config;
@@ -68,7 +68,7 @@ export function invalidateAuthConfig(): void {
   const port = getCachePort();
   if (port) {
     port.del(AUTH_CONFIG_CACHE_KEY).catch((e) =>
-      console.warn(`[cache] auth_config invalidate failed: ${e}`)
+      console.warn(`auth_config invalidate failed: ${e}`)
     );
   }
 }

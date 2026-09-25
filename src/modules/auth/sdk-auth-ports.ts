@@ -108,7 +108,7 @@ export class BeRoleMappingPort implements RoleMappingPort {
           return new Map(cached.map(({ role, entry }) => [role, entry]));
         }
       } catch (e) {
-        console.warn(`[cache] role_mappings get failed: ${e}`);
+        console.warn(`role_mappings get failed: ${e}`);
       }
     }
     // Cache miss or disabled — load from DB
@@ -118,7 +118,7 @@ export class BeRoleMappingPort implements RoleMappingPort {
         const serialized = [...raw.entries()].map(([role, entry]) => ({ role, entry }));
         await port.set(ROLE_MAPPINGS_CACHE_KEY, serialized, ROLE_MAPPINGS_TTL_MS);
       } catch (e) {
-        console.warn(`[cache] role_mappings set failed: ${e}`);
+        console.warn(`role_mappings set failed: ${e}`);
       }
     }
     return raw;
@@ -143,7 +143,7 @@ export class BeApiKeyPort implements ApiKeyPort {
         const cached = await port.get<ApiKeyRecord>(cacheKey);
         if (cached) return cached;
       } catch (e) {
-        console.warn(`[cache] api_keys get failed: ${e}`);
+        console.warn(`api_keys get failed: ${e}`);
       }
     }
     const result = await this.pool.query(
@@ -166,7 +166,7 @@ export class BeApiKeyPort implements ApiKeyPort {
       try {
         await port.set(cacheKey, record, API_KEY_CACHE_TTL_MS);
       } catch (e) {
-        console.warn(`[cache] api_keys set failed: ${e}`);
+        console.warn(`api_keys set failed: ${e}`);
       }
     }
     return record;

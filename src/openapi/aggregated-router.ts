@@ -39,7 +39,7 @@ export function aggregatedOpenApiRouter() {
       const repo = new ServiceRegistryRepo(pool);
       services = await repo.findAll();
     } catch (err) {
-      console.error("[openapi-aggregated] Failed to fetch service registry:", err);
+      console.error("Failed to fetch service registry:", err);
       // Return BE-only spec if registry is unavailable
       aggregated.info = {
         ...aggregated.info,
@@ -58,7 +58,7 @@ export function aggregatedOpenApiRouter() {
         const specUrl = new URL("/api/v1/openapi.json", svc.base_url).toString();
         const response = await fetch(specUrl, { signal: AbortSignal.timeout(5000) });
         if (!response.ok) {
-          console.error(`[openapi-aggregated] ${svc.code} returned ${response.status}`);
+          console.error(`${svc.code} returned ${response.status}`);
           continue;
         }
 
@@ -100,7 +100,7 @@ export function aggregatedOpenApiRouter() {
           }
         }
       } catch (err) {
-        console.error(`[openapi-aggregated] Failed to fetch spec for ${svc.code}:`, err);
+        console.error(`Failed to fetch spec for ${svc.code}:`, err);
         // Skip unavailable services — partial spec is valid
       }
     }

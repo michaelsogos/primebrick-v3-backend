@@ -30,7 +30,7 @@ export class StaleDetectionJob {
   start(): void {
     if (this.timer) return;
     this.timer = setInterval(() => void this.run(), POLL_INTERVAL_MS);
-    console.log(`[stale-detection] Started — checking every ${POLL_INTERVAL_MS / 1000}s, stale threshold ${STALE_THRESHOLD_MS / 1000}s`);
+    console.log(`Started — checking every ${POLL_INTERVAL_MS / 1000}s, stale threshold ${STALE_THRESHOLD_MS / 1000}s`);
   }
 
   stop(): void {
@@ -56,7 +56,7 @@ export class StaleDetectionJob {
     // If ALL services are stale → NATS outage suspected
     if (stale.length === services.length) {
       console.error(
-        `[CRITICAL] All ${services.length} registered services are stale — last heartbeat received >${STALE_THRESHOLD_MS / 1000}s ago. NATS outage suspected. Service routing will return 503 for degraded services.`,
+        `All ${services.length} registered services are stale — last heartbeat received >${STALE_THRESHOLD_MS / 1000}s ago. NATS outage suspected. Service routing will return 503 for degraded services.`,
       );
     }
 
@@ -70,7 +70,7 @@ export class StaleDetectionJob {
       } else {
         await this.repo.updateByCodeAndBaseUrl(s.code, s.base_url, { status: "going_live" });
       }
-      console.log(`[health] ${s.code} ${s.base_url} changed: ${oldStatus} → going_live (stale)`);
+      console.log(`${s.code} ${s.base_url} changed: ${oldStatus} → going_live (stale)`);
 
       // Publish service.stale on NATS so all BE instances (and their SSE clients)
       // learn about the stale service in real time.
@@ -86,7 +86,7 @@ export class StaleDetectionJob {
         await NatsClient.publish(SERVICE_SUBJECTS.STALE, stalePayload);
       } catch (err) {
         // NATS publish failure is non-critical — the DB is already updated.
-        console.warn(`[stale-detection] Failed to publish service.stale for ${s.code}:`, err);
+        console.warn(`Failed to publish service.stale for ${s.code}:`, err);
       }
     }
   }
