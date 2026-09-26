@@ -193,7 +193,7 @@ export class UserPasskeysDal {
     await this.repo.update(
       UserPasskeyEntity,
       {
-        id: existing.id,
+        credential_id: credentialId,
         last_used_at: when,
         // Required for optimistic locking — UserPasskeyEntity is auditable so
         // the DAL rejects updates without a `version` field (MissingVersionError,
@@ -205,7 +205,7 @@ export class UserPasskeysDal {
         // "multiple assignments to same column" (PG error 42601).
         version: existing.version,
       },
-      { actor, matchBy: "id" as any },
+      { actor, matchBy: "credential_id" as any },
     );
   }
 }

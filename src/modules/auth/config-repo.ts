@@ -164,16 +164,7 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
   } as AuthConfigDb;
 }
 
-/**
- * Update a configuration value in the database.
- * Uses the DAL's setByKey (explicit findByKey → add/update) — NO raw SQL.
- */
-export async function updateAuthConfig(
-  pool: Pool,
-  key: string,
-  value: string,
-  updatedBy: string = "system"
-): Promise<void> {
-  const dal = new ConfigEntriesDal(pool);
-  await dal.setByKey(key, value, updatedBy);
-}
+// REMOVED — semantic upsert coalesce is forbidden (see .devin/rules/no-coalesce-writes.md).
+// CREATE and UPDATE are separate API calls; the caller always knows which one
+// it needs. This helper had no callers. Do NOT reintroduce a setByKey-style
+// find-then-branch write helper.

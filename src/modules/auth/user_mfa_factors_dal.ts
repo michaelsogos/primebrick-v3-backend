@@ -116,18 +116,15 @@ export class UserMfaFactorsDal {
    */
   async update(uuid: string, data: Partial<Pick<UserMfaFactorEntity, "label" | "is_enabled" | "is_preferred" | "last_used_at" | "version">>): Promise<void> {
     const actor = requireActor();
-    let version = data.version;
-    if (version === undefined) {
-      const existing = await this.findByUuid(uuid);
-      if (!existing) return;
-      version = existing.version;
-    }
+    // Strict version contract: callers always carry the observed version
+    // (the factor is loaded earlier in the flow). A missing version lets
+    // Repository.update() throw MissingVersionError (ERR02) — we never
+    // manufacture one by re-reading the row.
     await this.repo.update(
       UserMfaFactorEntity,
       {
         uuid,
         ...data,
-        version,
       },
       { actor, matchBy: "uuid" },
     );

@@ -160,43 +160,11 @@ export class ConfigEntriesDal {
     await this.reloadCache();
   }
 
-  /**
-   * Set a config row by key — find-then-branch (add when absent, update when
-   * present). The `findByKey` read serves the branch decision itself, so its
-   * `existing.version` is a legitimate observation for the guarded update.
-   * Invalidates + reloads the in-memory auth config cache so the change
-   * is visible immediately to all hot-path readers (getAuthConfig()).
-   */
-  async setByKey(
-    key: string,
-    value: string,
-    updatedBy: string
-  ): Promise<void> {
-    const existing = await this.findByKey(key);
-    if (!existing) {
-      await this.repo.add(
-        ConfigEntryEntity,
-        {
-          key,
-          value,
-          created_by: updatedBy,
-          updated_by: updatedBy,
-        },
-        { actor: updatedBy }
-      );
-    } else {
-      await this.repo.update(
-        ConfigEntryEntity,
-        {
-          uuid: existing.uuid,
-          value,
-          version: existing.version,
-        },
-        { actor: updatedBy, matchBy: "uuid" as any }
-      );
-    }
-    await this.reloadCache();
-  }
+  // REMOVED setByKey — semantic upsert coalesce is forbidden
+  // (.devin/rules/no-coalesce-writes.md): CREATE and UPDATE are separate calls;
+  // the caller always knows which one it needs. Had a single dead caller
+  // (updateAuthConfig, also removed). Do NOT reintroduce find-then-branch
+  // write helpers — use add() or update() explicitly.
 
   /**
    * Update a config row by uuid.
