@@ -306,6 +306,7 @@ export class ConfigEntriesDal {
   async bulkUpdate(
     updates: Array<{
       id: bigint;
+      version: number | bigint;
       value?: string;
       type?: string;
       type_config?: string | null;
@@ -329,7 +330,9 @@ export class ConfigEntriesDal {
     await this.repo.updateMany(
       ConfigEntryEntity,
       updates.map((u) => {
-        const entity: Record<string, unknown> = { id: u.id };
+        // `version` is the caller-observed value — the DAL uses it as the
+        // per-row optimistic-concurrency guard (never a SET column).
+        const entity: Record<string, unknown> = { id: u.id, version: Number(u.version) };
         if (u.value !== undefined) entity.value = u.value;
         if (u.type !== undefined) entity.type = u.type;
         if (u.type_config !== undefined) entity.type_config = u.type_config;
@@ -373,11 +376,30 @@ export class ConfigEntriesDal {
    * Invalidates + reloads the in-memory auth config cache.
    * Throws if any row is not found or is reserved.
    */
-  async bulkSoftDelete(items: Array<{ uuid: string; version: number }>, deletedBy: string): Promise<void> {
-    // Per-item caller-observed versions — no re-read for the version. The
-    // findByUuid reads exist ONLY for the reserved-row business rule.
+  async bulkSoftDelete(items: Array<{ uuid: string; version: number }>, deletedBy: string): Promise<{ received: number; affected: number }> {
+    // Reserved-row rule is a business rule of this entity — it stays in the
+    // BE wrapper, NOT in the generic DAL. One set-based read (no per-item
+    // loop): fetch all target rows once and reject the whole batch if any is
+    // reserved or missing. The write itself is the atomic DAL deleteMany —
+    // the per-row `version` is the caller-observed optimistic-concurrency
+    // guard (ERR01/ERR03 per row, single pg_raise, all-or-nothing).
+    const rows = (await this.repo.findAll<ConfigEntryEntity, ConfigEntryEntity>(
+      ConfigEntryEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(
+            field(ConfigEntryEntity, "uuid" as any),
+            "IN",
+            items.map((i) => i.uuid),
+          ),
+        ],
+        deletedRecords: "EXCLUDED",
+      },
+    )) as ConfigEntryEntity[];
+    const byUuid = new Map(rows.map((r: ConfigEntryEntity) => [r.uuid, r]));
     for (const item of items) {
-      const row = await this.findByUuid(item.uuid);
+      const row = byUuid.get(item.uuid);
       if (!row) {
         throw new Error(`Auth config row with uuid ${item.uuid} not found`);
       }
@@ -385,14 +407,13 @@ export class ConfigEntriesDal {
         throw new ReservedConfigError(row.key);
       }
     }
-    for (const item of items) {
-      await this.repo.delete(
-        ConfigEntryEntity,
-        { uuid: item.uuid, version: item.version },
-        { actor: deletedBy, matchBy: "uuid" as never }
-      );
-    }
+    const result = await this.repo.deleteMany(
+      ConfigEntryEntity,
+      items,
+      { actor: deletedBy, matchBy: "uuid" as never },
+    );
     await this.reloadCache();
+    return result;
   }
 
   /**

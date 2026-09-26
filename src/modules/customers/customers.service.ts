@@ -128,6 +128,14 @@ export class CustomersService {
     return await this.getDal().restoreCustomer(uuid, version);
   }
 
+  async bulkDeleteCustomers(items: Array<{ uuid: string; version: number }>) {
+    return await this.getDal().bulkDeleteCustomers(items);
+  }
+
+  async bulkRestoreCustomers(items: Array<{ uuid: string; version: number }>) {
+    return await this.getDal().bulkRestoreCustomers(items);
+  }
+
   // --- Duplicate (bulk) -----------------------------------------------------
 
   async duplicateCustomers(uuids: string[]) {

@@ -201,13 +201,13 @@ export class TranslationsDal {
    * `options.tx` — run inside an open transaction (PoolClient): the write is
    * appended to the tx and cache invalidation is deferred to the caller
    * (post-commit via `invalidateModuleCache`).
-   * `options.createIfAbsent` — forwarded to `Repository.add` (default true =
-   * strict insert; false = `ON CONFLICT DO NOTHING`, row skipped → returns undefined).
+   * `options.onConflict` — forwarded to `Repository.add` (default "raise";
+   * "ignore" = `ON CONFLICT DO NOTHING`, row skipped → returns undefined).
    */
   async create(
     moduleCode: string,
     data: TranslationCreateBody,
-    options?: { tx?: PoolClient; createIfAbsent?: boolean },
+    options?: { tx?: PoolClient; onConflict?: "raise" | "ignore" },
   ) {
     assertKeyModuleBoundary(moduleCode, data.key);
     const entity = this.resolveEntity(moduleCode);
@@ -215,7 +215,7 @@ export class TranslationsDal {
     const repo = options?.tx ? new Repository(options.tx) : this.repo;
     const row = await repo.add(entity, data, {
       actor,
-      createIfAbsent: options?.createIfAbsent,
+      onConflict: options?.onConflict,
     });
     if (!options?.tx) {
       await this.getCache(schemaOf(entity)).invalidate(data.language);

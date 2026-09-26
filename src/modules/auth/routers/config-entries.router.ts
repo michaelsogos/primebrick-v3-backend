@@ -246,7 +246,7 @@ export function configEntriesRouter() {
 
     // 4. Insert — single tx when translations are piggybacked: entity row +
     //    translation rows commit atomically (all-or-nothing). Translation
-    //    inserts are statement-level idempotent (createIfAbsent: false →
+    //    inserts are statement-level idempotent (onConflict: "ignore" →
     //    ON CONFLICT DO NOTHING): a duplicate (key, language) never aborts
     //    the tx — first-writer-wins on shared global keys.
     // Single tx when translations are piggybacked: entity row + translation
@@ -386,6 +386,7 @@ export function configEntriesRouter() {
     //    and enforce the reserved-row rule per item.
     const validUpdates: Array<{
       id: bigint;
+      version: number;
       value?: string;
       type?: string;
       type_config?: string | null;
@@ -402,14 +403,8 @@ export function configEntriesRouter() {
         );
       }
 
-      // Optimistic concurrency check — normalize: ext-JSON delivers ints as
-      // bigint while `existing.version` is a JS number.
-      if (Number(existing.version) !== Number(item.version)) {
-        throw new ValidationError(
-          `Version mismatch for config key "${existing.key}": expected ${item.version}, got ${existing.version}`,
-          { internal_code: "VERSION_MISMATCH" },
-        );
-      }
+      // Optimistic concurrency is enforced atomically by the DAL updateMany
+      // version guard (ERR01 with per-row detail) — no manual check here.
 
       // Reserved-row rule: type and type_config cannot be changed on reserved rows.
       if (existing.reserved) {
@@ -461,6 +456,7 @@ export function configEntriesRouter() {
         // Still allow type/type_config updates for non-reserved rows
         validUpdates.push({
           id: existing.id!,
+          version: Number(item.version),
           type: item.type,
           type_config: item.type_config,
         });
@@ -485,6 +481,7 @@ export function configEntriesRouter() {
 
       validUpdates.push({
         id: existing.id!,
+        version: Number(item.version),
         value: valueStr,
         type: item.type,
         type_config: item.type_config,
@@ -571,8 +568,9 @@ export function configEntriesRouter() {
     const body = req.body as z.infer<typeof BulkDeleteBodySchema>;
     const userUuid = requireUserUuid(req);
     const dal = makeDal();
+    let result: { received: number; affected: number };
     try {
-      await dal.bulkSoftDelete(
+      result = await dal.bulkSoftDelete(
         body.items.map((i) => ({ uuid: i.uuid, version: Number(i.version) })),
         userUuid
       );
@@ -601,7 +599,7 @@ export function configEntriesRouter() {
       }
       throw err;
     }
-    res.status(204).send();
+    res.status(200).json(result);
   });
 
   const restore: RequestHandler = asyncHandler(async (req, res) => {

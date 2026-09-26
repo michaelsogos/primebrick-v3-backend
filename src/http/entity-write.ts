@@ -99,7 +99,7 @@ export function assertTranslationsPermission(
 
 /**
  * Insert pending translation rows inside an open transaction.
- * Statement-level idempotent (createIfAbsent: false → ON CONFLICT DO
+ * Statement-level idempotent (onConflict: "ignore" → ON CONFLICT DO
  * NOTHING): a duplicate (key, language) is skipped, never fatal.
  * Key prefix == translation module code (app.*, system.*, custom.*).
  */
@@ -111,7 +111,7 @@ export async function persistPendingTranslations(
   for (const t of rows) {
     await translationsDal.create(t.key.split(".")[0], t, {
       tx,
-      createIfAbsent: false,
+      onConflict: "ignore",
     });
   }
 }

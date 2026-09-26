@@ -29,7 +29,8 @@ import { validateBody, validateQuery } from "../../http/validation.js";
 import { isDatabaseUnavailableError } from "../../http/api-errors.js";
 import { rbacHandler } from "../auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
-import { runBulkAction, sendBulkOutcome } from "../../lib/bulk/bulk-action-runner.js";
+// runBulkAction no longer used — bulk-delete/bulk-restore are atomic DAL
+// deleteMany/restoreMany now (see lib/bulk/bulk-action-runner.ts, commented).
 import {
   CustomerCreateBodySchema,
   CustomerUpdateBodySchema,
@@ -59,8 +60,11 @@ const CustomerUpdateWriteSchema = entityWriteBody(CustomerUpdateBodySchema);
 type CustomerCreateWrite = z.infer<typeof CustomerCreateWriteSchema>;
 type CustomerUpdateWrite = z.infer<typeof CustomerUpdateWriteSchema>;
 
-const BulkUuidsSchema = z.object({
-  uuids: z.array(z.string().uuid()).min(1).max(100),
+const BulkItemsSchema = z.object({
+  items: z
+    .array(z.object({ uuid: z.string().uuid(), version: z.number().int() }))
+    .min(1)
+    .max(100),
 });
 
 /** Inline UUID param validation middleware (preserves the original behavior). */
@@ -157,27 +161,17 @@ export function customersRouter() {
   });
 
   const bulkDelete: RequestHandler = asyncHandler(async (req, res) => {
-    const { items } = req.body as { items: Array<{ uuid: string; version?: number }> };
-    const outcome = await runBulkAction({
-      kind: "delete",
-      items,
-      instance: req.originalUrl,
-      entityLabel: "customer",
-      run: (item) => service.deleteCustomer(item.uuid, item.version!),
-    });
-    sendBulkOutcome(res, outcome);
+    const { items } = req.body as z.infer<typeof BulkItemsSchema>;
+    // Atomic DAL deleteMany — version guard per row; ERR01/02/03 + detail
+    // reach the FE via the centralized errorHandler.
+    const result = await service.bulkDeleteCustomers(items);
+    res.status(200).json(result);
   });
 
   const bulkRestore: RequestHandler = asyncHandler(async (req, res) => {
-    const { items } = req.body as { items: Array<{ uuid: string; version?: number }> };
-    const outcome = await runBulkAction({
-      kind: "restore",
-      items,
-      instance: req.originalUrl,
-      entityLabel: "customer",
-      run: (item) => service.restoreCustomer(item.uuid, item.version!),
-    });
-    sendBulkOutcome(res, outcome);
+    const { items } = req.body as z.infer<typeof BulkItemsSchema>;
+    const result = await service.bulkRestoreCustomers(items);
+    res.status(200).json(result);
   });
 
   const getAudit: RequestHandler = asyncHandler(async (req, res) => {
@@ -254,14 +248,14 @@ export function customersRouter() {
       method: "post",
       path: "/api/v1/entities/customer/bulk-delete",
       permission: rbacHandler([Permission.CUSTOMER_DELETE_BULK]),
-      middlewares: [validateBody(BulkUuidsSchema)],
+      middlewares: [validateBody(BulkItemsSchema)],
       handler: bulkDelete,
     },
     {
       method: "post",
       path: "/api/v1/entities/customer/bulk-restore",
       permission: rbacHandler([Permission.CUSTOMER_RESTORE_BULK]),
-      middlewares: [validateBody(BulkUuidsSchema)],
+      middlewares: [validateBody(BulkItemsSchema)],
       handler: bulkRestore,
     },
     {

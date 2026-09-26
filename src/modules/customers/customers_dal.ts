@@ -773,27 +773,40 @@ export class CustomersDal {
     return this.toDto(row);
   }
 
-  async restoreCustomers(items: Array<{ uuid: string; version: number }>): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {
-    const results: string[] = [];
-    const errors: Array<{ uuid: string; error: string }> = [];
+  // restoreCustomers — COMMENTED OUT: replaced by bulkRestoreCustomers (DAL
+  // restoreMany — atomic, temp-table, per-row version guard). The per-item
+  // loop persisted partial state, which the atomic contract supersedes.
+  // async restoreCustomers(items: Array<{ uuid: string; version: number }>): Promise<{ uuids: string[]; errors: Array<{ uuid: string; error: string }> }> {
+  //   const results: string[] = [];
+  //   const errors: Array<{ uuid: string; error: string }> = [];
+  //   for (const { uuid, version } of items) {
+  //     try {
+  //       await this.restoreCustomer(uuid, version);
+  //       results.push(uuid);
+  //     } catch (e) {
+  //       console.error('Customer Restore Error', { uuid, error: e });
+  //       errors.push({ uuid, error: e instanceof Error ? e.message : 'Unknown error' });
+  //     }
+  //   }
+  //   return { uuids: results, errors };
+  // }
 
-    for (const { uuid, version } of items) {
-      try {
-        await this.restoreCustomer(uuid, version);
-        results.push(uuid);
-      } catch (e) {
-        console.error('Customer Restore Error', {
-          uuid,
-          error: e,
-          stack: e instanceof Error ? e.stack : undefined,
-          message: e instanceof Error ? e.message : String(e)
-        });
-        const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-        errors.push({ uuid, error: errorMessage });
-      }
-    }
+  /** Bulk soft-delete — atomic DAL deleteMany with per-row version guard. */
+  async bulkDeleteCustomers(items: Array<{ uuid: string; version: number }>): Promise<{ received: number; affected: number }> {
+    return this.repo.deleteMany(
+      CustomerEntity,
+      items,
+      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any },
+    );
+  }
 
-    return { uuids: results, errors };
+  /** Bulk restore — atomic DAL restoreMany with per-row version guard. */
+  async bulkRestoreCustomers(items: Array<{ uuid: string; version: number }>): Promise<{ received: number; affected: number }> {
+    return this.repo.restoreMany(
+      CustomerEntity,
+      items,
+      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any },
+    );
   }
 
   async duplicateCustomer(uuid: string): Promise<{ uuid: string }> {
