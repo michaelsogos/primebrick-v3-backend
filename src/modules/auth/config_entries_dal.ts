@@ -273,7 +273,7 @@ export class ConfigEntriesDal {
    */
   async bulkUpdate(
     updates: Array<{
-      id: bigint;
+      uuid: string;
       version: number | bigint;
       value?: string;
       type?: string;
@@ -300,13 +300,13 @@ export class ConfigEntriesDal {
       updates.map((u) => {
         // `version` is the caller-observed value — the DAL uses it as the
         // per-row optimistic-concurrency guard (never a SET column).
-        const entity: Record<string, unknown> = { id: u.id, version: Number(u.version) };
+        const entity: Record<string, unknown> = { uuid: u.uuid, version: Number(u.version) };
         if (u.value !== undefined) entity.value = u.value;
         if (u.type !== undefined) entity.type = u.type;
         if (u.type_config !== undefined) entity.type_config = u.type_config;
-        return entity as Partial<ConfigEntryEntity> & { id: bigint };
+        return entity as Partial<ConfigEntryEntity> & { uuid: string };
       }),
-      { actor: updatedBy, matchBy: "id" }
+      { actor: updatedBy, matchBy: "uuid" }
     );
 
     await this.reloadCache();
@@ -332,7 +332,7 @@ export class ConfigEntriesDal {
     const row = await this.repo.delete(
       ConfigEntryEntity,
       { uuid, version },
-      { actor: deletedBy, matchBy: "uuid" as never }
+      { actor: deletedBy }
     );
     await this.reloadCache();
     return row as ConfigEntryEntity;
@@ -402,7 +402,7 @@ export class ConfigEntriesDal {
     const row = await this.repo.restore(
       ConfigEntryEntity,
       { uuid, version },
-      { actor: updatedBy, matchBy: "uuid" as never }
+      { actor: updatedBy }
     );
     await this.reloadCache();
     return row as ConfigEntryEntity;

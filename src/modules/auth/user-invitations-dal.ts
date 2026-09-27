@@ -120,7 +120,7 @@ export class UserInvitationsDal {
         updated_by: actor,
         version: existing.version,
       },
-      { actor, matchBy: "uuid" as any },
+      { actor },
     );
   }
 
@@ -141,7 +141,7 @@ export class UserInvitationsDal {
         updated_by: actor,
         version: existing.version,
       },
-      { actor, matchBy: "uuid" as any },
+      { actor },
     );
   }
 
@@ -164,7 +164,7 @@ export class UserInvitationsDal {
         updated_by: actor,
         version: existing.version,
       },
-      { actor, matchBy: "uuid" as any },
+      { actor },
     );
   }
 
@@ -183,7 +183,7 @@ export class UserInvitationsDal {
         updated_by: actor,
         version: existing.version,
       },
-      { actor, matchBy: "uuid" as any },
+      { actor },
     );
   }
 
@@ -203,7 +203,7 @@ export class UserInvitationsDal {
         updated_by: actor,
         version: existing.version,
       },
-      { actor, matchBy: "uuid" as any },
+      { actor },
     );
   }
 }

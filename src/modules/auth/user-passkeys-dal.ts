@@ -176,7 +176,7 @@ export class UserPasskeysDal {
         updated_by: actor,
         version: existing.version,
       },
-      { actor, matchBy: "uuid" as any },
+      { actor },
     );
   }
 

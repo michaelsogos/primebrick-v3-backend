@@ -229,7 +229,7 @@ export class OrganizationsDal {
     // API path: `data.version` is the caller-observed version. If absent the
     // Repository.update() version guard throws ERR02 — we NEVER manufacture a
     // version by re-reading the row (that would elide the concurrency check).
-    return await repo.update(OrganizationEntity, { ...data, uuid }, { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }) as OrganizationEntity;
+    return await repo.update(OrganizationEntity, { ...data, uuid }, { actor: requireActor(), audit: this.auditPort }) as OrganizationEntity;
   }
 
   /**
@@ -244,7 +244,7 @@ export class OrganizationsDal {
   ): Promise<OrganizationEntity> {
     const repo = tx ? new Repository(tx) : this.repo;
     const version = (await this.freshRowByUuid(uuid, repo))!.version;
-    return await repo.update(OrganizationEntity, { ...data, uuid, version }, { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }) as OrganizationEntity;
+    return await repo.update(OrganizationEntity, { ...data, uuid, version }, { actor: requireActor(), audit: this.auditPort }) as OrganizationEntity;
   }
 
   // DB-first read for INTERNAL read-modify-write only (Casdoor sync stamps) —
@@ -259,11 +259,11 @@ export class OrganizationsDal {
   }
 
   async deleteOrganization(uuid: string, version: number): Promise<OrganizationEntity> {
-    return await this.repo.delete(OrganizationEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }) as OrganizationEntity;
+    return await this.repo.delete(OrganizationEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort }) as OrganizationEntity;
   }
 
   async restoreOrganization(uuid: string, version: number): Promise<OrganizationEntity> {
-    return await this.repo.restore(OrganizationEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }) as OrganizationEntity;
+    return await this.repo.restore(OrganizationEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort }) as OrganizationEntity;
   }
 
   async getUserCountForOrganization(idpCode: string): Promise<number> {

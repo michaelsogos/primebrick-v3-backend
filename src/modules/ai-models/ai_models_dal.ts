@@ -334,7 +334,7 @@ export class AiModelsDal {
     const row = await repo.update<AiModelEntity, AiModelDetailRow>(
       AiModelEntity,
       { ...body, uuid },
-      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+      { actor: requireActor(), audit: this.auditPort }
     );
     if (!tx) await this.invalidateCache();
     return this.toDto(row);
@@ -344,7 +344,7 @@ export class AiModelsDal {
     const row = await this.repo.delete<AiModelEntity, AiModelDetailRow>(
       AiModelEntity,
       { uuid, version },
-      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+      { actor: requireActor(), audit: this.auditPort }
     );
     await this.invalidateCache();
     return this.toDto(row);
@@ -354,7 +354,7 @@ export class AiModelsDal {
     const row = await this.repo.restore<AiModelEntity, AiModelDetailRow>(
       AiModelEntity,
       { uuid, version },
-      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+      { actor: requireActor(), audit: this.auditPort }
     );
     await this.invalidateCache();
     return this.toDto(row);

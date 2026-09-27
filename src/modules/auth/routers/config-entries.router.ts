@@ -385,7 +385,7 @@ export function configEntriesRouter() {
     // 1. Fetch all existing rows, validate each value, check optimistic concurrency,
     //    and enforce the reserved-row rule per item.
     const validUpdates: Array<{
-      id: bigint;
+      uuid: string;
       version: number;
       value?: string;
       type?: string;
@@ -455,7 +455,7 @@ export function configEntriesRouter() {
       if (effectiveType === "secret" && valueStr === "") {
         // Still allow type/type_config updates for non-reserved rows
         validUpdates.push({
-          id: existing.id!,
+          uuid: item.uuid,
           version: Number(item.version),
           type: item.type,
           type_config: item.type_config,
@@ -480,7 +480,7 @@ export function configEntriesRouter() {
       }
 
       validUpdates.push({
-        id: existing.id!,
+        uuid: item.uuid,
         version: Number(item.version),
         value: valueStr,
         type: item.type,

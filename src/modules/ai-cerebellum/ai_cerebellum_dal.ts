@@ -279,7 +279,7 @@ export class AiCerebellumDal {
     const row = await repo.update<AiCerebellumEntity, AiCerebellumDetailRow>(
       AiCerebellumEntity,
       { ...body, uuid },
-      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+      { actor: requireActor(), audit: this.auditPort }
     );
     if (!tx) await this.invalidateCache();
     return this.toDto(row);
@@ -289,7 +289,7 @@ export class AiCerebellumDal {
     const row = await this.repo.delete<AiCerebellumEntity, AiCerebellumDetailRow>(
       AiCerebellumEntity,
       { uuid, version },
-      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+      { actor: requireActor(), audit: this.auditPort }
     );
     await this.invalidateCache();
     return this.toDto(row);
@@ -299,7 +299,7 @@ export class AiCerebellumDal {
     const row = await this.repo.restore<AiCerebellumEntity, AiCerebellumDetailRow>(
       AiCerebellumEntity,
       { uuid, version },
-      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+      { actor: requireActor(), audit: this.auditPort }
     );
     await this.invalidateCache();
     return this.toDto(row);

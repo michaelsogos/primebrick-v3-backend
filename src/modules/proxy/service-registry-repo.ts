@@ -104,7 +104,7 @@ export class ServiceRegistryRepo {
     await this.repo.update(
       ServiceRegistryEntity,
       { uuid: existing.uuid, ...row, version: existing.version } as any,
-      { actor: "system", matchBy: "uuid" },
+      { actor: "system" },
     );
   }
 
@@ -114,7 +114,7 @@ export class ServiceRegistryRepo {
     await this.repo.hardDelete(
       ServiceRegistryEntity,
       { uuid: existing.uuid, version: existing.version } as any,
-      { actor: "system", matchBy: "uuid" },
+      { actor: "system" },
     );
   }
 

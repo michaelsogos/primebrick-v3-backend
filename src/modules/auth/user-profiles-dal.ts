@@ -159,7 +159,7 @@ export class UserProfilesDal {
     // version by re-reading the row (that would elide the concurrency check).
     const row = await repo.update<UserProfileEntity, UserProfileDetailRow>(
       UserProfileEntity, { ...body, uuid },
-      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+      { actor: requireActor(), audit: this.auditPort }
     );
     return this.toDto(row);
   }
@@ -178,7 +178,7 @@ export class UserProfilesDal {
     const version = (await this.freshRowByUuid(uuid, repo))!.version;
     const row = await repo.update<UserProfileEntity, UserProfileDetailRow>(
       UserProfileEntity, { ...body, uuid, version },
-      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+      { actor: requireActor(), audit: this.auditPort }
     );
     return this.toDto(row);
   }
@@ -281,14 +281,14 @@ export class UserProfilesDal {
 
   async softDelete(uuid: string, version: number): Promise<UserProfileDetailDto> {
     const row = await this.repo.delete<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+      UserProfileEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort }
     );
     return this.toDto(row);
   }
 
   async restore(uuid: string, version: number): Promise<UserProfileDetailDto> {
     const row = await this.repo.restore<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any }
+      UserProfileEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort }
     );
     return this.toDto(row);
   }

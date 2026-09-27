@@ -17,6 +17,7 @@ import {
   Column,
   Entity,
   Key,
+  Unique,
   AuditableField,
   AuditableFieldType,
   AuditTrail,
@@ -29,6 +30,7 @@ export class MfaActionAuthorizationEntity implements IAuditableEntity {
   id: bigint;
 
   /** JWT jti claim — the unique identifier of the action authorization token. */
+  @Unique()
   @Column({ nullable: false })
   jti: string;
 

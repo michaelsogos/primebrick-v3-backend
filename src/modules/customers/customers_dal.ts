@@ -750,7 +750,7 @@ export class CustomersDal {
     const row = await repo.update<CustomerEntity, CustomerDetailRow>(
       CustomerEntity,
       { ...body, uuid },
-      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any, returning: projectAllExceptId() }
+      { actor: requireActor(), audit: this.auditPort, returning: projectAllExceptId() }
     );
     return this.toDto(row);
   }
@@ -759,7 +759,7 @@ export class CustomersDal {
     const row = await this.repo.delete<CustomerEntity, CustomerDetailRow>(
       CustomerEntity,
       { uuid, version },
-      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any, returning: projectAllExceptId() }
+      { actor: requireActor(), audit: this.auditPort, returning: projectAllExceptId() }
     );
     return this.toDto(row);
   }
@@ -768,7 +768,7 @@ export class CustomersDal {
     const row = await this.repo.restore<CustomerEntity, CustomerDetailRow>(
       CustomerEntity,
       { uuid, version },
-      { actor: requireActor(), audit: this.auditPort, matchBy: 'uuid' as any, returning: projectAllExceptId() }
+      { actor: requireActor(), audit: this.auditPort, returning: projectAllExceptId() }
     );
     return this.toDto(row);
   }

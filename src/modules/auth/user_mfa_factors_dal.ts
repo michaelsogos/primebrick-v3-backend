@@ -126,7 +126,7 @@ export class UserMfaFactorsDal {
         uuid,
         ...data,
       },
-      { actor, matchBy: "uuid" },
+      { actor },
     );
   }
 
@@ -146,7 +146,7 @@ export class UserMfaFactorsDal {
             is_preferred: false,
             version: f.version,
           },
-          { actor, matchBy: "uuid" },
+          { actor },
         );
       }
     }

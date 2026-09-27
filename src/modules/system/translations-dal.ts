@@ -240,7 +240,7 @@ export class TranslationsDal {
     const row = await this.repo.update(
       entity,
       { ...data, uuid },
-      { actor, matchBy: "uuid" },
+      { actor },
     );
     await this.getCache(schemaOf(entity)).invalidate();
     return row;
@@ -251,7 +251,7 @@ export class TranslationsDal {
     const entity = this.resolveEntity(moduleCode);
     const actor = requireActor();
     const row = (await this.repo.findByUUID<any, any>(entity, uuid, { deletedRecords: "INCLUDED" }))!;
-    await this.repo.delete(entity, { uuid, version: row.version }, { actor, matchBy: "uuid" });
+    await this.repo.delete(entity, { uuid, version: row.version }, { actor });
     await this.getCache(schemaOf(entity)).invalidate();
   }
 
@@ -260,7 +260,7 @@ export class TranslationsDal {
     const entity = this.resolveEntity(moduleCode);
     const actor = requireActor();
     const row = (await this.repo.findByUUID<any, any>(entity, uuid, { deletedRecords: "INCLUDED" }))!;
-    await this.repo.restore(entity, { uuid, version: row.version }, { actor, matchBy: "uuid" });
+    await this.repo.restore(entity, { uuid, version: row.version }, { actor });
     await this.getCache(schemaOf(entity)).invalidate();
   }
 }
