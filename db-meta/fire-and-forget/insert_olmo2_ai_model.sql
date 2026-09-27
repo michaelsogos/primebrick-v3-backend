@@ -2,7 +2,7 @@
 --
 -- VRAM from WebLLM prebuiltAppConfig.vram_required_MB.
 -- Download size from HuggingFace repo total (recursive=true).
--- Inserted as UNTESTED — will be updated after empirical test.
+-- Inserted as COMPATIBLE — will be updated after empirical test.
 --
 -- Idempotent via ON CONFLICT (model_id).
 --
@@ -24,7 +24,7 @@ INSERT INTO "public"."ai_models" (
   'system.entities.ai_model.olmo2_1b.description',
   2, true, false,
   0.30, 0.80, 256, 1.10,
-  160, 806, 1776.75, 'UNTESTED',
+  160, 806, 1776.75, 'COMPATIBLE',
   'system', 'system', 1
 )
 ON CONFLICT ("model_id") DO NOTHING;

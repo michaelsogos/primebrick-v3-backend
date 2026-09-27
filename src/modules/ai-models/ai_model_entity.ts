@@ -35,20 +35,22 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   @Unique()
   uuid: string;
 
-  /** Exact model ID passed to the inference engine.
-   *  For WebLLM: `Qwen3-1.7B-q4f16_1-MLC` (passed to `CreateMLCEngine`).
-   *  For Transformers.js: `onnx-community/Qwen3-1.7B-ONNX` (HF repo ID). */
-  @Unique()
+  /** Bare HF repo id (e.g. `onnx-community/Qwen3-4B-ONNX`) — the quantization
+   *  lives in `dtype`. The runtime variant key is `<model_id>#<dtype>`,
+   *  derived by the FE (`modelVariantKey`), never stored here. */
+  @Unique("ai_models_model_id_dtype_uq", 0)
   @Column({ length: 100, nullable: false })
   model_id: string;
 
   /** ONNX quantization dtype for Transformers.js models (e.g. `q4f16`, `fp16`, `int8`, `q8`).
-   *  NULL for WebLLM models (which encode quantization in the model_id). */
+   *  NULL for WebLLM models (which encode quantization in the model_id).
+   *  Part of the variant identity: (model_id, dtype) is unique. */
+  @Unique("ai_models_model_id_dtype_uq", 1)
   @Column({ length: 20, nullable: true })
   dtype?: string;
 
-  /** Inference engine type: `webllm` or `transformers_js`.
-   *  Drives the FE to use the correct worker/composable path. */
+  /** Inference engine type: `webllm` (MLC stack) or `onnx`
+   *  (Transformers.js + onnxruntime-web). Drives the FE worker path. */
   @Column({ length: 20, nullable: false, defaultSql: "'webllm'" })
   engine_type: string;
 
@@ -64,7 +66,9 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   @Column({ length: 200, nullable: true })
   description_key?: string;
 
-  /** Power indicator 1-5 (1=Lowest, 5=Highest). Drives the 5-bar UI. */
+  /** Power indicator 1-5 (1=Lowest, 5=Highest). Drives the 5-bar UI.
+   *  Derived from working_set_mb via powerLevelFromWorkingSet() on the
+   *  write path; manual only when working_set_mb is unknown (webllm). */
   @Column({ pgType: "integer", nullable: false, defaultSql: "3" })
   power_level: number;
 
@@ -87,7 +91,7 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   enable_thinking: boolean;
 
-  /** Sampling temperature (0.10-2.00). */
+  /** Sampling temperature (0.00-2.00). */
   @Column({ pgType: "numeric", nullable: false, defaultSql: "0.70" })
   temperature: number;
 
@@ -111,12 +115,16 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   @Column({ pgType: "integer", nullable: true })
   download_size_mb?: number;
 
-  /** VRAM required in MB (from WebLLM prebuiltAppConfig vram_required_MB). */
+  /** Curated in-memory weight estimate in MB (hf_estimate input for
+   *  working_set_mb). Measured GPU totals go to working_set_mb via
+   *  working_set_source='e2e_measured' — never here (they include KV). */
   @Column({ pgType: "numeric", nullable: true })
   vram_mb?: number;
 
-  /** Compatibility status: COMPATIBLE, NOT_COMPATIBLE, UNTESTED. */
-  @Column({ length: 30, nullable: false, defaultSql: "'UNTESTED'" })
+  /** Compatibility status: COMPATIBLE (default — user-added models are
+   *  wanted by definition) or NOT_COMPATIBLE (set internally only after
+   *  the test harness proves failures). */
+  @Column({ length: 30, nullable: false, defaultSql: "'COMPATIBLE'" })
   compatibility_status: string;
 
   /** KV cache bytes per token — derived from HF config.json
@@ -128,9 +136,25 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   @Column({ pgType: "numeric", nullable: true })
   flops_per_token?: number;
 
-  /** Working set in MB at the reference context (weights + KV). Agnostic. */
+  /** Working set in MB at the reference context 8192 (weights + KV).
+   *  Agnostic, machine-independent — the only input of
+   *  powerLevelFromWorkingSet(). How the value was produced is recorded
+   *  in working_set_source. */
   @Column({ pgType: "numeric", nullable: true })
   working_set_mb?: number;
+
+  /** Provenance of working_set_mb:
+   *  'hf_estimate'  = COALESCE(vram_mb, download_size_mb) + kv×8192
+   *  'e2e_measured' = GPUBuffer-tracked total from the FE worker — the
+   *  measured value already contains KV, so it REPLACES ws entirely
+   *  (never re-add kv_cache_bytes_per_token → no double counting). */
+  @Column({ length: 20, nullable: false, defaultSql: "'hf_estimate'" })
+  working_set_source: string;
+
+  /** ws provenance breakdown: {weights_mb, kv_mb, ctx_ref,
+   *  measured_vram_bytes, measured_at, measured_ctx_tokens}. */
+  @Column({ pgType: "jsonb", nullable: true })
+  working_set_detail?: Record<string, any>;
 
   /** Execution config — drives the FE worker cache behavior.
    *  Set empirically by the test harness. NULL = safe fallback (no KV cache reuse).

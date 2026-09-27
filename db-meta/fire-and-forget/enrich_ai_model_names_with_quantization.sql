@@ -28,24 +28,24 @@ WHERE deleted_at IS NULL;
 UPDATE ai_models
 SET name = CASE
     -- LFM2-700M → LFM2 700M (normalize dash to space)
-    WHEN model_id = 'onnx-community/LFM2-700M-ONNX#q4f16' THEN 'LFM2 700M'
+    WHEN model_id = 'onnx-community/LFM2-700M-ONNX' AND dtype = 'q4f16' THEN 'LFM2 700M'
     -- Granite 4.0 Micro Web → 3B params
-    WHEN model_id = 'onnx-community/granite-4.0-micro-ONNX-web#q4f16' THEN 'Granite 4.0 Micro 3B Web'
+    WHEN model_id = 'onnx-community/granite-4.0-micro-ONNX-web' AND dtype = 'q4f16' THEN 'Granite 4.0 Micro 3B Web'
     -- Granite 4.0 H micro → 3B params (hybrid Mamba)
-    WHEN model_id = 'onnx-community/granite-4.0-h-micro-ONNX#q4f16' THEN 'Granite 4.0 H Micro 3B'
+    WHEN model_id = 'onnx-community/granite-4.0-h-micro-ONNX' AND dtype = 'q4f16' THEN 'Granite 4.0 H Micro 3B'
     -- Granite-4.0-H-1b → 1.5B params (normalize name)
-    WHEN model_id = 'onnx-community/granite-4.0-h-1b-ONNX#q4f16' THEN 'Granite 4.0 H 1.5B'
+    WHEN model_id = 'onnx-community/granite-4.0-h-1b-ONNX' AND dtype = 'q4f16' THEN 'Granite 4.0 H 1.5B'
     -- Phi 3 mini 4k → 3.8B params
-    WHEN model_id LIKE 'onnx-community/Phi-3-mini-4k-instruct-ONNX#%' THEN 'Phi 3 Mini 4K 3.8B'
+    WHEN model_id = 'onnx-community/Phi-3-mini-4k-instruct-ONNX' THEN 'Phi 3 Mini 4K 3.8B'
     -- Phi 3.5 mini → 3.8B params
-    WHEN model_id = 'onnx-community/Phi-3.5-mini-instruct-onnx-web#q4f16' THEN 'Phi 3.5 Mini 3.8B'
+    WHEN model_id = 'onnx-community/Phi-3.5-mini-instruct-onnx-web' AND dtype = 'q4f16' THEN 'Phi 3.5 Mini 3.8B'
     -- Phi 3.5 Mini GQA → 3.8B params
-    WHEN model_id = 'onnx-community/Phi-3.5-mini-instruct-ONNX-GQA#q4f16' THEN 'Phi 3.5 Mini GQA 3.8B'
+    WHEN model_id = 'onnx-community/Phi-3.5-mini-instruct-ONNX-GQA' AND dtype = 'q4f16' THEN 'Phi 3.5 Mini GQA 3.8B'
     -- Trinity Nano Preview → 6B MoE (1B active)
-    WHEN model_id = 'onnx-community/Trinity-Nano-Preview-ONNX#q4f16' THEN 'Trinity Nano Preview 6B MoE'
+    WHEN model_id = 'onnx-community/Trinity-Nano-Preview-ONNX' AND dtype = 'q4f16' THEN 'Trinity Nano Preview 6B MoE'
     -- LFM2 1.2B Tool → already has 1.2B
     -- LFM2-1.2B → normalize dash
-    WHEN model_id = 'onnx-community/LFM2-1.2B-ONNX#q4f16' THEN 'LFM2 1.2B'
+    WHEN model_id = 'onnx-community/LFM2-1.2B-ONNX' AND dtype = 'q4f16' THEN 'LFM2 1.2B'
     -- Keep names that already have param count
     ELSE name
     END

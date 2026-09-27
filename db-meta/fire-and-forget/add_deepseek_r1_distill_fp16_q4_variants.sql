@@ -23,14 +23,14 @@ INSERT INTO public.ai_models (uuid, model_id, name, label_key, description_key,
   vram_mb, compatibility_status, rank, dtype, engine_type)
 VALUES
   ('a4444444-0000-4xxx0000-000000000401',
-   'onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX#fp16',
+   'onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX',
    'DeepSeek R1 Distill Qwen 1.5B (fp16)',
    'ai_model_deepseek_r1_distill_qwen_1_5b', 'ai_model_deepseek_r1_distill_qwen_1_5b_desc',
    1, false, false, '0.20', '0.90', 1024, '1.10', 164,
    'system_migration_dtype_coverage', 'system_migration_dtype_coverage',
    3448, 3500.00, 'NOT_COMPATIBLE', '1.0', 'fp16', 'transformersjs'),
   ('a4444444-0000-4xxx0000-000000000402',
-   'onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX#q4',
+   'onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX',
    'DeepSeek R1 Distill Qwen 1.5B (q4)',
    'ai_model_deepseek_r1_distill_qwen_1_5b', 'ai_model_deepseek_r1_distill_qwen_1_5b_desc',
    1, false, false, '0.20', '0.90', 1024, '1.10', 165,
@@ -38,7 +38,7 @@ VALUES
    1884, 2000.00, 'NOT_COMPATIBLE', '1.0', 'q4', 'transformersjs')
 ON CONFLICT (uuid) DO NOTHING;
 
--- Fix rows already inserted in the interim enabled/UNTESTED state, and
+-- Fix rows already inserted in the interim enabled/COMPATIBLE state, and
 -- persist the measured q4f16 test_scores.
 
 UPDATE public.ai_models SET
@@ -73,7 +73,7 @@ UPDATE public.ai_models SET
     )
   ),
   updated_at = now()
-WHERE model_id = 'onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX#q4f16';
+WHERE model_id = 'onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX' AND dtype = 'q4f16';
 
 UPDATE public.ai_models SET
   compatibility_status = 'NOT_COMPATIBLE',
@@ -87,6 +87,6 @@ UPDATE public.ai_models SET
     )
   ),
   updated_at = now()
-WHERE model_id IN ('onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX#fp16','onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX#q4');
+WHERE model_id = 'onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX' AND dtype IN ('fp16','q4');
 
 COMMIT;

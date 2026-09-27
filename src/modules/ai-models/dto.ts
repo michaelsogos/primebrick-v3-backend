@@ -100,7 +100,11 @@ export const AiModelListQuerySchema = z.object({
 export type AiModelListQuery = z.infer<typeof AiModelListQuerySchema>;
 
 const AiModelBaseSchema = z.object({
-  model_id: z.string().min(1).max(100),
+  model_id: z
+    .string()
+    .min(1)
+    .max(100)
+    .transform((v) => v.split("#")[0]),
   dtype: z.string().min(1).max(20).optional(),
   engine_type: z.enum(["webllm", "onnx"]).default("webllm"),
   name: z.string().min(1).max(100),
@@ -110,7 +114,7 @@ const AiModelBaseSchema = z.object({
   rank: zBoundedNumber(0, 5).default(1.0),
   test_scores: z.record(z.string(), z.any()).optional(),
   enable_thinking: z.boolean().default(false),
-  temperature: zBoundedNumber(0.1, 2.0).default(0.7),
+  temperature: zBoundedNumber(0.0, 2.0).default(0.7),
   top_p: zBoundedNumber(0.01, 1.0).default(0.9),
   max_tokens: zBoundedInt(1, 32768).default(256),
   repetition_penalty: zBoundedNumber(1.0, 2.0).default(1.1),
@@ -120,7 +124,12 @@ const AiModelBaseSchema = z.object({
   kv_cache_bytes_per_token: zBoundedInt(0, Number.MAX_SAFE_INTEGER).optional(),
   flops_per_token: zBoundedNumber(0, Number.MAX_SAFE_INTEGER).optional(),
   working_set_mb: zBoundedNumber(0, Number.MAX_SAFE_INTEGER).optional(),
-  compatibility_status: z.enum(["COMPATIBLE", "NOT_COMPATIBLE", "UNTESTED"]).default("UNTESTED"),
+  working_set_source: z.enum(["hf_estimate", "e2e_measured"]).optional(),
+  working_set_detail: z.record(z.string(), z.any()).optional(),
+  // Only COMPATIBLE / NOT_COMPATIBLE exist. New rows are COMPATIBLE by
+  // definition — the user adds a model BECAUSE they want it; NOT_COMPATIBLE
+  // is applied only after failing the internal test harness.
+  compatibility_status: z.enum(["COMPATIBLE", "NOT_COMPATIBLE"]).default("COMPATIBLE"),
   execution_config: z.record(z.string(), z.any()).optional(),
 });
 

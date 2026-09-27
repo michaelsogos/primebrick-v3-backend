@@ -23,14 +23,14 @@ INSERT INTO public.ai_models (uuid, model_id, name, label_key, description_key,
   vram_mb, compatibility_status, rank, dtype, engine_type)
 VALUES
   ('a3333333-0000-4xxx0000-000000000401',
-   'onnx-community/granite-3.0-2b-instruct#fp16',
+   'onnx-community/granite-3.0-2b-instruct',
    'Granite 3.0 2B Instruct (fp16)',
    'ai_model_granite_3_0_2b_instruct', 'ai_model_granite_3_0_2b_instruct_desc',
    1, false, false, '0.20', '0.90', 256, '1.10', 166,
    'system_migration_dtype_coverage', 'system_migration_dtype_coverage',
    4838, 2000.00, 'NOT_COMPATIBLE', '1.0', 'fp16', 'transformersjs'),
   ('a3333333-0000-4xxx0000-000000000402',
-   'onnx-community/granite-3.0-2b-instruct#q4',
+   'onnx-community/granite-3.0-2b-instruct',
    'Granite 3.0 2B Instruct (q4)',
    'ai_model_granite_3_0_2b_instruct', 'ai_model_granite_3_0_2b_instruct_desc',
    1, false, false, '0.20', '0.90', 256, '1.10', 167,
@@ -38,7 +38,7 @@ VALUES
    1841, 2000.00, 'NOT_COMPATIBLE', '1.0', 'q4', 'transformersjs')
 ON CONFLICT (uuid) DO NOTHING;
 
--- Fix rows that were already inserted in the interim enabled/UNTESTED state,
+-- Fix rows that were already inserted in the interim enabled/COMPATIBLE state,
 -- and persist the measured q4f16 test_scores.
 
 UPDATE public.ai_models SET
@@ -79,7 +79,7 @@ UPDATE public.ai_models SET
     )
   ),
   updated_at = now()
-WHERE model_id = 'onnx-community/granite-3.0-2b-instruct#q4f16';
+WHERE model_id = 'onnx-community/granite-3.0-2b-instruct' AND dtype = 'q4f16';
 
 UPDATE public.ai_models SET
   compatibility_status = 'NOT_COMPATIBLE',
@@ -93,6 +93,6 @@ UPDATE public.ai_models SET
     )
   ),
   updated_at = now()
-WHERE model_id IN ('onnx-community/granite-3.0-2b-instruct#fp16','onnx-community/granite-3.0-2b-instruct#q4');
+WHERE model_id = 'onnx-community/granite-3.0-2b-instruct' AND dtype IN ('fp16','q4');
 
 COMMIT;

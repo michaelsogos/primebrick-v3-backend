@@ -13,7 +13,7 @@ worker selects a row and builds its runtime path from `execution_config`.
 
 Engines (`engine_type`):
 
-- `onnx` / `transformersjs` — current engine (Transformers.js + ONNX Runtime WebGPU)
+- `onnx` — current engine (Transformers.js + ONNX Runtime WebGPU)
 - `webllm` — legacy engine, rows are soft-deleted (`deleted_at`) but keep their
   original `compatibility_status` and `test_scores` for historicity
 
@@ -24,7 +24,7 @@ Engines (`engine_type`):
 | `power_level` | int 1-5 | Compute/size class — drives the 5-bar UI. NOT part of quality scoring. |
 | `rank` | numeric(3,1) | Quality score 0.0-5.0 — sortable, shown in the model list |
 | `test_scores` | jsonb | Full per-turn test evidence (outputs, metrics, method) |
-| `compatibility_status` | varchar | `UNTESTED` / `COMPATIBLE` / `NOT_COMPATIBLE` |
+| `compatibility_status` | varchar | `COMPATIBLE` / `NOT_COMPATIBLE` |
 | `execution_config` | jsonb | Runtime flags consumed by the FE worker |
 
 ## Scoring formulas (current — refined + speed)
@@ -211,19 +211,48 @@ record infrastructure failures.
 
 ## `power_level` conventions
 
-Empirical mapping (params × quantization):
+`power_level` is **derived, not manual** — computed from `working_set_mb`
+by `powerLevelFromWorkingSet()` (`src/modules/ai-models/power-level.ts`)
+on every create/update write when the working set is known:
 
-| Power | Class |
-|-------|-------|
-| 1 | ≤1B quantized |
-| 2 | 1.5-2B quantized |
-| 3 | ~3B quantized |
-| 4 | ~3.8-4B quantized, or ~3B unquantized (fp16) |
-| 5 | ≥4B unquantized (fp16) |
+| Power | `working_set_mb` |
+|-------|------------------|
+| 1 | ≤ 1200 |
+| 2 | ≤ 2200 |
+| 3 | ≤ 4000 |
+| 4 | ≤ 7000 |
+| 5 | ≤ 9500 (cap — >9500 stays 5) |
+
+The bucket table (`LEVEL_REQUIREMENT_MB`) is the SAME one the FE machine
+rank uses (`machineRank = max{ lvl | free_fast_mb ≥ LEVEL[lvl] }`,
+`free_fast_mb = memory_fast_mb − 1536MB headroom`). So
+`power_level ≤ machine_rank` is a direct "should fit" signal on the same
+MB scale — advisory, never blocking. Manual `power_level` survives only
+on rows without `working_set_mb` (webllm legacy).
+
+## `working_set_mb` provenance
+
+| Field | Meaning |
+|-------|---------|
+| `working_set_mb` | Final footprint at ctx 8192 — sole power_level input |
+| `working_set_source` | `'hf_estimate'` (default) or `'e2e_measured'` |
+| `working_set_detail` | jsonb breakdown: `{weights_mb, kv_mb, ctx_ref, measured_vram_bytes, measured_at, measured_ctx_tokens}` |
+
+- **`hf_estimate`**: `COALESCE(vram_mb, download_size_mb) +
+  kv_cache_bytes_per_token × 8192` (exact on the full backfilled catalog).
+- **`e2e_measured`**: real GPU footprint from the FE worker's
+  GPUBuffer create/destroy tracking. The measured total already contains
+  KV + scratch → it REPLACES `working_set_mb` entirely; never re-add
+  `kv_cache_bytes_per_token` (double count). `vram_mb` stays the curated
+  weight estimate.
+- Persist paths: `persistVram` (UI load, best-effort PUT) and the E2E
+  helper `mergeTestScoreTurns` (post-test `vram_bytes` in the same
+  test_scores UPDATE).
 
 ## Compatibility lifecycle
 
-`UNTESTED` → E2E test → `COMPATIBLE` or `NOT_COMPATIBLE` (+ `is_enabled=false`).
+New rows are `COMPATIBLE` by default — a user adds a model because they
+want it. Internal tests may later mark it `NOT_COMPATIBLE` (+ `is_enabled=false`).
 A model is NOT_COMPATIBLE for runtime failures (load timeout, ONNX crash,
 thinking loop, speed gate) OR unusable quality (persistent
 garbage/prose/0-score).

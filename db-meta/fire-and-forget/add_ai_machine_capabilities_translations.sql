@@ -97,13 +97,23 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
 ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
-  ('system.settings.ai.machine.machine_rank', 'en-GB', 'Machine Rank', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.ai.machine.machine_rank', 'en-US', 'Machine Rank', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.vram', 'en-GB', 'Video RAM', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.vram', 'en-US', 'Video RAM', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.vram', 'it-IT', 'RAM video', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.vram', 'fr-FR', 'RAM vidéo', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.vram', 'es-ES', 'RAM de vídeo', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.vram', 'de-DE', 'Video-RAM', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.vram', 'pt-PT', 'RAM de vídeo', now(), 'initial-setup', now(), 'initial-setup', 1)
+ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+
+INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
+  ('system.settings.ai.machine.machine_rank', 'en-GB', 'Machine Tier', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.machine_rank', 'en-US', 'Machine Tier', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.ai.machine.machine_rank', 'it-IT', 'Classe Macchina', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.ai.machine.machine_rank', 'fr-FR', 'Rang Machine', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.ai.machine.machine_rank', 'es-ES', 'Rango de Máquina', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.ai.machine.machine_rank', 'de-DE', 'Maschinenrang', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.ai.machine.machine_rank', 'pt-PT', 'Rank da Máquina', now(), 'initial-setup', now(), 'initial-setup', 1)
+  ('system.settings.ai.machine.machine_rank', 'fr-FR', 'Niveau Machine', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.machine_rank', 'es-ES', 'Nivel de Máquina', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.machine_rank', 'de-DE', 'Maschinenklasse', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.machine_rank', 'pt-PT', 'Nível da Máquina', now(), 'initial-setup', now(), 'initial-setup', 1)
 ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -130,13 +140,13 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
 ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
-  ('system.settings.ai.machine.cpu_threads', 'en-GB', 'threads', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.ai.machine.cpu_threads', 'en-US', 'threads', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.ai.machine.cpu_threads', 'it-IT', 'thread', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.ai.machine.cpu_threads', 'fr-FR', 'threads', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.ai.machine.cpu_threads', 'es-ES', 'hilos', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.ai.machine.cpu_threads', 'de-DE', 'Threads', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.ai.machine.cpu_threads', 'pt-PT', 'threads', now(), 'initial-setup', now(), 'initial-setup', 1)
+  ('system.settings.ai.machine.cpu_threads', 'en-GB', 'CPU Threads', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.cpu_threads', 'en-US', 'CPU Threads', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.cpu_threads', 'it-IT', 'Thread CPU', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.cpu_threads', 'fr-FR', 'Threads CPU', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.cpu_threads', 'es-ES', 'Hilos de CPU', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.cpu_threads', 'de-DE', 'CPU-Threads', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.ai.machine.cpu_threads', 'pt-PT', 'Threads de CPU', now(), 'initial-setup', now(), 'initial-setup', 1)
 ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
 
 -- Addendum 2: "fits catalog" chip (memory probe semantics — no VRAM claim)

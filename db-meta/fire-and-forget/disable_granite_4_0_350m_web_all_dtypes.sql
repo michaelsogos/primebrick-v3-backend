@@ -19,7 +19,7 @@ SET compatibility_status = 'NOT_COMPATIBLE',
     is_enabled = false,
     updated_at = now(),
     updated_by = 'system_migration_not_compatible'
-WHERE model_id = 'onnx-community/granite-4.0-350m-ONNX-web#q4f16'
+WHERE model_id = 'onnx-community/granite-4.0-350m-ONNX-web' AND dtype = 'q4f16'
   AND deleted_at IS NULL;
 
 -- 2) Register fp16 + q4 variants as NOT_COMPATIBLE so they are never
@@ -31,7 +31,7 @@ INSERT INTO public.ai_models (uuid, model_id, name, label_key, description_key,
   test_scores)
 VALUES
   ('a3333333-0000-4xxx0000-000000000301',
-   'onnx-community/granite-4.0-350m-ONNX-web#fp16',
+   'onnx-community/granite-4.0-350m-ONNX-web',
    'Granite 4.0 350M Web (fp16)',
    'ai_model_granite_4_0_350m_web', 'ai_model_granite_4_0_350m_web_desc',
    1, false, false, '0.70', '0.90', 1024, '1.10', 170,
@@ -39,7 +39,7 @@ VALUES
    680, 350.00, 'NOT_COMPATIBLE', '1.0', 'fp16', 'transformersjs',
    '{"notes":"Marked NOT_COMPATIBLE without download: q4f16 sibling failed generation (natural language instead of regex JSON) — 350M instruction-following limit, precision cannot fix it","load_ok":false,"generation_ok":false,"tested_at":"2026-09-16T00:00:00.000Z","strategy":"not_tested"}'::jsonb),
   ('a3333333-0000-4xxx0000-000000000302',
-   'onnx-community/granite-4.0-350m-ONNX-web#q4',
+   'onnx-community/granite-4.0-350m-ONNX-web',
    'Granite 4.0 350M Web (q4)',
    'ai_model_granite_4_0_350m_web', 'ai_model_granite_4_0_350m_web_desc',
    1, false, false, '0.70', '0.90', 1024, '1.10', 171,

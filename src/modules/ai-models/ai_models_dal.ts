@@ -53,6 +53,8 @@ export type AiModelDetailRow = {
   kv_cache_bytes_per_token?: number;
   flops_per_token?: number;
   working_set_mb?: number;
+  working_set_source: string;
+  working_set_detail?: Record<string, any>;
   compatibility_status: string;
   dtype?: string;
   engine_type?: string;
@@ -96,6 +98,8 @@ function projectAllExceptId(): FieldProjector[] {
     "kv_cache_bytes_per_token",
     "flops_per_token",
     "working_set_mb",
+    "working_set_source",
+    "working_set_detail",
     "compatibility_status",
     "dtype",
     "engine_type",
@@ -188,12 +192,22 @@ export class AiModelsDal {
     return row ? this.toDto(row) : null;
   }
 
-  async findByModelId(model_id: string): Promise<AiModelDetailDto | null> {
+  /**
+   * The unique variant identity is (model_id, dtype) — model_id alone can match
+   * multiple rows (same repo, different quantizations).
+   */
+  async findByModelIdAndDtype(model_id: string, dtype?: string | null): Promise<AiModelDetailDto | null> {
+    const filters = [Filter.fieldValue(field(AiModelEntity, "model_id"), "=", model_id)] as any[];
+    if (dtype != null) {
+      filters.push(Filter.fieldValue(field(AiModelEntity, "dtype"), "=", dtype));
+    } else {
+      filters.push(Filter.fieldValue(field(AiModelEntity, "dtype"), "IS", null));
+    }
     const row = await this.repo.find<AiModelDetailRow, AiModelDetailRow>(
       AiModelEntity,
       projectAllExceptId(),
       {
-        filters: [Filter.fieldValue(field(AiModelEntity, "model_id"), "=", model_id)] as any,
+        filters,
         joins: buildAuditableJoins(AiModelEntity, UserProfileEntity),
         deletedRecords: "EXCLUDED",
         throwIfNotFound: false,
@@ -317,11 +331,17 @@ export class AiModelsDal {
         kv_cache_bytes_per_token: body.kv_cache_bytes_per_token,
         flops_per_token: body.flops_per_token,
         working_set_mb: body.working_set_mb,
+        working_set_source: body.working_set_source,
+        working_set_detail: body.working_set_detail,
         compatibility_status: body.compatibility_status,
         dtype: body.dtype,
         engine_type: body.engine_type,
         execution_config: body.execution_config,
       },
+      // Conflict groups are auto-deduced from metadata: uuid is in the
+      // payload (randomUUID above) → its unique group is matched; the
+      // composite (model_id, dtype) group is always matched. A conflict on
+      // either raises ERR04 (live row) / ERR05 (soft-deleted → restore).
       { actor, audit: this.auditPort }
     );
     if (!tx) await this.invalidateCache();

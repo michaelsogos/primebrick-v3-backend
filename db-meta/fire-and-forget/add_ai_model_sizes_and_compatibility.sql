@@ -18,11 +18,11 @@ BEGIN;
 -- ─── 1. Add new columns ───
 ALTER TABLE "public"."ai_models" ADD COLUMN IF NOT EXISTS "download_size_mb" integer;
 ALTER TABLE "public"."ai_models" ADD COLUMN IF NOT EXISTS "vram_mb" numeric(8,2);
-ALTER TABLE "public"."ai_models" ADD COLUMN IF NOT EXISTS "compatibility_status" varchar(30) NOT NULL DEFAULT 'UNTESTED';
+ALTER TABLE "public"."ai_models" ADD COLUMN IF NOT EXISTS "compatibility_status" varchar(30) NOT NULL DEFAULT 'COMPATIBLE';
 
 COMMENT ON COLUMN public.ai_models.download_size_mb IS 'Download size in MB (total HuggingFace repo size, all shards + tokenizer)';
 COMMENT ON COLUMN public.ai_models.vram_mb IS 'VRAM required in MB (from WebLLM prebuiltAppConfig vram_required_MB)';
-COMMENT ON COLUMN public.ai_models.compatibility_status IS 'Compatibility status: COMPATIBLE, NOT_COMPATIBLE, UNTESTED';
+COMMENT ON COLUMN public.ai_models.compatibility_status IS 'Compatibility status: COMPATIBLE, NOT_COMPATIBLE';
 
 -- ─── 2. Update COMPATIBLE models (8 total: 3 baseline + 5 new recommended) ───
 

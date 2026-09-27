@@ -1,7 +1,7 @@
--- Fire-and-forget: Insert 10 new untested WebLLM models into ai_models.
+-- Fire-and-forget: Insert 10 new to-test WebLLM models into ai_models.
 --
 -- These models are candidates for Smart Regex. They are inserted with
--- is_enabled=true and compatibility_status='UNTESTED' so they can be
+-- is_enabled=true and compatibility_status='COMPATIBLE' so they can be
 -- selected and tested via the Smart Regex UI.
 --
 -- After empirical testing, a follow-up UPDATE will set:
@@ -31,7 +31,7 @@ INSERT INTO "public"."ai_models" (
   'system.entities.ai_model.qwen3.5_4b.description',
   4, true, true,
   0.60, 0.95, 2048, 1.10,
-  40, 2280, 3867.82, 'UNTESTED',
+  40, 2280, 3867.82, 'COMPATIBLE',
   'system', 'system', 1
 ),
 (
@@ -41,7 +41,7 @@ INSERT INTO "public"."ai_models" (
   'system.entities.ai_model.phi4_mini.description',
   3, true, false,
   0.30, 0.80, 256, 1.10,
-  50, 2079, 3437.58, 'UNTESTED',
+  50, 2079, 3437.58, 'COMPATIBLE',
   'system', 'system', 1
 ),
 (
@@ -51,7 +51,7 @@ INSERT INTO "public"."ai_models" (
   'system.entities.ai_model.gemma3_1b.description',
   2, true, false,
   0.30, 0.80, 256, 1.10,
-  60, 574, 711.07, 'UNTESTED',
+  60, 574, 711.07, 'COMPATIBLE',
   'system', 'system', 1
 ),
 (
@@ -61,7 +61,7 @@ INSERT INTO "public"."ai_models" (
   'system.entities.ai_model.ministral3_3b_instruct.description',
   3, true, false,
   0.30, 0.80, 256, 1.10,
-  70, 1856, 2863.69, 'UNTESTED',
+  70, 1856, 2863.69, 'COMPATIBLE',
   'system', 'system', 1
 ),
 (
@@ -71,7 +71,7 @@ INSERT INTO "public"."ai_models" (
   'system.entities.ai_model.ministral3_3b_reasoning.description',
   4, true, true,
   0.60, 0.95, 2048, 1.10,
-  80, 1856, 2863.69, 'UNTESTED',
+  80, 1856, 2863.69, 'COMPATIBLE',
   'system', 'system', 1
 ),
 (
@@ -81,7 +81,7 @@ INSERT INTO "public"."ai_models" (
   'system.entities.ai_model.qwen3_0.6b.description',
   1, true, true,
   0.60, 0.95, 2048, 1.10,
-  90, 335, 1403.34, 'UNTESTED',
+  90, 335, 1403.34, 'COMPATIBLE',
   'system', 'system', 1
 ),
 (
@@ -91,7 +91,7 @@ INSERT INTO "public"."ai_models" (
   'system.entities.ai_model.qwen2.5_coder_0.5b.description',
   1, true, false,
   0.30, 0.80, 256, 1.10,
-  100, 276, 944.62, 'UNTESTED',
+  100, 276, 944.62, 'COMPATIBLE',
   'system', 'system', 1
 ),
 (
@@ -101,7 +101,7 @@ INSERT INTO "public"."ai_models" (
   'system.entities.ai_model.qwen2.5_math_1.5b.description',
   2, true, false,
   0.30, 0.80, 256, 1.10,
-  110, 840, 1629.75, 'UNTESTED',
+  110, 840, 1629.75, 'COMPATIBLE',
   'system', 'system', 1
 ),
 (
@@ -111,7 +111,7 @@ INSERT INTO "public"."ai_models" (
   'system.entities.ai_model.stablelm2_zephyr_1.6b.description',
   2, true, false,
   0.30, 0.80, 256, 1.10,
-  120, 890, 2087.66, 'UNTESTED',
+  120, 890, 2087.66, 'COMPATIBLE',
   'system', 'system', 1
 ),
 (
@@ -121,7 +121,7 @@ INSERT INTO "public"."ai_models" (
   'system.entities.ai_model.gemma2_2b.description',
   2, true, false,
   0.30, 0.80, 256, 1.10,
-  130, 1366, 1476.52, 'UNTESTED',
+  130, 1366, 1476.52, 'COMPATIBLE',
   'system', 'system', 1
 )
 ON CONFLICT ("model_id") DO NOTHING;

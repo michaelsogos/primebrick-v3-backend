@@ -37,7 +37,7 @@ WHERE deleted_at IS NULL
   AND engine_type = 'webllm';
 
 -- ─── 4. Insert 10 new ONNX/Transformers.js models ───
--- All start as UNTESTED with estimated sizes (to be measured by harness).
+-- All start as COMPATIBLE with estimated sizes (to be measured by harness).
 -- is_enabled = true for the 7 Qwen models we tested with WebLLM.
 -- The 3 Phi models start disabled until harness-tested.
 
@@ -54,7 +54,7 @@ INSERT INTO "public"."ai_models" (
  'Qwen2.5 1.5B', 'system.entities.ai_model.qwen2.5_1.5b.label', 'system.entities.ai_model.qwen2.5_1.5b.description',
  2, 1.0, NULL,
  true, false, 0.30, 0.80, 256, 1.10,
- 10, 940, 1630, 'UNTESTED',
+ 10, 940, 1630, 'COMPATIBLE',
  NOW(), 'system_migration_transformers_js', NOW(), 'system_migration_transformers_js', 1),
 
 -- 2. Qwen2.5 Coder 1.5B Instruct (text-only, pipeline text-generation)
@@ -63,7 +63,7 @@ INSERT INTO "public"."ai_models" (
  'Qwen2.5 Coder 1.5B', 'system.entities.ai_model.qwen2.5_coder_1.5b.label', 'system.entities.ai_model.qwen2.5_coder_1.5b.description',
  2, 1.0, NULL,
  true, false, 0.30, 0.80, 256, 1.10,
- 20, 940, 1630, 'UNTESTED',
+ 20, 940, 1630, 'COMPATIBLE',
  NOW(), 'system_migration_transformers_js', NOW(), 'system_migration_transformers_js', 1),
 
 -- 3. Qwen3 1.7B (text-only, pipeline text-generation, supports thinking)
@@ -72,7 +72,7 @@ INSERT INTO "public"."ai_models" (
  'Qwen3 1.7B', 'system.entities.ai_model.qwen3_1.7b.label', 'system.entities.ai_model.qwen3_1.7b.description',
  3, 1.0, NULL,
  true, true, 0.60, 0.95, 1024, 1.10,
- 30, 1100, 2037, 'UNTESTED',
+ 30, 1100, 2037, 'COMPATIBLE',
  NOW(), 'system_migration_transformers_js', NOW(), 'system_migration_transformers_js', 1),
 
 -- 4. Qwen3.5 2B (multimodal, Qwen3_5ForConditionalGeneration + AutoProcessor)
@@ -81,7 +81,7 @@ INSERT INTO "public"."ai_models" (
  'Qwen3.5 2B', 'system.entities.ai_model.qwen3.5_2b.label', 'system.entities.ai_model.qwen3.5_2b.description',
  4, 1.0, NULL,
  true, true, 0.60, 0.95, 1024, 1.10,
- 40, 1032, 2245, 'UNTESTED',
+ 40, 1032, 2245, 'COMPATIBLE',
  NOW(), 'system_migration_transformers_js', NOW(), 'system_migration_transformers_js', 1),
 
 -- 5. Qwen2.5 Coder 3B Instruct (text-only, pipeline text-generation)
@@ -90,7 +90,7 @@ INSERT INTO "public"."ai_models" (
  'Qwen2.5 Coder 3B', 'system.entities.ai_model.qwen2.5_coder_3b.label', 'system.entities.ai_model.qwen2.5_coder_3b.description',
  3, 1.0, NULL,
  true, false, 0.30, 0.80, 256, 1.10,
- 50, 1667, 2505, 'UNTESTED',
+ 50, 1667, 2505, 'COMPATIBLE',
  NOW(), 'system_migration_transformers_js', NOW(), 'system_migration_transformers_js', 1),
 
 -- 6. Qwen3 4B (text-only, pipeline text-generation, supports thinking)
@@ -99,7 +99,7 @@ INSERT INTO "public"."ai_models" (
  'Qwen3 4B', 'system.entities.ai_model.qwen3_4b.label', 'system.entities.ai_model.qwen3_4b.description',
  4, 1.0, NULL,
  true, true, 0.60, 0.95, 1024, 1.10,
- 60, 2174, 3432, 'UNTESTED',
+ 60, 2174, 3432, 'COMPATIBLE',
  NOW(), 'system_migration_transformers_js', NOW(), 'system_migration_transformers_js', 1),
 
 -- 7. Qwen3.5 4B (multimodal, Qwen3_5ForConditionalGeneration + AutoProcessor)
@@ -108,7 +108,7 @@ INSERT INTO "public"."ai_models" (
  'Qwen3.5 4B', 'system.entities.ai_model.qwen3.5_4b.label', 'system.entities.ai_model.qwen3.5_4b.description',
  5, 1.0, NULL,
  true, true, 0.60, 0.95, 1024, 1.10,
- 70, 2280, 3868, 'UNTESTED',
+ 70, 2280, 3868, 'COMPATIBLE',
  NOW(), 'system_migration_transformers_js', NOW(), 'system_migration_transformers_js', 1),
 
 -- 8. Phi-3.5 mini instruct (text-only, pipeline text-generation, no thinking)
@@ -117,7 +117,7 @@ INSERT INTO "public"."ai_models" (
  'Phi 3.5 mini', 'system.entities.ai_model.phi_3.5_mini.label', 'system.entities.ai_model.phi_3.5_mini.description',
  4, 1.0, NULL,
  false, false, 0.30, 0.80, 256, 1.10,
- 80, 2320, 3868, 'UNTESTED',
+ 80, 2320, 3868, 'COMPATIBLE',
  NOW(), 'system_migration_transformers_js', NOW(), 'system_migration_transformers_js', 1),
 
 -- 9. Phi-3 mini 4k instruct (text-only, pipeline text-generation, no thinking)
@@ -126,7 +126,7 @@ INSERT INTO "public"."ai_models" (
  'Phi 3 mini 4k', 'system.entities.ai_model.phi_3_mini_4k.label', 'system.entities.ai_model.phi_3_mini_4k.description',
  3, 1.0, NULL,
  false, false, 0.30, 0.80, 256, 1.10,
- 90, 2320, 3868, 'UNTESTED',
+ 90, 2320, 3868, 'COMPATIBLE',
  NOW(), 'system_migration_transformers_js', NOW(), 'system_migration_transformers_js', 1),
 
 -- 10. Phi-4 mini instruct (text-only, pipeline text-generation, no thinking)
@@ -135,7 +135,7 @@ INSERT INTO "public"."ai_models" (
  'Phi 4 mini', 'system.entities.ai_model.phi_4_mini.label', 'system.entities.ai_model.phi_4_mini.description',
  4, 1.0, NULL,
  false, false, 0.30, 0.80, 256, 1.10,
- 100, 2320, 3868, 'UNTESTED',
+ 100, 2320, 3868, 'COMPATIBLE',
  NOW(), 'system_migration_transformers_js', NOW(), 'system_migration_transformers_js', 1)
 
 ON CONFLICT (model_id) DO NOTHING;

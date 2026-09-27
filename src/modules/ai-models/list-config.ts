@@ -115,7 +115,6 @@ const AI_MODEL_RAW_COLUMNS: AiModelListColumn[] = [
       values: {
         COMPATIBLE: { label_key: "system.entities.ai_model.compatibility.COMPATIBLE", color: "emerald-300" },
         NOT_COMPATIBLE: { label_key: "system.entities.ai_model.compatibility.NOT_COMPATIBLE", color: "rose-300" },
-        UNTESTED: { label_key: "system.entities.ai_model.compatibility.UNTESTED", color: "zinc-300" },
       },
     },
   },

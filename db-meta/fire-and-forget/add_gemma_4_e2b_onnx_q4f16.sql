@@ -22,7 +22,7 @@ INSERT INTO "public"."ai_models" (uuid, model_id, name, power_level, is_enabled,
   temperature, top_p, max_tokens, repetition_penalty, sort_order,
   created_by, updated_by, download_size_mb, vram_mb, compatibility_status, rank, dtype, engine_type, execution_config)
 VALUES
-  ('a7777777-0000-4000-8000-000000000701','onnx-community/gemma-4-E2B-it-ONNX#q4f16','Gemma 4 E2B it (q4f16)',2,true,false,'0.00','0.80',256,'1.10',120,'system_migration_gemma4_eval','system_migration_gemma4_eval',2966,NULL,'COMPATIBLE','1.0','q4f16','onnx',NULL)
+  ('a7777777-0000-4000-8000-000000000701','onnx-community/gemma-4-E2B-it-ONNX','Gemma 4 E2B it (q4f16)',2,true,false,'0.00','0.80',256,'1.10',120,'system_migration_gemma4_eval','system_migration_gemma4_eval',2966,NULL,'COMPATIBLE','1.0','q4f16','onnx',NULL)
 ON CONFLICT (uuid) DO NOTHING;
 
 COMMIT;

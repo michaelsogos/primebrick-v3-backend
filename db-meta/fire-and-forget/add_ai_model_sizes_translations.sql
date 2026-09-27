@@ -57,14 +57,4 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.compatibility.NOT_COMPATIBLE', 'pt-PT', 'Não Compatível', now(), 'initial-setup', now(), 'initial-setup', 1)
 ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
 
--- ─── compatibility.UNTESTED ───
-INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
-  ('system.entities.ai_model.compatibility.UNTESTED', 'en-GB', 'Untested', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.entities.ai_model.compatibility.UNTESTED', 'it-IT', 'Non Testato', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.entities.ai_model.compatibility.UNTESTED', 'fr-FR', 'Non Testé', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.entities.ai_model.compatibility.UNTESTED', 'es-ES', 'No Probado', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.entities.ai_model.compatibility.UNTESTED', 'de-DE', 'Ungetestet', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.entities.ai_model.compatibility.UNTESTED', 'pt-PT', 'Não Testado', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
-
 COMMIT;

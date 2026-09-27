@@ -31,6 +31,24 @@ GRANT ALL ON SCHEMA system TO public;
 GRANT ALL ON SCHEMA "custom" TO primebrick;
 GRANT ALL ON SCHEMA "custom" TO public;
 
+-- === Functions ===
+-- pg_raise(code, message, detail): raises a PostgreSQL exception with a custom
+-- SQLSTATE from plain SQL contexts (e.g. DAL CTEs). Used by @primebrick/dal-pg
+-- add() conflict reporting to emit ERR04 (unique conflict on live row) /
+-- ERR05 (unique conflict on soft-deleted row) with the conflicting row's
+-- uuid + matched constraint in DETAIL (jsonb).
+CREATE OR REPLACE FUNCTION public.pg_raise(p_code text, p_message text, p_detail text DEFAULT NULL)
+RETURNS void
+LANGUAGE plpgsql
+AS $func$
+BEGIN
+  RAISE EXCEPTION '%', p_message USING ERRCODE = p_code, DETAIL = p_detail;
+END;
+$func$;
+
+GRANT EXECUTE ON FUNCTION public.pg_raise(text, text, text) TO primebrick;
+GRANT EXECUTE ON FUNCTION public.pg_raise(text, text, text) TO public;
+
 -- === Tables ===
 
 -- customers table (merged from multiple patches)

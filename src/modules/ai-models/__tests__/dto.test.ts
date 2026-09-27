@@ -54,7 +54,8 @@ describe("AiModelUpdateBodySchema", () => {
 
   it("explicitly provided fields pass through validation+transform", () => {
     const r = AiModelUpdateBodySchema.safeParse({
-      model_id: "onnx-community/Qwen2.5-Coder-3B-Instruct#q4f16",
+      model_id: "onnx-community/Qwen2.5-Coder-3B-Instruct",
+      dtype: "q4f16",
       engine_type: "onnx",
       compatibility_status: "COMPATIBLE",
       version: 43n,

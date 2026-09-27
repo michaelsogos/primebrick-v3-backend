@@ -20,13 +20,5 @@ SET compatibility_status = 'NOT_COMPATIBLE',
     updated_at = NOW(),
     updated_by = 'system_empirical_test',
     version = version + 1
-WHERE model_id IN (
-  'onnx-community/SmallThinker-3B-Preview-ONNX#q4f16',
-  'onnx-community/TinyLlama-1.1B-Chat-v1.0-ONNX#q4f16',
-  'onnx-community/granite-4.0-h-350m-ONNX#q4f16',
-  'onnx-community/ERNIE-4.5-0.3B-ONNX#q4f16',
-  'onnx-community/Qwen3-0.6B-DQ-ONNX#q4f16',
-  'onnx-community/Qwen1.5-0.5B-Chat-ONNX#q4f16',
-  'onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX#q4f16'
-)
+WHERE model_id IN ('onnx-community/SmallThinker-3B-Preview-ONNX','onnx-community/TinyLlama-1.1B-Chat-v1.0-ONNX','onnx-community/granite-4.0-h-350m-ONNX','onnx-community/ERNIE-4.5-0.3B-ONNX','onnx-community/Qwen3-0.6B-DQ-ONNX','onnx-community/Qwen1.5-0.5B-Chat-ONNX','onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX') AND dtype IN ('q4f16','q4f16','q4f16','q4f16','q4f16','q4f16','q4f16')
   AND deleted_at IS NULL;

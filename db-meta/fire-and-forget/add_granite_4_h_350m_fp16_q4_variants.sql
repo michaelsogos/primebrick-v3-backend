@@ -11,13 +11,13 @@ INSERT INTO public.ai_models (
   compatibility_status, rank, dtype, engine_type, execution_config
 ) VALUES
   ('a5555555-0000-4000-8000-000000000401',
-   'onnx-community/granite-4.0-h-350m-ONNX#q4',
+   'onnx-community/granite-4.0-h-350m-ONNX',
    'Granite-4.0-H-350m (q4)', 1, false, false,
    0.20, 0.90, 256, 1.10, 177,
    'system_granite_h_retest', 'system_granite_h_retest', 253, NULL,
    'NOT_COMPATIBLE', 1.0, 'q4', 'transformersjs', '{"kv_cache_reuse":false,"sliding_window":true}'::jsonb),
   ('a5555555-0000-4000-8000-000000000402',
-   'onnx-community/granite-4.0-h-350m-ONNX#fp16',
+   'onnx-community/granite-4.0-h-350m-ONNX',
    'Granite-4.0-H-350m (fp16)', 1, false, false,
    0.20, 0.90, 256, 1.10, 178,
    'system_granite_h_retest', 'system_granite_h_retest', 655, NULL,
@@ -48,7 +48,7 @@ UPDATE public.ai_models SET
     'notes', 'No successful turns. Emits valid-but-wrong regexes, malformed multi-choice JSON and invalid regex flags. Temperature 0.2 did not fix instruction following.'
   ),
   updated_at = now(), updated_by = 'system_granite_h_retest'
-WHERE model_id = 'onnx-community/granite-4.0-h-350m-ONNX#q4f16';
+WHERE model_id = 'onnx-community/granite-4.0-h-350m-ONNX' AND dtype = 'q4f16';
 
 UPDATE public.ai_models SET
   power_level = 1, is_enabled = false, compatibility_status = 'NOT_COMPATIBLE',
@@ -74,7 +74,7 @@ UPDATE public.ai_models SET
     'notes', 'No successful turns. Repeats ^\\w+$ and cannot combine incremental edits; malformed alternatives use invalid flags.'
   ),
   updated_at = now(), updated_by = 'system_granite_h_retest'
-WHERE model_id = 'onnx-community/granite-4.0-h-350m-ONNX#q4';
+WHERE model_id = 'onnx-community/granite-4.0-h-350m-ONNX' AND dtype = 'q4';
 
 UPDATE public.ai_models SET
   power_level = 1, is_enabled = false, compatibility_status = 'NOT_COMPATIBLE',
@@ -100,6 +100,6 @@ UPDATE public.ai_models SET
     'notes', 'No successful turns. fp16 improves surface syntax but still loses context, emits empty patterns and never produces a correct regex.'
   ),
   updated_at = now(), updated_by = 'system_granite_h_retest'
-WHERE model_id = 'onnx-community/granite-4.0-h-350m-ONNX#fp16';
+WHERE model_id = 'onnx-community/granite-4.0-h-350m-ONNX' AND dtype = 'fp16';
 
 COMMIT;
