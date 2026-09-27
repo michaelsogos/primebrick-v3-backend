@@ -13,7 +13,7 @@ const mockRepo = {
 };
 
 // Mock ServiceRegistryRepo — always returns the shared mockRepo instance
-vi.mock("../service-registry-repo.js", () => ({
+vi.mock("../../../modules/proxy/service-registry-repo.js", () => ({
   ServiceRegistryRepo: vi.fn().mockImplementation(function () { return mockRepo; }),
 }));
 

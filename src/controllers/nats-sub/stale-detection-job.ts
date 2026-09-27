@@ -14,7 +14,7 @@
 
 import { NatsClient, SERVICE_SUBJECTS, type ServiceStalePayload } from "@primebrick/sdk";
 import { getPool } from "../../db/pool.js";
-import { ServiceRegistryRepo } from "./service-registry-repo.js";
+import { ServiceRegistryRepo } from "../../modules/proxy/service-registry-repo.js";
 
 const STALE_THRESHOLD_MS = 90_000;
 const POLL_INTERVAL_MS = 30_000;

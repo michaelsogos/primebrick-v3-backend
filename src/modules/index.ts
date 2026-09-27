@@ -22,7 +22,7 @@ import { organizationsRouter } from "../controllers/http/auth/organizations.rout
 import { systemRouter } from "../controllers/http/system.router.js";
 import { translationsRouter } from "../controllers/http/translations.router.js";
 import { authRouter } from "../controllers/http/auth/index.js";
-import { proxyRouter } from "./proxy/proxy-router.js";
+import { proxyRouter } from "../controllers/http/proxy.router.js";
 import { collaborationRouter } from "../controllers/http/collaboration.router.js";
 
 export function mountModules(app: Express): void {

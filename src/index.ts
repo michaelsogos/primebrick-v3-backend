@@ -20,17 +20,18 @@ import { initCache, closeCache, getRedisHealth, getCachePort } from "./cache/cac
 import { initPresenceStore, closePresenceStore } from "./modules/collaboration/presence-store-holder.js";
 import { collaborationBusRegistry } from "./modules/collaboration/collaboration-bus-registry.js";
 import { startKeyspaceListener } from "./modules/collaboration/keyspace-listener.js";
-import { mountMcp, initMcpModule } from "./modules/mcp/index.js";
+import { initMcpModule } from "./modules/mcp/index.js";
+import { mountMcp } from "./controllers/http/mcp/index.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
 import "./modules/auth/express-augmentation.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { ServiceRegistryRepo } from "./modules/proxy/service-registry-repo.js";
-import { ServiceLifecycleSubscriber } from "./modules/proxy/service-lifecycle-subscriber.js";
+import { ServiceLifecycleSubscriber } from "./controllers/nats-sub/service-lifecycle-subscriber.js";
 import { startServiceRegistryController } from "./controllers/nats-req/service-registry.js";
 import { startAuthApiKeyController } from "./controllers/nats-req/auth-apikey.js";
-import { StaleDetectionJob } from "./modules/proxy/stale-detection-job.js";
+import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js";
 import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
 import { initBackendTelemetry, getTelemetryShared } from "./observability/telemetry.js";

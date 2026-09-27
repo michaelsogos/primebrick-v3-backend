@@ -18,8 +18,7 @@
 
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { getAuthConfig } from "@primebrick/sdk";
-import { getPool } from "../../../db/pool.js";
-import { OAuthClientRegistryDal } from "./client-registry.js";
+import { OAuthClientService } from "../../../modules/mcp/oauth/oauth-client.service.js";
 
 /** Send a JSON response bypassing extJsonMiddleware (which forces bigint serialization). */
 function sendJson(res: Response, status: number, data: unknown): void {
@@ -58,6 +57,7 @@ function getFeBaseUrl(req: Request): string {
  */
 export function authorizeRouter(): Router {
   const router = Router();
+  const oauthService = new OAuthClientService();
 
   // GET /mcp/oauth/authorize — Start the authorization flow
   router.get("/authorize", async (req: Request, res: Response) => {
@@ -85,8 +85,7 @@ export function authorizeRouter(): Router {
       }
 
       // Validate the client_id against the DCR registry
-      const dal = new OAuthClientRegistryDal(getPool());
-      const client = await dal.findByClientId(params.client_id);
+      const client = await oauthService.findByClientId(params.client_id);
       if (!client) {
         return sendJson(res, 400, {
           error: "invalid_client",

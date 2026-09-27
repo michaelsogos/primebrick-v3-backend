@@ -21,8 +21,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import express from "express";
 import { getAuthConfig } from "@primebrick/sdk";
-import { getPool } from "../../../db/pool.js";
-import { OAuthClientRegistryDal } from "./client-registry.js";
+import { OAuthClientService } from "../../../modules/mcp/oauth/oauth-client.service.js";
 
 /** RFC 6749 §4.1.3 — Token Request parameters. */
 interface TokenRequest {
@@ -47,6 +46,7 @@ function sendJson(res: Response, status: number, data: unknown): void {
  */
 export function tokenRouter(): Router {
   const router = Router();
+  const oauthService = new OAuthClientService();
 
   // Token endpoint accepts both JSON and URL-encoded bodies (RFC 6749 requires
   // form-urlencoded, but some clients send JSON).
@@ -76,8 +76,7 @@ export function tokenRouter(): Router {
         });
       }
 
-      const dal = new OAuthClientRegistryDal(getPool());
-      const client = await dal.findByClientId(clientId);
+      const client = await oauthService.findByClientId(clientId);
       if (!client) {
         return sendJson(res, 401, {
           error: "invalid_client",

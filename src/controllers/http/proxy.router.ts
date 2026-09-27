@@ -6,9 +6,9 @@
  */
 
 import { Router } from "express";
-import { rbacHandler } from "../auth/rbac.middleware.js";
+import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
-import { proxyRequest, proxyRequestSse } from "./proxy-service.js";
+import { proxyRequest, proxyRequestSse } from "../../modules/proxy/proxy-service.js";
 
 export function proxyRouter(): Router {
   const router = Router();

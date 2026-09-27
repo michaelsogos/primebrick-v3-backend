@@ -22,8 +22,8 @@
 
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { randomUUID } from "node:crypto";
-import { getPool } from "../../../db/pool.js";
-import { OAuthClientRegistryDal, type OAuthClient } from "./client-registry.js";
+import { OAuthClientService } from "../../../modules/mcp/oauth/oauth-client.service.js";
+import type { OAuthClient } from "../../../modules/mcp/oauth/client-registry-dal.js";
 
 /** Send a JSON response bypassing extJsonMiddleware (which forces bigint serialization). */
 function sendJson(res: Response, status: number, data: unknown): void {
@@ -87,6 +87,7 @@ function toRegistrationResponse(client: OAuthClient): ClientRegistrationResponse
  */
 export function dcrRouter(): Router {
   const router = Router();
+  const oauthService = new OAuthClientService();
 
   // POST /mcp/oauth/register — Register a new client (RFC 7591)
   router.post("/register", async (req: Request, res: Response) => {
@@ -131,8 +132,7 @@ export function dcrRouter(): Router {
         client_secret_expires_at: null, // Never expires
       };
 
-      const dal = new OAuthClientRegistryDal(getPool());
-      await dal.create(client);
+      await oauthService.register(client);
 
       sendJson(res, 201, toRegistrationResponse(client));
     } catch (err) {
@@ -147,8 +147,7 @@ export function dcrRouter(): Router {
   // DELETE /mcp/oauth/register/:clientId — Delete a client (RFC 7591 §3.3)
   router.delete("/register/:clientId", async (req: Request, res: Response) => {
     try {
-      const dal = new OAuthClientRegistryDal(getPool());
-      const deleted = await dal.deleteByClientId(String(req.params.clientId));
+      const deleted = await oauthService.deleteByClientId(String(req.params.clientId));
       if (!deleted) {
         return sendJson(res, 404, {
           error: "invalid_client",

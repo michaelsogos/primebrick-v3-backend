@@ -13,10 +13,10 @@
 
 import { NatsClient, SERVICE_SUBJECTS, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
 import { getPool } from "../../db/pool.js";
-import { ServiceRegistryRepo } from "./service-registry-repo.js";
-import { entityRegistry } from "../mcp/tools/entity-registry.js";
-import { discoverEntitiesFromService } from "../mcp/tools/openapi-discovery.js";
-import { serviceEventsBus } from "./service-events-bus.js";
+import { ServiceRegistryRepo } from "../../modules/proxy/service-registry-repo.js";
+import { entityRegistry } from "../../modules/mcp/tools/entity-registry.js";
+import { discoverEntitiesFromService } from "../../modules/mcp/tools/openapi-discovery.js";
+import { serviceEventsBus } from "../../modules/proxy/service-events-bus.js";
 
 /**
  * Callback type for MCP entity registration when a service comes online.
