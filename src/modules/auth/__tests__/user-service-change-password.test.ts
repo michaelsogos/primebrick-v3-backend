@@ -14,8 +14,11 @@ const { mockSendEmail, mockGenerateAlertLink, mockGenerateAdminMailto, mockRepo 
   },
 }));
 
-// Mock @primebrick/sdk
-vi.mock("@primebrick/sdk", () => ({
+// Mock @primebrick/sdk — partial: keep the real module so decorators and
+// helpers pulled transitively (e.g. @Cached via config_entry_entity through
+// config-repo) still work; only requireActor is stubbed.
+vi.mock("@primebrick/sdk", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@primebrick/sdk")>()),
   requireActor: () => "test-actor-uuid",
 }));
 

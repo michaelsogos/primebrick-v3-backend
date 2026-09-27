@@ -27,24 +27,15 @@ import { makeProtectedRouter } from "../../../http/protected-router.js";
 import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
-import { rbacHandler } from "../rbac.middleware.js";
+import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
-import { getPool } from "../../../db/pool.js";
-import { CasdoorService } from "../services/casdoor.service.js";
-import { WebauthnService } from "../services/webauthn.service.js";
+import { makeWebauthnService } from "./wiring.js";
 import {
   WebauthnSigninBeginSchema,
   WebauthnSigninFinishSchema,
   WebauthnSignupFinishSchema,
-} from "../dto.js";
+} from "../../../modules/auth/dto.js";
 import { UnauthorizedError } from "../../../http/api-errors.js";
-import { insertAuthEvent } from "../auth-event-logger.js";
-
-function makeService(): WebauthnService {
-  const pool = getPool();
-  const casdoor = new CasdoorService(pool);
-  return new WebauthnService(pool, casdoor);
-}
 
 /**
  * Extract the browser origin to forward to Casdoor. Uses the `Origin` header
@@ -102,7 +93,7 @@ const CredentialIdParamSchema = z.object({
 
 export function authWebauthnRouter() {
   const router = makeProtectedRouter();
-  const service = makeService();
+  const service = makeWebauthnService();
 
   const signinBegin: RequestHandler = asyncHandler(async (req, res) => {
     const body = req.body as z.infer<typeof WebauthnSigninBeginSchema>;
@@ -119,18 +110,11 @@ export function authWebauthnRouter() {
       body.credential,
       origin,
       res as Response,
-    );
-    // Insert passkey signin auth event (best-effort, non-blocking).
-    await insertAuthEvent({
-      pool: getPool(),
-      event_type: "passkey_signin",
-      success: true,
-      user_profile_uuid: result.user_uuid,
-      request_ctx: {
+      {
         ip_address: (req.headers["x-forwarded-for"] as string) || req.ip,
         user_agent: req.headers["user-agent"],
       },
-    });
+    );
     res.json(result);
   });
 

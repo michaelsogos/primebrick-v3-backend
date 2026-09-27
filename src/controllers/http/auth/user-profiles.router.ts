@@ -22,14 +22,12 @@ import { makeProtectedRouter } from "../../../http/protected-router.js";
 import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
-import { rbacHandler } from "../rbac.middleware.js";
+import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
-import { getPool } from "../../../db/pool.js";
-import { UserProfilesDal, type UserListQuery } from "../user-profiles-dal.js";
-import { CasdoorService } from "../services/casdoor.service.js";
-import { UserService } from "../services/user.service.js";
-import { userProfileMeta } from "../user-profiles.meta.js";
-import { UserProfileEntity } from "../user_profile_entity.js";
+import type { UserListQuery } from "../../../modules/auth/user-profiles-dal.js";
+import { makeUserService } from "./wiring.js";
+import { userProfileMeta } from "../../../modules/auth/user-profiles.meta.js";
+import { UserProfileEntity } from "../../../modules/auth/user_profile_entity.js";
 import { assembleMeta } from "../../../http/meta-assembler.js";
 import { deriveEntityActions } from "../../../http/entity-actions.js";
 import {
@@ -38,12 +36,10 @@ import {
   UserUpdateBodySchema,
   makeChangePasswordSchema,
   type ChangePasswordBody,
-} from "../dto.js";
-import { loadAuthConfigFromDb } from "../config-repo.js";
+} from "../../../modules/auth/dto.js";
 
 // Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)
 const UserUpdateBodySchemaWrapped = entityWriteBody(UserUpdateBodySchema);
-import { parsePasswordPolicy } from "../password-policy.js";
 import { ValidationError } from "../../../http/api-errors.js";
 import {
   entityWriteBody,
@@ -51,12 +47,6 @@ import {
   runEntityWrite,
 } from "../../../http/entity-write.js";
 
-function makeUserService(): UserService {
-  const pool = getPool();
-  const dal = new UserProfilesDal(pool);
-  const casdoor = new CasdoorService(pool);
-  return new UserService(pool, dal, casdoor);
-}
 
 export function userProfilesRouter(usersRoutes?: IRouter) {
   const router = makeProtectedRouter();

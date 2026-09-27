@@ -37,11 +37,11 @@ import { makeProtectedRouter } from "../../../http/protected-router.js";
 import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
-import { rbacHandler } from "../rbac.middleware.js";
+import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
-import { organizationMeta } from "../organizations.meta.js";
-import { OrganizationEntity } from "../organization_entity.js";
-import { OrganizationsService } from "../services/organizations.service.js";
+import { organizationMeta } from "../../../modules/auth/organizations.meta.js";
+import { OrganizationEntity } from "../../../modules/auth/organization_entity.js";
+import { OrganizationsService } from "../../../modules/auth/services/organizations.service.js";
 import { ValidationError } from "../../../http/api-errors.js";
 import {
   entityWriteBody,
@@ -51,8 +51,8 @@ import {
 import { getPool } from "../../../db/pool.js";
 import { assembleMeta } from "../../../http/meta-assembler.js";
 import { deriveEntityActions } from "../../../http/entity-actions.js";
-import type { OrganizationListQuery } from "../organizations_dal.js";
-import { displayNameSchema, idpNameSchema } from "../validation.js";
+import type { OrganizationListQuery } from "../../../modules/auth/organizations_dal.js";
+import { displayNameSchema, idpNameSchema } from "../../../modules/auth/validation.js";
 
 // Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)
 const CreateBodySchema = entityWriteBody(z.object({

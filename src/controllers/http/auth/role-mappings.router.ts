@@ -36,11 +36,11 @@ import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { deriveEntityActions } from "../../../http/entity-actions.js";
 import { validateBody } from "../../../http/validation.js";
-import { rbacHandler } from "../rbac.middleware.js";
+import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
 import { Permission, isPermissionSentinel } from "@primebrick/sdk";
-import { RoleService } from "../services/role.service.js";
-import { RoleMappingRepo, type RoleMappingListQuery } from "../role-mapping-repo.js";
-import { roleMappingsMeta } from "../role-mappings.meta.js";
+import { RoleService } from "../../../modules/auth/services/role.service.js";
+import type { RoleMappingListQuery } from "../../../modules/auth/role-mapping-repo.js";
+import { roleMappingsMeta } from "../../../modules/auth/role-mappings.meta.js";
 import { getPool } from "../../../db/pool.js";
 import { ValidationError } from "../../../http/api-errors.js";
 import {
@@ -109,8 +109,7 @@ export function roleMappingsRouter() {
     res.json(role);
   });
 
-  const invalidateRolesCache = () =>
-    new RoleMappingRepo(getPool()).invalidateMappingsCache();
+  const invalidateRolesCache = () => service.invalidateCache();
 
   const create: RequestHandler = asyncHandler(async (req, res) => {
     const actor = req.user?.id ?? "system";

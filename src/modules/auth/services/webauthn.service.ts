@@ -53,6 +53,7 @@ import {
   buildUserFromClaims,
   type TokenSet,
 } from "./auth-session.service.js";
+import { insertAuthEvent, type AuthRequestContext } from "../auth-event-logger.js";
 import {
   ApiError,
   UnauthorizedError,
@@ -270,6 +271,7 @@ export class WebauthnService {
     credential: unknown,
     origin: string,
     res: Response,
+    requestCtx?: AuthRequestContext,
   ): Promise<WebauthnSigninFinishResult> {
     const cfg = await this.requireWebauthnEnabled();
     const cookie = await popCasdoorSession(nonce);
@@ -484,6 +486,15 @@ export class WebauthnService {
         // the auth middleware will JIT-provision on the next authed request.
       }
     }
+
+    // Insert passkey signin auth event (best-effort, non-blocking).
+    await insertAuthEvent({
+      pool: this.pool,
+      event_type: "passkey_signin",
+      success: true,
+      user_profile_uuid: userUuid,
+      request_ctx: requestCtx,
+    });
 
     return { success: true, user: buildUserFromClaims(claims), user_uuid: userUuid };
   }

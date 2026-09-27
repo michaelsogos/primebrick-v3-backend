@@ -19,6 +19,8 @@ import { CasdoorService } from "./casdoor.service.js";
 import { InvitationService } from "./invitation.service.js";
 import { sendEmail } from "./email-sender.js";
 import { getAuthConfig } from "../config.js";
+import { loadAuthConfigFromDb } from "../config-repo.js";
+import { parsePasswordPolicy, type PasswordPolicy } from "../password-policy.js";
 import { requireActor } from "@primebrick/sdk";
 import { ApiError, NotFoundError, ValidationError } from "../../../http/api-errors.js";
 import type { CreateUserBody, UserUpdateBody } from "../dto.js";
@@ -41,6 +43,16 @@ export class UserService {
   ) {}
 
   // --- Create ---------------------------------------------------------------
+
+  /**
+   * Active password policy loaded from auth config — used by controllers to
+   * build dynamic validation schemas (no direct config-repo access in
+   * controllers).
+   */
+  async getPasswordPolicy(): Promise<PasswordPolicy> {
+    const cfg = await loadAuthConfigFromDb(this.pool);
+    return parsePasswordPolicy(cfg.password_policy!);
+  }
 
   async createUser(input: CreateUserBody): Promise<CreateUserResult> {
     const actor = requireActor();

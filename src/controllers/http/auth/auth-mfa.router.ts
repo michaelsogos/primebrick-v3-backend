@@ -18,28 +18,19 @@ import { makeProtectedRouter } from "../../../http/protected-router.js";
 import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
-import { rbacHandler } from "../rbac.middleware.js";
+import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
-import { getPool } from "../../../db/pool.js";
-import { CasdoorService } from "../services/casdoor.service.js";
-import { MfaService } from "../services/mfa.service.js";
+import { makeMfaService } from "./wiring.js";
 import {
   MfaChallengeRefreshSchema,
   MfaEnrollFinishSchema,
   MfaLoginVerifySchema,
   MfaStepUpInitiateSchema,
   MfaStepUpVerifySchema,
-} from "../dto.js";
+} from "../../../modules/auth/dto.js";
 import { UnauthorizedError } from "../../../http/api-errors.js";
-import { setAuthCookies } from "../services/auth-session.service.js";
-import { buildUserFromClaims } from "../services/auth-session.service.js";
-import { insertAuthEvent } from "../auth-event-logger.js";
-
-function makeService(): MfaService {
-  const pool = getPool();
-  const casdoor = new CasdoorService(pool);
-  return new MfaService(pool, casdoor);
-}
+import { setAuthCookies } from "../../../modules/auth/services/auth-session.service.js";
+import { buildUserFromClaims } from "../../../modules/auth/services/auth-session.service.js";
 
 /** Require an authenticated user and return their UUID (user_profiles.uuid). */
 function requireUserUuid(req: import("express").Request): string {
@@ -58,7 +49,7 @@ const FactorUuidParamSchema = z.object({
 
 export function authMfaRouter() {
   const router = makeProtectedRouter();
-  const service = makeService();
+  const service = makeMfaService();
 
   const enrollBegin: RequestHandler = asyncHandler(async (req, res) => {
     const userUuid = requireUserUuid(req);
@@ -103,19 +94,11 @@ export function authMfaRouter() {
       body.mfa_challenge_token,
       body.factor_id,
       body.code,
-    );
-    // Insert MFA verify auth event (best-effort, non-blocking).
-    // The user is authenticated at the first factor → we have their UUID.
-    await insertAuthEvent({
-      pool: getPool(),
-      event_type: "mfa_verify",
-      success: true,
-      user_profile_uuid: result.user_uuid,
-      request_ctx: {
+      {
         ip_address: (req.headers["x-forwarded-for"] as string) || req.ip,
         user_agent: req.headers["user-agent"],
       },
-    });
+    );
     setAuthCookies(res as Response, result.tokens);
     res.json({ success: true, user: buildUserFromClaims(result.claims as Record<string, any>) });
   });

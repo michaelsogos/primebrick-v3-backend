@@ -63,6 +63,11 @@ export class RoleService {
     return this.repo;
   }
 
+  /** Post-commit cache invalidation hook — passed to `runEntityWrite`. */
+  async invalidateCache(): Promise<void> {
+    await this.getRepo().invalidateMappingsCache();
+  }
+
   private getCasdoor(): CasdoorService {
     if (!this.casdoor) this.casdoor = new CasdoorService(getPool());
     return this.casdoor;

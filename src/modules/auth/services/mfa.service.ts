@@ -40,6 +40,7 @@ import {
   type MfaChallengePayload,
 } from "../mfa-challenge-token.js";
 import { encrypt, decrypt } from "../crypto-helpers.js";
+import { insertAuthEvent, type AuthRequestContext } from "../auth-event-logger.js";
 import {
   ApiError,
   UnauthorizedError,
@@ -740,6 +741,7 @@ export class MfaService {
     challengeToken: string,
     factorId: string,
     code: string,
+    requestCtx?: AuthRequestContext,
   ): Promise<{
     tokens: { access_token: string; refresh_token?: string; expires_in: number };
     user_uuid: string;
@@ -827,6 +829,16 @@ export class MfaService {
 
     // Decode the access token to get claims for building the user response
     const claims = decodeJwtPayload(tokens.access_token);
+
+    // Insert MFA verify auth event (best-effort, non-blocking).
+    // The user is authenticated at the first factor → we have their UUID.
+    await insertAuthEvent({
+      pool: this.pool,
+      event_type: "mfa_verify",
+      success: true,
+      user_profile_uuid: payload.sub,
+      request_ctx: requestCtx,
+    });
 
     return {
       tokens,

@@ -22,38 +22,22 @@ import { makeProtectedRouter } from "../../../http/protected-router.js";
 import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
-import { rbacHandler } from "../rbac.middleware.js";
+import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
 import { Permission, getAuthConfig } from "@primebrick/sdk";
-import { getPool } from "../../../db/pool.js";
-import { UserProfilesDal } from "../user-profiles-dal.js";
-import { CasdoorService } from "../services/casdoor.service.js";
-import { UserService } from "../services/user.service.js";
 import {
-  AuthSessionService,
   setAuthCookies,
   clearRefreshCookie,
   buildUserFromClaims,
-} from "../services/auth-session.service.js";
-import { LoginBodySchema, ProfileUpdateSchema, makeChangeOwnPasswordSchema } from "../dto.js";
-import { PasswordPolicy, DEFAULT_PASSWORD_POLICY } from "../password-policy.js";
+} from "../../../modules/auth/services/auth-session.service.js";
+import { makeAuthSessionService, makeUserService } from "./wiring.js";
+import { LoginBodySchema, ProfileUpdateSchema, makeChangeOwnPasswordSchema } from "../../../modules/auth/dto.js";
+import { PasswordPolicy, DEFAULT_PASSWORD_POLICY } from "../../../modules/auth/password-policy.js";
 import { UnauthorizedError, ApiError } from "../../../http/api-errors.js";
 import type { EntityMeta } from "../../../http/entity-meta.types.js";
 import { assembleMeta } from "../../../http/meta-assembler.js";
-import { UserProfileEntity } from "../user_profile_entity.js";
+import { UserProfileEntity } from "../../../modules/auth/user_profile_entity.js";
 
-function makeService(): AuthSessionService {
-  const pool = getPool();
-  const dal = new UserProfilesDal(pool);
-  const casdoor = new CasdoorService(pool);
-  return new AuthSessionService(pool, dal, casdoor);
-}
 
-function makeUserService(): UserService {
-  const pool = getPool();
-  const dal = new UserProfilesDal(pool);
-  const casdoor = new CasdoorService(pool);
-  return new UserService(pool, dal, casdoor);
-}
 
 // Schema for self-service password change — requires current_password + newPassword
 const ChangeMyPasswordSchema = makeChangeOwnPasswordSchema(DEFAULT_PASSWORD_POLICY);
@@ -96,7 +80,7 @@ function requireUserId(req: { user?: { id?: string } }): string {
 
 export function authSessionRouter() {
   const router = makeProtectedRouter();
-  const service = makeService();
+  const service = makeAuthSessionService();
 
   const login: RequestHandler = asyncHandler(async (req, res) => {
     const request_ctx = {

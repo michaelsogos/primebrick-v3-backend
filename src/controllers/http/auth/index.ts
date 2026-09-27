@@ -17,15 +17,15 @@
  */
 
 import { Router } from "express";
-import { authSessionRouter } from "./routers/auth-session.router.js";
-import { authCheckRouter } from "./routers/auth-check.router.js";
-import { usersRouter } from "./routers/users.router.js";
-import { userProfilesRouter } from "./routers/user-profiles.router.js";
-import { authWebauthnRouter } from "./routers/auth-webauthn.router.js";
-import { authMfaRouter } from "./routers/auth-mfa.router.js";
-import { authInvitationRouter } from "./routers/auth-invitation.router.js";
-import { roleMappingsRouter } from "./routers/role-mappings.router.js";
-import { configEntriesRouter } from "./routers/config-entries.router.js";
+import { authSessionRouter } from "./auth-session.router.js";
+import { authCheckRouter } from "./auth-check.router.js";
+import { usersRouter } from "./users.router.js";
+import { userProfilesRouter } from "./user-profiles.router.js";
+import { authWebauthnRouter } from "./auth-webauthn.router.js";
+import { authMfaRouter } from "./auth-mfa.router.js";
+import { authInvitationRouter } from "./auth-invitation.router.js";
+import { roleMappingsRouter } from "./role-mappings.router.js";
+import { configEntriesRouter } from "./config-entries.router.js";
 
 export function authRouter() {
   const router = Router();

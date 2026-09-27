@@ -10,7 +10,7 @@
  * Auth via `rbacHandler([Permission.AUTHENTICATED_USER])` (cookie-based;
  * `createSseConnection` sends `credentials:'include'`).
  *
- * The SSE endpoint mirrors `src/modules/system/services-events-route.ts`:
+ * The SSE endpoint mirrors `src/controllers/http/services-events.router.ts`:
  * - `createSseWriter(res)` (SDK primitive — headers + wire format + BigInt-safe)
  * - Initial snapshot on connect
  * - Subscribe to per-entity bus (refcounted NATS bridge via

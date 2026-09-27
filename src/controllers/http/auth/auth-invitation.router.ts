@@ -29,11 +29,9 @@ import { makeProtectedRouter } from "../../../http/protected-router.js";
 import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
-import { rbacHandler } from "../rbac.middleware.js";
+import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
-import { getPool } from "../../../db/pool.js";
-import { CasdoorService } from "../services/casdoor.service.js";
-import { InvitationService } from "../services/invitation.service.js";
+import { makeInvitationService } from "./wiring.js";
 
 // ─── Zod schemas ─────────────────────────────────────────────────────────────
 
@@ -63,17 +61,12 @@ const LoginAlertSchema = z.object({
 
 // ─── Service factory ─────────────────────────────────────────────────────────
 
-function makeService(): InvitationService {
-  const pool = getPool();
-  const casdoor = new CasdoorService(pool);
-  return new InvitationService(pool, casdoor);
-}
 
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export function authInvitationRouter() {
   const router = makeProtectedRouter();
-  const service = makeService();
+  const service = makeInvitationService();
 
   // ─── Public welcome endpoints ──────────────────────────────────────────────
 

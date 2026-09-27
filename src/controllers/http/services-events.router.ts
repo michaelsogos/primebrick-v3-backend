@@ -16,17 +16,17 @@
  */
 
 import { makeProtectedRouter } from "../../http/protected-router.js";
-import { rbacHandler } from "../auth/rbac.middleware.js";
+import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission, createSseWriter } from "@primebrick/sdk";
 import { asyncHandler } from "../../http/async-handler.js";
-import { getPool } from "../../db/pool.js";
-import { ServiceRegistryRepo } from "../proxy/service-registry-repo.js";
-import { serviceEventsBus } from "../proxy/service-events-bus.js";
+import { serviceEventsBus } from "../../modules/proxy/service-events-bus.js";
+import { SystemService } from "../../modules/system/system.service.js";
 
 const KEEPALIVE_MS = 15_000;
 
 export function servicesEventsRouter() {
   const router = makeProtectedRouter();
+  const service = new SystemService();
 
   router.get(
     "/api/v1/system/services/events",
@@ -36,14 +36,13 @@ export function servicesEventsRouter() {
 
       // 1. Send initial snapshot with current state
       try {
-        const repo = new ServiceRegistryRepo(getPool());
-        const services = await repo.findAll();
+        const { services } = await service.listServices();
         writer.send({
           id: `snapshot:${Date.now()}`,
           event: "snapshot",
           data: { services },
         });
-      } catch (err) {
+      } catch {
         // DB might be unavailable — send error and close
         writer.send({
           id: `error:${Date.now()}`,

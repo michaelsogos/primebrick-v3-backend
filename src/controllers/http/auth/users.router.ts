@@ -24,15 +24,11 @@ import { makeProtectedRouter } from "../../../http/protected-router.js";
 import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
-import { rbacHandler } from "../rbac.middleware.js";
+import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
 import { getPool } from "../../../db/pool.js";
-import { UserProfilesDal } from "../user-profiles-dal.js";
-import { CasdoorService } from "../services/casdoor.service.js";
-import { UserService } from "../services/user.service.js";
-import { makeCreateUserSchema, UserUpdateBodySchema, makeChangePasswordSchema, type CreateUserBody, type ChangePasswordBody } from "../dto.js";
-import { loadAuthConfigFromDb } from "../config-repo.js";
-import { parsePasswordPolicy } from "../password-policy.js";
+import { makeUserService } from "./wiring.js";
+import { makeCreateUserSchema, UserUpdateBodySchema, makeChangePasswordSchema, type CreateUserBody, type ChangePasswordBody } from "../../../modules/auth/dto.js";
 import { ValidationError } from "../../../http/api-errors.js";
 import {
   entityWriteBody,
@@ -46,12 +42,6 @@ const UserUpdateBodySchemaWrapped = entityWriteBody(UserUpdateBodySchema);
 
 const UuidSchema = z.string().uuid();
 
-function makeUserService(): UserService {
-  const pool = getPool();
-  const dal = new UserProfilesDal(pool);
-  const casdoor = new CasdoorService(pool);
-  return new UserService(pool, dal, casdoor);
-}
 
 function requireValidUuid(uuid: unknown): string {
   const parsed = UuidSchema.safeParse(uuid);
@@ -67,8 +57,7 @@ export function usersRouter() {
 
   const create: RequestHandler = asyncHandler(async (req, res) => {
     // Load the active password policy from DB and build the schema dynamically.
-    const cfg = await loadAuthConfigFromDb(getPool());
-    const policy = parsePasswordPolicy(cfg.password_policy!);
+    const policy = await service.getPasswordPolicy();
     const schema = makeCreateUserSchema(policy);
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -122,8 +111,7 @@ export function usersRouter() {
   const changePassword: RequestHandler = asyncHandler(async (req, res) => {
     const uuid = requireValidUuid(req.params.uuid);
     // Load the active password policy from DB and build the schema dynamically.
-    const cfg = await loadAuthConfigFromDb(getPool());
-    const policy = parsePasswordPolicy(cfg.password_policy!);
+    const policy = await service.getPasswordPolicy();
     const schema = makeChangePasswordSchema(policy);
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {

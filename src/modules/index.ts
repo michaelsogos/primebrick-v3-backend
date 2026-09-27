@@ -18,10 +18,10 @@ import type { Express } from "express";
 import { customersRouter } from "../controllers/http/customers.router.js";
 import { aiModelsRouter } from "../controllers/http/ai-models.router.js";
 import { aiCerebellumRouter } from "../controllers/http/ai-cerebellum.router.js";
-import { organizationsRouter } from "./auth/routers/organizations.router.js";
-import { systemRouter } from "./system/system-router.js";
-import { translationsRouter } from "./system/translations-router.js";
-import { authRouter } from "./auth/router.js";
+import { organizationsRouter } from "../controllers/http/auth/organizations.router.js";
+import { systemRouter } from "../controllers/http/system.router.js";
+import { translationsRouter } from "../controllers/http/translations.router.js";
+import { authRouter } from "../controllers/http/auth/index.js";
 import { proxyRouter } from "./proxy/proxy-router.js";
 import { collaborationRouter } from "../controllers/http/collaboration.router.js";
 
