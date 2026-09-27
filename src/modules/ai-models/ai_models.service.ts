@@ -18,6 +18,7 @@ import type {
   AiModelListQuery,
 } from "./dto.js";
 import { getPool } from "../../db/pool.js";
+import { powerLevelFromWorkingSet } from "./power-level.js";
 import {
   ApiError,
   NotFoundError,
@@ -32,6 +33,15 @@ export class AiModelsService {
     const pool: Pool = getPool();
     this.dal = new AiModelsDal(pool);
     return this.dal;
+  }
+
+  /**
+   * Post-commit cache invalidation hook — passed to `runEntityWrite` so the
+   * list cache is flushed after the write transaction commits (inside the
+   * tx the DAL intentionally skips its own invalidation).
+   */
+  async invalidateCache(): Promise<void> {
+    await this.getDal().invalidateCache();
   }
 
   // --- List -----------------------------------------------------------------
@@ -75,26 +85,39 @@ export class AiModelsService {
   // --- Create / Update / Delete / Restore -----------------------------------
 
   async createAiModel(body: AiModelCreateBody, tx?: PoolClient) {
-    // Check model_id uniqueness before creating
-    const existing = await this.getDal().findByModelId(body.model_id);
-    if (existing) {
-      throw new ValidationError("An AI model with this model_id already exists", {
-        internal_code: "AI_MODEL_MODEL_ID_DUPLICATE",
-      });
-    }
+    // (model_id, dtype) uniqueness is enforced by the DB constraint — the DAL
+    // conflict CTE raises ERR04 (live duplicate) / ERR05 (soft-deleted →
+    // restore) with the existing row's uuid; no preflight SELECT needed.
+    // working_set_mb known → power_level is always derived, never manual.
+    const derived = powerLevelFromWorkingSet(body.working_set_mb);
+    if (derived !== null) body = { ...body, power_level: derived };
     return this.getDal().createAiModel(body, tx);
   }
 
   async updateAiModel(uuid: string, body: AiModelUpdateBody, tx?: PoolClient) {
-    // If model_id is being changed, check uniqueness against other rows
-    if (body.model_id !== undefined) {
-      const existing = await this.getDal().findByModelId(body.model_id);
+    // If the variant identity (model_id or dtype) is being changed, check
+    // uniqueness of the effective pair against other rows.
+    if (body.model_id !== undefined || body.dtype !== undefined) {
+      const current = await this.getDal().findByUuid(uuid);
+      if (!current) {
+        throw new NotFoundError("The requested AI model could not be found", {
+          internal_code: "AI_MODEL_NOT_FOUND",
+        });
+      }
+      const existing = await this.getDal().findByModelIdAndDtype(
+        body.model_id ?? current?.model_id,
+        body.dtype !== undefined ? body.dtype : current?.dtype,
+      );
       if (existing && existing.uuid !== uuid) {
         throw new ValidationError("An AI model with this model_id already exists", {
           internal_code: "AI_MODEL_MODEL_ID_DUPLICATE",
         });
       }
     }
+    // A new working_set_mb value (estimate or e2e measure) re-derives
+    // power_level — the level is never manually overridden when ws exists.
+    const derived = powerLevelFromWorkingSet(body.working_set_mb);
+    if (derived !== null) body = { ...body, power_level: derived };
     return await this.getDal().updateAiModel(uuid, body, tx);
   }
 

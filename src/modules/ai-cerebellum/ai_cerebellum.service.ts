@@ -29,6 +29,15 @@ export class AiCerebellumService {
     return this.dal;
   }
 
+  /**
+   * Post-commit cache invalidation hook — passed to `runEntityWrite` so the
+   * list cache is flushed after the write transaction commits (inside the
+   * tx the DAL intentionally skips its own invalidation).
+   */
+  async invalidateCache(): Promise<void> {
+    await this.getDal().invalidateCache();
+  }
+
   // --- List -----------------------------------------------------------------
 
   async listAiCerebellum(query: AiCerebellumListQuery) {

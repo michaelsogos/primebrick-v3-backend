@@ -20,17 +20,14 @@
  */
 
 import { makeProtectedRouter } from "../../http/protected-router.js";
-import { rbacHandler } from "../auth/rbac.middleware.js";
+import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission, createSseWriter } from "@primebrick/sdk";
 import { asyncHandler } from "../../http/async-handler.js";
 import { validateBody } from "../../http/validation.js";
-import { PresenceSignalSchema, type AuditDiffResponse } from "./dto.js";
-import { collaborationService } from "./collaboration.service.js";
-import { collaborationBusRegistry } from "./collaboration-bus-registry.js";
-import { getPool } from "../../db/pool.js";
-import { createRepository } from "../../db/repository-factory.js";
-import { findAuditById } from "../../db/audit-query-helper.js";
-import { NotFoundError } from "../../http/api-errors.js";
+import { PresenceSignalSchema } from "../../modules/collaboration/dto.js";
+import { collaborationService } from "../../modules/collaboration/collaboration.service.js";
+import { collaborationBusRegistry } from "../../modules/collaboration/collaboration-bus-registry.js";
+
 
 const KEEPALIVE_MS = 15_000;
 
@@ -123,34 +120,8 @@ export function collaborationRouter() {
       const entity = String(req.params.entity);
       const uuid = String(req.params.uuid);
       const auditLogId = BigInt(String(req.params.auditLogId));
-      const auditTableName = `${entity}_audit`;
 
-      const repo = createRepository(getPool());
-      const row = await findAuditById(repo, auditTableName, auditLogId);
-      if (!row) {
-        throw new NotFoundError(
-          `Audit log entry ${auditLogId} not found in ${auditTableName}`,
-          { internal_code: "AUDIT_LOG_NOT_FOUND" },
-        );
-      }
-
-      // Verify the audit entry belongs to the requested entity UUID
-      if (row.entity_uuid !== uuid) {
-        throw new NotFoundError(
-          `Audit log entry ${auditLogId} does not belong to entity ${uuid}`,
-          { internal_code: "AUDIT_LOG_ENTITY_MISMATCH" },
-        );
-      }
-
-      const response: AuditDiffResponse = {
-        audit_log_id: Number(row.id),
-        entity_type: entity,
-        entity_uuid: row.entity_uuid,
-        version: row.version,
-        changed_by: row.changed_by,
-        changed_at: new Date(row.changed_at).getTime(),
-        delta: row.delta as Record<string, { old: unknown; new: unknown }>,
-      };
+      const response = await collaborationService.getAuditLogDiff(entity, uuid, auditLogId);
       res.json(response);
     }),
   );

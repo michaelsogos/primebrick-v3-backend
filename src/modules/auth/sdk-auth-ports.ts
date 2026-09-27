@@ -22,6 +22,8 @@ import {
   type ApiKeyRecord,
   type ResolveInput,
   AuthMode,
+  apiKeyCacheKey,
+  API_KEY_CACHE_TTL_MS,
 } from "@primebrick/sdk";
 import { loadAuthConfigFromDb } from "./config-repo.js";
 import { resolveInternalUuid } from "./user-profile-repo.js";
@@ -33,7 +35,7 @@ import { getCachePort } from "../../cache/cache-port-holder.js";
 const ROLE_MAPPINGS_CACHE_KEY = "be:role_mappings:all";
 const ROLE_MAPPINGS_TTL_MS = 5 * 60 * 1000; // 5 min
 
-const API_KEY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
+
 
 // ─── AuthConfigPort ───────────────────────────────────────────────────────────
 
@@ -136,7 +138,7 @@ export class BeApiKeyPort implements ApiKeyPort {
   constructor(private pool: Pool) {}
 
   async findByHash(hash: string): Promise<ApiKeyRecord | null> {
-    const cacheKey = `be:api_keys:hash:${hash}`;
+    const cacheKey = apiKeyCacheKey(hash);
     const port = getCachePort();
     if (port) {
       try {

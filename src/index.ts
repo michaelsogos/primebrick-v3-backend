@@ -28,6 +28,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { ServiceRegistryRepo } from "./modules/proxy/service-registry-repo.js";
 import { ServiceLifecycleSubscriber } from "./modules/proxy/service-lifecycle-subscriber.js";
+import { startServiceRegistryController } from "./controllers/nats-req/service-registry.js";
+import { startAuthApiKeyController } from "./controllers/nats-req/auth-apikey.js";
 import { StaleDetectionJob } from "./modules/proxy/stale-detection-job.js";
 import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
@@ -415,6 +417,8 @@ async function startServiceLifecycle(): Promise<void> {
     });
     const subscriber = new ServiceLifecycleSubscriber();
     await subscriber.start();
+    await startServiceRegistryController();
+    await startAuthApiKeyController();
     const staleJob = new StaleDetectionJob();
     staleJob.start();
   } catch (err) {

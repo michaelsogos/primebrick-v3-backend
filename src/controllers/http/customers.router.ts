@@ -27,7 +27,7 @@ import { registerRoutes } from "../../http/define-route.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { validateBody, validateQuery } from "../../http/validation.js";
 import { isDatabaseUnavailableError } from "../../http/api-errors.js";
-import { rbacHandler } from "../auth/rbac.middleware.js";
+import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
 // runBulkAction no longer used — bulk-delete/bulk-restore are atomic DAL
 // deleteMany/restoreMany now (see lib/bulk/bulk-action-runner.ts, commented).
@@ -39,10 +39,10 @@ import {
   UuidParamSchema,
   CustomerDuplicateBodySchema,
   CustomerAuditQuerySchema,
-} from "./dto.js";
-import { customerMeta } from "./customers.meta.js";
-import { CustomerEntity } from "./customer_entity.js";
-import { CustomersService } from "./customers.service.js";
+} from "../../modules/customers/dto.js";
+import { customerMeta } from "../../modules/customers/customers.meta.js";
+import { CustomerEntity } from "../../modules/customers/customer_entity.js";
+import { CustomersService } from "../../modules/customers/customers.service.js";
 import { ValidationError } from "../../http/api-errors.js";
 import {
   entityWriteBody,
@@ -89,7 +89,7 @@ export function customersRouter() {
   };
 
   const list: RequestHandler = asyncHandler(async (req, res) => {
-    const query = req.query as unknown as import("./dto.js").CustomerListQuery;
+    const query = req.query as unknown as import("../../modules/customers/dto.js").CustomerListQuery;
     try {
       const result = await service.listCustomers(query);
       res.json(result);
@@ -102,7 +102,7 @@ export function customersRouter() {
   });
 
   const exportCustomers: RequestHandler = asyncHandler(async (req, res) => {
-    const query = req.query as unknown as import("./dto.js").CustomerExportQuery;
+    const query = req.query as unknown as import("../../modules/customers/dto.js").CustomerExportQuery;
     try {
       await service.exportCustomers(query, res);
     } catch (e) {
@@ -123,7 +123,7 @@ export function customersRouter() {
   });
 
   const duplicate: RequestHandler = asyncHandler(async (req, res) => {
-    const body = req.body as unknown as import("./dto.js").CustomerDuplicateBody;
+    const body = req.body as unknown as import("../../modules/customers/dto.js").CustomerDuplicateBody;
     const result = await service.duplicateCustomers(body.uuids);
     res.status(200).json(result);
   });
@@ -176,7 +176,7 @@ export function customersRouter() {
 
   const getAudit: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    const { page, limit } = req.query as unknown as import("./dto.js").CustomerAuditQuery;
+    const { page, limit } = req.query as unknown as import("../../modules/customers/dto.js").CustomerAuditQuery;
     const result = await service.getCustomerAudit(uuid, page, limit);
     res.json(result);
   });

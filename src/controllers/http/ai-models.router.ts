@@ -23,7 +23,7 @@ import { registerRoutes } from "../../http/define-route.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { validateBody, validateQuery } from "../../http/validation.js";
 import { isDatabaseUnavailableError } from "../../http/api-errors.js";
-import { rbacHandler } from "../auth/rbac.middleware.js";
+import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
 import {
   AiModelListQuerySchema,
@@ -31,10 +31,10 @@ import {
   AiModelUpdateBodySchema,
   AiModelAuditQuerySchema,
   UuidParamSchema,
-} from "./dto.js";
-import { aiModelMeta } from "./ai_models.meta.js";
-import { AiModelEntity } from "./ai_model_entity.js";
-import { AiModelsService } from "./ai_models.service.js";
+} from "../../modules/ai-models/dto.js";
+import { aiModelMeta } from "../../modules/ai-models/ai_models.meta.js";
+import { AiModelEntity } from "../../modules/ai-models/ai_model_entity.js";
+import { AiModelsService } from "../../modules/ai-models/ai_models.service.js";
 import { ValidationError } from "../../http/api-errors.js";
 import {
   entityWriteBody,
@@ -43,10 +43,9 @@ import {
   requireVersionQuery,
 } from "../../http/entity-write.js";
 import { getPool } from "../../db/pool.js";
-import { AiModelsDal } from "./ai_models_dal.js";
 import { assembleMeta } from "../../http/meta-assembler.js";
 import { deriveEntityActions } from "../../http/entity-actions.js";
-import { requireMfaStepUp } from "../auth/mfa-step-up.middleware.js";
+import { requireMfaStepUp } from "../../modules/auth/mfa-step-up.middleware.js";
 
 // Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)
 const AiModelCreateWriteSchema = entityWriteBody(AiModelCreateBodySchema);
@@ -74,7 +73,7 @@ export function aiModelsRouter() {
   };
 
   const list: RequestHandler = asyncHandler(async (req, res) => {
-    const query = req.query as unknown as import("./dto.js").AiModelListQuery;
+    const query = req.query as unknown as import("../../modules/ai-models/dto.js").AiModelListQuery;
     try {
       const result = await service.listAiModels(query);
       res.json(result);
@@ -87,12 +86,11 @@ export function aiModelsRouter() {
   const create: RequestHandler = asyncHandler(async (req, res) => {
     const body = req.body as z.infer<typeof AiModelCreateWriteSchema>;
     assertTranslationsPermission(req, body.translations);
-    const dal = new AiModelsDal(getPool());
     const created = await runEntityWrite(
       getPool(),
       body.translations,
       (tx) => service.createAiModel(body.entity, tx),
-      () => dal.invalidateCache(),
+      () => service.invalidateCache(),
     );
     res.status(201).json(created);
   });
@@ -107,12 +105,11 @@ export function aiModelsRouter() {
     const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
     const body = req.body as z.infer<typeof AiModelUpdateWriteSchema>;
     assertTranslationsPermission(req, body.translations);
-    const dal = new AiModelsDal(getPool());
     const updated = await runEntityWrite(
       getPool(),
       body.translations,
       (tx) => service.updateAiModel(uuid, body.entity, tx),
-      () => dal.invalidateCache(),
+      () => service.invalidateCache(),
     );
     res.status(200).json(updated);
   });
@@ -131,7 +128,7 @@ export function aiModelsRouter() {
 
   const getAudit: RequestHandler = asyncHandler(async (req, res) => {
     const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    const { page, limit } = req.query as unknown as import("./dto.js").AiModelAuditQuery;
+    const { page, limit } = req.query as unknown as import("../../modules/ai-models/dto.js").AiModelAuditQuery;
     const result = await service.getAiModelAudit(uuid, page, limit);
     res.json(result);
   });
