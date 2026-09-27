@@ -5,17 +5,23 @@ description: "Primebrick Backend architecture — module structure, HTTP layer, 
 
 # Architecture
 
-The Primebrick Backend is an Express.js application structured around
-domain modules. Each module owns its entities, DAL, routers, and
-business logic.
+The Primebrick Backend is an Express.js application structured around a
+strict **Controller–Service** boundary: transport adapters live under
+`src/controllers/`, while domain modules under `src/modules/` own
+entities, DAL, and transport-agnostic services. No business logic is
+allowed in controllers, and no transport types are allowed in services.
 
 ## Source layout
 
 ```
 src/
+  controllers/  Transport adapters — no business logic
+    http/       HTTP routers (Express)
+    nats-req/   NATS request-reply endpoints
+    nats-sub/   NATS pub/sub + JetStream subscribers, cron/poll jobs
   db/           Database connection and patch runner
   domain/       Shared domain types and utilities
-  http/         HTTP layer: error handling, validation, route helpers
+  http/         HTTP infrastructure: error handling, validation, route helpers
   i18n/         Internationalization
   lib/          Shared library utilities
   modules/      Domain modules (auth, customers, mcp, proxy, system)
@@ -30,10 +36,64 @@ Each module under `src/modules/` follows the same pattern:
 |-------|---------------|
 | **Entity** | TypeScript class defining the DB table shape (`*_entity.ts`) |
 | **Metadata** | Entity metadata for the DAL (`*.meta.ts`) |
-| **DAL** | Data access layer repository (`*_dal.ts`) |
-| **Router** | Express router with endpoint definitions (`router.ts`) |
-| **Service** | Business logic (request-context-free services) |
+| **DAL** | Data access layer repository (`*_dal.ts`) — imported **only** by services |
+| **Service** | Business logic (`services/*.service.ts`) — transport-agnostic, no `req`/`res` |
 | **Middleware** | Auth and RBAC middleware (`*.middleware.ts`) |
+
+Controllers do **not** live inside modules. An HTTP endpoint for the
+`customers` domain lives in `src/controllers/http/customers.router.ts`;
+a NATS subscriber for the `proxy` domain lives in
+`src/controllers/nats-sub/service-lifecycle-subscriber.ts`. The directory
+name encodes the transport, the file name encodes the domain.
+
+## The Controller–Service contract
+
+This is the core architectural rule of the backend. It exists so that the
+same operation can be invoked over HTTP today and over NATS request-reply
+tomorrow — only the controller file moves, the service is untouched.
+
+**A controller MAY:**
+
+- authenticate (session JWT / API key / gateway-resolved NATS headers)
+- validate the incoming payload (Zod / shape checks)
+- call exactly **one** service method
+- shape the *transport* response: HTTP status + RFC 7807 body, NATS reply
+  envelope, or JetStream ack/nak
+- own the root `try/catch` that maps service errors to the transport
+- use shared transport helpers: `runEntityWrite` / `entityWriteBody`
+  (write-transaction orchestration wrapping the one service call),
+  `rbacHandler`, `asyncHandler`, `validateBody`, `validateQuery`
+
+**A controller MUST NOT:**
+
+- import the DAL or repositories directly
+- contain domain rules (existence policy, reserved checks, value coercion)
+- loop over entities applying per-item business logic
+- build response payloads field-by-field — services return the formed
+  `snake_case` shape; the controller only serializes it
+- invent error codes — errors come from the service layer (`ApiError`);
+  the controller only maps them to transport
+
+**A service is a pure `(validatedInput, ctx) → result | throw`:**
+
+- zero `req`/`res`/NATS-message imports — no transport types at all
+- the same service method must be callable identically from `http/`,
+  `nats-req/`, and `nats-sub/` controllers
+
+```typescript
+// Controller (src/controllers/http/customers.router.ts) — transport only
+const get = asyncHandler(async (req, res) => {
+  const customer = await customersService.getCustomer(uuidParam(req));
+  res.json(customer); // NotFoundError → errorHandler → RFC 7807
+});
+
+// Service (src/modules/customers/customers.service.ts) — business logic
+async getCustomer(uuid: string) {
+  const found = await this.getDal().findByUUID(CustomerEntity, uuid);
+  if (!found) throw new NotFoundError(`Customer ${uuid} not found`);
+  return found;
+}
+```
 
 ## HTTP layer
 
@@ -96,7 +156,7 @@ declare its permission is never accidentally exposed.
 
 ```typescript
 import { makeProtectedRouter } from "../../http/protected-router.js";
-import { rbacHandler } from "../auth/rbac.middleware.js";
+import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
 
 const router = makeProtectedRouter();
@@ -123,7 +183,7 @@ sequence of `router.&lt;verb&gt;(...)` calls. Each entry chains
 ```typescript
 import { registerRoutes } from "../../http/define-route.js";
 import { validateBody, validateQuery } from "../../http/validation.js";
-import { rbacHandler } from "../auth/rbac.middleware.js";
+import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
 import { z } from "zod";
 
@@ -224,16 +284,19 @@ other uncaught error to 500 with `severity: HIGH`.
 ## A complete module walkthrough
 
 The `customers` module is the canonical reference for a domain module. It owns
-its entity, DAL, service, router, DTOs, and metadata — and contains no business
-logic in the router. Every layer has a single responsibility.
+its entity, DAL, service, DTOs, and metadata — while its HTTP router lives in
+`src/controllers/http/` as a thin transport adapter. Every layer has a single
+responsibility.
 
 <Mermaid chart={`flowchart LR
+  subgraph "src/controllers/http/"
+    R[customers.router.ts<br/>thin controller]
+  end
   subgraph "src/modules/customers/"
     E[customer_entity.ts<br/>@Entity + decorators]
     M[customers.meta.ts<br/>entity metadata for FE]
     DAL[customers_dal.ts<br/>Repository wrappers]
     S[customers.service.ts<br/>business logic]
-    R[router.ts<br/>thin controller]
     DTO[dto.ts<br/>Zod schemas]
   end
   subgraph "src/http/"
@@ -332,22 +395,24 @@ export class CustomersService {
 }
 ```
 
-### 3. Router (`router.ts`)
+### 3. Controller (`src/controllers/http/customers.router.ts`)
 
-The router is a thin controller. It contains NO business logic — it wires
-Zod-validated request data into the service and shapes the HTTP response. Every
-route declares its permission via `rbacHandler(...)`; the secure-first
-`makeProtectedRouter()` would otherwise inject a 403 default-deny.
+The controller is a thin transport adapter. It contains NO business logic —
+it wires Zod-validated request data into the service and shapes the HTTP
+response. Every route declares its permission via `rbacHandler(...)`; the
+secure-first `makeProtectedRouter()` would otherwise inject a 403
+default-deny. Note that it never imports `customers_dal.ts` — the DAL is
+reachable only through the service.
 
 ```typescript
 import { makeProtectedRouter } from "../../http/protected-router.js";
 import { registerRoutes } from "../../http/define-route.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { validateBody, validateQuery } from "../../http/validation.js";
-import { rbacHandler } from "../auth/rbac.middleware.js";
+import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
-import { CustomersService } from "./customers.service.js";
-import { CustomerCreateBodySchema, CustomerListQuerySchema } from "./dto.js";
+import { CustomersService } from "../../modules/customers/customers.service.js";
+import { CustomerCreateBodySchema, CustomerListQuerySchema } from "../../modules/customers/dto.js";
 
 export function customersRouter() {
   const router = makeProtectedRouter();
@@ -386,9 +451,11 @@ export function customersRouter() {
 
 ### 4. Mounting (`src/index.ts`)
 
-Module routers are mounted by `mountModules(app)` at startup. The
-`/api/v1/health` endpoint and the OpenAPI docs router are mounted **before**
-the guard so they stay public.
+Controllers are mounted by `mountModules(app)` at startup — it imports the
+routers from `src/controllers/http/`. The `/api/v1/health` endpoint and the
+OpenAPI docs router are mounted **before** the guard so they stay public.
+NATS controllers (`controllers/nats-req/`, `controllers/nats-sub/`) are
+started separately at boot, once the NATS connection is up.
 
 ```typescript
 import express from "express";

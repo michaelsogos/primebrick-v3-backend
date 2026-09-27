@@ -14,11 +14,18 @@ trigger: always_on
 ```
 src/
   controllers/            # transport adapters ONLY — no business logic
-    http/                 # HTTP route handlers
+    http/                 # HTTP route handlers (Express routers)
     nats-req/             # NATS request-reply endpoints (subscribeRequest)
-    nats-sub/             # NATS pub/sub + JetStream subscribers
-  services/               # transport-agnostic business logic
+    nats-sub/             # NATS pub/sub + JetStream subscribers, cron/poll jobs
+  modules/<domain>/
+    services/             # transport-agnostic business logic
+    *_dal.ts / *-repo.ts  # data access — imported ONLY by services
 ```
+
+Every inbound transport gets exactly one controller file. A NATS
+subscriber is a controller too: the "request" is the NATS message, the
+"response" is the ack/nak or the reply envelope. The same boundary rules
+apply.
 
 ## Controller contract
 
@@ -59,3 +66,50 @@ Services are pure `(validatedInput, ctx) → result | throw`:
 One operation must be invocable over HTTP and NATS without duplicating
 auth/validation/dispatch. HTTP endpoints progressively migrate to
 `nats-req`; only the controller file moves — the service is untouched.
+
+## Good / bad (canonical)
+
+```ts
+// BAD — controller reaches into the DAL and applies domain rules
+const dal = new CustomersDal(getPool());
+const found = await dal.findByUUID(CustomerEntity, uuid);
+if (!found) return res.status(404).json({ detail: "not found" });
+if (found.status === "INACTIVE") return res.status(422).json({ detail: "inactive" });
+
+// GOOD — one service call; the service owns lookup, existence policy,
+// and ApiError mapping; the controller only serializes the result
+const result = await customersService.getCustomer(uuid); // throws NotFoundError → errorHandler → RFC7807
+res.json(result);
+```
+
+```ts
+// BAD — post-write cache invalidation orchestrated in the controller
+await service.createCustomer(body);
+await new CustomersDal(getPool()).invalidateCache();
+
+// GOOD — the service exposes the whole operation; the hook is an
+// implementation detail of the service
+await runEntityWrite(req, res, () => service.createCustomer(body));
+```
+
+## Checklist for new endpoints
+
+1. Write/extend the **service method** first — pure input→output, throws
+   `ApiError`/`mapDalError`. No transport types.
+2. Add the **controller** under `controllers/http/`, `nats-req/`, or
+   `nats-sub/` — pick the directory matching the transport, never the
+   domain folder.
+3. The controller calls **exactly one** service method. If you need two,
+   compose them inside a service method.
+4. Declare the permission with `rbacHandler(...)` — missing declaration
+   means `ROUTE_PERMISSION_NOT_DECLARED` 403 by design.
+5. Tests: use `src/controllers/http/__tests__/harness.ts` — mock the
+   service, rbac, mfa-step-up, `db/pool`; keep zod validation and the
+   centralized `errorHandler` real. Assert status, service args, and
+   RFC7807 shape — this IS the boundary test.
+
+## Smell test
+
+If you can answer "what does this endpoint DO?" by reading only the
+service signature, the boundary is right. If you must read the controller
+to understand the operation's semantics, logic leaked into the transport.
