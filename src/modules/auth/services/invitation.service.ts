@@ -106,17 +106,23 @@ export class InvitationService {
   }
 
   private async getNotificationAlertSecret(): Promise<string> {
-    let row = await this.configDal.findByKey("notification_alert_secret");
-    if (!row || !row.value || row.value.trim() === "") {
-      // Auto-generate a 32-byte hex secret
-      const secret = randomBytes(32).toString("hex");
+    const row = await this.configDal.findByKey("notification_alert_secret");
+    if (row && row.value && row.value.trim() !== "") {
+      return row.value;
+    }
+    // Auto-generate a 32-byte hex secret. The key row may already exist with
+    // an empty value (seeded placeholder) — update it instead of inserting a
+    // duplicate, which would violate the unique constraint on `key`.
+    const secret = randomBytes(32).toString("hex");
+    if (row) {
+      await this.configDal.update(row.uuid, { value: secret, version: row.version }, "system");
+    } else {
       await this.configDal.add(
         { key: "notification_alert_secret", value: secret, type: "secret" },
         "system",
       );
-      return secret;
     }
-    return row.value;
+    return secret;
   }
 
   // ─── Token + OTP generation ────────────────────────────────────────────────

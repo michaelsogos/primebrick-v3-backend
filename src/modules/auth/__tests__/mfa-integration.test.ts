@@ -6,13 +6,15 @@
  *
  * Prerequisites:
  *   - BE dev server running on port 3001
- *   - Admin user with username "admin" / password "admin" (seeded by setup-casdoor)
- *   - Admin user has at least one enrolled MFA factor
+ *   - E2E test actor credentials via env: E2E_ADMIN_USERNAME (default
+ *     "test-admin") and E2E_ADMIN_PASSWORD. NEVER use the dev bootstrap
+ *     "admin" user in tests — its credentials/MFA state are not test data.
+ *   - The test actor has at least one enrolled MFA factor
  *
  * If the server is not reachable, all tests are skipped.
  *
- * NOTE: These tests depend on the admin user having MFA enrolled. The TOTP
- * secret is read from the database via the test helper. If the admin has no
+ * NOTE: These tests depend on the test actor having MFA enrolled. The TOTP
+ * secret is read from the database via the test helper. If the actor has no
  * MFA factor, the enrollment tests are skipped.
  */
 
@@ -20,8 +22,15 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { createHmac } from "crypto";
 
 const BASE_URL = "http://localhost:3001";
-const ADMIN_USERNAME = process.env.CASDOOR_ADMIN_USERNAME ?? "admin";
-const ADMIN_PASSWORD = process.env.CASDOOR_ADMIN_PASSWORD ?? "admin";
+// E2E test actor — never the dev bootstrap "admin" user.
+const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? "test-admin";
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? "";
+if (ADMIN_USERNAME === "admin") {
+  throw new Error(
+    "[TEST] Refusing to authenticate as the dev bootstrap 'admin' user. " +
+      "Use the seeded E2E test actor (test-admin) via E2E_ADMIN_* env vars.",
+  );
+}
 
 // ─── TOTP generation (same as the BE implementation) ────────────────────────
 

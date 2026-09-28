@@ -30,7 +30,7 @@ function makeAuthUser(overrides: Partial<AuthUser> = {}): AuthUser {
     permissions: new Set(["customers.read.all", "customers.read.single"]),
     isAdmin: false,
     isSystem: false,
-    idp_code: "admin/acme",
+    idp_code: "test-admin/acme",
     idp_org: "acme",
     idp_username: "testuser",
     raw_access_token: "raw-jwt-token",
@@ -52,7 +52,7 @@ describe("MCP Token Verifier — authInfoToUser", () => {
   it("converts AuthInfo with full extra fields back to user shape", () => {
     const authInfo: AuthInfo = {
       token: "test-token",
-      clientId: "admin/acme",
+      clientId: "test-admin/acme",
       scopes: ["customers.read.all"],
       expiresAt: Math.floor(Date.now() / 1000) + 3600,
       extra: {
@@ -62,7 +62,7 @@ describe("MCP Token Verifier — authInfoToUser", () => {
         roles: ["collaborator", "guest"],
         is_admin: false,
         is_system: false,
-        idp_code: "admin/acme",
+        idp_code: "test-admin/acme",
         idp_org: "acme",
         idp_username: "user",
         raw_access_token: "raw-jwt",
@@ -77,7 +77,7 @@ describe("MCP Token Verifier — authInfoToUser", () => {
     expect(user.roles).toEqual(["collaborator", "guest"]);
     expect(user.is_admin).toBe(false);
     expect(user.is_system).toBe(false);
-    expect(user.idp_code).toBe("admin/acme");
+    expect(user.idp_code).toBe("test-admin/acme");
     expect(user.idp_org).toBe("acme");
     expect(user.idp_username).toBe("user");
     expect(user.raw_access_token).toBe("raw-jwt");
@@ -156,12 +156,12 @@ describe("MCP Token Verifier — tokenVerifier.verifyAccessToken", () => {
   it("returns AuthInfo with correct fields from verified user", async () => {
     const user = makeAuthUser({
       id: "abc-123",
-      email: "admin@test.com",
-      name: "Admin",
+      email: "test-admin@test.com",
+      name: "Test Admin",
       roles: ["administrators"],
       permissions: new Set(["*"]),
       isAdmin: true,
-      idp_code: "admin/acme",
+      idp_code: "test-admin/acme",
     });
     mockVerifyAuth.mockResolvedValue(user);
 
@@ -171,16 +171,16 @@ describe("MCP Token Verifier — tokenVerifier.verifyAccessToken", () => {
     const authInfo = await tokenVerifier.verifyAccessToken(token);
 
     expect(authInfo.token).toBe(token);
-    expect(authInfo.clientId).toBe("admin/acme");
+    expect(authInfo.clientId).toBe("test-admin/acme");
     expect(authInfo.scopes).toEqual(["*"]);
     expect(authInfo.expiresAt).toBe(exp);
     expect(authInfo.extra).toMatchObject({
       user_id: "abc-123",
-      email: "admin@test.com",
-      name: "Admin",
+      email: "test-admin@test.com",
+      name: "Test Admin",
       roles: ["administrators"],
       is_admin: true,
-      idp_code: "admin/acme",
+      idp_code: "test-admin/acme",
       permissions: ["*"],
       raw_access_token: "raw-jwt-token",
     });
@@ -225,7 +225,7 @@ describe("MCP Token Verifier — tokenVerifier.verifyAccessToken", () => {
     const user = makeAuthUser({
       id: "session-user-id",
       roles: ["collaborator"],
-      idp_code: "admin/acme",
+      idp_code: "test-admin/acme",
       idp_org: "acme",
       idp_username: "sessionuser",
     });
@@ -238,7 +238,7 @@ describe("MCP Token Verifier — tokenVerifier.verifyAccessToken", () => {
       expect.objectContaining({
         actor: "session-user-id",
         roles: ["collaborator"],
-        idpCode: "admin/acme",
+        idpCode: "test-admin/acme",
         idpOrg: "acme",
         idpUsername: "sessionuser",
       }),

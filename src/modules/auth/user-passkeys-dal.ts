@@ -173,7 +173,6 @@ export class UserPasskeysDal {
       {
         uuid,
         label,
-        updated_by: actor,
         version: existing.version,
       },
       { actor },

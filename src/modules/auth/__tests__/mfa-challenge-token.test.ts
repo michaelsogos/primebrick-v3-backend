@@ -14,7 +14,7 @@ function makePayload(overrides: Partial<MfaChallengePayload> = {}): MfaChallenge
     sub: "user-uuid-456",
     idp_code: "idp-code-789",
     idp_org: "acme",
-    idp_username: "admin",
+    idp_username: "test-admin",
     available_factor_ids: ["factor-uuid-1"],
     purpose: "login_challenge",
     ...overrides,

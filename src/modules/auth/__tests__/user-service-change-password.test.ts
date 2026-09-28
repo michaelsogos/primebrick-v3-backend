@@ -80,11 +80,11 @@ function makeUserService(mockCasdoor: any): UserService {
   const dal = {
     getByUuid: vi.fn().mockResolvedValue({
       uuid: "user-uuid-1",
-      idp_code: "ACME/admin",
+      idp_code: "ACME/test-admin",
       idp_org: "ACME",
-      idp_username: "admin",
+      idp_username: "test-admin",
       display_name: "Admin User",
-      email: "admin@example.com",
+      email: "test-admin@example.com",
     }),
   };
   return new UserService(mockPool, dal as any, mockCasdoor as any);
@@ -96,7 +96,7 @@ describe("UserService — changeOwnPassword", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGenerateAlertLink.mockResolvedValue("https://app/login?alert=xxx");
-    mockGenerateAdminMailto.mockResolvedValue("mailto:admin@example.com");
+    mockGenerateAdminMailto.mockResolvedValue("mailto:test-admin@example.com");
   });
 
   it("changes password when current password is correct", async () => {
@@ -110,11 +110,11 @@ describe("UserService — changeOwnPassword", () => {
 
     expect(result.status).toBe("ok");
     expect(mockClient.checkUserPassword).toHaveBeenCalledWith(
-      { id: "ACME/admin", owner: "ACME", name: "admin" },
+      { id: "ACME/test-admin", owner: "ACME", name: "test-admin" },
       "correct-pw",
     );
     expect(mockClient.changePassword).toHaveBeenCalledWith(
-      { id: "ACME/admin", owner: "ACME", name: "admin" },
+      { id: "ACME/test-admin", owner: "ACME", name: "test-admin" },
       "new-pw-123",
     );
   });
@@ -146,7 +146,7 @@ describe("UserService — changeOwnPassword", () => {
     expect(mockSendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         template_code: "password_changed",
-        to: ["admin@example.com"],
+        to: ["test-admin@example.com"],
       }),
     );
   });
@@ -192,7 +192,7 @@ describe("UserService — changePassword (admin) sends notification email", () =
   beforeEach(() => {
     vi.clearAllMocks();
     mockGenerateAlertLink.mockResolvedValue("https://app/login?alert=xxx");
-    mockGenerateAdminMailto.mockResolvedValue("mailto:admin@example.com");
+    mockGenerateAdminMailto.mockResolvedValue("mailto:test-admin@example.com");
   });
 
   it("sends password_changed email after admin password change", async () => {
@@ -210,7 +210,7 @@ describe("UserService — changePassword (admin) sends notification email", () =
     expect(mockSendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         template_code: "password_changed",
-        to: ["admin@example.com"],
+        to: ["test-admin@example.com"],
       }),
     );
   });

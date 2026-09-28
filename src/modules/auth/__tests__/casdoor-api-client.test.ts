@@ -39,7 +39,7 @@ describe("CasdoorApiClient — checkUserPassword", () => {
     mockFetch.mockResolvedValue(mockResponse({ status: "ok" }));
     const client = makeClient();
     const result = await client.checkUserPassword(
-      { id: "ACME/admin", owner: "ACME", name: "admin" },
+      { id: "ACME/test-admin", owner: "ACME", name: "test-admin" },
       "correct-password",
     );
     expect(result.status).toBe("ok");
@@ -50,7 +50,7 @@ describe("CasdoorApiClient — checkUserPassword", () => {
     mockFetch.mockResolvedValue(mockResponse({ status: "error", msg: "wrong password" }));
     const client = makeClient();
     const result = await client.checkUserPassword(
-      { id: "ACME/admin" },
+      { id: "ACME/test-admin" },
       "wrong-password",
     );
     expect(result.status).toBe("error");
@@ -61,7 +61,7 @@ describe("CasdoorApiClient — checkUserPassword", () => {
     mockFetch.mockResolvedValue(mockResponse({ error: "internal" }, 500));
     const client = makeClient();
     const result = await client.checkUserPassword(
-      { id: "ACME/admin" },
+      { id: "ACME/test-admin" },
       "any-password",
     );
     expect(result.status).toBe("error");
@@ -71,9 +71,9 @@ describe("CasdoorApiClient — checkUserPassword", () => {
   it("splits id into owner/name when owner/name not provided", async () => {
     mockFetch.mockResolvedValue(mockResponse({ status: "ok" }));
     const client = makeClient();
-    await client.checkUserPassword({ id: "ACME/admin" }, "pw");
+    await client.checkUserPassword({ id: "ACME/test-admin" }, "pw");
     const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain("id=ACME%2Fadmin");
+    expect(url).toContain("id=ACME%2Ftest-admin");
   });
 });
 
@@ -82,6 +82,9 @@ describe("CasdoorApiClient — addApplication", () => {
     mockFetch.mockReset();
   });
 
+  // NOTE: `owner: "admin"` below is Casdoor's built-in application-owner
+  // namespace (part of the Casdoor REST contract for app management), NOT the
+  // dev bootstrap admin user — test identities always use test-admin/test-user.
   it("creates an application and returns it on success", async () => {
     const appData = { name: "primebrick-api", owner: "admin", enableWebAuthn: true };
     mockFetch.mockResolvedValue(mockResponse({ status: "ok", data: appData }));

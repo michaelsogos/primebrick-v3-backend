@@ -106,6 +106,24 @@ export class UserService {
       casdoorUserId = newUser.id;
       idpOrg = newUser.owner || cfg.idp_organization!;
       idpUsername = newUser.name || username;
+
+      // Link the user into each assigned role's `users` list — Casdoor only
+      // emits the JWT `roles` claim for users present there. The `roles`
+      // field on the user object alone leaves the token role-less and the
+      // login fails with user_no_permission.
+      const userKey = `${idpOrg}/${idpUsername}`;
+      for (const roleName of roles ?? []) {
+        const linked = await cdClient.addUserToRole(userKey, roleName, idpOrg);
+        if (!linked) {
+          throw new ApiError(
+            "/errors/internal-error",
+            "Failed to create user",
+            500,
+            `Casdoor™ role assignment failed for role "${roleName}"`,
+            { internal_code: "USER_ROLE_ASSIGN_FAILED", severity: "HIGH" },
+          );
+        }
+      }
     }
 
     // 2. Create local profile via DAL (repo.add — no manual audit field setting)

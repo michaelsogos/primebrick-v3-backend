@@ -173,7 +173,7 @@ beforeEach(() => {
       return Promise.resolve({ rows: [{ id: 1 }] });
     }
     if (sql.includes("SELECT idp_org, idp_username, idp_code FROM user_profiles")) {
-      return Promise.resolve({ rows: [{ idp_org: "acme", idp_username: "admin", idp_code: "idp-code-1" }] });
+      return Promise.resolve({ rows: [{ idp_org: "acme", idp_username: "test-admin", idp_code: "idp-code-1" }] });
     }
     return Promise.resolve({ rows: [] });
   });
@@ -206,7 +206,7 @@ describe("MfaService — mintLoginChallenge", () => {
       "user-uuid-1",
       "idp-code-1",
       "acme",
-      "admin",
+      "test-admin",
       { access_token: FAKE_JWT, refresh_token: "fake-refresh", expires_in: 3600 },
     );
     expect(result.mfa_challenge_token).toBeTruthy();
@@ -219,7 +219,7 @@ describe("MfaService — mintLoginChallenge", () => {
     mockFactorsDal.findEnabledByUserProfileId.mockResolvedValue([]);
     const service = makeService();
     await expect(
-      service.mintLoginChallenge("user-uuid-1", "idp-code-1", "acme", "admin", {
+      service.mintLoginChallenge("user-uuid-1", "idp-code-1", "acme", "test-admin", {
         access_token: FAKE_JWT,
         expires_in: 3600,
       }),
@@ -239,7 +239,7 @@ describe("MfaService — verifyAtLogin", () => {
       "user-uuid-1",
       "idp-code-1",
       "acme",
-      "admin",
+      "test-admin",
       { access_token: FAKE_JWT, refresh_token: "fake-refresh", expires_in: 3600 },
     );
 
@@ -268,7 +268,7 @@ describe("MfaService — verifyAtLogin", () => {
       "user-uuid-1",
       "idp-code-1",
       "acme",
-      "admin",
+      "test-admin",
       { access_token: FAKE_JWT, expires_in: 3600 },
     );
 
@@ -286,7 +286,7 @@ describe("MfaService — verifyAtLogin", () => {
       "user-uuid-1",
       "idp-code-1",
       "acme",
-      "admin",
+      "test-admin",
       { access_token: FAKE_JWT, expires_in: 3600 },
     );
 
@@ -305,7 +305,7 @@ describe("MfaService — verifyAtLogin", () => {
       "user-uuid-1",
       "idp-code-1",
       "acme",
-      "admin",
+      "test-admin",
       { access_token: FAKE_JWT, expires_in: 3600 },
     );
 

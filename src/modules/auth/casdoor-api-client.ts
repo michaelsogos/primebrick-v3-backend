@@ -47,6 +47,15 @@ export interface CasdoorRole {
   name: string;
   displayName?: string;
   description?: string;
+  /**
+   * Role membership — list of `<owner>/<name>` user identities. This is what
+   * Casdoor actually reads when populating the JWT `roles` claim: assigning a
+   * `roles` array on the user object alone is NOT enough, the role's `users`
+   * list must also contain the user (same as scripts/setup-casdoor.ts does
+   * via SQL).
+   */
+  users?: string[];
+  groups?: string[];
   isEnabled?: boolean;
   createdTime?: string;
   [key: string]: unknown;
@@ -219,9 +228,8 @@ export class CasdoorApiClient {
   async changePassword(user: { id: string; owner?: string; name?: string }, newPassword: string): Promise<{ status: string; success?: boolean; msg?: string }> {
     const finalOwner = user.owner ?? (user.id.includes('/') ? user.id.split('/')[0] : this.orgName);
     const finalName = user.name ?? (user.id.includes('/') ? user.id.slice(user.id.indexOf('/') + 1) : user.id);
-    const queryId = `${finalOwner}/${finalName}`;
 
-    const url = this.buildUrl(`/api/set-password?id=${encodeURIComponent(queryId)}&newPassword=${encodeURIComponent(newPassword)}`);
+    const url = this.buildUrl(`/api/set-password?userOwner=${encodeURIComponent(finalOwner)}&userName=${encodeURIComponent(finalName)}&newPassword=${encodeURIComponent(newPassword)}`);
 
     const response = await fetch(url, {
       method: "POST",
@@ -267,7 +275,19 @@ export class CasdoorApiClient {
       return null;
     }
 
-    return (data.data || data) as CasdoorUser;
+    // Casdoor's add-user response carries `data: "Affected"` — not the user
+    // object — so we must fetch the created user to obtain its generated id.
+    // get-user is eventually consistent right after add-user, so retry briefly.
+    if (user.name) {
+      const owner = user.owner ?? this.orgName;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const created = await this.getUser(`${owner}/${user.name}`, owner, user.name);
+        if (created?.id) return created;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+      return null;
+    }
+    return (data.data && typeof data.data === "object" ? data.data : null) as CasdoorUser | null;
   }
 
   /**
@@ -638,21 +658,18 @@ export class CasdoorApiClient {
 
   /**
    * POST /api/update-role?id=<owner>/<name>
-   * Update an existing role in Casdoor. Only `displayName`, `description`, and
-   * `isEnabled` are updatable — `owner` and `name` are immutable (the Casdoor
-   * role identity). Returns true on success, false on failure.
+   * Update an existing role in Casdoor. `owner` and `name` are immutable (the
+   * Casdoor role identity). `users` is the membership list — send the FULL
+   * desired array, it is replaced verbatim. Returns true on success.
    */
   async updateRole(role: Partial<CasdoorRole> & { name: string; owner: string }): Promise<boolean> {
     const roleId = `${role.owner}/${role.name}`;
     const url = this.buildUrl(`/api/update-role?id=${encodeURIComponent(roleId)}`);
 
-    const requestBody: Record<string, unknown> = {
-      owner: role.owner,
-      name: role.name,
-    };
-    if (role.displayName !== undefined) requestBody.displayName = role.displayName;
-    if (role.description !== undefined) requestBody.description = role.description;
-    if (role.isEnabled !== undefined) requestBody.isEnabled = role.isEnabled;
+    // Send the FULL role object back — Casdoor's update-role applies the body
+    // verbatim and zeroes any field that is omitted (a partial update would
+    // silently reset e.g. `isEnabled` to false, disabling the role).
+    const requestBody: Record<string, unknown> = { ...role };
 
     const response = await fetch(url, {
       method: "POST",
@@ -668,6 +685,33 @@ export class CasdoorApiClient {
 
     const data = await response.json();
     return data.status === "ok" || data.success === true;
+  }
+
+  /**
+   * Add a user to a role's membership list (`role.users`). Casdoor only emits
+   * the `roles` JWT claim for users present in the role's `users` array —
+   * setting `user.roles` in add-user alone leaves the JWT role-less
+   * (login → user_no_permission). Returns true when the user is linked.
+   */
+  async addUserToRole(userKey: string, roleName: string, owner?: string): Promise<boolean> {
+    const role = await this.getRole(roleName, owner);
+    if (!role) {
+      console.error(`addUserToRole: role ${roleName} not found in org ${owner ?? this.orgName}`);
+      return false;
+    }
+    const users = role.users ?? [];
+    if (users.includes(userKey)) return true;
+    return this.updateRole({ ...role, users: [...users, userKey] });
+  }
+
+  /**
+   * Remove a user from a role's membership list (`role.users`).
+   */
+  async removeUserFromRole(userKey: string, roleName: string, owner?: string): Promise<boolean> {
+    const role = await this.getRole(roleName, owner);
+    if (!role) return false;
+    const users = (role.users ?? []).filter((u) => u !== userKey);
+    return this.updateRole({ ...role, users });
   }
 
   /**

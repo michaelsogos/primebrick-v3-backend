@@ -113,7 +113,7 @@ function makeAuthInfo(overrides: Partial<AuthInfo> = {}): AuthInfo {
       roles: ["collaborator"],
       is_admin: false,
       is_system: false,
-      idp_code: "admin/acme",
+      idp_code: "test-admin/acme",
       idp_org: "acme",
       idp_username: "testuser",
       permissions: [],
@@ -126,17 +126,17 @@ function makeAuthInfo(overrides: Partial<AuthInfo> = {}): AuthInfo {
 function makeAdminAuthInfo(): AuthInfo {
   return makeAuthInfo({
     extra: {
-      user_id: "admin-uuid",
-      email: "admin@example.com",
-      name: "Admin",
+      user_id: "test-admin-uuid",
+      email: "test-admin@example.com",
+      name: "Test Admin",
       roles: ["administrators"],
       is_admin: true,
       is_system: false,
-      idp_code: "admin/acme",
+      idp_code: "test-admin/acme",
       idp_org: "acme",
-      idp_username: "admin",
+      idp_username: "test-admin",
       permissions: ["*"],
-      raw_access_token: "raw-admin-jwt",
+      raw_access_token: "raw-test-admin-jwt",
     },
   });
 }
@@ -150,7 +150,7 @@ function makeAuthInfoWithPermissions(perms: string[]): AuthInfo {
       roles: ["collaborator"],
       is_admin: false,
       is_system: false,
-      idp_code: "admin/acme",
+      idp_code: "test-admin/acme",
       idp_org: "acme",
       idp_username: "user",
       permissions: perms,

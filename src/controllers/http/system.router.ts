@@ -90,7 +90,7 @@ export function systemRouter() {
 
   router.get(
     "/api/v1/system/password-policy",
-    rbacHandler([Permission.AUTHENTICATED_USER]),
+    rbacHandler([Permission.PUBLIC]),
     asyncHandler(async (_req, res) => {
       res.json(await service.getPasswordPolicy());
     }),
