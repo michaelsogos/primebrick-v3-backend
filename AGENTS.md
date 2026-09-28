@@ -70,6 +70,7 @@ If **you** started `pnpm run dev` only to verify, **stop it** when done. Do not 
 - **API errors:** Use stable error codes with `impact` field for the frontend.
 - **Translation keys:** MUST be snake_case singular — see [`.devin/rules/translation-key-convention.md`](./.devin/rules/translation-key-convention.md). Every meta file MUST be typed `EntityMeta` (see [`.devin/rules/entity-meta-schema.md`](./.devin/rules/entity-meta-schema.md)) and include `translation_key` (snake_case singular) alongside `entity` (snake_case singular) and `display_field`. All `label_key`/`title_key`/`tooltip` values MUST use the `translation_key` as the entity segment.
 - **MVC transport layout:** transport adapters live under `src/controllers/` (`http/`, `nats-req/`, `nats-sub/`) — auth + payload validation + ONE service call + transport response only, NO business logic or DAL imports. Business logic lives in `services/` and must be transport-agnostic. See [`.devin/rules/controller-boundary.md`](./.devin/rules/controller-boundary.md).
+- **Casdoor™ integration:** before touching `casdoor-api-client.ts`, user creation/login, WebAuthn, or debugging auth grants, read [`.devin/rules/casdoor-integration.md`](./.devin/rules/casdoor-integration.md) — the two client credential pairs (`idp_*` machine API vs `oidc_*` token grants), `role.users` membership (JWT `roles` claim), `update-role` full-replace semantics, and the WebAuthn discoverable-login limitation on Postgres.
 
 ## API Endpoint Conventions
 
