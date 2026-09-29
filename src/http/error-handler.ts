@@ -4,8 +4,11 @@ import { isDatabaseUnavailableError, isApiError, type ApiErrorResponse } from ".
 
 
 export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
-  // Log all errors to console with full details including stack trace
-  console.error("Backend Error", {
+  // Log all errors to console with full details including stack trace.
+  // The request line goes on its own line (amber) so the failed call is
+  // visible at a glance before the payload. originalUrl keeps the QS.
+  const requestLine = `${req.method} ${req.protocol}://${req.headers.host ?? "localhost"}${req.originalUrl || req.url}`;
+  console.error(`Backend Error\n  \x1b[38;5;214m${requestLine}\x1b[0m`, {
     message: err.message,
     stack: err.stack,
     name: err.name,
@@ -55,4 +58,5 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     severity: 'HIGH' as const,
   };
   res.status(500).json(payload);
-};// DAL error mapping lives in the SDK (@primebrick/sdk mapDalError) — shared
+};
+// DAL error mapping lives in the SDK (@primebrick/sdk mapDalError) — shared

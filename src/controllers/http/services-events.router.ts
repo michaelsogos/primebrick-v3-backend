@@ -24,6 +24,9 @@ import { SystemService } from "../../modules/system/system.service.js";
 
 const KEEPALIVE_MS = 15_000;
 
+/** Live SSE client count — logged on connect/disconnect for diagnostics. */
+let activeClients = 0;
+
 export function servicesEventsRouter() {
   const router = makeProtectedRouter();
   const service = new SystemService();
@@ -58,14 +61,21 @@ export function servicesEventsRouter() {
         writer.send(event);
       });
 
+      activeClients += 1;
+      console.info(
+        `SSE client connected: user=${req.user?.idp_username ?? req.user?.id ?? "unknown"} org=${req.user?.idp_org ?? "?"} ip=${req.ip ?? "?"} ua="${req.headers["user-agent"] ?? "?"}" active=${activeClients}`,
+      );
+
       // 3. Keep-alive every 15s (comment line, not an event)
       const keepAlive = setInterval(() => writer.comment("keep-alive"), KEEPALIVE_MS);
 
       // 4. Cleanup on client disconnect
       req.on("close", () => {
+        activeClients -= 1;
         sub.unsubscribe();
         clearInterval(keepAlive);
         writer.close();
+        console.info(`SSE client disconnected: user=${req.user?.idp_username ?? "?"} active=${activeClients}`);
       });
     }),
   );
