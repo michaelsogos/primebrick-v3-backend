@@ -27,8 +27,13 @@
 
 import type { PoolClient } from "pg";
 import { getPool } from "../../../db/pool.js";
+import { makeEntityService } from "../../../http/entity-service.js";
+import { deriveSearchableKeys } from "../../../lib/search-keys.js";
+import { roleMappingsMeta } from "../role-mappings.meta.js";
+import { RoleMappingEntity } from "../role_mapping_entity.js";
 import {
   RoleMappingRepo,
+  ROLE_MAPPING_FILTERABLE_FIELDS,
   type RoleMappingDetailed,
   type RoleMappingDto,
   type RoleMappingListQuery,
@@ -57,6 +62,19 @@ export interface UpdateRoleInput {
 export class RoleService {
   private repo: RoleMappingRepo | null = null;
   private casdoor: CasdoorService | null = null;
+
+  // E.9: read surface (list/get/audit) delegated to the generic entity
+  // service — the custom repo only remains for the Casdoor-coupled write
+  // path. Role_mapping is hard-delete-only: the generic layer emits no
+  // `deleted_at` predicate and no deleter join for it.
+  private svc = makeEntityService<RoleMappingDto>({
+    entity: RoleMappingEntity,
+    list: {
+      searchableKeys: deriveSearchableKeys(roleMappingsMeta, RoleMappingEntity),
+      filterableKeys: ROLE_MAPPING_FILTERABLE_FIELDS,
+      defaultSort: { key: "idp_role", dir: "asc" },
+    },
+  });
 
   private getRepo(): RoleMappingRepo {
     if (!this.repo) this.repo = new RoleMappingRepo(getPool());
@@ -168,17 +186,14 @@ export class RoleService {
 
   // --- Update ---------------------------------------------------------------
 
-  async updateRole(idpRole: string, input: UpdateRoleInput, actor: string, tx?: PoolClient): Promise<RoleMappingDetailed> {
+  /**
+   * Update a role mapping — takes the ALREADY-LOADED row (the ByUuid wrapper
+   * fetches by uuid once). `existing.idp_role`/`idp_org` feed the Casdoor
+   * identity; the local write matches by `uuid`.
+   */
+  async updateRole(existing: RoleMappingDto, input: UpdateRoleInput, actor: string, tx?: PoolClient): Promise<RoleMappingDetailed> {
     const { label_key, is_admin, permissions } = input;
-
-    // 1. Load existing row to get idp_org (the Casdoor owner).
-    const existing = await this.getRepo().findByIdpRole(idpRole);
-    if (!existing) {
-      throw new NotFoundError(
-        `Role "${idpRole}" not found`,
-        { internal_code: "ROLE_NOT_FOUND" },
-      );
-    }
+    const idpRole = existing.idp_role;
 
     // 2. Casdoor must be configured.
     const cd = await this.getCasdoor().getClient();
@@ -233,10 +248,11 @@ export class RoleService {
       );
     }
 
-    // 5. Update local DB — guarded by the caller's observed version (client).
+    // 5. Update local DB — matched by uuid; guarded by the caller's observed
+    // version (client).
     const now = new Date();
     await this.getRepo().updateMapping(
-      idpRole,
+      existing.uuid,
       permissions ?? existing.permissions,
       is_admin ?? existing.is_admin,
       label_key ?? existing.label_key,
@@ -249,7 +265,7 @@ export class RoleService {
     );
 
     // 6. Return the updated row.
-    const row = await this.getRepo().findByIdpRole(idpRole);
+    const row = await this.getRepo().findByUuid(existing.uuid);
     if (!row) {
       throw new NotFoundError("Role not found after update", {
         internal_code: "ROLE_NOT_FOUND_AFTER_UPDATE",
@@ -260,15 +276,13 @@ export class RoleService {
 
   // --- Delete ---------------------------------------------------------------
 
-  async deleteRole(idpRole: string, actor: string, version: number): Promise<void> {
-    // 1. Load existing row to get idp_org (the Casdoor owner).
-    const existing = await this.getRepo().findByIdpRole(idpRole);
-    if (!existing) {
-      throw new NotFoundError(
-        `Role "${idpRole}" not found`,
-        { internal_code: "ROLE_NOT_FOUND" },
-      );
-    }
+  /**
+   * Delete a role mapping — takes the ALREADY-LOADED row (fetched by uuid).
+   * `idp_role`/`idp_org` drive the Casdoor delete; the local hard-delete
+   * matches by `uuid`.
+   */
+  async deleteRole(existing: RoleMappingDto, actor: string, version: number): Promise<void> {
+    const idpRole = existing.idp_role;
 
     // 2. Casdoor must be configured.
     const cd = await this.getCasdoor().getClient();
@@ -319,24 +333,24 @@ export class RoleService {
       );
     }
 
-    // 5. Delete in local DB — version is the caller-observed version
-    // (optimistic concurrency guard, same contract as soft-delete entities).
-    await this.getRepo().deleteMapping(idpRole, actor, version);
+    // 5. Delete in local DB — matched by uuid; version is the
+    // caller-observed version (optimistic concurrency guard).
+    await this.getRepo().deleteMapping(existing.uuid, actor, version);
   }
 
   // --- Entity-pattern methods (keyed by uuid) -------------------------------
   // These back the `/api/v1/entities/role_mapping/...` endpoints used by the
-  // FE EntityListTable. The Casdoor-coupled create/update/delete flows above
-  // remain keyed by idp_role (the Casdoor identity); the entity-pattern
-  // delete/put handlers below resolve uuid → idp_role then delegate to the
-  // existing Casdoor-syncing methods.
+  // FE EntityListTable. The ByUuid handlers fetch the row once and delegate
+  // to the Casdoor-coupled flows above, which take the loaded row:
+  // `idp_role`/`idp_org` feed the IdP-side identity, while every LOCAL write
+  // matches by `uuid` (the canonical wire identity).
 
   async listRoleMappings(query: RoleMappingListQuery): Promise<RoleMappingListResponse> {
-    return this.getRepo().listPaged(query);
+    return this.svc.list({ ...query, sort_key: query.sort_key ?? undefined }) as Promise<RoleMappingListResponse>;
   }
 
-  async getRoleByUuid(uuid: string): Promise<RoleMappingDetailed> {
-    const role = await this.getRepo().findByUuid(uuid);
+  async getRoleByUuid(uuid: string): Promise<RoleMappingDto> {
+    const role = await this.svc.get(uuid);
     if (!role) {
       throw new NotFoundError(`Role with uuid "${uuid}" not found`, {
         internal_code: "ROLE_NOT_FOUND",
@@ -346,29 +360,19 @@ export class RoleService {
   }
 
   async updateRoleByUuid(uuid: string, input: UpdateRoleInput, actor: string, tx?: PoolClient): Promise<RoleMappingDetailed> {
-    const existing = await this.getRepo().findByUuid(uuid);
-    if (!existing) {
-      throw new NotFoundError(`Role with uuid "${uuid}" not found`, {
-        internal_code: "ROLE_NOT_FOUND",
-      });
-    }
-    return this.updateRole(existing.idp_role, input, actor, tx);
+    const existing = await this.getRoleByUuid(uuid);
+    return this.updateRole(existing, input, actor, tx);
   }
 
-  async deleteRoleByUuid(uuid: string, actor: string, version: number): Promise<RoleMappingDetailed> {
-    const existing = await this.getRepo().findByUuid(uuid);
-    if (!existing) {
-      throw new NotFoundError(`Role with uuid "${uuid}" not found`, {
-        internal_code: "ROLE_NOT_FOUND",
-      });
-    }
-    await this.deleteRole(existing.idp_role, actor, version);
+  async deleteRoleByUuid(uuid: string, actor: string, version: number): Promise<RoleMappingDto> {
+    const existing = await this.getRoleByUuid(uuid);
+    await this.deleteRole(existing, actor, version);
     return existing;
   }
 
   async getRoleAudit(uuid: string, page: number, limit: number) {
     // Verify the role exists (404 if not).
     await this.getRoleByUuid(uuid);
-    return this.getRepo().getRoleAudit(uuid, page, limit);
+    return this.svc.audit(uuid, page, limit);
   }
 }

@@ -70,9 +70,13 @@ export function customersRouter() {
       duplicateBody: CustomerDuplicateBodySchema,
       auditQuery: CustomerAuditQuerySchema,
     },
+    // E.7: meta-driven export pipeline — fieldMapping/labels/field types are
+    // derived from `customerMeta` + `system.entities.customer.fields.*`
+    // translations; rows stream through `service.stream` (same filter builder
+    // as list). Templates resolve by convention: customer_export_template.*.
+    export: {},
     methods: {
       list: "listCustomers",
-      export: "exportCustomers",
       get: "getCustomer",
       create: "createCustomer",
       update: "updateCustomer",

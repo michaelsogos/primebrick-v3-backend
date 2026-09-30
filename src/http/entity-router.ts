@@ -52,6 +52,7 @@ import type { Permission } from "@primebrick/sdk";
 import type { EntityMeta } from "./entity-meta.types.js";
 import { assembleMeta } from "./meta-assembler.js";
 import { deriveEntityActions, type ExtraActionScan } from "./entity-actions.js";
+import { streamEntityExport, type EntityExportConfig } from "./entity-export.js";
 import {
   assertTranslationsPermission,
   runEntityWrite,
@@ -92,6 +93,12 @@ const BulkItemsSchema = z.object({
     .array(z.object({ uuid: z.string().uuid(), version: z.number().int() }))
     .min(1)
     .max(100),
+});
+
+/** Default `POST /duplicate` payload — `{ uuids: string[] }`. Entities may
+ *  provide a stricter schema via `schemas.duplicateBody`. */
+const DefaultDuplicateBodySchema = z.object({
+  uuids: z.array(z.string().uuid()).min(1).max(100),
 });
 
 /**
@@ -140,8 +147,23 @@ export interface EntityRouterConfig<TEntity = unknown, S extends object = object
     actionMiddlewares?: Partial<Record<EntityAction, RequestHandler[]>>;
   };
 
+  /** `duplicate` is ON by default (E.8): the route registers with the
+   *  conventional `<entity>.duplicate.bulk` permission even when
+   *  `permissions.duplicate` is unset. Set to `false` to disable —
+   *  required for IdP-synced entities (org/role_mapping/user_profile)
+   *  and domain entities where cloning is meaningless (ai_model/…). */
+  duplicate?: false;
+
   /** Override an action's handler body; the mandatory chain still applies. */
   handlers?: Partial<Record<EntityAction, RequestHandler>>;
+
+  /** Entity-wide export declaration (Part E.7). When present, the default
+   *  `export` handler runs `streamEntityExport`: headers, template selection,
+   *  and the whole `ExportConfig` (fieldMapping, col labels, field types)
+   *  are DERIVED from `meta` + the translations service; data comes from
+   *  `service.stream` (same filter builder as `list`). Without it, the
+   *  handler calls `service.export(query, res)` (legacy contract). */
+  export?: EntityExportConfig;
 
   /** Additional routes registered AFTER literal routes, BEFORE :uuid routes. */
   extraRoutes?: RouteDef[];
@@ -173,6 +195,20 @@ export function makeEntityRouter<TEntity, S extends object>(
       res.json(await call("list", req.query));
     }),
     export: asyncHandler(async (req, res) => {
+      if (config.export !== undefined) {
+        await streamEntityExport(
+          {
+            entityName: config.entityName,
+            meta: assembleMeta(config.meta, config.entity),
+            stream: (q) =>
+              (service as Record<string, (x: unknown) => unknown>).stream(q) as AsyncIterable<Record<string, unknown>>,
+            export: config.export,
+          },
+          req.query as never,
+          res,
+        );
+        return;
+      }
       await call("export", req.query, res);
     }),
     create: asyncHandler(async (req, res) => {
@@ -229,7 +265,14 @@ export function makeEntityRouter<TEntity, S extends object>(
 
   const handler = (a: EntityAction) => config.handlers?.[a] ?? defaults[a];
   const perms = (a: EntityAction) => {
-    const p = config.permissions[a];
+    let p = config.permissions[a];
+    // `duplicate` is ON BY DEFAULT for factory entities (E.8): when no
+    // explicit permission is declared, derive the conventional
+    // `<entity>.duplicate.bulk` permission. Set `config.duplicate === false`
+    // to disable the route entirely (IdP-synced / RPC-lifecycle entities).
+    if (!p && a === "duplicate" && config.duplicate !== false) {
+      p = [`${config.entityName}.duplicate.bulk` as Permission];
+    }
     return p ? rbacHandler(p) : undefined;
   };
 
@@ -260,7 +303,7 @@ export function makeEntityRouter<TEntity, S extends object>(
   push(literalDefs, "duplicate", {
     method: "post",
     path: `${base}/duplicate`,
-    middlewares: [...(config.schemas.duplicateBody ? [validateBody(config.schemas.duplicateBody)] : []), ...extraMw("duplicate")],
+    middlewares: [validateBody(config.schemas.duplicateBody ?? DefaultDuplicateBodySchema), ...extraMw("duplicate")],
   });
   push(literalDefs, "bulkDelete", {
     method: "post",

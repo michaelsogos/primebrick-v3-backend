@@ -6,24 +6,17 @@ import {
   Filter,
   Sort,
   entityDateToApiIso,
-  translateFilterConditions,
   type FilterExpr,
 } from "@primebrick/dal-pg";
 import { RoleMappingEntity } from "./role_mapping_entity.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
-import { buildAuditableJoinsSelective } from "@primebrick/dal-pg";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
-import { findAuditPage } from "../../db/audit-query-helper.js";
 import type { AuditService } from "../../lib/audit/audit-service.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
-import { deriveSearchableKeys } from "../../lib/search-keys.js";
-import { roleMappingsMeta } from "./role-mappings.meta.js";
 
-const DEFAULT_SEARCH_KEYS = deriveSearchableKeys(roleMappingsMeta, RoleMappingEntity);
-const SEARCH_IN_ALLOWED = new Set([...DEFAULT_SEARCH_KEYS, "uuid"]);
 
 const ROLE_MAPPINGS_CACHE_KEY = "be:role_mappings:all";
-const ROLE_MAPPING_FILTERABLE_FIELDS = new Set(["idp_role", "idp_org", "label_key", "is_admin"]);
+export const ROLE_MAPPING_FILTERABLE_FIELDS = new Set(["idp_role", "idp_org", "label_key", "is_admin"]);
 
 interface RoleMappingRow {
   idp_role: string;
@@ -76,16 +69,6 @@ export type RoleMappingListResponse = {
   page_size: number;
   total: bigint;
 };
-
-function toDto(r: RoleMappingDetailed): RoleMappingDto {
-  const { id: _id, ...rest } = r;
-  return {
-    ...rest,
-    created_at: entityDateToApiIso(r.created_at),
-    updated_at: entityDateToApiIso(r.updated_at),
-    last_synced_at: r.last_synced_at ? entityDateToApiIso(r.last_synced_at) : undefined,
-  };
-}
 
 /**
  * Repository for loading role-to-permission mappings from the database.
@@ -219,95 +202,6 @@ export class RoleMappingRepo {
     return (row as RoleMappingDetailed | null) ?? null;
   }
 
-  /**
-   * Paginated list with search/sort/filter — mirrors OrganizationsDal.listOrganizations.
-   * Uses the generic DAL `findByPage` helper. Hard delete only (no deletedRecords).
-   */
-  async listPaged(query: RoleMappingListQuery): Promise<RoleMappingListResponse> {
-    const {
-      search,
-      search_in,
-      sort_key,
-      sort_dir = "asc",
-      page = 1,
-      page_size = 25,
-      filters,
-      connector = "AND",
-    } = query;
-
-    const baseFilters: FilterExpr[] = [];
-
-    // Search filter
-    if (search && search.trim()) {
-      const searchFields =
-        search_in && search_in.length > 0
-          ? search_in.filter((f) => SEARCH_IN_ALLOWED.has(f))
-          : DEFAULT_SEARCH_KEYS;
-      const searchFilters = searchFields.map((f) =>
-        Filter.fieldValue(field(RoleMappingEntity, f as any), "ILIKE", `%${search}%`)
-      );
-      baseFilters.push(Filter.group(searchFilters, "OR"));
-    }
-
-    // Custom filters
-    if (filters && filters.length > 0) {
-      const translated = translateFilterConditions(RoleMappingEntity, filters, { allowedFields: ROLE_MAPPING_FILTERABLE_FIELDS, connector });
-      if (translated) {
-        baseFilters.push(...translated);
-      }
-    }
-
-    const sort_key_final = (sort_key ?? "idp_role") as keyof RoleMappingDetailed & string;
-    const sort_dir_final = (sort_dir ?? "asc").toUpperCase() === "ASC" ? "ASC" : "DESC";
-    const sorting = [Sort.by(field(RoleMappingEntity, sort_key_final as any), sort_dir_final as any)];
-
-    const result = await this.repo.findByPage<RoleMappingDetailed, RoleMappingDetailed>(
-      RoleMappingEntity,
-      page,
-      page_size,
-      null,
-      {
-        filters: baseFilters.length > 0 ? baseFilters : undefined,
-        sorting,
-        joins: buildAuditableJoinsSelective(RoleMappingEntity, UserProfileEntity, { includeDeleter: false }),
-      }
-    );
-
-    return {
-      rows: (result.entities as RoleMappingDetailed[]).map((r) => toDto(r)),
-      page,
-      page_size,
-      total: result.total_records,
-    };
-  }
-
-  /**
-   * Audit history for a single role mapping (by uuid).
-   * Mirrors OrganizationsDal.getOrganizationAudit.
-   */
-  async getRoleAudit(uuid: string, page: number, limit: number) {
-    const result = await findAuditPage(this.repo, {
-      tableName: "role_mappings_audit",
-      entityUuid: uuid,
-      page,
-      limit,
-    });
-
-    return {
-      data: result.data.map((row) => ({
-        id: row.id.toString(),
-        entity_uuid: row.entity_uuid,
-        action: row.action,
-        changed_at: row.changed_at,
-        changed_by: row.changed_by,
-        changed_by_name: row.changed_by_display_name,
-        version: row.version,
-        delta: row.delta,
-      })),
-      pagination: result.pagination,
-    };
-  }
-
   getAuditPort(): BeAuditPortAdapter {
     return this.auditPort;
   }
@@ -345,25 +239,25 @@ export class RoleMappingRepo {
    * (client-provided on API paths; optimistic concurrency guard).
    */
   async updateMapping(
-    idpRole: string,
+    uuid: string,
     permissions: string[],
     isAdmin: boolean,
     labelKey: string | undefined,
     version: number,
-    extras?: { idp_org?: string; last_synced_at?: Date; actor?: string; tx?: PoolClient }
+    extras?: { last_synced_at?: Date; actor?: string; tx?: PoolClient }
   ): Promise<void> {
     const repo = extras?.tx ? new Repository(extras.tx) : this.repo;
     await repo.update(
       RoleMappingEntity,
       {
-        idp_role: idpRole,
+        uuid,
         label_key: labelKey,
         permissions,
         is_admin: isAdmin,
         last_synced_at: extras?.last_synced_at,
         version,
       },
-      { actor: extras?.actor ?? "system", matchBy: "idp_role" as any }
+      { actor: extras?.actor ?? "system", matchBy: "uuid" as any }
     );
     if (!extras?.tx) await this.invalidateRoleMappingsCache();
   }
@@ -379,11 +273,11 @@ export class RoleMappingRepo {
   /**
    * Delete a role mapping.
    */
-  async deleteMapping(idpRole: string, actor?: string, version?: number): Promise<void> {
+  async deleteMapping(uuid: string, actor?: string, version?: number): Promise<void> {
     await this.repo.hardDelete(
       RoleMappingEntity,
-      { idp_role: idpRole, version },
-      { actor: actor ?? "system", matchBy: "idp_role" }
+      { uuid, version },
+      { actor: actor ?? "system", matchBy: "uuid" }
     );
     await this.invalidateRoleMappingsCache();
   }

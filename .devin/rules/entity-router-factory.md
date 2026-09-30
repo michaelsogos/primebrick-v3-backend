@@ -38,9 +38,9 @@ order:
 |---|---|---|
 | `meta` | `GET /meta` | `permissions.meta` |
 | `list` | `GET /list` | `permissions.list` + `schemas.listQuery` |
-| `export` | `GET /export` (streaming) | `permissions.export` |
+| `export` | `GET /export` (streaming) | `permissions.export` + `export` config |
 | `create` | `POST /` | `permissions.create` + `schemas.createBody` |
-| `duplicate` | `POST /duplicate` | `permissions.duplicate` |
+| `duplicate` | `POST /duplicate` | **ON BY DEFAULT** — `duplicate: false` opts out |
 | `bulkDelete` | `POST /bulk-delete` | `permissions.bulkDelete` |
 | `bulkRestore` | `POST /bulk-restore` | `permissions.bulkRestore` |
 | `get` | `GET /:uuid` | `permissions.get` |
@@ -66,6 +66,36 @@ registered routes, so the FE automatically sees `delete.single` /
 - `restore`/`bulkRestore` only make sense with soft delete — do not declare
   them for hard-delete-only entities.
 - Both delete routes take the caller-observed `?version=` guard.
+
+### `duplicate` — ON by default (E.8)
+
+Unlike every other action, `duplicate` registers **without** an explicit
+permission: when `permissions.duplicate` is absent the factory derives the
+conventional `<entityName>.duplicate.bulk` permission string and applies a
+default `{uuids: uuid[].min(1).max(100)}` body schema. Opt out per entity
+with `duplicate: false` — required for IdP-synced entities (`organization`,
+`role_mapping`, `user_profile`) and domain entities where cloning is
+meaningless (`ai_model`, `ai_cerebellum`).
+
+Clone semantics (DAL `repo.clone`): new `uuid`, `@Unique`/`@Key`/audit/
+deletable columns reset, all other fields copied verbatim, `@CloneField`
+column = source uuid. **Every clone writes an audit row with action
+`CLONE`** (not `INSERT`) — the FE version history renders it with its own
+label/color. Input is `uuid[]` only — composite-identity lookup is
+deliberately unsupported until a clonable entity needs it.
+
+### `export` — meta-derived pipeline (E.7)
+
+Set `export: {}` (or `EntityExportConfig` overrides) on the router config and
+the default handler runs `streamEntityExport` (`src/http/entity-export.ts`):
+headers/filename are router-owned, the `ExportConfig` is DERIVED from
+`meta.columns` (fieldMapping identity map, `col_*` labels resolved via the
+translations service, field types from the column `type` —
+`datetime`+`datetime_iana_toggle` → `date`+`timezoneField`), and rows come
+from `service.stream(query)` — the SAME filter builder as `list`. Templates
+resolve by convention at `templates/<entity>_export_template.{xlsx,html}`.
+Without `export` config the handler calls `service.export(query, res)`
+(legacy contract). The service NEVER touches `res` itself.
 
 ## Write response standard
 
@@ -121,6 +151,17 @@ a thin facade service that delegates DB work to `svc.*` (see
 (`LEFT JOIN ... GROUP BY t.pk`), pagination totals count groups. Use it
 for any list rollup — never N+1 per-row count queries.
 
+Notes on the read path:
+
+- `audit()` returns the canonical row shape including `changed_by_name`
+  (the FE contract); entities needing field-level enrichment (org's
+  `idp_org` → org display_name) post-process the rows in their facade.
+- The audit "deleter" join is emitted only when the entity declares
+  `deleted_by` — hard-delete-only entities (role_mapping) skip it
+  automatically.
+- Entities without a `deleted_at` column are fully supported: no
+  `deleted_at IS NULL` predicate is emitted.
+
 ## Config reference
 
 ```ts
@@ -149,6 +190,12 @@ makeEntityRouter({
       purge:  [requireMfaStepUp('delete', 'customer')],  // system entities only
     },
   },
+  duplicate: false,                    // E.8 — opt OUT of the default-on
+                                       // duplicate route (IdP-synced or
+                                       // domain-lifecycle entities)
+  export: {},                          // E.7 — meta-derived export pipeline
+                                       // ({columns?, templates?,
+                                       //   entityLabels?, translationModule?})
   handlers: {                          // override handler BODIES only
     create: customCreateHandler,       // mandatory chain still applies
     purge: customPurgeHandler,         // (e.g. role_mapping: actor + Casdoor)

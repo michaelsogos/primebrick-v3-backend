@@ -52,6 +52,9 @@ export function aiModelsRouter() {
       restore: [Permission.AUTHENTICATED_ADMIN],
       audit: [Permission.AUTHENTICATED_ADMIN],
     },
+    // E.8: duplicate is ON by default — explicitly disabled for this
+    // IdP-synced / domain-lifecycle entity (cloning is meaningless).
+    duplicate: false,
     schemas: {
       listQuery: AiModelListQuerySchema,
       createBody: AiModelCreateWriteSchema,

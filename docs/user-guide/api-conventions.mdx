@@ -48,15 +48,43 @@ GET    /api/v1/entities/:entity/check-availability → uniqueness check
 `:entity` is always snake_case **singular** (e.g. `customer`, `organization`,
 `user_profile`).
 
-Bulk routes (`bulk-delete`, `bulk-restore`, `bulk-update`, `duplicate`,
-`export`) are **per-entity opt-in**: an entity exposes them only when its
-router registers them, and a bulk op must be an atomic set operation — never
-a loop of single writes. `organization` has no bulk routes by architectural
-necessity (per-record IdP sync) — see
+Bulk routes (`bulk-delete`, `bulk-restore`, `bulk-update`) and `export` are
+**per-entity opt-in**: an entity exposes them only when its router registers
+them, and a bulk op must be an atomic set operation — never a loop of single
+writes. `duplicate` is the exception: it is **ON by default** for every
+entity-factory router (`<entity>.duplicate.bulk` permission derived by
+convention) and is switched OFF explicitly via `duplicate: false` — currently
+disabled on `organization`, `role_mapping`, `user_profile`, `ai_model`, and
+`ai_cerebellum` (IdP-synced or domain-lifecycle entities where cloning is
+meaningless). `organization` has no bulk routes by architectural necessity
+(per-record IdP sync) — see
 [Authentication → Organizations](./authentication#organizations). Since
 `meta.actions` is derived from the registered route table and always emits
 the full standard op vocabulary, absent routes surface as explicit
 `enabled: false` entries and the UI hides the corresponding actions.
+
+### Duplicate — clone semantics
+
+`POST /:entity/duplicate` accepts `{ "uuids": [...] }` and clones each source
+row: a fresh `uuid` is generated, `@Unique`/`@Key`/audit/deletable columns are
+reset, all other fields are copied verbatim, and `cloned_from` (when the
+entity declares `@CloneField`) points at the source uuid. Every clone writes
+an audit row with action **`CLONE`** (distinct from `INSERT`) so the version
+history can tell "created via clone" from "created via form" — the delta is
+the full new record. Per-item failures are collected in `errors` without
+aborting the batch.
+
+### Export — meta-derived pipeline
+
+`GET /:entity/export?file_type=csv|xlsx|html` streams the same row set the
+`list` endpoint would return for identical filters/search/sort (one shared
+filter builder — no duplicated query logic). The export layout is derived
+from entity meta: columns = meta columns minus audit-actor (`*_by`),
+`version`, `deleted_at`, and IANA-helper fields; header labels are resolved
+from each column's `label_key` through the translations service for the
+requested `locale`; `datetime` columns with `datetime_iana_toggle` are
+rendered in the record's own timezone. Templates resolve by convention at
+`templates/<entity>_export_template.{xlsx,html}`.
 
 ### Delete semantics — soft vs hard capabilities
 

@@ -79,6 +79,9 @@ export function organizationsRouter() {
       restore: [Permission.ORGANIZATION_RESTORE_SINGLE],
       audit: [Permission.ORGANIZATION_READ_AUDIT],
     },
+    // E.8: duplicate is ON by default — explicitly disabled for this
+    // IdP-synced / domain-lifecycle entity (cloning is meaningless).
+    duplicate: false,
     schemas: {
       listQuery: OrganizationListQuerySchema,
       createBody: CreateBodySchema,

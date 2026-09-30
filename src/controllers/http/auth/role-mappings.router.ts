@@ -153,6 +153,9 @@ export function roleMappingsRouter() {
       purge: [Permission.ROLE_MAPPING_DELETE_SINGLE],
       audit: [Permission.ROLE_MAPPING_READ_AUDIT],
     },
+    // E.8: duplicate is ON by default — explicitly disabled for this
+    // IdP-synced / domain-lifecycle entity (cloning is meaningless).
+    duplicate: false,
     schemas: {
       listQuery: RoleMappingListQuerySchema,
       createBody: CreateBodySchema,

@@ -32,7 +32,8 @@ import {
   field,
   Filter,
   Sort,
-  buildAuditableJoins,
+  buildAuditableJoinsSelective,
+  DeletableFieldType,
   entityDateToApiIso,
   Project,
   translateFilterConditions,
@@ -222,7 +223,15 @@ export function makeEntityService<TEntity extends Record<string, unknown>>(
     ([, c]) => c.propertyKey === "uuid" || c.isUnique,
   )?.[1];
 
-  const joinsFor = (): JoinExpr[] => buildAuditableJoins(cfg.entity, UserProfileEntity) as JoinExpr[];
+  // Deleter join only when the entity actually has a `deleted_by` column —
+  // hard-delete-only entities (role_mapping) lack it and the join would fail.
+  const hasDeletedBy = Object.values(meta.columns).some(
+    (c) => c.isDeletable && c.deletableType === DeletableFieldType.DELETED_BY,
+  );
+  const joinsFor = (): JoinExpr[] =>
+    buildAuditableJoinsSelective(cfg.entity, UserProfileEntity, {
+      includeDeleter: hasDeletedBy,
+    }) as JoinExpr[];
   const repoFor = (tx?: PoolClient) => (tx ? new Repository(tx) : repo);
 
   /** Shared filter builder for `list` AND `stream` — one implementation only. */
@@ -442,7 +451,17 @@ export function makeEntityService<TEntity extends Record<string, unknown>>(
     },
 
     async audit(uuid, page, limit) {
-      return findAuditPage(repo, { tableName: auditTable, entityUuid: uuid, page, limit });
+      const r = await findAuditPage(repo, { tableName: auditTable, entityUuid: uuid, page, limit });
+      // Canonical wire shape: the FE version-history panel reads
+      // `changed_by_name` (the legacy per-entity audit contract); the raw
+      // helper emits `changed_by_display_name` — expose both.
+      return {
+        ...r,
+        data: r.data.map((row) => ({
+          ...row,
+          changed_by_name: row.changed_by_display_name ?? null,
+        })),
+      };
     },
 
     async *stream(q) {

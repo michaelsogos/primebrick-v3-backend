@@ -349,9 +349,9 @@ export class OrganizationsService {
         action: row.action,
         changed_at: row.changed_at,
         changed_by: row.changed_by,
-        changed_by_name: row.changed_by_display_name,
+        changed_by_name: row.changed_by_name, // canonical field emitted by svc.audit
         version: row.version,
-        delta: this.enrichAuditDeltaWithDisplayNames(row.delta as Record<string, any>, row.changed_by_display_name),
+        delta: this.enrichAuditDeltaWithDisplayNames(row.delta as Record<string, any>, row.changed_by_name),
       })),
       pagination: result.pagination,
     };

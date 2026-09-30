@@ -44,6 +44,9 @@ export function userProfilesRouter(usersRoutes?: IRouter) {
       get: [Permission.USER_PROFILE_READ_SINGLE],
       audit: [Permission.USER_PROFILE_READ_AUDIT],
     },
+    // E.8: duplicate is ON by default — explicitly disabled for this
+    // IdP-synced / domain-lifecycle entity (cloning is meaningless).
+    duplicate: false,
     schemas: {
       listQuery: UserProfileListQuerySchema,
       auditQuery: UserProfileAuditQuerySchema,
