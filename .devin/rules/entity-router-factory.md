@@ -75,6 +75,52 @@ other writes → `200`. The FE consumes the entity directly (or just checks
 `res.ok`); parent-tab refresh is BroadcastChannel-based and independent of
 the response body.
 
+## Service layer — `makeEntityService` (MANDATORY for standard entities)
+
+The service counterpart of the router factory is `makeEntityService`
+(`src/http/entity-service.ts`). It owns the ONE copy of the CRUD recipe —
+`toDto` date→ISO conversion, `getByUuid` + auditable joins, list
+search/sort/filters, `randomUUID` + `repo.add`, update/delete/restore/
+purge with caller-observed `version`, `duplicate`, `bulk*`, `audit`,
+`stream` — all driven by entity class metadata. **Per-entity DALs are
+forbidden** for standard entities: the variation lives in the config.
+
+```ts
+const svc = makeEntityService<CustomerDetailDto>({
+  entity: CustomerEntity,
+  list: {
+    searchableKeys: CUSTOMER_SEARCHABLE_KEYS,
+    filterableKeys: new Set(CUSTOMER_FILTERABLE_KEYS),
+    defaultSort: CUSTOMER_DEFAULT_SORT,
+    extraFilters: (q) => q.status ? [statusFilter(q.status)] : [],
+    aggregates: [{                            // E.3a — LEFT JOIN + GROUP BY
+      name: "user_count",                     // (organizations example)
+      expr: "COUNT(u.id)",
+      cast: "int",                            // bigint → number on the wire
+      join: { entity: UserProfileEntity, alias: "u",
+              base: "idp_code", joined: "idp_org",
+              extra: "u.deleted_at IS NULL AND u.is_active = true" },
+    }],
+  },
+  hooks: {
+    beforeCreate: (body) => transformedBody,        // validation/derivation
+    beforeUpdate: (uuid, body) => transformedBody,  // (e.g. ai_model power_level)
+    afterWrite: (op, entity) => invalidateCache(),  // post-write side effects
+  },
+});
+```
+
+Structural guarantees: every write goes through `returning:` — a service
+CANNOT return `{uuid}`/`{success:true}`; `EntityService<TEntity>` is the
+contract `makeEntityRouter<TEntity>` type-checks against. Domain behavior
+that doesn't fit hooks/config (Casdoor sync, check-availability) stays in
+a thin facade service that delegates DB work to `svc.*` (see
+`organizations.service.ts`).
+
+`aggregates` drives the DAL `groupBy`/`having` feature: one query
+(`LEFT JOIN ... GROUP BY t.pk`), pagination totals count groups. Use it
+for any list rollup — never N+1 per-row count queries.
+
 ## Config reference
 
 ```ts

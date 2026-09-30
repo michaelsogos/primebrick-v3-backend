@@ -1,137 +1,123 @@
 /**
- * AiModelsService — business logic for the `ai_model` entity.
+ * AiModelsService — thin facade over `makeEntityService` (Part E).
  *
- * Owns the list / get / create / update / delete / restore / audit flows.
- * The service is request-context-free: it takes plain parameters and reads
- * the actor from ALS (`requireActor()`) via the DAL. It never touches
- * `req`/`res`.
- *
- * Errors are thrown as `ApiError` subclasses so the centralized `errorHandler`
- * can convert them to RFC 7807 JSON.
+ * Core CRUD is generic; this facade keeps the legacy method names consumed by
+ * `ai-models.router` plus the entity-specific write rules expressed as
+ * `beforeCreate`/`beforeUpdate` hooks in the service config:
+ *   - `power_level` is always DERIVED from `working_set_mb`, never manual;
+ *   - (model_id, dtype) uniqueness is pre-checked on update so the caller gets
+ *     a domain error instead of a raw conflict.
+ * List-cache invalidation stays in `hooks.afterWrite` — the router keeps
+ * wiring `service.invalidateCache()` for compatibility.
  */
-import type { Pool, PoolClient } from "pg";
 
-import { AiModelsDal } from "./ai_models_dal.js";
+import type { PoolClient } from "pg";
+
+import { makeEntityService, type EntityService } from "../../http/entity-service.js";
+import { AiModelEntity } from "./ai_model_entity.js";
 import type {
   AiModelCreateBody,
   AiModelUpdateBody,
   AiModelListQuery,
+  AiModelDetailDto,
 } from "./dto.js";
-import { getPool } from "../../db/pool.js";
-import { powerLevelFromWorkingSet } from "./power-level.js";
 import {
-  ApiError,
-  NotFoundError,
-  ValidationError,
-} from "../../http/api-errors.js";
+  AI_MODEL_DEFAULT_SORT,
+  AI_MODEL_SEARCHABLE_KEYS,
+  AI_MODEL_FILTERABLE_KEYS,
+} from "./list-config.js";
+import { powerLevelFromWorkingSet } from "./power-level.js";
+import { getCachePort } from "../../cache/cache-port-holder.js";
+import { NotFoundError, ValidationError } from "../../http/api-errors.js";
+
+const LIST_CACHE_KEY = "dal:ai_model:list";
 
 export class AiModelsService {
-  private dal: AiModelsDal | null = null;
+  private svc: EntityService<AiModelDetailDto>;
 
-  private getDal(): AiModelsDal {
-    if (this.dal) return this.dal;
-    const pool: Pool = getPool();
-    this.dal = new AiModelsDal(pool);
-    return this.dal;
+  constructor() {
+    this.svc = makeEntityService<AiModelDetailDto>({
+      entity: AiModelEntity,
+      list: {
+        searchableKeys: AI_MODEL_SEARCHABLE_KEYS,
+        filterableKeys: new Set(AI_MODEL_FILTERABLE_KEYS),
+        defaultSort: AI_MODEL_DEFAULT_SORT,
+      },
+      hooks: {
+        beforeCreate: (body) => {
+          // power_level is always derived from working_set_mb.
+          const derived = powerLevelFromWorkingSet(body.working_set_mb as number | undefined);
+          return derived !== null ? { ...body, power_level: derived } : body;
+        },
+        beforeUpdate: async (uuid, body) => {
+          // If the variant identity (model_id or dtype) is being changed,
+          // check uniqueness of the effective pair against other rows.
+          if (body.model_id !== undefined || body.dtype !== undefined) {
+            let current: AiModelDetailDto;
+            try {
+              current = await this.svc.get(uuid);
+            } catch {
+              throw new NotFoundError("The requested AI model could not be found", {
+                internal_code: "AI_MODEL_NOT_FOUND",
+              });
+            }
+            const effectiveModelId = (body.model_id ?? current.model_id) as string;
+            const effectiveDtype = body.dtype !== undefined ? body.dtype : current.dtype;
+            const candidates = await this.svc.list({
+              filters: [{ field: "model_id", op: "=", value: effectiveModelId }],
+              page_size: 100,
+            });
+            const clash = candidates.rows.find(
+              (r) => r.uuid !== uuid && r.dtype === effectiveDtype,
+            );
+            if (clash) {
+              throw new ValidationError("An AI model with this model_id already exists", {
+                internal_code: "AI_MODEL_MODEL_ID_DUPLICATE",
+              });
+            }
+          }
+          const derived = powerLevelFromWorkingSet(body.working_set_mb as number | undefined);
+          return derived !== null ? { ...body, power_level: derived } : body;
+        },
+      },
+    });
   }
 
-  /**
-   * Post-commit cache invalidation hook — passed to `runEntityWrite` so the
-   * list cache is flushed after the write transaction commits (inside the
-   * tx the DAL intentionally skips its own invalidation).
-   */
+  /** Post-commit cache invalidation hook for `runEntityWrite`. */
   async invalidateCache(): Promise<void> {
-    await this.getDal().invalidateCache();
+    const port = getCachePort();
+    if (port) {
+      try { await port.del(LIST_CACHE_KEY); } catch { /* best-effort */ }
+    }
   }
 
-  // --- List -----------------------------------------------------------------
+  // --- Legacy method names (router `methods` map) ---------------------------
 
   async listAiModels(query: AiModelListQuery) {
-    try {
-      return await this.getDal().listAiModels({
-        search: query.search,
-        search_in: query.search_in ?? undefined,
-        sort_key: query.sort_key,
-        sort_dir: query.sort_dir,
-        page: query.page ?? undefined,
-        page_size: query.page_size ?? undefined,
-        filters: query.filters,
-        connector: query.connector,
-        deleted_records: query.deleted_records,
-      });
-    } catch (e) {
-      throw new ApiError(
-        "/errors/list-failed",
-        "An unexpected error occurred while fetching AI model list",
-        500,
-        "Failed to fetch AI model list",
-        { severity: "HIGH" },
-      );
-    }
+    return this.svc.list(query);
   }
-
-  // --- Single record --------------------------------------------------------
 
   async getAiModel(uuid: string) {
-    const found = await this.getDal().findByUuid(uuid);
-    if (!found) {
-      throw new NotFoundError("The requested AI model could not be found", {
-        internal_code: "AI_MODEL_NOT_FOUND",
-      });
-    }
-    return found;
+    return this.svc.get(uuid);
   }
 
-  // --- Create / Update / Delete / Restore -----------------------------------
-
   async createAiModel(body: AiModelCreateBody, tx?: PoolClient) {
-    // (model_id, dtype) uniqueness is enforced by the DB constraint — the DAL
-    // conflict CTE raises ERR04 (live duplicate) / ERR05 (soft-deleted →
-    // restore) with the existing row's uuid; no preflight SELECT needed.
-    // working_set_mb known → power_level is always derived, never manual.
-    const derived = powerLevelFromWorkingSet(body.working_set_mb);
-    if (derived !== null) body = { ...body, power_level: derived };
-    return this.getDal().createAiModel(body, tx);
+    return this.svc.create(body as unknown as Record<string, unknown>, tx);
   }
 
   async updateAiModel(uuid: string, body: AiModelUpdateBody, tx?: PoolClient) {
-    // If the variant identity (model_id or dtype) is being changed, check
-    // uniqueness of the effective pair against other rows.
-    if (body.model_id !== undefined || body.dtype !== undefined) {
-      const current = await this.getDal().findByUuid(uuid);
-      if (!current) {
-        throw new NotFoundError("The requested AI model could not be found", {
-          internal_code: "AI_MODEL_NOT_FOUND",
-        });
-      }
-      const existing = await this.getDal().findByModelIdAndDtype(
-        body.model_id ?? current?.model_id,
-        body.dtype !== undefined ? body.dtype : current?.dtype,
-      );
-      if (existing && existing.uuid !== uuid) {
-        throw new ValidationError("An AI model with this model_id already exists", {
-          internal_code: "AI_MODEL_MODEL_ID_DUPLICATE",
-        });
-      }
-    }
-    // A new working_set_mb value (estimate or e2e measure) re-derives
-    // power_level — the level is never manually overridden when ws exists.
-    const derived = powerLevelFromWorkingSet(body.working_set_mb);
-    if (derived !== null) body = { ...body, power_level: derived };
-    return await this.getDal().updateAiModel(uuid, body, tx);
+    return this.svc.update(uuid, body as unknown as Record<string, unknown> & { version: number }, tx);
   }
 
   async deleteAiModel(uuid: string, version: number) {
-    return await this.getDal().deleteAiModel(uuid, version);
+    return this.svc.delete(uuid, version);
   }
 
   async restoreAiModel(uuid: string, version: number) {
-    return await this.getDal().restoreAiModel(uuid, version);
+    return this.svc.restore(uuid, version);
   }
 
-  // --- Audit ----------------------------------------------------------------
-
   async getAiModelAudit(uuid: string, page: number, limit: number) {
-    return this.getDal().getAiModelAudit(uuid, page, limit);
+    return this.svc.audit(uuid, page, limit);
   }
 }

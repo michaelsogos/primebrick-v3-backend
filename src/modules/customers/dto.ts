@@ -2,6 +2,7 @@ import { z } from "zod";
 import { zBoundedInt, zPartialNoDefaults } from "../../http/validation.js";
 
 import type { CustomerStatus } from "./customer_entity.js";
+import type { WithAuditableDisplayNames } from "@primebrick/dal-pg";
 import { CUSTOMER_SORT_KEYS } from "./list-config.js";
 import {
   ListQueryBaseSchema,
@@ -168,3 +169,41 @@ export const CustomerDuplicateBodySchema = z.object({
 
 export type CustomerDuplicateBody = z.infer<typeof CustomerDuplicateBodySchema>;
 
+
+// --- Detail row / API DTO (previously in customers_dal.ts) -------------------
+
+export type CustomerDetailRow = WithAuditableDisplayNames<{
+  uuid: string;
+  code: string;
+  first_name?: string;
+  last_name?: string;
+  company_name?: string;
+  email?: string;
+  phone?: string;
+  status: CustomerStatus;
+  status_reason?: string;
+  local_address?: string;
+  local_city?: string;
+  local_state?: string;
+  local_country?: string;
+  local_zip?: string;
+  onboarding_at?: Date;
+  onboarding_time_zone?: string;
+  created_at: Date;
+  created_by: string;
+  updated_at: Date;
+  updated_by: string;
+  version: number;
+  deleted_at?: Date;
+  deleted_by?: string;
+}>;
+
+export type CustomerDetailDto = Omit<
+  CustomerDetailRow,
+  "created_at" | "updated_at" | "deleted_at" | "onboarding_at"
+> & {
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  onboarding_at?: string;
+};

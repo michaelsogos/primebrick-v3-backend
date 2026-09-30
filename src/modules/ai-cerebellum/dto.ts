@@ -9,6 +9,7 @@ import { z } from "zod";
 import { zBoundedInt, zBoundedNumber, zPartialNoDefaults } from "../../http/validation.js";
 import { AI_CEREBELLUM_SORT_KEYS } from "./list-config.js";
 import { ListQueryBaseSchema } from "../../http/list-query.js";
+import type { WithAuditableDisplayNames } from "@primebrick/dal-pg";
 
 export const AiCerebellumListQuerySchema = ListQueryBaseSchema.extend({
   sort_key: z.enum(AI_CEREBELLUM_SORT_KEYS as [string, ...string[]]).optional(),
@@ -77,3 +78,37 @@ export const UuidParamSchema = z.object({
 });
 
 export type UuidParam = z.infer<typeof UuidParamSchema>;
+
+// --- Detail row / API DTO (previously in ai_cerebellum_dal.ts) ---------------
+
+export type AiCerebellumDetailRow = {
+  uuid: string;
+  assistant_key: string;
+  model_id: string;
+  name: string;
+  description_key?: string;
+  enable_thinking?: boolean;
+  temperature?: number;
+  top_p?: number;
+  max_tokens?: number;
+  repetition_penalty?: number;
+  execution_config?: Record<string, any>;
+  test_scores?: Record<string, any>;
+  recommendation?: string;
+  created_at: Date;
+  created_by: string;
+  updated_at: Date;
+  updated_by: string;
+  version: number;
+  deleted_at?: Date;
+  deleted_by?: string;
+};
+
+export type AiCerebellumDetailDto = Omit<
+  AiCerebellumDetailRow,
+  "created_at" | "updated_at" | "deleted_at"
+> & {
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+};

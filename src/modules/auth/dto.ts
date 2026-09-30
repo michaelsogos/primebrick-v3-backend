@@ -15,6 +15,7 @@
 import { z } from "zod";
 import { zBoundedInt } from "../../http/validation.js";
 import { ListQueryBaseSchema } from "../../http/list-query.js";
+import type { WithAuditableDisplayNames } from "@primebrick/dal-pg";
 import { PasswordPolicy, passwordZodSchema } from "./password-policy.js";
 import { displayNameSchema, idpNameSchema } from "./validation.js";
 
@@ -207,3 +208,34 @@ export type RoleMappingListQueryInput = z.infer<typeof RoleMappingListQuerySchem
 
 export const UserProfileListQuerySchema = ListQueryBaseSchema;
 export type UserProfileListQueryInput = z.infer<typeof UserProfileListQuerySchema>;
+
+// --- Organization detail row / API DTO (previously in organizations_dal.ts) --
+
+export type OrganizationDetailRow = WithAuditableDisplayNames<{
+  uuid: string;
+  idp_code: string;
+  idp_owner?: string;
+  idp_name?: string;
+  display_name?: string;
+  website_url?: string;
+  avatar?: string;
+  last_synced_at?: Date;
+  user_count?: number;
+  created_at: Date;
+  created_by: string;
+  updated_at: Date;
+  updated_by: string;
+  version: number;
+  deleted_at?: Date;
+  deleted_by?: string;
+}>;
+
+export type OrganizationDetailDto = Omit<
+  OrganizationDetailRow,
+  "created_at" | "updated_at" | "deleted_at" | "last_synced_at"
+> & {
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  last_synced_at?: string;
+};

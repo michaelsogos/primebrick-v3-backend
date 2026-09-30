@@ -14,7 +14,7 @@ import { listNonSentinelPermissions } from "@primebrick/sdk";
 
 import { getPool } from "../../db/pool.js";
 import { NotFoundError } from "../../http/api-errors.js";
-import { OrganizationsDal } from "../auth/organizations_dal.js";
+import { OrganizationsService } from "../auth/services/organizations.service.js";
 import { RoleMappingRepo } from "../auth/role-mapping-repo.js";
 import { loadAuthConfigFromDb } from "../auth/config-repo.js";
 import { ServiceRegistryRepo } from "../proxy/service-registry-repo.js";
@@ -29,8 +29,8 @@ export class SystemService {
    * Active organizations mapped to the minimal sidebar-switcher DTO.
    */
   async listActiveOrganizations() {
-    const dal = new OrganizationsDal(getPool());
-    const result = await dal.listOrganizations({
+    const svc = new OrganizationsService();
+    const result = await svc.listOrganizations({
       page: 1,
       page_size: 100,
       deleted_records: "EXCLUDED",

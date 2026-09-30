@@ -75,9 +75,9 @@ function makeService() {
 }
 type Service = ReturnType<typeof makeService>;
 
-function buildRouter(service: Service, over?: {
+function buildRouter<S extends object>(service: S, over?: {
   permissions?: Parameters<typeof makeEntityRouter>[0]["permissions"];
-  methods?: Parameters<typeof makeEntityRouter>[0]["methods"];
+  methods?: Partial<Record<import("../entity-router.js").EntityAction, keyof S & string>>;
   handlers?: Parameters<typeof makeEntityRouter>[0]["handlers"];
 }): IRouter {
   return makeEntityRouter({

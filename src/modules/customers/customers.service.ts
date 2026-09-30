@@ -1,145 +1,106 @@
 /**
- * CustomersService — business logic for the `customer` entity.
+ * CustomersService — thin facade over `makeEntityService` (Part E pilot).
  *
- * Owns the list / get / create / update / delete / restore / duplicate /
- * audit / export flows. The service is request-context-free: it takes plain
- * parameters and reads the actor from ALS (`requireActor()`) via the DAL.
- * It never touches `req`/`res` — except that `exportCustomers` returns an
- * async generator + an `ExportConfig` so the controller can stream the
- * response (streaming to `res` is inherently an HTTP concern).
+ * All core CRUD (list/get/create/update/delete/restore/purge, bulk ops,
+ * audit, stream) is provided by the generic entity service configured below — there
+ * is no per-entity DAL anymore. This facade only keeps:
+ *   - the legacy method names consumed by `customers.router` (`methods` map)
+ *     and the MCP dispatch layer;
+ *   - the export flow (template + fieldMapping + streaming to `res`), which
+ *     feeds on the generic `stream()` — no duplicated filter logic;
+ *   - the duplicate partial-failure error mapping.
  *
- * Errors are thrown as `ApiError` subclasses so the centralized `errorHandler`
- * can convert them to RFC 7807 JSON.
+ * NEVER reintroduce a hand-written CustomersDal: per-entity variation belongs
+ * in the config object, not in copied code.
  */
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Pool, PoolClient } from "pg";
+import type { PoolClient } from "pg";
 
-import { CustomersDal } from "./customers_dal.js";
+import { Filter, field } from "@primebrick/dal-pg";
+
+import { makeEntityService, type EntityService } from "../../http/entity-service.js";
+import { CustomerEntity } from "./customer_entity.js";
 import type {
   CustomerCreateBody,
   CustomerUpdateBody,
   CustomerListQuery,
   CustomerExportQuery,
+  CustomerDetailDto,
 } from "./dto.js";
-import { CUSTOMER_DEFAULT_SORT } from "./list-config.js";
+import {
+  CUSTOMER_DEFAULT_SORT,
+  CUSTOMER_SEARCHABLE_KEYS,
+  CUSTOMER_FILTERABLE_KEYS,
+} from "./list-config.js";
 import { exportDataWithTemplateToStream } from "../../lib/export/index.js";
 import type { ExportConfig } from "../../lib/export/types.js";
-import { getPool } from "../../db/pool.js";
-import {
-  ApiError,
-  NotFoundError,
-  ValidationError,
-} from "../../http/api-errors.js";
+import { ApiError } from "../../http/api-errors.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/**
- * Resolve the effective sort key/direction from the query, falling back to the
- * customer default sort. Pure function, no I/O.
- */
-function resolveSort(
-  sortKey: string | null | undefined,
-  sortDir: "asc" | "desc" | undefined,
-): { sort_key: string; sort_dir: "asc" | "desc" } {
-  const eff_sort_key = (sortKey ?? CUSTOMER_DEFAULT_SORT.key ?? "uuid") as string;
-  const eff_sort_dir =
-    sortDir === "asc" || sortDir === "desc"
-      ? sortDir
-      : sortKey
-        ? "asc"
-        : CUSTOMER_DEFAULT_SORT.dir ?? "asc";
-  return { sort_key: eff_sort_key, sort_dir: eff_sort_dir };
-}
-
 export class CustomersService {
-  private dal: CustomersDal | null = null;
+  private svc: EntityService<CustomerDetailDto>;
 
-  private getDal(): CustomersDal {
-    if (this.dal) return this.dal;
-    const pool = getPool();
-    this.dal = new CustomersDal(pool);
-    return this.dal;
-  }
-
-  // --- List -----------------------------------------------------------------
-
-  async listCustomers(query: CustomerListQuery) {
-    // Debug toggles (preserved from the original handler).
-    if (process.env.PB_CUSTOMERS_FORCE_EMPTY === "1") {
-      const p = Math.max(1, query.page ? Number(query.page) : 1);
-      const ps = Math.min(100, Math.max(1, query.page_size ? Number(query.page_size) : 25));
-      return { rows: [], page: p, page_size: ps, total: 0n };
-    }
-    if (process.env.PB_CUSTOMERS_FORCE_ERROR === "1") {
-      throw new ApiError(
-        "/errors/list-failed",
-        "List failed",
-        500,
-        "An unexpected error occurred while fetching customer list",
-        { severity: "HIGH" },
-      );
-    }
-
-    const { sort_key, sort_dir } = resolveSort(query.sort_key, query.sort_dir);
-    return this.getDal().listCustomers({
-      search: query.search,
-      search_in: query.search_in ?? undefined,
-      status: query.status,
-      filters: query.filters,
-      connector: query.connector,
-      sort_key,
-      sort_dir,
-      page: query.page ?? undefined,
-      page_size: query.page_size ?? undefined,
-      deleted_records: query.deleted_records,
+  constructor() {
+    this.svc = makeEntityService<CustomerDetailDto>({
+      entity: CustomerEntity,
+      debugCode: "CUSTOMERS", // PB_CUSTOMERS_FORCE_EMPTY / PB_CUSTOMERS_FORCE_ERROR
+      list: {
+        searchableKeys: CUSTOMER_SEARCHABLE_KEYS,
+        filterableKeys: new Set(CUSTOMER_FILTERABLE_KEYS),
+        defaultSort: CUSTOMER_DEFAULT_SORT,
+        // Entity-specific shortcut param: ?status=ACTIVE|...
+        extraFilters: (q) =>
+          q.status
+            ? [Filter.group([Filter.fieldValue(field(CustomerEntity, "status"), "=", q.status)], "AND")]
+            : [],
+      },
     });
   }
 
-  // --- Single record --------------------------------------------------------
+  // --- List / get -----------------------------------------------------------
 
-  async getCustomer(uuid: string) {
-    const found = await this.getDal().getByUuid(uuid);
-    if (!found) {
-      throw new NotFoundError("The requested customer could not be found", {
-        internal_code: "CUSTOMER_NOT_FOUND",
-      });
-    }
-    return found;
+  async listCustomers(query: CustomerListQuery) {
+    return this.svc.list(query);
   }
 
-  // --- Create / Update / Delete / Restore -----------------------------------
+  async getCustomer(uuid: string) {
+    return this.svc.get(uuid);
+  }
+
+  // --- Create / update / delete / restore ----------------------------------
 
   async createCustomer(body: CustomerCreateBody, tx?: PoolClient) {
-    return this.getDal().createCustomer(body, tx);
+    return this.svc.create(body as unknown as Record<string, unknown>, tx);
   }
 
   async updateCustomer(uuid: string, body: CustomerUpdateBody, tx?: PoolClient) {
-    return await this.getDal().updateCustomer(uuid, body, tx);
+    return this.svc.update(uuid, body as unknown as Record<string, unknown> & { version: number }, tx);
   }
 
   async deleteCustomer(uuid: string, version: number) {
-    return await this.getDal().deleteCustomer(uuid, version);
+    return this.svc.delete(uuid, version);
   }
 
   async restoreCustomer(uuid: string, version: number) {
-    return await this.getDal().restoreCustomer(uuid, version);
+    return this.svc.restore(uuid, version);
   }
 
   async bulkDeleteCustomers(items: Array<{ uuid: string; version: number }>) {
-    return await this.getDal().bulkDeleteCustomers(items);
+    return this.svc.bulkDelete(items);
   }
 
   async bulkRestoreCustomers(items: Array<{ uuid: string; version: number }>) {
-    return await this.getDal().bulkRestoreCustomers(items);
+    return this.svc.bulkRestore(items);
   }
 
-  // --- Duplicate (bulk) -----------------------------------------------------
+  // --- Duplicate ------------------------------------------------------------
 
   async duplicateCustomers(uuids: string[]) {
-    const result = await this.getDal().duplicateCustomers(uuids);
+    const result = await this.svc.duplicate(uuids);
     if (result.errors.length > 0) {
       throw new ApiError(
         "/errors/duplicate-partial-failure",
@@ -164,22 +125,22 @@ export class CustomersService {
   // --- Audit ----------------------------------------------------------------
 
   async getCustomerAudit(uuid: string, page: number, limit: number) {
-    return this.getDal().getCustomerAudit(uuid, page, limit);
+    return this.svc.audit(uuid, page, limit);
   }
 
   // --- Export ---------------------------------------------------------------
 
   /**
-   * Stream an export to the provided Express response. This is the one method
-   * that touches `res` — streaming a file download is inherently an HTTP
-   * concern and awkward to abstract. The controller passes its `res` in.
+   * Stream an export to the provided Express response. Rows come from the
+   * generic `stream()` — the SAME filter builder as `list` (no third copy).
+   * This is the one method that touches `res` — streaming a file download is
+   * inherently an HTTP concern; a future iteration can lift the headers +
+   * template piping into the router itself (see plan Part E.4).
    */
   async exportCustomers(
     query: CustomerExportQuery,
     res: import("express").Response,
   ): Promise<void> {
-    const { sort_key, sort_dir } = resolveSort(query.sort_key, query.sort_dir);
-
     const { file_type, locale, timezone } = query;
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const filename = `customers-export-${timestamp}.${file_type}`;
@@ -192,17 +153,6 @@ export class CustomersService {
 
     res.setHeader("Content-Type", contentType);
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-
-    const dataStream = this.getDal().streamAllCustomers({
-      search: query.search,
-      search_in: query.search_in ?? undefined,
-      status: query.status,
-      filters: query.filters,
-      connector: query.connector,
-      sort_key,
-      sort_dir,
-      deleted_records: query.deleted_records,
-    });
 
     const config: ExportConfig = {
       locale: locale || "en-GB",
@@ -273,7 +223,7 @@ export class CustomersService {
           updated_at: { type: "datetime", precision: "seconds" },
         },
       },
-      data: dataStream,
+      data: this.svc.stream(query),
     };
 
     const templatePath =

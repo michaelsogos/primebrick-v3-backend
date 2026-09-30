@@ -9,6 +9,7 @@ import { z } from "zod";
 import { zBoundedInt, zBoundedNumber, zPartialNoDefaults } from "../../http/validation.js";
 import { AI_MODEL_SORT_KEYS } from "./list-config.js";
 import { ListQueryBaseSchema } from "../../http/list-query.js";
+import type { WithAuditableDisplayNames } from "@primebrick/dal-pg";
 
 export const AiModelListQuerySchema = ListQueryBaseSchema.extend({
   sort_key: z.enum(AI_MODEL_SORT_KEYS as [string, ...string[]]).optional(),
@@ -96,3 +97,49 @@ export const UuidParamSchema = z.object({
 });
 
 export type UuidParam = z.infer<typeof UuidParamSchema>;
+
+// --- Detail row / API DTO (previously in ai_models_dal.ts) -------------------
+
+export type AiModelDetailRow = {
+  uuid: string;
+  model_id: string;
+  name: string;
+  label_key?: string;
+  description_key?: string;
+  power_level: number;
+  rank: number;
+  test_scores?: Record<string, any>;
+  enable_thinking: boolean;
+  temperature: number;
+  top_p: number;
+  max_tokens: number;
+  repetition_penalty: number;
+  sort_order: number;
+  download_size_mb?: number;
+  vram_mb?: number;
+  kv_cache_bytes_per_token?: number;
+  flops_per_token?: number;
+  working_set_mb?: number;
+  working_set_source: string;
+  working_set_detail?: Record<string, any>;
+  compatibility_status: string;
+  dtype?: string;
+  engine_type?: string;
+  execution_config?: Record<string, any>;
+  created_at: Date;
+  created_by: string;
+  updated_at: Date;
+  updated_by: string;
+  version: number;
+  deleted_at?: Date;
+  deleted_by?: string;
+};
+
+export type AiModelDetailDto = Omit<
+  AiModelDetailRow,
+  "created_at" | "updated_at" | "deleted_at"
+> & {
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+};

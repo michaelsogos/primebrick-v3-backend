@@ -126,6 +126,13 @@ GET /api/v1/entities/:entity/list
 - `field` and `op` are validated against the entity's allowed filter set.
 - `connector` applies between consecutive conditions (`AND`/`OR`).
 
+### Aggregate columns in list rows
+
+Some entities project server-computed aggregate columns into `list` rows —
+e.g. `organization` rows carry `user_count` (a `LEFT JOIN` + `GROUP BY`
+rollup computed in the same query as the page). These fields are read-only,
+declared per entity, and behave like normal row fields in the response.
+
 ### Write-payload standard (`{entity}` envelope)
 
 Single-entity `POST`/`PUT` bodies MUST wrap the entity fields under `entity`

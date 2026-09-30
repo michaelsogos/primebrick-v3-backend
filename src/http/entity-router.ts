@@ -58,6 +58,7 @@ import {
   requireVersionQuery,
   type PendingTranslation,
 } from "./entity-write.js";
+import type { EntityService } from "./entity-service.js";
 import { getPool } from "../db/pool.js";
 
 export type EntityAction =
@@ -93,7 +94,18 @@ const BulkItemsSchema = z.object({
     .max(100),
 });
 
-export interface EntityRouterConfig {
+/**
+ * Compile-time CRUD contract (Part E): `service` is `S & Partial<EntityService
+ * <TEntity>>` — any method that overlaps a canonical action name (`create`,
+ * `update`, `delete`, `restore`, `purge`, `list`, `get`, …) MUST satisfy the
+ * `EntityService` signature, i.e. write ops return the entity produced by the
+ * DAL `RETURNING` clause. Returning `{ uuid }` or `{ success: true }` under a
+ * canonical name is a compile error, not a convention violation.
+ * Custom-named methods (e.g. role_mapping's `deleteRoleByUuid`) stay free via
+ * `methods` remapping, but their handler is still expected to `res.json` the
+ * entity.
+ */
+export interface EntityRouterConfig<TEntity = unknown, S extends object = object> {
   /** Entity URL segment, e.g. "customer" -> /api/v1/entities/customer/* */
   entityName: string;
   /** Entity class (for meta assembly: auditable/collaboration flags). */
@@ -103,7 +115,7 @@ export interface EntityRouterConfig {
   /** Extra routers scanned for entity ops outside the canonical prefix. */
   metaExtraScans?: ExtraActionScan[];
 
-  service: object;
+  service: S & Partial<EntityService<TEntity>>;
 
   /** Permission per action — presence registers the route. */
   permissions: Partial<Record<EntityAction, Permission[]>>;
@@ -118,8 +130,8 @@ export interface EntityRouterConfig {
     duplicateBody?: z.ZodTypeAny;
   };
 
-  /** Service method names per action (defaults: same as action name). */
-  methods?: Partial<Record<EntityAction, string>>;
+  /** Service method names per action (defaults: same as action name). Must be keys of `S`. */
+  methods?: Partial<Record<EntityAction, keyof S & string>>;
 
   hooks?: {
     /** Post-write cache invalidation / side effects (inside runEntityWrite). */
@@ -135,11 +147,13 @@ export interface EntityRouterConfig {
   extraRoutes?: RouteDef[];
 }
 
-export function makeEntityRouter(config: EntityRouterConfig): IRouter {
+export function makeEntityRouter<TEntity, S extends object>(
+  config: EntityRouterConfig<TEntity, S>,
+): IRouter {
   const router = makeProtectedRouter();
   const service = config.service;
   const base = `/api/v1/entities/${config.entityName}`;
-  const method = (a: EntityAction) => (config.methods?.[a] ?? a) as string;
+  const method = (a: EntityAction) => (config.methods?.[a] ?? a) as keyof S & string;
   const call = (a: EntityAction, ...args: unknown[]) =>
     (service as Record<string, (...x: unknown[]) => Promise<unknown>>)[method(a)](...args);
 
