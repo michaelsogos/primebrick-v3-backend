@@ -7,6 +7,8 @@ import {
   Repository,
   field, Filter, Sort, Join, Project,
   buildAuditableJoins,
+  translateFilterConditions,
+  type ListFilterCondition,
   type FieldProjector,
   type FilterExpr,
   type WithAuditableDisplayNames,
@@ -59,90 +61,14 @@ function buildIlikeNeedleFromSearch(raw: string): {
   return { needle: `%${out}%`, trueChars, hasEscapedWildcard };
 }
 
-type FilterCondition = {
-  field: string;
-  op: string;
-  value: unknown;
-  connector?: "AND" | "OR";
-};
+const CUSTOMER_ALLOWED_FIELDS = new Set(CUSTOMER_FILTERABLE_KEYS);
 
-function translateFilterConditions(conditions: FilterCondition[], connector: "AND" | "OR" = "AND"): FilterExpr[] | null {
-  if (!conditions || conditions.length === 0) return null;
-
-  const validOps = new Set([
-    "=",
-    "!=",
-    "<>",
-    "<",
-    "<=",
-    ">",
-    ">=",
-    "ILIKE",
-    "LIKE",
-    "IN",
-    "NOT IN",
-    "BETWEEN",
-    "IS",
-    "IS NOT",
-  ]);
-
-  const allowedFields = new Set(CUSTOMER_FILTERABLE_KEYS);
-
-  const filterExprs: ReturnType<typeof Filter.fieldValue>[] = [];
-
-  for (const cond of conditions) {
-    if (!validOps.has(cond.op)) continue;
-    if (!allowedFields.has(cond.field)) continue;
-
-    let value: unknown = cond.value;
-
-    if ((cond.op === "ILIKE" || cond.op === "LIKE") && typeof value === "string") {
-      // Skip pattern building if value already contains % (from advanced filters)
-      if (!value.includes('%')) {
-        const { needle } = buildIlikeNeedleFromSearch(value);
-        value = needle;
-      }
-    }
-
-    // For IN and NOT IN operators with array values, use the array directly
-    if ((cond.op === "IN" || cond.op === "NOT IN") && Array.isArray(value)) {
-      filterExprs.push(Filter.fieldValue(
-        field(CustomerEntity, cond.field as any),
-        cond.op as any,
-        value,
-        connector
-      ));
-    } else if (cond.op === "BETWEEN" && typeof value === "object" && value !== null && "start" in value && "end" in value) {
-      // BETWEEN operator expects an array of two values [start, end]
-      const start = (value as { start: unknown; end: unknown }).start;
-      const end = (value as { start: unknown; end: unknown }).end;
-      if (start !== null && end !== null) {
-        filterExprs.push(Filter.fieldValue(
-          field(CustomerEntity, cond.field as any),
-          cond.op as any,
-          [start, end],
-          connector
-        ));
-      }
-    } else {
-      filterExprs.push(Filter.fieldValue(
-        field(CustomerEntity, cond.field as any),
-        cond.op as any,
-        value,
-        connector
-      ));
-    }
-  }
-
-  if (filterExprs.length === 0) return null;
-
-  // Always wrap in an outer AND group so the connector only applies BETWEEN advanced filters,
-  // and the group itself is ANDed with outer where clauses (deleted_at, search, status).
-  if (filterExprs.length === 1) {
-    return [Filter.group(filterExprs, "AND")];
-  }
-
-  return [Filter.group([Filter.group(filterExprs, connector)], "AND")];
+function customerTranslateFilters(conditions: ListFilterCondition[] | undefined, connector: "AND" | "OR"): FilterExpr[] | null {
+  return translateFilterConditions(CustomerEntity, conditions, {
+    allowedFields: CUSTOMER_ALLOWED_FIELDS,
+    connector,
+    escapeIlike: (raw) => buildIlikeNeedleFromSearch(raw).needle,
+  });
 }
 
 export type CustomerDetailRow = WithAuditableDisplayNames<{
@@ -669,7 +595,7 @@ export class CustomersDal {
     }
 
     if (q.filters && q.filters.length > 0) {
-      const advancedFilters = translateFilterConditions(q.filters as FilterCondition[], q.connector ?? "AND");
+      const advancedFilters = customerTranslateFilters(q.filters, q.connector ?? "AND");
       if (advancedFilters) {
         filters.push(...advancedFilters);
       }
@@ -870,7 +796,7 @@ export class CustomersDal {
     }
 
     if (q.filters && q.filters.length > 0) {
-      const advancedFilters = translateFilterConditions(q.filters as FilterCondition[], q.connector ?? "AND");
+      const advancedFilters = customerTranslateFilters(q.filters, q.connector ?? "AND");
       if (advancedFilters) {
         filters.push(...advancedFilters);
       }

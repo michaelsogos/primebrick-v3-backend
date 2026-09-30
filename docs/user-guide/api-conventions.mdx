@@ -36,6 +36,7 @@ GET    /api/v1/entities/:entity/:uuid             → single record
 POST   /api/v1/entities/:entity                   → create
 PUT    /api/v1/entities/:entity/:uuid             → update
 DELETE /api/v1/entities/:entity/:uuid             → soft-delete
+DELETE /api/v1/entities/:entity/:uuid/purge       → hard-delete (opt-in capability)
 POST   /api/v1/entities/:entity/:uuid/restore     → restore
 GET    /api/v1/entities/:entity/:uuid/audit       → audit history
 POST   /api/v1/entities/:entity/bulk-delete       → bulk soft-delete
@@ -56,6 +57,74 @@ necessity (per-record IdP sync) — see
 `meta.actions` is derived from the registered route table and always emits
 the full standard op vocabulary, absent routes surface as explicit
 `enabled: false` entries and the UI hides the corresponding actions.
+
+### Delete semantics — soft vs hard capabilities
+
+Deletion is capability-driven and declared per entity:
+
+- **`DELETE /:uuid`** — soft delete (`deleted_at`/`deleted_by` stamp).
+  Registered only when the entity declares the delete capability.
+- **`DELETE /:uuid/purge`** — hard delete (physical `DELETE FROM`).
+  Opt-in capability; entities that support ONLY hard delete register just
+  this route — the soft `DELETE /:uuid` route does not exist and returns
+  `404`. Entities supporting both expose both routes.
+- `POST /:uuid/restore` and the `delete.bulk`/`restore.bulk` ops exist only
+  for soft-delete entities.
+
+Which endpoint applies is never a client guess: `meta.actions` emits
+`delete.single` (soft) and `purge.single` (hard) with `enabled` flags derived
+from the registered route table. The frontend's entity list table picks the
+correct URL automatically.
+
+`role_mapping` is the current hard-delete-only entity: deleting a role
+removes the local row AND the Casdoor role atomically (Casdoor first, local
+second), so there is no `deleted_at` lifecycle and no restore.
+
+### Optimistic concurrency (`?version=`)
+
+Every mutation that targets an existing row — `PUT /:uuid`,
+`DELETE /:uuid`, `DELETE /:uuid/purge`, `POST /:uuid/restore` — requires the
+caller-observed row `version` as a query parameter:
+
+```bash
+curl -X DELETE -H "Authorization: Bearer <jwt>" \
+  "http://localhost:3001/api/v1/entities/customer/<uuid>?version=3"
+```
+
+- Missing or non-integer `version` → `400` with `internal_code:
+  VERSION_REQUIRED`.
+- A stale version (row modified by someone else since you read it) → the
+  write's `WHERE ... AND version = $n` matches zero rows → `409`
+  concurrency error.
+- The `version` field is present on every entity row returned by `list`
+  and `get` — always send back the version you observed.
+
+### Write responses — the entity is the response
+
+Every entity write (`create`, `update`, `delete`, `purge`, `restore`)
+returns the **authoritative entity row** produced by PostgreSQL
+`RETURNING` — never a wrapper like `{ "success": true }` and never a
+hand-built DTO. `create` uses `201`, the other writes `200`.
+
+RPC endpoints under `/api/v1/auth/*` and `/api/v1/system/*` are exempt —
+they orchestrate workflows (e.g. user creation = Casdoor + profile +
+invitation) and return action-specific payloads.
+
+### List filters — canonical query-string format
+
+`GET /list` accepts structured filters via **QS bracket notation** — the
+only supported format (no JSON-stringified parameters):
+
+```
+GET /api/v1/entities/:entity/list
+    ?filters[0][field]=status&filters[0][op]==&filters[0][value]=ACTIVE&filters[0][connector]=AND
+    &filters[1][field]=created_at&filters[1][op]=between
+    &filters[1][value][start]=2024-01-01&filters[1][value][end]=2024-12-31
+```
+
+- Array values use repeated keys: `filters[0][value][]=A&filters[0][value][]=B`.
+- `field` and `op` are validated against the entity's allowed filter set.
+- `connector` applies between consecutive conditions (`AND`/`OR`).
 
 ### Write-payload standard (`{entity}` envelope)
 
@@ -106,13 +175,17 @@ curl -X POST -H "Authorization: Bearer <jwt>" -H "Content-Type: application/json
   http://localhost:3001/api/v1/entities/customer \
   -d '{"entity":{"code":"ACME","name":"Acme Corp"}}'
 
-# Soft-delete by UUID
+# Soft-delete by UUID (caller-observed version required)
 curl -X DELETE -H "Authorization: Bearer <jwt>" \
-  http://localhost:3001/api/v1/entities/customer/550e8400-e29b-41d4-a716-446655440000
+  "http://localhost:3001/api/v1/entities/customer/550e8400-e29b-41d4-a716-446655440000?version=3"
+
+# Hard-delete (purge capability — role_mapping example)
+curl -X DELETE -H "Authorization: Bearer <jwt>" \
+  "http://localhost:3001/api/v1/entities/role_mapping/550e8400-e29b-41d4-a716-446655440000/purge?version=1"
 
 # Restore a soft-deleted record
 curl -X POST -H "Authorization: Bearer <jwt>" \
-  http://localhost:3001/api/v1/entities/customer/550e8400-e29b-41d4-a716-446655440000/restore
+  "http://localhost:3001/api/v1/entities/customer/550e8400-e29b-41d4-a716-446655440000/restore?version=4"
 ```
 
 ## Auth RPC

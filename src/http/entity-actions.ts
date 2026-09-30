@@ -53,6 +53,7 @@ export const STANDARD_OPS = [
   "create.single",
   "update.single",
   "delete.single",
+  "purge.single",
   "restore.single",
   "read.audit",
   "export",
@@ -91,6 +92,7 @@ function routeToOp(method: string, suffix: string): string | null {
     }
     // /:uuid/<action>
     if (method === "post" && last === "restore") return "restore.single";
+    if (method === "delete" && last === "purge") return "purge.single";
     if (method === "get" && last === "audit") return "read.audit";
     return last; // non-standard single-record action (e.g. change-password)
   }

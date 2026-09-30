@@ -189,7 +189,7 @@ export class OrganizationsService {
 
   // --- Update ---------------------------------------------------------------
 
-  async updateOrganization(uuid: string, input: UpdateOrganizationInput, tx?: PoolClient): Promise<void> {
+  async updateOrganization(uuid: string, input: UpdateOrganizationInput, tx?: PoolClient) {
     const { display_name, website_url } = input;
     const org = await this.getDal().getByUuid(uuid);
     if (!org) {
@@ -244,12 +244,12 @@ export class OrganizationsService {
     if (website_url !== undefined) updateBody.website_url = website_url || undefined;
     updateBody.last_synced_at = new Date();
 
-    await this.getDal().updateOrganization(uuid, updateBody as any, tx);
+    return await this.getDal().updateOrganization(uuid, updateBody as any, tx);
   }
 
   // --- Delete ---------------------------------------------------------------
 
-  async deleteOrganization(uuid: string, version: number): Promise<unknown> {
+  async deleteOrganization(uuid: string, version: number) {
     const org = await this.getDal().getByUuid(uuid);
     if (!org) {
       throw new NotFoundError("Organization not found in database", {
@@ -281,7 +281,7 @@ export class OrganizationsService {
 
   // --- Restore --------------------------------------------------------------
 
-  async restoreOrganization(uuid: string, version: number): Promise<unknown> {
+  async restoreOrganization(uuid: string, version: number) {
     const org = await this.getDal().getByUuid(uuid);
     if (!org) {
       throw new NotFoundError("Organization not found in database", {

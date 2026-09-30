@@ -1,14 +1,17 @@
 /**
  * organizations.router — thin controller for the `organization` entity.
  *
- * Endpoints:
+ * Standard entity CRUD via `makeEntityRouter` — mandatory chain (permission,
+ * uuid/body/query validation, translations permission, version query,
+ * runEntityWrite tx) is non-overridable.
+ *
  *   GET    /api/v1/entities/organization/meta              → entity metadata
  *   GET    /api/v1/entities/organization/list              → paginated list
- *   GET    /api/v1/entities/organization/check-availability → idp_code availability
+ *   GET    /api/v1/entities/organization/check-availability → idp_code availability (extra route)
  *   GET    /api/v1/entities/organization/:uuid             → single record
  *   POST   /api/v1/entities/organization                   → create (Casdoor + local)
  *   PUT    /api/v1/entities/organization/:uuid             → update
- *   DELETE /api/v1/entities/organization/:uuid             → delete
+ *   DELETE /api/v1/entities/organization/:uuid             → delete (Casdoor + local, MFA step-up)
  *   POST   /api/v1/entities/organization/:uuid/restore     → restore
  *   GET    /api/v1/entities/organization/:uuid/audit       → audit history
  *
@@ -19,40 +22,30 @@
  * cannot interleave N synchronous per-item IdP calls, and a mere loop of
  * single deletes is NOT a bulk op. Therefore `bulk-delete`, `bulk-restore`,
  * `duplicate`, and `export` can NEVER exist for this entity unless the
- * Casdoor sync contract itself changes. `meta.actions` correctly reports no
- * bulk ops and the FE hides those CTAs. Do NOT add bulk routes here.
+ * Casdoor sync contract itself changes — the factory simply never registers
+ * them (their permissions are absent), and `meta.actions` correctly reports
+ * no bulk ops so the FE hides those CTAs.
  *
- * The router contains NO business logic. All errors are thrown as `ApiError`
- * subclasses and converted to RFC 7807 by the centralized `errorHandler`.
- *
- * NOTE: `check-availability` is registered before `:uuid` so it is not
- * matched as a UUID parameter (Express routes are order-sensitive).
+ * NOTE: `check-availability` is an `extraRoute` — registered with the literal
+ * routes, BEFORE `:uuid`, so it is not matched as a UUID parameter.
  */
 
-import type { RequestHandler } from "express";
 import { z } from "zod";
-import { zBoundedInt } from "../../../http/validation.js";
-
-import { makeProtectedRouter } from "../../../http/protected-router.js";
-import { registerRoutes } from "../../../http/define-route.js";
-import { asyncHandler } from "../../../http/async-handler.js";
-import { validateBody } from "../../../http/validation.js";
-import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
+
+import { makeEntityRouter } from "../../../http/entity-router.js";
+import { asyncHandler } from "../../../http/async-handler.js";
+import { entityWriteBody } from "../../../http/entity-write.js";
+import { zBoundedInt } from "../../../http/validation.js";
+import { ValidationError } from "../../../http/api-errors.js";
+import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
+import { requireMfaStepUp } from "../../../modules/auth/mfa-step-up.middleware.js";
+import { ListAuditQuerySchema } from "../../../http/list-query.js";
+import { OrganizationListQuerySchema } from "../../../modules/auth/dto.js";
+import { displayNameSchema, idpNameSchema } from "../../../modules/auth/validation.js";
 import { organizationMeta } from "../../../modules/auth/organizations.meta.js";
 import { OrganizationEntity } from "../../../modules/auth/organization_entity.js";
 import { OrganizationsService } from "../../../modules/auth/services/organizations.service.js";
-import { ValidationError } from "../../../http/api-errors.js";
-import {
-  entityWriteBody,
-  assertTranslationsPermission,
-  runEntityWrite,
-} from "../../../http/entity-write.js";
-import { getPool } from "../../../db/pool.js";
-import { assembleMeta } from "../../../http/meta-assembler.js";
-import { deriveEntityActions } from "../../../http/entity-actions.js";
-import type { OrganizationListQuery } from "../../../modules/auth/organizations_dal.js";
-import { displayNameSchema, idpNameSchema } from "../../../modules/auth/validation.js";
 
 // Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)
 const CreateBodySchema = entityWriteBody(z.object({
@@ -69,161 +62,64 @@ const UpdateBodySchema = entityWriteBody(z.object({
 }));
 
 export function organizationsRouter() {
-  const router = makeProtectedRouter();
   const service = new OrganizationsService();
 
-  const getMeta: RequestHandler = asyncHandler(async (_req, res) => {
-    res.json({
-      ...assembleMeta(organizationMeta, OrganizationEntity),
-      actions: deriveEntityActions(
-        router,
-        "organization",
-        organizationMeta.actions_overrides,
-      ),
-    });
-  });
-
-  const list: RequestHandler = asyncHandler(async (req, res) => {
-    const { search, search_in, sort_key, sort_dir, page, page_size, filters, connector, deleted_records } = req.query;
-    const query: OrganizationListQuery = {
-      search: search as string | undefined,
-      search_in: search_in ? (search_in as string).split(",") : undefined,
-      sort_key: sort_key as string | null,
-      sort_dir: sort_dir as "asc" | "desc",
-      page: page ? parseInt(page as string, 10) : 1,
-      page_size: page_size ? parseInt(page_size as string, 10) : 25,
-      filters: filters ? JSON.parse(filters as string) : undefined,
-      connector: connector as "AND" | "OR",
-      deleted_records: (deleted_records as "EXCLUDED" | "ONLY" | "INCLUDED") || "EXCLUDED",
-    };
-    const result = await service.listOrganizations(query);
-    res.json(result);
-  });
-
-  const checkAvailability: RequestHandler = asyncHandler(async (req, res) => {
-    const { idp_owner, idp_name } = req.query;
-    if (!idp_owner || !idp_name) {
-      throw new ValidationError("Both idp_owner and idp_name are required", {
-        internal_code: "MISSING_PARAMETERS",
-      });
-    }
-    const result = await service.checkAvailability(idp_owner as string, idp_name as string);
-    res.json({
-      available: result.available,
-      idp_code: result.idpCode,
-      ...(result.existingUuid ? { existing_uuid: result.existingUuid } : {}),
-    });
-  });
-
-  const getSingle: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params;
-    const org = await service.getOrganization(uuid as string);
-    res.json(org);
-  });
-
-  const create: RequestHandler = asyncHandler(async (req, res) => {
-    const body = req.body as z.infer<typeof CreateBodySchema>;
-    assertTranslationsPermission(req, body.translations);
-    const organization = await runEntityWrite(
-      getPool(),
-      body.translations,
-      (tx) => service.createOrganization(body.entity, tx),
-    );
-    res.status(201).json({ success: true, organization });
-  });
-
-  const update: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params;
-    const body = req.body as z.infer<typeof UpdateBodySchema>;
-    assertTranslationsPermission(req, body.translations);
-    await runEntityWrite(
-      getPool(),
-      body.translations,
-      (tx) => service.updateOrganization(uuid as string, body.entity, tx),
-    );
-    res.json({ success: true });
-  });
-
-  const remove: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params;
-    // Caller-observed version (ERR02 if absent — enforced by the DAL).
-    const version = req.query.version !== undefined ? Number(req.query.version) : (undefined as unknown as number);
-    res.json(await service.deleteOrganization(uuid as string, version));
-  });
-
-  const restore: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params;
-    const version = req.query.version !== undefined ? Number(req.query.version) : (undefined as unknown as number);
-    res.json(await service.restoreOrganization(uuid as string, version));
-  });
-
-  const getAudit: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params;
-    const page = parseInt((req.query.page as string) || "1", 10);
-    const limit = parseInt((req.query.limit as string) || "20", 10);
-    const result = await service.getOrganizationAudit(uuid as string, page, limit);
-    res.json(result);
-  });
-
-  registerRoutes(router, [
-    {
-      method: "get",
-      path: "/api/v1/entities/organization/meta",
-      permission: rbacHandler([Permission.ORGANIZATION_READ_ALL, Permission.ORGANIZATION_READ_SINGLE]),
-      handler: getMeta,
+  return makeEntityRouter({
+    entityName: "organization",
+    entity: OrganizationEntity,
+    meta: organizationMeta,
+    service,
+    permissions: {
+      meta: [Permission.ORGANIZATION_READ_ALL, Permission.ORGANIZATION_READ_SINGLE],
+      list: [Permission.ORGANIZATION_READ_ALL],
+      get: [Permission.ORGANIZATION_READ_SINGLE],
+      create: [Permission.ORGANIZATION_CREATE_SINGLE],
+      update: [Permission.ORGANIZATION_UPDATE_SINGLE],
+      delete: [Permission.ORGANIZATION_DELETE_SINGLE],
+      restore: [Permission.ORGANIZATION_RESTORE_SINGLE],
+      audit: [Permission.ORGANIZATION_READ_AUDIT],
     },
-    {
-      method: "get",
-      path: "/api/v1/entities/organization/list",
-      permission: rbacHandler([Permission.ORGANIZATION_READ_ALL]),
-      handler: list,
+    schemas: {
+      listQuery: OrganizationListQuerySchema,
+      createBody: CreateBodySchema,
+      updateBody: UpdateBodySchema,
+      auditQuery: ListAuditQuerySchema,
     },
-    // check-availability MUST be registered before :uuid to avoid matching.
-    {
-      method: "get",
-      path: "/api/v1/entities/organization/check-availability",
-      permission: rbacHandler([Permission.ORGANIZATION_READ_ALL]),
-      handler: checkAvailability,
+    methods: {
+      list: "listOrganizations",
+      get: "getOrganization",
+      create: "createOrganization",
+      update: "updateOrganization",
+      delete: "deleteOrganization",
+      restore: "restoreOrganization",
+      audit: "getOrganizationAudit",
     },
-    {
-      method: "get",
-      path: "/api/v1/entities/organization/:uuid",
-      permission: rbacHandler([Permission.ORGANIZATION_READ_SINGLE]),
-      handler: getSingle,
+    hooks: {
+      actionMiddlewares: {
+        delete: [requireMfaStepUp("delete", "organization")],
+      },
     },
-    {
-      method: "post",
-      path: "/api/v1/entities/organization",
-      permission: rbacHandler([Permission.ORGANIZATION_CREATE_SINGLE]),
-      middlewares: [validateBody(CreateBodySchema)],
-      handler: create,
-    },
-    {
-      method: "put",
-      path: "/api/v1/entities/organization/:uuid",
-      permission: rbacHandler([Permission.ORGANIZATION_UPDATE_SINGLE]),
-      middlewares: [validateBody(UpdateBodySchema)],
-      handler: update,
-    },
-    {
-      method: "delete",
-      path: "/api/v1/entities/organization/:uuid",
-      permission: rbacHandler([Permission.ORGANIZATION_DELETE_SINGLE]),
-      handler: remove,
-    },
-    {
-      method: "post",
-      path: "/api/v1/entities/organization/:uuid/restore",
-      permission: rbacHandler([Permission.ORGANIZATION_RESTORE_SINGLE]),
-      handler: restore,
-    },
-    {
-      method: "get",
-      path: "/api/v1/entities/organization/:uuid/audit",
-      permission: rbacHandler([Permission.ORGANIZATION_READ_AUDIT]),
-      handler: getAudit,
-    },
-  ]);
-
-  return router;
+    extraRoutes: [
+      // check-availability MUST register before :uuid (literal-route slot).
+      {
+        method: "get",
+        path: "/api/v1/entities/organization/check-availability",
+        permission: rbacHandler([Permission.ORGANIZATION_READ_ALL]),
+        handler: asyncHandler(async (req, res) => {
+          const { idp_owner, idp_name } = req.query;
+          if (!idp_owner || !idp_name) {
+            throw new ValidationError("Both idp_owner and idp_name are required", {
+              internal_code: "MISSING_PARAMETERS",
+            });
+          }
+          const result = await service.checkAvailability(idp_owner as string, idp_name as string);
+          res.json({
+            available: result.available,
+            idp_code: result.idpCode,
+            ...(result.existingUuid ? { existing_uuid: result.existingUuid } : {}),
+          });
+        }),
+      },
+    ],
+  });
 }

@@ -6,6 +6,7 @@ import {
   Filter,
   Sort,
   entityDateToApiIso,
+  translateFilterConditions,
   type FilterExpr,
 } from "@primebrick/dal-pg";
 import { RoleMappingEntity } from "./role_mapping_entity.js";
@@ -22,6 +23,7 @@ const DEFAULT_SEARCH_KEYS = deriveSearchableKeys(roleMappingsMeta, RoleMappingEn
 const SEARCH_IN_ALLOWED = new Set([...DEFAULT_SEARCH_KEYS, "uuid"]);
 
 const ROLE_MAPPINGS_CACHE_KEY = "be:role_mappings:all";
+const ROLE_MAPPING_FILTERABLE_FIELDS = new Set(["idp_role", "idp_org", "label_key", "is_admin"]);
 
 interface RoleMappingRow {
   idp_role: string;
@@ -249,7 +251,7 @@ export class RoleMappingRepo {
 
     // Custom filters
     if (filters && filters.length > 0) {
-      const translated = this.translateFilterConditions(filters, connector);
+      const translated = translateFilterConditions(RoleMappingEntity, filters, { allowedFields: ROLE_MAPPING_FILTERABLE_FIELDS, connector });
       if (translated) {
         baseFilters.push(...translated);
       }
@@ -310,41 +312,6 @@ export class RoleMappingRepo {
     return this.auditPort;
   }
 
-  private translateFilterConditions(
-    conditions: Array<{ field: string; op: string; value: unknown; connector?: "AND" | "OR" }>,
-    connector: "AND" | "OR" = "AND"
-  ): FilterExpr[] | null {
-    if (!conditions || conditions.length === 0) return null;
-    const validOps = new Set(["=", "!=", "<>", "<", "<=", ">=", ">=", "ILIKE", "LIKE", "IN", "NOT IN", "IS", "IS NOT"]);
-    const allowedFields = new Set(["idp_role", "idp_org", "label_key", "is_admin"]);
-
-    const filterExprs: FilterExpr[] = [];
-    for (const cond of conditions) {
-      if (!validOps.has(cond.op)) continue;
-      if (!allowedFields.has(cond.field)) continue;
-
-      let value = cond.value;
-      if ((cond.op === "ILIKE" || cond.op === "LIKE") && typeof value === "string") {
-        if (!value.includes("%")) {
-          value = `%${value}%`;
-        }
-      }
-
-      if ((cond.op === "IN" || cond.op === "NOT IN") && Array.isArray(value)) {
-        filterExprs.push(
-          Filter.fieldValue(field(RoleMappingEntity, cond.field as any), cond.op as any, value, cond.connector)
-        );
-      } else {
-        filterExprs.push(
-          Filter.fieldValue(field(RoleMappingEntity, cond.field as any), cond.op as any, value, cond.connector)
-        );
-      }
-    }
-
-    if (filterExprs.length === 0) return null;
-    if (filterExprs.length === 1) return [Filter.group(filterExprs, "AND")];
-    return [Filter.group([Filter.group(filterExprs, connector)], "AND")];
-  }
 
   /**
    * Create a role mapping — caller expects the row to be absent.

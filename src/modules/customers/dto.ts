@@ -2,86 +2,22 @@ import { z } from "zod";
 import { zBoundedInt, zPartialNoDefaults } from "../../http/validation.js";
 
 import type { CustomerStatus } from "./customer_entity.js";
-import { CUSTOMER_FILTERABLE_KEYS, CUSTOMER_SORT_KEYS } from "./list-config.js";
+import { CUSTOMER_SORT_KEYS } from "./list-config.js";
+import {
+  ListQueryBaseSchema,
+  ListFiltersQuerySchema,
+  type ListFilterCondition,
+} from "../../http/list-query.js";
 
 export const CustomerStatusSchema = z.enum(["ACTIVE", "INACTIVE"]) satisfies z.ZodType<CustomerStatus>;
 
-const csvToStringArray = z
-  .string()
-  .transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean))
-  .pipe(z.array(z.string()));
+export const FilterQueryArraySchema = ListFiltersQuerySchema;
+export type FilterCondition = ListFilterCondition;
+export type FilterConnector = "AND" | "OR";
 
-const allowedOperators = [
-  "=",
-  "!=",
-  "<>",
-  "<",
-  "<=",
-  ">",
-  ">=",
-  "ILIKE",
-  "LIKE",
-  "IN",
-  "NOT IN",
-  "BETWEEN",
-  "IS",
-  "IS NOT",
-  "@>",
-] as const;
-export type SqlOperator = (typeof allowedOperators)[number];
-
-const FilterConditionSchema = z.object({
-  field: z.enum(CUSTOMER_FILTERABLE_KEYS as [string, ...string[]]),
-  op: z.enum(allowedOperators),
-  value: z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(z.union([z.string(), z.number(), z.boolean()])),
-    z.object({
-      start: z.union([z.string(), z.number()]),
-      end: z.union([z.string(), z.number()]),
-    }),
-  ]),
-});
-
-const FilterConnectorSchema = z.enum(["AND", "OR"]);
-
-export const FilterQueryArraySchema = z
-  .array(
-    z.object({
-      field: z.string(),
-      op: z.string(),
-      value: z.union([
-        z.string(),
-        z.number(),
-        z.boolean(),
-        z.null(),
-        z.array(z.union([z.string(), z.number(), z.boolean()])),
-        z.object({
-          start: z.union([z.string(), z.number()]),
-          end: z.union([z.string(), z.number()]),
-        }),
-      ]),
-    })
-  )
-  .optional();
-
-export type FilterCondition = z.infer<typeof FilterConditionSchema>;
-export type FilterConnector = z.infer<typeof FilterConnectorSchema>;
-
-export const CustomerListQuerySchema = z.object({
-  search: z.string().optional(),
-  search_in: csvToStringArray.optional(),
+export const CustomerListQuerySchema = ListQueryBaseSchema.extend({
   status: CustomerStatusSchema.optional(),
   sort_key: z.enum(CUSTOMER_SORT_KEYS as [string, ...string[]]).optional(),
-  sort_dir: z.enum(["asc", "desc"]).optional(),
-  page: z.coerce.number().int().min(1).optional(),
-  page_size: z.coerce.number().int().min(1).max(100).optional(),
-  filters: FilterQueryArraySchema,
-  connector: FilterConnectorSchema.optional(),
-  deleted_records: z.enum(["EXCLUDED", "ONLY", "INCLUDED"]).optional(),
 });
 
 export type CustomerListQuery = z.infer<typeof CustomerListQuerySchema>;

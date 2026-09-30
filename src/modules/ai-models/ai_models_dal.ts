@@ -17,6 +17,8 @@ import {
   Repository,
   field, Filter, Sort, Project,
   buildAuditableJoins,
+  translateFilterConditions,
+  type FilterExpr,
   type FieldProjector,
 } from "@primebrick/dal-pg";
 
@@ -24,6 +26,8 @@ import { AiModelEntity } from "./ai_model_entity.js";
 import { UserProfileEntity } from "../auth/user_profile_entity.js";
 import type { AiModelCreateBody, AiModelUpdateBody, AiModelListQuery } from "./dto.js";
 import { AI_MODEL_FILTERABLE_KEYS, AI_MODEL_SEARCHABLE_KEYS, AI_MODEL_SORT_KEYS } from "./list-config.js";
+
+const AI_MODEL_FILTERABLE_SET = new Set<string>(AI_MODEL_FILTERABLE_KEYS);
 import { requireActor, type CacheEntry, wrapCacheEntry } from "@primebrick/sdk";
 import { createRepository } from "../../db/repository-factory.js";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
@@ -220,7 +224,7 @@ export class AiModelsDal {
     const page = q.page ?? 1;
     const page_size = q.page_size ?? 25;
 
-    const filters: ReturnType<typeof Filter.group>[] = [];
+    const filters: FilterExpr[] = [];
 
     // Pre-filter: only return COMPATIBLE models unless the caller explicitly
     // requests a different compatibility_status via the `filters` array.
@@ -257,27 +261,11 @@ export class AiModelsDal {
     }
 
     if (q.filters && q.filters.length > 0) {
-      const validOps = new Set([
-        "=", "!=", "<>", "<", "<=", ">", ">=", "ILIKE", "LIKE",
-        "IN", "NOT IN", "BETWEEN", "IS", "IS NOT",
-      ]);
-      const allowedFields = new Set(AI_MODEL_FILTERABLE_KEYS);
-      const filterExprs: ReturnType<typeof Filter.fieldValue>[] = [];
-      for (const cond of q.filters) {
-        if (!validOps.has(cond.op)) continue;
-        if (!allowedFields.has(cond.field)) continue;
-        filterExprs.push(
-          Filter.fieldValue(
-            field(AiModelEntity, cond.field as any),
-            cond.op as any,
-            cond.value,
-            q.connector ?? "AND",
-          )
-        );
-      }
-      if (filterExprs.length > 0) {
-        filters.push(Filter.group(filterExprs, q.connector ?? "AND"));
-      }
+      const translated = translateFilterConditions(AiModelEntity, q.filters, {
+        allowedFields: AI_MODEL_FILTERABLE_SET,
+        connector: q.connector ?? "AND",
+      });
+      if (translated) filters.push(...translated);
     }
 
     const sort_key = (q.sort_key ?? "sort_order") as string;

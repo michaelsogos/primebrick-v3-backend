@@ -73,25 +73,6 @@ export class RoleService {
     return this.casdoor;
   }
 
-  // --- List -----------------------------------------------------------------
-
-  async listRoles(): Promise<RoleMappingDetailed[]> {
-    return this.getRepo().listAllDetailed();
-  }
-
-  // --- Get ------------------------------------------------------------------
-
-  async getRole(idpRole: string): Promise<RoleMappingDetailed> {
-    const role = await this.getRepo().findByIdpRole(idpRole);
-    if (!role) {
-      throw new NotFoundError(
-        `Role "${idpRole}" not found`,
-        { internal_code: "ROLE_NOT_FOUND" },
-      );
-    }
-    return role;
-  }
-
   // --- Create ---------------------------------------------------------------
 
   async createRole(input: CreateRoleInput, actor: string, tx?: PoolClient): Promise<RoleMappingDetailed> {
@@ -106,7 +87,7 @@ export class RoleService {
         503,
         "Casdoor™ is not configured; cannot create role via API. Configure idp_client_id and idp_client_secret to enable role management.",
         {
-          instance: "/api/v1/system/role-mappings",
+          instance: "/api/v1/entities/role_mapping",
           internal_code: "CASDOOR_NOT_CONFIGURED",
           severity: "MEDIUM",
         },
@@ -122,7 +103,7 @@ export class RoleService {
         409,
         `A role with name "${idp_role}" already exists in Casdoor™ organization "${idp_org}".`,
         {
-          instance: "/api/v1/system/role-mappings",
+          instance: "/api/v1/entities/role_mapping",
           internal_code: "ROLE_ALREADY_EXISTS_CASDOOR",
           severity: "MEDIUM",
         },
@@ -138,7 +119,7 @@ export class RoleService {
         409,
         `A role mapping with idp_role "${idp_role}" already exists in the local database.`,
         {
-          instance: "/api/v1/system/role-mappings",
+          instance: "/api/v1/entities/role_mapping",
           internal_code: "ROLE_ALREADY_EXISTS_LOCAL",
           severity: "MEDIUM",
         },
@@ -159,7 +140,7 @@ export class RoleService {
         502,
         `Casdoor™ addRole did not return a role for "${idp_role}" in organization "${idp_org}".`,
         {
-          instance: "/api/v1/system/role-mappings",
+          instance: "/api/v1/entities/role_mapping",
           internal_code: "CASDOOR_ADD_ROLE_FAILED",
           severity: "HIGH",
         },
@@ -208,7 +189,7 @@ export class RoleService {
         503,
         "Casdoor™ is not configured; cannot update role via API. Configure idp_client_id and idp_client_secret to enable role management.",
         {
-          instance: `/api/v1/system/role-mappings/${idpRole}`,
+          instance: `/api/v1/entities/role_mapping/${idpRole}`,
           internal_code: "CASDOOR_NOT_CONFIGURED",
           severity: "MEDIUM",
         },
@@ -225,7 +206,7 @@ export class RoleService {
         500,
         `Role "${idpRole}" has no idp_org and idp_organization is not configured. Cannot sync to Casdoor™.`,
         {
-          instance: `/api/v1/system/role-mappings/${idpRole}`,
+          instance: `/api/v1/entities/role_mapping/${idpRole}`,
           internal_code: "CASDOOR_OWNER_UNRESOLVED",
           severity: "HIGH",
         },
@@ -245,7 +226,7 @@ export class RoleService {
         502,
         `Failed to update role "${idpRole}" in Casdoor™ organization "${owner}".`,
         {
-          instance: `/api/v1/system/role-mappings/${idpRole}`,
+          instance: `/api/v1/entities/role_mapping/${idpRole}`,
           internal_code: "CASDOOR_SYNC_FAILED",
           severity: "HIGH",
         },
@@ -279,7 +260,7 @@ export class RoleService {
 
   // --- Delete ---------------------------------------------------------------
 
-  async deleteRole(idpRole: string, actor: string): Promise<void> {
+  async deleteRole(idpRole: string, actor: string, version: number): Promise<void> {
     // 1. Load existing row to get idp_org (the Casdoor owner).
     const existing = await this.getRepo().findByIdpRole(idpRole);
     if (!existing) {
@@ -298,7 +279,7 @@ export class RoleService {
         503,
         "Casdoor™ is not configured; cannot delete role via API. Configure idp_client_id and idp_client_secret to enable role management.",
         {
-          instance: `/api/v1/system/role-mappings/${idpRole}`,
+          instance: `/api/v1/entities/role_mapping/${idpRole}`,
           internal_code: "CASDOOR_NOT_CONFIGURED",
           severity: "MEDIUM",
         },
@@ -315,7 +296,7 @@ export class RoleService {
         500,
         `Role "${idpRole}" has no idp_org and idp_organization is not configured. Cannot sync to Casdoor™.`,
         {
-          instance: `/api/v1/system/role-mappings/${idpRole}`,
+          instance: `/api/v1/entities/role_mapping/${idpRole}`,
           internal_code: "CASDOOR_OWNER_UNRESOLVED",
           severity: "HIGH",
         },
@@ -331,15 +312,16 @@ export class RoleService {
         502,
         `Failed to delete role "${idpRole}" in Casdoor™ organization "${owner}". The role may still be assigned to users — unassign it first in Casdoor™.`,
         {
-          instance: `/api/v1/system/role-mappings/${idpRole}`,
+          instance: `/api/v1/entities/role_mapping/${idpRole}`,
           internal_code: "CASDOOR_DELETE_FAILED",
           severity: "HIGH",
         },
       );
     }
 
-    // 5. Delete in local DB.
-    await this.getRepo().deleteMapping(idpRole, actor, existing.version);
+    // 5. Delete in local DB — version is the caller-observed version
+    // (optimistic concurrency guard, same contract as soft-delete entities).
+    await this.getRepo().deleteMapping(idpRole, actor, version);
   }
 
   // --- Entity-pattern methods (keyed by uuid) -------------------------------
@@ -373,14 +355,15 @@ export class RoleService {
     return this.updateRole(existing.idp_role, input, actor, tx);
   }
 
-  async deleteRoleByUuid(uuid: string, actor: string): Promise<void> {
+  async deleteRoleByUuid(uuid: string, actor: string, version: number): Promise<RoleMappingDetailed> {
     const existing = await this.getRepo().findByUuid(uuid);
     if (!existing) {
       throw new NotFoundError(`Role with uuid "${uuid}" not found`, {
         internal_code: "ROLE_NOT_FOUND",
       });
     }
-    return this.deleteRole(existing.idp_role, actor);
+    await this.deleteRole(existing.idp_role, actor, version);
+    return existing;
   }
 
   async getRoleAudit(uuid: string, page: number, limit: number) {

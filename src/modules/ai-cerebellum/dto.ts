@@ -7,94 +7,11 @@
 import { z } from "zod";
 
 import { zBoundedInt, zBoundedNumber, zPartialNoDefaults } from "../../http/validation.js";
-import { AI_CEREBELLUM_FILTERABLE_KEYS, AI_CEREBELLUM_SORT_KEYS } from "./list-config.js";
+import { AI_CEREBELLUM_SORT_KEYS } from "./list-config.js";
+import { ListQueryBaseSchema } from "../../http/list-query.js";
 
-const csvToStringArray = z
-  .string()
-  .transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean))
-  .pipe(z.array(z.string()));
-
-const allowedOperators = [
-  "=",
-  "!=",
-  "<>",
-  "<",
-  "<=",
-  ">",
-  ">=",
-  "ILIKE",
-  "LIKE",
-  "IN",
-  "NOT IN",
-  "BETWEEN",
-  "IS",
-  "IS NOT",
-] as const;
-
-export type SqlOperator = (typeof allowedOperators)[number];
-
-const FilterConditionSchema = z.object({
-  field: z.enum(AI_CEREBELLUM_FILTERABLE_KEYS as [string, ...string[]]),
-  op: z.enum(allowedOperators),
-  value: z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(z.union([z.string(), z.number(), z.boolean()])),
-    z.object({
-      start: z.union([z.string(), z.number()]),
-      end: z.union([z.string(), z.number()]),
-    }),
-  ]),
-});
-
-export type FilterCondition = z.infer<typeof FilterConditionSchema>;
-
-const FilterConnectorSchema = z.enum(["AND", "OR"]);
-
-export const FilterQueryArraySchema = z
-  .array(
-    z.object({
-      field: z.string(),
-      op: z.string(),
-      value: z.union([
-        z.string(),
-        z.number(),
-        z.boolean(),
-        z.null(),
-        z.array(z.union([z.string(), z.number(), z.boolean()])),
-        z.object({
-          start: z.union([z.string(), z.number()]),
-          end: z.union([z.string(), z.number()]),
-        }),
-      ]),
-    })
-  )
-  .optional();
-
-// Query params arrive as strings — `filters` is sent as JSON-encoded array.
-// Malformed JSON falls through as the raw string → fails the array check (400).
-const filtersQueryParam = z
-  .preprocess(
-    (v) => {
-      if (typeof v !== "string") return v;
-      try { return JSON.parse(v); } catch { return v; }
-    },
-    FilterQueryArraySchema,
-  )
-  .optional();
-
-export const AiCerebellumListQuerySchema = z.object({
-  search: z.string().optional(),
-  search_in: csvToStringArray.optional(),
+export const AiCerebellumListQuerySchema = ListQueryBaseSchema.extend({
   sort_key: z.enum(AI_CEREBELLUM_SORT_KEYS as [string, ...string[]]).optional(),
-  sort_dir: z.enum(["asc", "desc"]).optional(),
-  page: z.coerce.number().int().min(1).optional(),
-  page_size: z.coerce.number().int().min(1).max(100).optional(),
-  filters: filtersQueryParam,
-  connector: FilterConnectorSchema.optional(),
-  deleted_records: z.enum(["EXCLUDED", "ONLY", "INCLUDED"]).optional(),
 });
 
 export type AiCerebellumListQuery = z.infer<typeof AiCerebellumListQuerySchema>;

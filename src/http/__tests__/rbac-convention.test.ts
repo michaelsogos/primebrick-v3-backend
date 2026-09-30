@@ -145,6 +145,7 @@ describe("deriveEntityActions", () => {
     router.post(E, declaredHandler([Permission.CUSTOMER_CREATE_SINGLE]));
     router.put(`${E}/:uuid`, declaredHandler([Permission.CUSTOMER_UPDATE_SINGLE]));
     router.delete(`${E}/:uuid`, declaredHandler([Permission.CUSTOMER_DELETE_SINGLE]));
+    router.delete(`${E}/:uuid/purge`, declaredHandler([Permission.CUSTOMER_DELETE_SINGLE]));
     router.post(`${E}/:uuid/restore`, declaredHandler([Permission.CUSTOMER_RESTORE_SINGLE]));
     router.get(`${E}/:uuid/audit`, declaredHandler([Permission.CUSTOMER_READ_AUDIT]));
     router.get(`${E}/export`, declaredHandler([Permission.CUSTOMER_EXPORT]));
@@ -163,6 +164,7 @@ describe("deriveEntityActions", () => {
     expect(byOp.get("create.single")?.permissions).toEqual([Permission.CUSTOMER_CREATE_SINGLE]);
     expect(byOp.get("update.single")?.permissions).toEqual([Permission.CUSTOMER_UPDATE_SINGLE]);
     expect(byOp.get("delete.single")?.permissions).toEqual([Permission.CUSTOMER_DELETE_SINGLE]);
+    expect(byOp.get("purge.single")?.permissions).toEqual([Permission.CUSTOMER_DELETE_SINGLE]);
     expect(byOp.get("restore.single")?.permissions).toEqual([Permission.CUSTOMER_RESTORE_SINGLE]);
     expect(byOp.get("read.audit")?.permissions).toEqual([Permission.CUSTOMER_READ_AUDIT]);
     expect(byOp.get("export")?.permissions).toEqual([Permission.CUSTOMER_EXPORT]);

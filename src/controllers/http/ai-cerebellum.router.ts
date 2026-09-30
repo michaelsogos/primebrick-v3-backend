@@ -1,193 +1,78 @@
 /**
  * ai-cerebellum.router — thin controller for the `ai_cerebellum` entity.
  *
- * Endpoints mirror the ai_model router:
+ * Standard entity CRUD via `makeEntityRouter` — mandatory chain (permission,
+ * uuid/body/query validation, translations permission, version query,
+ * runEntityWrite tx) is non-overridable. Delete requires MFA step-up; writes
+ * invalidate the cerebellum cache.
+ *
  *   GET    /api/v1/entities/ai_cerebellum/meta
  *   GET    /api/v1/entities/ai_cerebellum/list
  *   GET    /api/v1/entities/ai_cerebellum/:uuid
  *   POST   /api/v1/entities/ai_cerebellum
  *   PUT    /api/v1/entities/ai_cerebellum/:uuid
- *   DELETE /api/v1/entities/ai_cerebellum/:uuid
+ *   DELETE /api/v1/entities/ai_cerebellum/:uuid        → MFA step-up
  *   POST   /api/v1/entities/ai_cerebellum/:uuid/restore
  *   GET    /api/v1/entities/ai_cerebellum/:uuid/audit
- *
- * The router contains NO business logic. All errors are thrown as `ApiError`
- * subclasses and converted to RFC 7807 by the centralized `errorHandler`.
  */
 
-import type { RequestHandler } from "express";
-import { z } from "zod";
-
-import { makeProtectedRouter } from "../../http/protected-router.js";
-import { registerRoutes } from "../../http/define-route.js";
-import { asyncHandler } from "../../http/async-handler.js";
-import { validateBody, validateQuery } from "../../http/validation.js";
-import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
+
+import { makeEntityRouter } from "../../http/entity-router.js";
+import { entityWriteBody } from "../../http/entity-write.js";
+import { requireMfaStepUp } from "../../modules/auth/mfa-step-up.middleware.js";
 import {
   AiCerebellumListQuerySchema,
   AiCerebellumCreateBodySchema,
   AiCerebellumUpdateBodySchema,
   AiCerebellumAuditQuerySchema,
-  UuidParamSchema,
 } from "../../modules/ai-cerebellum/dto.js";
 import { aiCerebellumMeta } from "../../modules/ai-cerebellum/ai_cerebellum.meta.js";
 import { AiCerebellumEntity } from "../../modules/ai-cerebellum/ai_cerebellum_entity.js";
 import { AiCerebellumService } from "../../modules/ai-cerebellum/ai_cerebellum.service.js";
-import { ValidationError } from "../../http/api-errors.js";
-import {
-  entityWriteBody,
-  assertTranslationsPermission,
-  runEntityWrite,
-  requireVersionQuery,
-} from "../../http/entity-write.js";
-import { getPool } from "../../db/pool.js";
-import { assembleMeta } from "../../http/meta-assembler.js";
-import { deriveEntityActions } from "../../http/entity-actions.js";
-import { requireMfaStepUp } from "../../modules/auth/mfa-step-up.middleware.js";
 
 // Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)
 const AiCerebellumCreateWriteSchema = entityWriteBody(AiCerebellumCreateBodySchema);
 const AiCerebellumUpdateWriteSchema = entityWriteBody(AiCerebellumUpdateBodySchema);
 
-/** Inline UUID param validation middleware (preserves the original behavior). */
-function validateUuidParam(req: any, _res: any, next: any): void {
-  const r = UuidParamSchema.safeParse(req.params);
-  if (!r.success) {
-    throw new ValidationError("Request validation failed", { internal_code: "VALIDATION_ERROR" });
-  }
-  req.params = r.data;
-  next();
-}
-
 export function aiCerebellumRouter() {
-  const router = makeProtectedRouter();
   const service = new AiCerebellumService();
 
-  const getMeta: RequestHandler = (_req, res) => {
-    res.json({
-      ...assembleMeta(aiCerebellumMeta, AiCerebellumEntity),
-      actions: deriveEntityActions(
-        router,
-        "ai_cerebellum",
-        aiCerebellumMeta.actions_overrides,
-      ),
-    });
-  };
-
-  const list: RequestHandler = asyncHandler(async (req, res) => {
-    const query = req.query as unknown as import("../../modules/ai-cerebellum/dto.js").AiCerebellumListQuery;
-    const result = await service.listAiCerebellum(query);
-    res.json(result);
+  return makeEntityRouter({
+    entityName: "ai_cerebellum",
+    entity: AiCerebellumEntity,
+    meta: aiCerebellumMeta,
+    service,
+    permissions: {
+      meta: [Permission.AUTHENTICATED_USER],
+      list: [Permission.AUTHENTICATED_USER],
+      get: [Permission.AUTHENTICATED_USER],
+      create: [Permission.AUTHENTICATED_ADMIN],
+      update: [Permission.AUTHENTICATED_ADMIN],
+      delete: [Permission.AUTHENTICATED_ADMIN],
+      restore: [Permission.AUTHENTICATED_ADMIN],
+      audit: [Permission.AUTHENTICATED_ADMIN],
+    },
+    schemas: {
+      listQuery: AiCerebellumListQuerySchema,
+      createBody: AiCerebellumCreateWriteSchema,
+      updateBody: AiCerebellumUpdateWriteSchema,
+      auditQuery: AiCerebellumAuditQuerySchema,
+    },
+    methods: {
+      list: "listAiCerebellum",
+      get: "getAiCerebellum",
+      create: "createAiCerebellum",
+      update: "updateAiCerebellum",
+      delete: "deleteAiCerebellum",
+      restore: "restoreAiCerebellum",
+      audit: "getAiCerebellumAudit",
+    },
+    hooks: {
+      afterWrite: () => service.invalidateCache(),
+      actionMiddlewares: {
+        delete: [requireMfaStepUp("delete", "ai_cerebellum")],
+      },
+    },
   });
-
-  const create: RequestHandler = asyncHandler(async (req, res) => {
-    const body = req.body as z.infer<typeof AiCerebellumCreateWriteSchema>;
-    assertTranslationsPermission(req, body.translations);
-    const created = await runEntityWrite(
-      getPool(),
-      body.translations,
-      (tx) => service.createAiCerebellum(body.entity, tx),
-      () => service.invalidateCache(),
-    );
-    res.status(201).json(created);
-  });
-
-  const getSingle: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    const found = await service.getAiCerebellum(uuid);
-    res.json(found);
-  });
-
-  const update: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    const body = req.body as z.infer<typeof AiCerebellumUpdateWriteSchema>;
-    assertTranslationsPermission(req, body.translations);
-    const updated = await runEntityWrite(
-      getPool(),
-      body.translations,
-      (tx) => service.updateAiCerebellum(uuid, body.entity, tx),
-      () => service.invalidateCache(),
-    );
-    res.status(200).json(updated);
-  });
-
-  const remove: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    const version = requireVersionQuery(req);
-    res.status(200).json(await service.deleteAiCerebellum(uuid, version));
-  });
-
-  const restore: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    const version = requireVersionQuery(req);
-    res.status(200).json(await service.restoreAiCerebellum(uuid, version));
-  });
-
-  const getAudit: RequestHandler = asyncHandler(async (req, res) => {
-    const { uuid } = req.params as unknown as z.infer<typeof UuidParamSchema>;
-    const { page, limit } = req.query as unknown as import("../../modules/ai-cerebellum/dto.js").AiCerebellumAuditQuery;
-    const result = await service.getAiCerebellumAudit(uuid, page, limit);
-    res.json(result);
-  });
-
-  registerRoutes(router, [
-    {
-      method: "get",
-      path: "/api/v1/entities/ai_cerebellum/meta",
-      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
-      handler: getMeta,
-    },
-    {
-      method: "get",
-      path: "/api/v1/entities/ai_cerebellum/list",
-      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
-      middlewares: [validateQuery(AiCerebellumListQuerySchema)],
-      handler: list,
-    },
-    {
-      method: "get",
-      path: "/api/v1/entities/ai_cerebellum/:uuid",
-      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
-      middlewares: [validateUuidParam],
-      handler: getSingle,
-    },
-    {
-      method: "post",
-      path: "/api/v1/entities/ai_cerebellum",
-      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
-      middlewares: [validateBody(AiCerebellumCreateWriteSchema)],
-      handler: create,
-    },
-    {
-      method: "put",
-      path: "/api/v1/entities/ai_cerebellum/:uuid",
-      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
-      middlewares: [validateUuidParam, validateBody(AiCerebellumUpdateWriteSchema)],
-      handler: update,
-    },
-    {
-      method: "delete",
-      path: "/api/v1/entities/ai_cerebellum/:uuid",
-      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
-      middlewares: [validateUuidParam, requireMfaStepUp("delete", "ai_cerebellum")],
-      handler: remove,
-    },
-    {
-      method: "post",
-      path: "/api/v1/entities/ai_cerebellum/:uuid/restore",
-      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
-      middlewares: [validateUuidParam],
-      handler: restore,
-    },
-    {
-      method: "get",
-      path: "/api/v1/entities/ai_cerebellum/:uuid/audit",
-      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
-      middlewares: [validateUuidParam, validateQuery(AiCerebellumAuditQuerySchema)],
-      handler: getAudit,
-    },
-  ]);
-
-  return router;
 }

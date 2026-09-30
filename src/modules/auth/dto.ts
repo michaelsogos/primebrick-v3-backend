@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 import { zBoundedInt } from "../../http/validation.js";
+import { ListQueryBaseSchema } from "../../http/list-query.js";
 import { PasswordPolicy, passwordZodSchema } from "./password-policy.js";
 import { displayNameSchema, idpNameSchema } from "./validation.js";
 
@@ -195,3 +196,14 @@ export const MfaStepUpVerifySchema = z.object({
   code: z.string().regex(/^\d{6}$/, "code must be 6 digits"),
 });
 export type MfaStepUpVerifyBody = z.infer<typeof MfaStepUpVerifySchema>;
+
+// --- Entity /list query schemas (canonical QS contract — src/http/list-query.ts) ---
+
+export const OrganizationListQuerySchema = ListQueryBaseSchema;
+export type OrganizationListQueryInput = z.infer<typeof OrganizationListQuerySchema>;
+
+export const RoleMappingListQuerySchema = ListQueryBaseSchema;
+export type RoleMappingListQueryInput = z.infer<typeof RoleMappingListQuerySchema>;
+
+export const UserProfileListQuerySchema = ListQueryBaseSchema;
+export type UserProfileListQueryInput = z.infer<typeof UserProfileListQuerySchema>;

@@ -13,6 +13,8 @@ import {
   Repository,
   field, Filter, Sort,
   buildAuditableJoins,
+  translateFilterConditions,
+  type FilterExpr,
   type FieldProjector,
 } from "@primebrick/dal-pg";
 
@@ -28,6 +30,8 @@ import { createRepository } from "../../db/repository-factory.js";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { findAuditPage } from "../../db/audit-query-helper.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
+
+const AI_CEREBELLUM_FILTERABLE_SET = new Set<string>(AI_CEREBELLUM_FILTERABLE_KEYS);
 
 const LIST_CACHE_KEY = "dal:ai_cerebellum:list";
 const LIST_CACHE_TTL = 300_000; // 5 min — same as entity TTL
@@ -183,7 +187,7 @@ export class AiCerebellumDal {
     const page = q.page ?? 1;
     const page_size = q.page_size ?? 25;
 
-    const filters: ReturnType<typeof Filter.group>[] = [];
+    const filters: FilterExpr[] = [];
 
     if (q.search && q.search.trim()) {
       const raw = q.search.trim();
@@ -198,27 +202,11 @@ export class AiCerebellumDal {
     }
 
     if (q.filters && q.filters.length > 0) {
-      const validOps = new Set([
-        "=", "!=", "<>", "<", "<=", ">", ">=", "ILIKE", "LIKE",
-        "IN", "NOT IN", "BETWEEN", "IS", "IS NOT",
-      ]);
-      const allowedFields = new Set(AI_CEREBELLUM_FILTERABLE_KEYS);
-      const filterExprs: ReturnType<typeof Filter.fieldValue>[] = [];
-      for (const cond of q.filters) {
-        if (!validOps.has(cond.op)) continue;
-        if (!allowedFields.has(cond.field)) continue;
-        filterExprs.push(
-          Filter.fieldValue(
-            field(AiCerebellumEntity, cond.field as any),
-            cond.op as any,
-            cond.value,
-            q.connector ?? "AND",
-          )
-        );
-      }
-      if (filterExprs.length > 0) {
-        filters.push(Filter.group(filterExprs, q.connector ?? "AND"));
-      }
+      const translated = translateFilterConditions(AiCerebellumEntity, q.filters, {
+        allowedFields: AI_CEREBELLUM_FILTERABLE_SET,
+        connector: q.connector ?? "AND",
+      });
+      if (translated) filters.push(...translated);
     }
 
     const sort_key = (q.sort_key ?? "name") as string;

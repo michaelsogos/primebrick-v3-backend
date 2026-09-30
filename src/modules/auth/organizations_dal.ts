@@ -7,6 +7,7 @@ import {
   Repository,
   field, Filter, Sort, Join, Project,
   buildAuditableJoins,
+  translateFilterConditions,
   type FilterExpr,
   type WithAuditableDisplayNames,
 } from "@primebrick/dal-pg";
@@ -23,6 +24,7 @@ import { organizationMeta } from "./organizations.meta.js";
 
 const DEFAULT_SEARCH_KEYS = deriveSearchableKeys(organizationMeta, OrganizationEntity);
 const SEARCH_IN_ALLOWED = new Set([...DEFAULT_SEARCH_KEYS, "uuid"]);
+const ORG_FILTERABLE_FIELDS = new Set(["display_name", "idp_code", "website_url"]);
 
 export type OrganizationDetailRow = WithAuditableDisplayNames<{
   uuid: string;
@@ -154,7 +156,10 @@ export class OrganizationsDal {
 
     // Custom filters
     if (filters && filters.length > 0) {
-      const translatedFilters = this.translateFilterConditions(filters, connector);
+      const translatedFilters = translateFilterConditions(OrganizationEntity, filters, {
+        allowedFields: ORG_FILTERABLE_FIELDS,
+        connector,
+      });
       if (translatedFilters) {
         baseFilters.push(...translatedFilters);
       }
@@ -334,46 +339,4 @@ export class OrganizationsDal {
     };
   }
 
-  private translateFilterConditions(
-    conditions: Array<{ field: string; op: string; value: unknown; connector?: "AND" | "OR" }>,
-    connector: "AND" | "OR" = "AND"
-  ): FilterExpr[] | null {
-    if (!conditions || conditions.length === 0) return null;
-
-    const validOps = new Set(["=", "!=", "<>", "<", "<=", ">=", ">=", "ILIKE", "LIKE", "IN", "NOT IN", "IS", "IS NOT"]);
-    const allowedFields = new Set(["display_name", "idp_code", "website_url"]);
-
-    const filterExprs: FilterExpr[] = [];
-
-    for (const cond of conditions) {
-      if (!validOps.has(cond.op)) continue;
-      if (!allowedFields.has(cond.field)) continue;
-
-      let value = cond.value;
-
-      if ((cond.op === "ILIKE" || cond.op === "LIKE") && typeof value === "string") {
-        if (!value.includes("%")) {
-          value = `%${value}%`;
-        }
-      }
-
-      if ((cond.op === "IN" || cond.op === "NOT IN") && Array.isArray(value)) {
-        filterExprs.push(
-          Filter.fieldValue(field(OrganizationEntity, cond.field as any), cond.op as any, value, cond.connector)
-        );
-      } else {
-        filterExprs.push(
-          Filter.fieldValue(field(OrganizationEntity, cond.field as any), cond.op as any, value, cond.connector)
-        );
-      }
-    }
-
-    if (filterExprs.length === 0) return null;
-
-    if (filterExprs.length === 1) {
-      return [Filter.group(filterExprs, "AND")];
-    }
-
-    return [Filter.group([Filter.group(filterExprs, connector)], "AND")];
-  }
 }
