@@ -14,6 +14,7 @@ export class DocsSearchService {
     keywords?: string[];
     limit?: number;
     repo?: string;
+    min_similarity?: number;
   }) {
     return searchDocsKb(getPool(), params);
   }

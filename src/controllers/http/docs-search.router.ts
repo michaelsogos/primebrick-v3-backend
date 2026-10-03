@@ -27,6 +27,9 @@ const DocsSearchBodySchema = z.object({
   keywords: z.array(z.string()).optional(),
   limit: zBoundedInt(1, 20).optional(),
   repo: z.string().optional(),
+  /** Caller's similarity floor — doc-graph expansion only follows links of
+   *  hits that cleared it (a no-coverage question must stay uncovered). */
+  min_similarity: zBoundedNumber(0, 1).optional(),
 });
 
 export function docsSearchRouter() {

@@ -32,6 +32,9 @@ export interface DocsSearchResult {
   similarity: number;
   keyword_hits: number;
   score: number;
+  /** True for chunks added by doc-graph expansion (outbound links of the
+   *  top hits), not by vector rank — they bypass the FE similarity floor. */
+  graph_expanded?: boolean;
 }
 
 /** Weight of each keyword hit in the final score (similarity units). */
@@ -46,6 +49,10 @@ export async function searchDocsKb(
     keywords?: string[];
     limit?: number;
     repo?: string;
+    /** Similarity floor — graph expansion only follows links of hits that
+     *  cleared it. Without it, an uncovered question would seed expansion
+     *  from near-zero hits and inject unrelated context. */
+    min_similarity?: number;
   },
 ): Promise<DocsSearchResult[]> {
   const limit = Math.min(Math.max(opts.limit ?? 6, 1), 20);
@@ -99,10 +106,66 @@ export async function searchDocsKb(
     ],
   );
 
-  return result.rows.map((row) => ({
+  const hits = result.rows.map((row) => ({
     ...(row as Omit<DocsSearchResult, "score" | "similarity" | "keyword_hits">),
     similarity: Number(row.similarity),
     keyword_hits: Number(row.keyword_hits),
     score: Number(row.score),
+  }));
+
+  const floor = opts.min_similarity ?? 0;
+  const seeds = hits.filter((h) => h.similarity >= floor);
+  return [...hits, ...(await expandDocGraph(pool, opts.embedding, seeds))];
+}
+
+/**
+ * Doc-graph expansion (Obsidian-style backlink following): every top hit's
+ * declared outbound links (metadata.links, extracted at index time) are
+ * followed — one best-matching chunk per linked page is appended. These are
+ * structural correlations, not vector hits, so they carry their real
+ * similarity but are flagged `graph_expanded` for the caller's thresholding.
+ * Bounded: distinct linked paths are capped to keep the context sane.
+ */
+const GRAPH_MAX_PATHS = 6;
+
+async function expandDocGraph(
+  pool: Pool,
+  embedding: number[],
+  hits: DocsSearchResult[],
+): Promise<DocsSearchResult[]> {
+  const seen = new Set(hits.map((h) => h.path));
+  const linked: string[] = [];
+  for (const h of hits) {
+    const links = h.metadata?.links;
+    if (!Array.isArray(links)) continue;
+    for (const p of links) {
+      if (typeof p === "string" && !seen.has(p) && !linked.includes(p)) linked.push(p);
+    }
+  }
+  const paths = linked.slice(0, GRAPH_MAX_PATHS);
+  if (!paths.length) return [];
+
+  const result = await pool.query(
+    `SELECT DISTINCT ON (d.path)
+       d.id, d.repo, d.path, d.title, d.chunk_idx, d.content, d.metadata,
+       1 - (d.embedding <=> $1::vector) AS similarity
+     FROM ai.docs_kb d
+     WHERE d.path = ANY($2::text[])
+     ORDER BY d.path, d.embedding <=> $1::vector`,
+    [`[${embedding.join(",")}]`, paths],
+  );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    repo: row.repo,
+    path: row.path,
+    title: row.title,
+    chunk_idx: row.chunk_idx,
+    content: row.content,
+    metadata: row.metadata,
+    similarity: Number(row.similarity),
+    keyword_hits: 0,
+    score: Number(row.similarity),
+    graph_expanded: true,
   }));
 }
