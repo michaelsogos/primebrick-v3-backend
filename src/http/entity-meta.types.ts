@@ -126,8 +126,15 @@ export interface EntityMeta {
   entity: string;
   /** i18n prefix, snake_case singular — used to build dynamic keys. */
   translation_key: string;
-  /** i18n key for the entity title. */
-  title_key: string;
+  /**
+   * Optional i18n key overriding the canonical page title.
+   * When absent, list/create/edit titles are built from the generic
+   * `system.entities.page_title.{list|create|edit}` templates interpolated
+   * with `system.entities.<translation_key>.{plural|singular}`.
+   * Set only for custom pages needing a bespoke title — CRUD entity metas
+   * must not declare it.
+   */
+  title_key?: string;
   /** Field key holding the entity primary key (usually `uuid`). */
   uid: string;
   /**

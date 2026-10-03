@@ -15,6 +15,9 @@
  * literal terms (identifiers like "IDP Code", config keys, error codes)
  * matched case-insensitively against title, path and content. The ILIKE
  * scan runs on ~24 rows, not the whole table — no extra index needed.
+ * Phase 2 also applies a content-type weight: user-guide tutorials rank
+ * above OpenAPI endpoint records for the same similarity, so procedural
+ * questions surface manual pages instead of raw API listings.
  */
 import type { Pool } from "pg";
 
@@ -60,7 +63,7 @@ export async function searchDocsKb(
        FROM ai.docs_kb d
        WHERE ($4::text IS NULL OR d.repo = $4)
        ORDER BY d.embedding <=> $1::vector
-       LIMIT $2 * $6
+       LIMIT $2::int * $6::int
      ),
      scored AS (
        SELECT c.*, k.keyword_hits
@@ -76,7 +79,13 @@ export async function searchDocsKb(
      SELECT
        id, repo, path, title, chunk_idx, content, metadata,
        similarity, keyword_hits,
-       similarity + $5::float8 * keyword_hits AS score
+       similarity + $5::float8 * keyword_hits
+         + CASE metadata->>'content_type'
+             WHEN 'tutorial' THEN 0.08
+             WHEN 'conceptual' THEN 0.03
+             WHEN 'api' THEN -0.10
+             ELSE 0
+           END AS score
      FROM scored
      ORDER BY score DESC
      LIMIT $2`,

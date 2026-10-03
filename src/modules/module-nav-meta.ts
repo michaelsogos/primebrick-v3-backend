@@ -22,6 +22,11 @@ export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
           { id: "customers", label_key: "system.entities.customer.title", href: "/system/customers", icon: "users" },
           { id: "pipeline", label_key: "system.entities.crm.pipeline.nav", href: "/crm/pipeline", icon: "git-branch" },
         ],
+        routes: [
+          { route: "/system/customers", kind: "list", entity: "customer" },
+          { route: "/system/customers/new", kind: "create", entity: "customer" },
+          { route: "/crm/pipeline", kind: "page" },
+        ],
       };
     case "settings":
       return {
@@ -40,6 +45,30 @@ export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
           { id: "modules", label_key: "system.settings.tabs.modules", href: "/system/settings/modules", icon: "package" },
           { id: "templates", label_key: "system.settings.tabs.templates", href: "/system/settings/templates", icon: "file-text" },
           { id: "email-providers", label_key: "system.settings.tabs.emailProviders", href: "/system/settings/email-providers", icon: "mail" },
+        ],
+        // Full route census — every FE path this module owns, including
+        // detail/create/param routes not deducible from nav links.
+        routes: [
+          { route: "/system/settings", kind: "page" },
+          { route: "/system/settings/profile", kind: "page" },
+          { route: "/system/settings/credentials", kind: "page" },
+          { route: "/system/settings/organizations", kind: "list", entity: "organization" },
+          { route: "/system/settings/organizations/[uuid]", kind: "detail", entity: "organization" },
+          { route: "/system/settings/organizations/create", kind: "create", entity: "organization" },
+          { route: "/system/settings/users", kind: "list", entity: "user_profiles" },
+          { route: "/system/settings/users/[uuid]", kind: "detail", entity: "user_profiles" },
+          { route: "/system/settings/users/create", kind: "create", entity: "user_profiles" },
+          { route: "/system/settings/roles", kind: "list", entity: "role" },
+          { route: "/system/settings/roles/[uuid]", kind: "detail", entity: "role" },
+          { route: "/system/settings/roles/create", kind: "create", entity: "role" },
+          { route: "/system/settings/configurations", kind: "list", entity: "config_entry" },
+          { route: "/system/settings/configurations/create", kind: "create", entity: "config_entry" },
+          { route: "/system/settings/ai", kind: "page" },
+          { route: "/system/settings/modules", kind: "list", entity: "service_registry" },
+          { route: "/system/settings/modules/[code]", kind: "detail", entity: "service_registry" },
+          { route: "/system/settings/templates", kind: "list", entity: "template" },
+          { route: "/system/settings/translations", kind: "page" },
+          { route: "/system/settings/email-providers", kind: "list", entity: "email_provider" },
         ],
       };
     default:

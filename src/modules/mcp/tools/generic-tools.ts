@@ -156,11 +156,60 @@ const moduleEntitySchema = {
 // ─── Tool Registration ───────────────────────────────────────────────────────
 
 /**
- * Register all 11 generic tools on the given McpServer instance.
+ * Generic tool handler signature — the same handlers serve the MCP server
+ * and the REST shim (POST /api/v1/system/mcp/call). Every handler already
+ * validates (module, entity), enforces RBAC via `checkRbac(authInfo, …)` and
+ * dispatches through `dispatch.ts`, so exposing them over REST adds ZERO
+ * duplicate logic and no AI-specific backdoor.
+ */
+type GenericToolHandler = (
+  args: unknown,
+  ctx: ServerContext,
+) => Promise<CallToolResult>;
+
+/** name → wrapped handler (withErrorHandling already applied). */
+const toolHandlers = new Map<string, GenericToolHandler>();
+
+/**
+ * Invoke a registered generic tool outside the MCP transport.
+ * `authInfo` is built from the HTTP session — same shape the MCP bearer
+ * middleware produces (see token-verifier.ts `authUserToAuthInfo`).
+ * Returns the raw CallToolResult; `isError` flags RBAC/validation failures.
+ */
+export async function invokeGenericTool(
+  name: string,
+  args: unknown,
+  authInfo: AuthInfo,
+): Promise<CallToolResult> {
+  const handler = toolHandlers.get(name);
+  if (!handler) {
+    return {
+      content: [{ type: "text", text: `Unknown tool '${name}'` }],
+      isError: true,
+    };
+  }
+  return handler(args, { http: { authInfo } } as ServerContext);
+}
+
+/**
+ * Register all 12 generic tools on the given McpServer instance.
  */
 export function registerGenericTools(server: McpServer): void {
+  /** Registers on the MCP server AND in the shared handler map.
+   *  Typed as `McpServer["registerTool"]` so the call sites keep full
+   *  overload + zod inputSchema inference for the handler `args`. */
+  const register: McpServer["registerTool"] = ((
+    name: string,
+    meta: unknown,
+    handler: unknown,
+  ) => {
+    toolHandlers.set(name, handler as GenericToolHandler);
+    return (
+      server.registerTool as (n: string, m: unknown, h: unknown) => unknown
+    )(name, meta, handler);
+  }) as McpServer["registerTool"];
   // 1. list_entities
-  server.registerTool(
+  register(
     "list_entities",
     {
       title: "List Entities",
@@ -263,7 +312,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 2. get_entity
-  server.registerTool(
+  register(
     "get_entity",
     {
       title: "Get Entity",
@@ -293,7 +342,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 3. create_entity
-  server.registerTool(
+  register(
     "create_entity",
     {
       title: "Create Entity",
@@ -327,7 +376,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 4. update_entity
-  server.registerTool(
+  register(
     "update_entity",
     {
       title: "Update Entity",
@@ -360,7 +409,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 5. delete_entity
-  server.registerTool(
+  register(
     "delete_entity",
     {
       title: "Delete Entity",
@@ -391,7 +440,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 6. restore_entity
-  server.registerTool(
+  register(
     "restore_entity",
     {
       title: "Restore Entity",
@@ -421,7 +470,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 7. get_entity_audit
-  server.registerTool(
+  register(
     "get_entity_audit",
     {
       title: "Get Entity Audit",
@@ -458,7 +507,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 8. list_available_entities
-  server.registerTool(
+  register(
     "list_available_entities",
     {
       title: "List Available Entities",
@@ -487,7 +536,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 9. get_entity_meta
-  server.registerTool(
+  register(
     "get_entity_meta",
     {
       title: "Get Entity Metadata",
@@ -517,7 +566,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 10. bulk_entity_action
-  server.registerTool(
+  register(
     "bulk_entity_action",
     {
       title: "Bulk Entity Action",
@@ -586,7 +635,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 11. manage_service
-  server.registerTool(
+  register(
     "manage_service",
     {
       title: "Manage Service",
@@ -639,7 +688,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 12. search_docs
-  server.registerTool(
+  register(
     "search_docs",
     {
       title: "Search Documentation",

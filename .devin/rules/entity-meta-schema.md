@@ -29,7 +29,10 @@ required fields (`type_capabilities`).
   // ── Root: entity identity + display contract (required) ──────────────
   "entity": "user_profile",            // snake_case singular, matches route segment
   "translation_key": "user_profile",   // snake_case singular i18n prefix
-  "title_key": "system.entities.user_profile.title",
+  "title_key": "system.entities.user_profile.title",  // OPTIONAL override — omit on
+                                       // standard CRUD metas: list/create/edit titles
+                                       // come from system.entities.page_title.* templates
+                                       // (see FE rule page-title-standard.md)
   "uid": "uuid",                       // column key used as row identity
   "display_field": "display_name",     // REQUIRED — key of the primary display column
   "display_name": "${display_name}",   // OPTIONAL — template; assembleMeta defaults it

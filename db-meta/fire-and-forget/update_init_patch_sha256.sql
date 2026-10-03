@@ -88,4 +88,13 @@ SET content_sha256 = '7e4655979f9b50354dfe275d0dac7ad7253b92a774f327ef46e62c4e96
 WHERE patch_id = '00000000000000_init_database'
   AND content_sha256 <> '7e4655979f9b50354dfe275d0dac7ad7253b92a774f327ef46e62c4e969c9620';
 
+-- 6. (2026-10-02) The init patch file changed again in commit 30b439f
+--    (feat(ai-guide)); align the registry to the current file hash.
+--    Old: 7e4655979f9b50354dfe275d0dac7ad7253b92a774f327ef46e62c4e969c9620
+--    New: bc21863482ccd231148d7a80568e94f652f1e156d8000429aa892de2f98dc51f
+UPDATE public.primebrick_database_patches
+SET content_sha256 = 'bc21863482ccd231148d7a80568e94f652f1e156d8000429aa892de2f98dc51f'
+WHERE patch_id = '00000000000000_init_database'
+  AND content_sha256 <> 'bc21863482ccd231148d7a80568e94f652f1e156d8000429aa892de2f98dc51f';
+
 COMMIT;

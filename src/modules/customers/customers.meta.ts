@@ -16,7 +16,6 @@ import {
 export const customerMeta: EntityMeta = {
   entity: "customer",
   translation_key: "customer",
-  title_key: "system.entities.customer.title",
   uid: "uuid",
   display_field: "code",
   columns: CUSTOMER_LIST_COLUMNS,

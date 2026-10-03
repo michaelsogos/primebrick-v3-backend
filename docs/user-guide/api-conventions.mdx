@@ -247,6 +247,12 @@ curl -H "Authorization: Bearer <jwt>" \
   http://localhost:3001/api/v1/system/password-policy
 ```
 
+`POST /api/v1/system/docs/search` is an authenticated system RPC used by the
+local Guide assistant and the MCP `search_docs` tool. The caller supplies the
+precomputed 384-dimensional embedding plus optional `keywords`, `limit` (1–20),
+and `repo`; the response contains ranked documentation chunks. The backend
+searches the `ai.docs_kb` vectors and does not generate embeddings.
+
 ## MCP
 
 The MCP (Model Context Protocol) server exposes AI tool-calling endpoints

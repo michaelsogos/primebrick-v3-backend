@@ -17,13 +17,15 @@ import { makeProtectedRouter } from "../../http/protected-router.js";
 import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
 import { asyncHandler } from "../../http/async-handler.js";
-import { validateBody } from "../../http/validation.js";
+import { validateBody, zBoundedInt, zBoundedNumber } from "../../http/validation.js";
 import { DocsSearchService } from "../../modules/system/docs-search.service.js";
 
 const DocsSearchBodySchema = z.object({
-  embedding: z.array(z.number().finite()).min(1),
+  // extJsonBodyParser decodes every integer as bigint — embedding elements
+  // that happen to serialize without decimals (0, 1) arrive as bigint too.
+  embedding: z.array(zBoundedNumber(-10, 10)).min(1),
   keywords: z.array(z.string()).optional(),
-  limit: z.number().optional(),
+  limit: zBoundedInt(1, 20).optional(),
   repo: z.string().optional(),
 });
 

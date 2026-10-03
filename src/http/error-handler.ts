@@ -49,6 +49,22 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     return;
   }
 
+  // Transport-level errors that already carry an HTTP status (e.g. the
+  // ext-json body parser sets 400 "Invalid JSON body" / 413 "Body exceeds
+  // limit") — honor it instead of masking the client error as a 500.
+  const errStatus = (err as { status?: unknown }).status;
+  if (typeof errStatus === "number" && errStatus >= 400 && errStatus < 500) {
+    res.status(errStatus).json({
+      type: '/errors/bad-request',
+      title: 'Bad request',
+      status: errStatus,
+      detail: typeof err.message === "string" ? err.message : 'Bad request',
+      instance,
+      severity: 'MEDIUM',
+    });
+    return;
+  }
+
   const payload = {
     type: '/errors/internal-error',
     title: 'Internal server error',

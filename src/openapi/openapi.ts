@@ -1041,11 +1041,11 @@ export const openapi = {
       },
       EntityMetaResponse: {
         type: "object",
-        required: ["entity", "translation_key", "title_key", "uid", "display_field", "display_name", "columns", "actions"],
+        required: ["entity", "translation_key", "uid", "display_field", "display_name", "columns", "actions"],
         properties: {
           entity: { type: "string", description: "Entity key, snake_case singular" },
           translation_key: { type: "string", description: "snake_case singular i18n prefix" },
-          title_key: { type: "string", description: "i18n key for the entity title" },
+          title_key: { type: "string", description: "Optional i18n key overriding the canonical page title (absent → built from system.entities.page_title.* templates)" },
           uid: { type: "string", description: "Column key used as row identity (e.g. uuid)" },
           display_field: { type: "string", description: "Key of the primary display column" },
           display_name: { type: "string", description: "Display template (${field} syntax). Defaults to \"${display_field}\" — materialized by assembleMeta" },

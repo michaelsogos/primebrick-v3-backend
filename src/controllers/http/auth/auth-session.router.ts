@@ -47,7 +47,6 @@ const ChangeMyPasswordSchema = makeChangeOwnPasswordSchema(DEFAULT_PASSWORD_POLI
 const meMeta: EntityMeta = {
   entity: "user_profile",
   translation_key: "user_profile",
-  title_key: "system.entities.user_profile.title",
   uid: "uuid",
   display_field: "display_name",
   // Explicit because this meta is served directly, not via `assembleMeta`

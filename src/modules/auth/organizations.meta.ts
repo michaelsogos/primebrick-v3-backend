@@ -11,7 +11,6 @@ import type { EntityMeta } from "../../http/entity-meta.types.js";
 export const organizationMeta: EntityMeta = {
   entity: "organization",
   translation_key: "organization",
-  title_key: "system.entities.organization.title",
   uid: "uuid",
   display_field: "display_name",
   columns: [

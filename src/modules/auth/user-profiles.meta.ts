@@ -12,7 +12,6 @@ import type { EntityMeta } from "../../http/entity-meta.types.js";
 export const userProfileMeta: EntityMeta = {
   entity: "user_profile",
   translation_key: "user_profile",
-  title_key: "system.entities.user_profile.title",
   uid: "uuid",
   display_field: "display_name",
   columns: [

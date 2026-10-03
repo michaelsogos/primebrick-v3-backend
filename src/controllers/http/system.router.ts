@@ -6,6 +6,7 @@
  *   GET    /api/v1/system/roles/active           → role dropdown list
  *   GET    /api/v1/system/permissions            → permission catalog
  *   GET    /api/v1/system/password-policy        → active password policy
+ *   GET    /api/v1/system/routes                 → FE route census (AI guide)
  *   GET    /api/v1/system/services               → service registry list
  *   GET    /api/v1/system/services/:code         → single service
  *   PATCH  /api/v1/system/services/:code/toggle  → toggle is_enabled
@@ -27,8 +28,10 @@ import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
 import { ValidationError } from "../../http/api-errors.js";
 import { SystemService } from "../../modules/system/system.service.js";
+import { RoutesCensusService } from "../../modules/system/routes-census.service.js";
 import { servicesEventsRouter } from "./services-events.router.js";
 import { docsSearchRouter } from "./docs-search.router.js";
+import { mcpCallRouter } from "./mcp-call.router.js";
 
 const ServiceCodeParamSchema = z.object({
   code: z.string().min(1).max(100),
@@ -63,6 +66,8 @@ export function systemRouter() {
   router.use(servicesEventsRouter());
   // Mount the documentation KB search endpoint
   router.use(docsSearchRouter());
+  // Mount the MCP tool invocation shim (REST → shared tool handlers)
+  router.use(mcpCallRouter());
 
   router.get(
     "/api/v1/system/organizations/active",
@@ -93,6 +98,14 @@ export function systemRouter() {
     rbacHandler([Permission.PUBLIC]),
     asyncHandler(async (_req, res) => {
       res.json(await service.getPasswordPolicy());
+    }),
+  );
+
+  router.get(
+    "/api/v1/system/routes",
+    rbacHandler([Permission.AUTHENTICATED_USER]),
+    asyncHandler(async (_req, res) => {
+      res.json(await new RoutesCensusService().list());
     }),
   );
 

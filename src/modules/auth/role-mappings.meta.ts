@@ -16,7 +16,6 @@ import type { EntityMeta } from "../../http/entity-meta.types.js";
 export const roleMappingsMeta: EntityMeta = {
   entity: "role_mapping",
   translation_key: "role_mapping",
-  title_key: "system.entities.role_mapping.title",
   uid: "uuid",
   display_field: "idp_role",
   columns: [
