@@ -6,7 +6,7 @@
  */
 
 import { getPool } from "../../db/pool.js";
-import { searchDocsKb } from "./docs-search-dal.js";
+import { searchDocsKb, getDocByPath } from "./docs-search-dal.js";
 
 export class DocsSearchService {
   async search(params: {
@@ -17,5 +17,9 @@ export class DocsSearchService {
     min_similarity?: number;
   }) {
     return searchDocsKb(getPool(), params);
+  }
+
+  async getDocument(params: { path: string; repo?: string }) {
+    return getDocByPath(getPool(), params);
   }
 }

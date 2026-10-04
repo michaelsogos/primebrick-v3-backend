@@ -233,3 +233,31 @@ async function expandDocGraph(
     graph_expanded: true,
   }));
 }
+
+/**
+ * Fetch a whole document by (repo, path) — the `docs_fetch` tool backend
+ * for the agentic guide loop: the model sees a cited path in an excerpt and
+ * can dereference the FULL page, not just the retrieved chunk.
+ * Chunks are re-joined in order; caller caps the content budget.
+ */
+export async function getDocByPath(
+  pool: Pool,
+  params: { path: string; repo?: string },
+): Promise<{ repo: string; path: string; title: string; content: string } | null> {
+  const result = await pool.query(
+    `SELECT repo, path, title, content
+     FROM ai.docs_kb
+     WHERE path = $1 ${params.repo ? "AND repo = $2" : ""}
+     ORDER BY repo, chunk_idx`,
+    params.repo ? [params.path, params.repo] : [params.path],
+  );
+  if (!result.rows.length) return null;
+  const first = result.rows[0];
+  // Same path can exist in several repos — when the caller omits `repo`,
+  // return only the first repo's chunks (rows are ordered by repo).
+  const content = result.rows
+    .filter((r) => r.repo === first.repo)
+    .map((r) => r.content)
+    .join("\n\n");
+  return { repo: first.repo, path: first.path, title: first.title, content };
+}

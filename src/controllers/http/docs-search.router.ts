@@ -38,6 +38,11 @@ const DocsSearchBodySchema = z.object({
   graph_max_paths: zBoundedInt(0, 20).optional(),
 });
 
+const DocsDocumentBodySchema = z.object({
+  path: z.string().min(1).max(500),
+  repo: z.string().optional(),
+});
+
 export function docsSearchRouter() {
   const router = makeProtectedRouter();
   const service = new DocsSearchService();
@@ -49,6 +54,19 @@ export function docsSearchRouter() {
     asyncHandler(async (req, res) => {
       const results = await service.search(req.body);
       res.json({ results });
+    }),
+  );
+
+  // docs_fetch backend for the agentic guide loop — dereference a full
+  // document by path (chunks re-joined in order).
+  router.post(
+    "/api/v1/system/docs/document",
+    rbacHandler([Permission.AUTHENTICATED_USER]),
+    validateBody(DocsDocumentBodySchema),
+    asyncHandler(async (req, res) => {
+      const document = await service.getDocument(req.body);
+      if (!document) return res.status(404).json({ detail: "document not found" });
+      res.json({ document });
     }),
   );
 
