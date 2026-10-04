@@ -243,9 +243,9 @@ async function expandDocGraph(
 export async function getDocByPath(
   pool: Pool,
   params: { path: string; repo?: string },
-): Promise<{ repo: string; path: string; title: string; content: string } | null> {
+): Promise<{ repo: string; path: string; title: string; content: string; metadata: Record<string, unknown> } | null> {
   const result = await pool.query(
-    `SELECT repo, path, title, content
+    `SELECT repo, path, title, content, metadata
      FROM ai.docs_kb
      WHERE path = $1 ${params.repo ? "AND repo = $2" : ""}
      ORDER BY repo, chunk_idx`,
@@ -259,5 +259,5 @@ export async function getDocByPath(
     .filter((r) => r.repo === first.repo)
     .map((r) => r.content)
     .join("\n\n");
-  return { repo: first.repo, path: first.path, title: first.title, content };
+  return { repo: first.repo, path: first.path, title: first.title, content, metadata: first.metadata ?? {} };
 }
