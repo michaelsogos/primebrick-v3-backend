@@ -21,9 +21,11 @@ WHERE "name" = 'precise';
 DROP INDEX IF EXISTS "public"."ai_cerebellum_assistant_model_name_uq";
 DROP INDEX IF EXISTS "public"."ai_cerebellum_default_uq";
 
-CREATE UNIQUE INDEX IF NOT EXISTS "ai_cerebellum_assistant_model_uq"
-  ON "public"."ai_cerebellum" ("assistant_key", "model_id")
-  WHERE "deleted_at" IS NULL;
+-- Non-partial: deleted rows still reserve (assistant_key, model_id, dtype).
+-- NULLS NOT DISTINCT covers WebLLM variants (dtype NULL).
+CREATE UNIQUE INDEX IF NOT EXISTS "ai_cerebellum_assistant_model_dtype_uq"
+  ON "public"."ai_cerebellum" ("assistant_key", "model_id", "dtype")
+  NULLS NOT DISTINCT;
 
 -- 3. Seed rows carry the assistant display-name i18n key (resolved through
 --    $t() in the footer selector, same convention as the sheet title) and

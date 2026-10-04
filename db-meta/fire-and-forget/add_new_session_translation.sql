@@ -16,6 +16,6 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.newSession', 'es-ES', 'Nueva sesión', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.newSession', 'de-DE', 'Neue Sitzung', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.newSession', 'pt-PT', 'Nova sessão', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

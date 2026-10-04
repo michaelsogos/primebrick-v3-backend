@@ -96,7 +96,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.common.restoreEntityConfirm','es-ES','¿Seguro que quieres restaurar {entity}{name}?',now(),'devin',now(),'devin',1),
   ('app.common.restoreEntityConfirm','de-DE','Möchten Sie {entity}{name} wirklich wiederherstellen?',now(),'devin',now(),'devin',1),
   ('app.common.restoreEntityConfirm','pt-PT','Tem a certeza que deseja restaurar {entity}{name}?',now(),'devin',now(),'devin',1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- 3b. system.entities singular/plural (system.translations)
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -234,7 +234,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.config_entry.singular_definite','es-ES','la Entrada de Configuración',now(),'devin',now(),'devin',1),
   ('system.entities.config_entry.singular_definite','de-DE','den Konfigurationseintrag',now(),'devin',now(),'devin',1),
   ('system.entities.config_entry.singular_definite','pt-PT','a Entrada de Configuração',now(),'devin',now(),'devin',1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- 4. Superseded generic/custom title keys (hard delete — no tech debt).
 --    NOTE: app.common.deleteConfirm is KEPT — it is the "This action cannot be

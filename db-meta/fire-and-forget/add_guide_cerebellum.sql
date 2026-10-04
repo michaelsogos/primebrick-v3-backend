@@ -13,10 +13,10 @@
 BEGIN;
 
 INSERT INTO "public"."ai_cerebellum" (
-  "assistant_key", "model_id", "name", "execution_config",
+  "assistant_key", "model_id", "dtype", "name", "execution_config",
   "created_by", "updated_by"
 ) VALUES
-  ('guide', 'onnx-community/Qwen2.5-Coder-3B-Instruct#q4f16', 'app.smart.guide.ai.cerebellum_name',
+  ('guide', 'onnx-community/Qwen2.5-Coder-3B-Instruct', 'q4f16', 'app.smart.guide.ai.cerebellum_name',
    '{"min_similarity": 0.35}'::jsonb, 'system', 'system')
 ON CONFLICT DO NOTHING;
 
@@ -28,7 +28,8 @@ ON CONFLICT DO NOTHING;
 UPDATE "public"."ai_cerebellum"
 SET "max_tokens" = 512, "updated_by" = 'system'
 WHERE "assistant_key" = 'guide'
-  AND "model_id" = 'onnx-community/Qwen2.5-Coder-3B-Instruct#q4f16'
+  AND "model_id" = 'onnx-community/Qwen2.5-Coder-3B-Instruct'
+  AND "dtype" = 'q4f16'
   AND "max_tokens" IS DISTINCT FROM 512;
 
 COMMIT;

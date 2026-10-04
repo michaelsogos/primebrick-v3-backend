@@ -31,6 +31,6 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('system.settings.ai.cerebellum_section.assistant', 'es-ES', 'asistente', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.ai.cerebellum_section.assistant', 'de-DE', 'Assistent', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.ai.cerebellum_section.assistant', 'pt-PT', 'assistente', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

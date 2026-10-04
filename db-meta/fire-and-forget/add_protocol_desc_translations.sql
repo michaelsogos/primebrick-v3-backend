@@ -19,7 +19,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.protocolSelect.desc.http', 'es-ES', 'HyperText Transfer Protocol', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.http', 'de-DE', 'HyperText Transfer Protocol', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.http', 'pt-PT', 'HyperText Transfer Protocol', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── protocolSelect.desc.https ─────────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -30,7 +30,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.protocolSelect.desc.https', 'es-ES', 'HTTP seguro (cifrado TLS)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.https', 'de-DE', 'Sicheres HTTP (TLS-verschlüsselt)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.https', 'pt-PT', 'HTTP seguro (cifrado TLS)', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── protocolSelect.desc.ftp ───────────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -41,7 +41,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.protocolSelect.desc.ftp', 'es-ES', 'File Transfer Protocol', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.ftp', 'de-DE', 'File Transfer Protocol', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.ftp', 'pt-PT', 'File Transfer Protocol', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── protocolSelect.desc.redis ─────────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -52,7 +52,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.protocolSelect.desc.redis', 'es-ES', 'Conexión al servidor Redis', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.redis', 'de-DE', 'Redis-Serververbindung', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.redis', 'pt-PT', 'Ligação ao servidor Redis', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── protocolSelect.desc.rediss ────────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -63,7 +63,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.protocolSelect.desc.rediss', 'es-ES', 'Redis sobre TLS (seguro)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.rediss', 'de-DE', 'Redis über TLS (sicher)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.rediss', 'pt-PT', 'Redis sobre TLS (seguro)', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── protocolSelect.desc.tcp ───────────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -74,7 +74,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.protocolSelect.desc.tcp', 'es-ES', 'Conexión socket TCP sin formato', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.tcp', 'de-DE', 'Reine TCP-Socket-Verbindung', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.tcp', 'pt-PT', 'Ligação socket TCP pura', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── protocolSelect.desc.ws ────────────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -85,7 +85,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.protocolSelect.desc.ws', 'es-ES', 'Conexión WebSocket', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.ws', 'de-DE', 'WebSocket-Verbindung', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.ws', 'pt-PT', 'Ligação WebSocket', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── protocolSelect.desc.wss ───────────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -96,7 +96,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.protocolSelect.desc.wss', 'es-ES', 'WebSocket seguro (TLS)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.wss', 'de-DE', 'Sicheres WebSocket (TLS)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.wss', 'pt-PT', 'WebSocket seguro (TLS)', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── protocolSelect.desc.mailto ────────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -107,6 +107,6 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.protocolSelect.desc.mailto', 'es-ES', 'Enlace a dirección de email', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.mailto', 'de-DE', 'Link zu E-Mail-Adresse', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.desc.mailto', 'pt-PT', 'Ligação para endereço de email', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

@@ -316,6 +316,6 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.health.cpuThreads', 'es-ES', 'Hilos de CPU', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.health.cpuThreads', 'de-DE', 'CPU-Threads', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.health.cpuThreads', 'pt-PT', 'Threads de CPU', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

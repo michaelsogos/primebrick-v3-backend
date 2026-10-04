@@ -25,7 +25,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.common.ai.assistant_prefix', 'es-ES', 'Asistente IA', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.common.ai.assistant_prefix', 'de-DE', 'KI-Assistent', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.common.ai.assistant_prefix', 'pt-PT', 'Assistente IA', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.topic ───────────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -35,6 +35,6 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.topic', 'es-ES', 'Regex', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.topic', 'de-DE', 'Regex', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.topic', 'pt-PT', 'Regex', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

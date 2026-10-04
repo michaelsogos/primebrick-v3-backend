@@ -28,7 +28,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.explainer.char_class_open', 'es-ES', 'Cualquier caracter contenido entre corchetes', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.char_class_open', 'de-DE', 'Beliebiges Zeichen in den Klammern', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.char_class_open', 'pt-PT', 'Qualquer caractere contido entre colchetes', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.explainer.char_class_negated_open ──────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -38,7 +38,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.explainer.char_class_negated_open', 'es-ES', 'Cualquier caracter NO contenido entre corchetes', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.char_class_negated_open', 'de-DE', 'Beliebiges Zeichen NICHT in den Klammern', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.char_class_negated_open', 'pt-PT', 'Qualquer caractere NAO contido entre colchetes', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.explainer.char_class_close ─────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -48,7 +48,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.explainer.char_class_close', 'es-ES', 'Fin de la clase de caracteres', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.char_class_close', 'de-DE', 'Ende der Zeichenklasse', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.char_class_close', 'pt-PT', 'Fim da classe de caracteres', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.explainer.char_range ──────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -58,6 +58,6 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.explainer.char_range', 'es-ES', 'Caracteres de {min} a {max}', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.char_range', 'de-DE', 'Zeichen von {min} bis {max}', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.char_range', 'pt-PT', 'Caracteres de {min} a {max}', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

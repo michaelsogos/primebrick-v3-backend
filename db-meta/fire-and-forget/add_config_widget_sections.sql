@@ -130,6 +130,6 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.typeConfig.regexPatternPlaceholder', 'es-ES', 'p. ej. ^\d+$ — solo dígitos', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.typeConfig.regexPatternPlaceholder', 'de-DE', 'z. B. ^\d+$ — nur Ziffern', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.typeConfig.regexPatternPlaceholder', 'pt-PT', 'ex. ^\d+$ — apenas dígitos', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+ON CONFLICT (key, language) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 COMMIT;

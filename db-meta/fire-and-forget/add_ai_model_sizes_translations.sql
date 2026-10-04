@@ -15,7 +15,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.fields.download_size_mb', 'es-ES', 'Tamaño de Descarga', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.fields.download_size_mb', 'de-DE', 'Downloadgröße', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.fields.download_size_mb', 'pt-PT', 'Tamanho de Download', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── vram_mb ───
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -25,7 +25,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.fields.vram_mb', 'es-ES', 'VRAM Requerida', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.fields.vram_mb', 'de-DE', 'VRAM-Bedarf', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.fields.vram_mb', 'pt-PT', 'VRAM Necessária', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── compatibility_status ───
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -35,7 +35,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.fields.compatibility_status', 'es-ES', 'Compatibilidad', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.fields.compatibility_status', 'de-DE', 'Kompatibilität', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.fields.compatibility_status', 'pt-PT', 'Compatibilidade', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── compatibility.COMPATIBLE ───
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -45,7 +45,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.compatibility.COMPATIBLE', 'es-ES', 'Compatible', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.compatibility.COMPATIBLE', 'de-DE', 'Kompatibel', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.compatibility.COMPATIBLE', 'pt-PT', 'Compatível', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── compatibility.NOT_COMPATIBLE ───
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -55,6 +55,6 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.compatibility.NOT_COMPATIBLE', 'es-ES', 'No Compatible', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.compatibility.NOT_COMPATIBLE', 'de-DE', 'Nicht Kompatibel', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.compatibility.NOT_COMPATIBLE', 'pt-PT', 'Não Compatível', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

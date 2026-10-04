@@ -8,4 +8,4 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.rank.explanation', 'es-ES', 'Puntuación compuesta: la calidad pesa 80%, la velocidad 20%. La calidad es la media de los puntajes por turno (5 turnos); la velocidad deriva de los tiempos de respuesta reales.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.rank.explanation', 'de-DE', 'Zusammengesetzte Punktzahl: Qualität gewichtet 80%, Geschwindigkeit 20%. Qualität ist der Mittelwert der Turn-Scores (5 Turns); Geschwindigkeit ergibt sich aus echten Antwortzeiten.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.rank.explanation', 'pt-PT', 'Pontuação composta: a qualidade pesa 80%, a velocidade 20%. A qualidade é a média das pontuações por turno (5 turnos); a velocidade deriva dos tempos de resposta reais.', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+ON CONFLICT (key, language) DO UPDATE SET value = EXCLUDED.value, updated_at = now();

@@ -25,7 +25,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.common.optionalTooltipText', 'es-ES', 'Deja este campo vacío para usar el valor sugerido; escribe el tuyo para reemplazarlo.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.common.optionalTooltipText', 'de-DE', 'Feld leer lassen, um den vorgeschlagenen Wert zu verwenden; eigenen Wert eingeben, um ihn zu überschreiben.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.common.optionalTooltipText', 'pt-PT', 'Deixe este campo vazio para usar o valor sugerido; digite o seu para substituí-lo.', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+ON CONFLICT (key, language) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 -- ── /configurations/create + typeConfig builder (system.translations) ───────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -127,7 +127,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.typeConfig.advancedModeHelp', 'es-ES', 'Edita la configuración como código en bruto en lugar de usar los campos guiados. Para usuarios expertos.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.typeConfig.advancedModeHelp', 'de-DE', 'Konfiguration als Rohcode bearbeiten statt der geführten Felder. Für erfahrene Benutzer.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.typeConfig.advancedModeHelp', 'pt-PT', 'Edita as definições como código bruto em vez de usar os campos guiados. Para utilizadores experientes.', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+ON CONFLICT (key, language) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 -- ── Page chrome: unify terminology on "configuration" (was "entry"/"voce") ──
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -167,6 +167,6 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.configurations.noEntries', 'es-ES', 'No se encontraron configuraciones', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.configurations.noEntries', 'de-DE', 'Keine Konfigurationen gefunden', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.configurations.noEntries', 'pt-PT', 'Nenhuma configuração encontrada', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+ON CONFLICT (key, language) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 COMMIT;

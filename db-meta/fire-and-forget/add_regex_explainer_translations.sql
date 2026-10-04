@@ -53,7 +53,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.explainer.newline', 'en-GB', 'Newline character', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.carriage_return', 'en-GB', 'Carriage return', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.tab', 'en-GB', 'Tab character', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── it-IT ────────────────────────────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -103,7 +103,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.explainer.newline', 'it-IT', 'Carattere newline', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.carriage_return', 'it-IT', 'Ritorno carrello', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.tab', 'it-IT', 'Carattere tab', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── fr-FR ────────────────────────────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -153,7 +153,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.explainer.newline', 'fr-FR', 'Caractere newline', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.carriage_return', 'fr-FR', 'Retour chariot', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.tab', 'fr-FR', 'Caractere tab', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── es-ES ────────────────────────────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -203,7 +203,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.explainer.newline', 'es-ES', 'Caracter newline', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.carriage_return', 'es-ES', 'Retorno de carro', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.tab', 'es-ES', 'Caracter tab', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── de-DE ────────────────────────────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -253,7 +253,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.explainer.newline', 'de-DE', 'Zeilenumbruchzeichen', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.carriage_return', 'de-DE', 'Wagenrucklauf', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.tab', 'de-DE', 'Tabulatorzeichen', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── pt-PT ────────────────────────────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -303,6 +303,6 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.explainer.newline', 'pt-PT', 'Caractere newline', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.carriage_return', 'pt-PT', 'Retorno de carro', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.tab', 'pt-PT', 'Caractere tab', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

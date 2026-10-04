@@ -20,6 +20,7 @@ export type AiCerebellumListQuery = z.infer<typeof AiCerebellumListQuerySchema>;
 const AiCerebellumBaseSchema = z.object({
   assistant_key: z.string().min(1).max(60),
   model_id: z.string().min(1).max(100),
+  dtype: z.string().max(40).nullish(),
   name: z.string().min(1).max(80),
   description_key: z.string().min(1).max(200).optional(),
   enable_thinking: z.boolean().nullish(),
@@ -85,6 +86,7 @@ export type AiCerebellumDetailRow = {
   uuid: string;
   assistant_key: string;
   model_id: string;
+  dtype?: string;
   name: string;
   description_key?: string;
   enable_thinking?: boolean;

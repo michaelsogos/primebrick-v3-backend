@@ -645,8 +645,7 @@ CREATE TABLE IF NOT EXISTS "public"."translations" (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "translations_key_language_uidx"
-  ON "public"."translations" ("key", "language")
-  WHERE "deleted_at" IS NULL;
+  ON "public"."translations" ("key", "language");
 
 CREATE INDEX IF NOT EXISTS "translations_language_idx"
   ON "public"."translations" ("language")
@@ -669,8 +668,7 @@ CREATE TABLE IF NOT EXISTS "system"."translations" (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "system_translations_key_language_uidx"
-  ON "system"."translations" ("key", "language")
-  WHERE "deleted_at" IS NULL;
+  ON "system"."translations" ("key", "language");
 
 CREATE INDEX IF NOT EXISTS "system_translations_language_idx"
   ON "system"."translations" ("language")
@@ -695,8 +693,7 @@ CREATE TABLE IF NOT EXISTS "custom"."translations" (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "custom_translations_key_language_uidx"
-  ON "custom"."translations" ("key", "language")
-  WHERE "deleted_at" IS NULL;
+  ON "custom"."translations" ("key", "language");
 
 CREATE INDEX IF NOT EXISTS "custom_translations_language_idx"
   ON "custom"."translations" ("language")

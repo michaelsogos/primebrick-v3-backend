@@ -43,7 +43,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.flags.title', 'es-ES', 'Indicadores Regex', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.title', 'de-DE', 'Regex-Flags', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.title', 'pt-PT', 'Sinalizadores Regex', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.flags.global ──────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -53,7 +53,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.flags.global', 'es-ES', 'Global (g)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.global', 'de-DE', 'Global (g)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.global', 'pt-PT', 'Global (g)', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.flags.globalHelp ──────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -63,7 +63,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.flags.globalHelp', 'es-ES', 'Coincide con todas las ocurrencias, no solo la primera', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.globalHelp', 'de-DE', 'Entspricht allen Vorkommen, nicht nur dem ersten', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.globalHelp', 'pt-PT', 'Corresponde a todas as ocorrências, não apenas a primeira', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.flags.ignoreCase ──────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -73,7 +73,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.flags.ignoreCase', 'es-ES', 'Ignorar mayúsculas/minúsculas (i)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.ignoreCase', 'de-DE', 'Groß-/Kleinschreibung ignorieren (i)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.ignoreCase', 'pt-PT', 'Ignorar maiúsculas/minúsculas (i)', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.flags.ignoreCaseHelp ─────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -83,7 +83,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.flags.ignoreCaseHelp', 'es-ES', 'Coincidencia sin distinción de mayúsculas/minúsculas', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.ignoreCaseHelp', 'de-DE', 'Groß-/Kleinschreibung-unabhängige Übereinstimmung', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.ignoreCaseHelp', 'pt-PT', 'Correspondência sem distinção de maiúsculas/minúsculas', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.flags.multiline ──────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -93,7 +93,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.flags.multiline', 'es-ES', 'Multilínea (m)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.multiline', 'de-DE', 'Mehrzeilig (m)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.multiline', 'pt-PT', 'Multilinha (m)', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.flags.multilineHelp ──────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -103,7 +103,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.flags.multilineHelp', 'es-ES', '^ y $ coinciden con los límites de línea', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.multilineHelp', 'de-DE', '^ und $ entsprechen Zeilengrenzen', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.flags.multilineHelp', 'pt-PT', '^ e $ correspondem aos limites de linha', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.title ─────────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -113,7 +113,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.title', 'es-ES', 'Asistente Regex AI', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.title', 'de-DE', 'KI Regex-Assistent', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.title', 'pt-PT', 'Assistente Regex AI', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.welcome ───────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -123,7 +123,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.welcome', 'es-ES', 'Describe la validación que deseas en lenguaje natural. La IA generará una regex para ti.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.welcome', 'de-DE', 'Beschreibe die gewünschte Validierung in natürlicher Sprache. Die KI generiert eine Regex für dich.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.welcome', 'pt-PT', 'Descreve a validação desejada em linguagem natural. A IA gerará uma regex para ti.', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.placeholder ──────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -133,7 +133,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.placeholder', 'es-ES', 'ej. solo letras minúsculas, de 3 a 5 caracteres', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.placeholder', 'de-DE', 'z.B. nur Kleinbuchstaben, 3 bis 5 Zeichen', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.placeholder', 'pt-PT', 'ex. apenas letras minúsculas, 3 a 5 caracteres', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.loadingModel ──────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -143,7 +143,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.loadingModel', 'es-ES', 'Cargando modelo {progress}%', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.loadingModel', 'de-DE', 'Modell wird geladen {progress}%', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.loadingModel', 'pt-PT', 'A carregar modelo {progress}%', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.modelReady ────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -153,7 +153,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.modelReady', 'es-ES', '¡Qwen2.5-0.5B está listo!', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.modelReady', 'de-DE', 'Qwen2.5-0.5B ist bereit!', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.modelReady', 'pt-PT', 'Qwen2.5-0.5B está pronto!', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.webgpuRequired ────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -163,7 +163,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.webgpuRequired', 'es-ES', 'El asistente regex AI requiere WebGPU (Chrome 113+/Edge 113+). Escribe la regex manualmente.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.webgpuRequired', 'de-DE', 'Der KI-Regex-Assistent benötigt WebGPU (Chrome 113+/Edge 113+). Bitte Regex manuell eingeben.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.webgpuRequired', 'pt-PT', 'O assistente regex AI requer WebGPU (Chrome 113+/Edge 113+). Digite a regex manualmente.', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.useThis ───────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -173,7 +173,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.useThis', 'es-ES', '¿Usar esta regex?', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.useThis', 'de-DE', 'Diese Regex verwenden?', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.useThis', 'pt-PT', 'Usar esta regex?', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.yes ───────────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -183,7 +183,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.yes', 'es-ES', 'Sí', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.yes', 'de-DE', 'Ja', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.yes', 'pt-PT', 'Sim', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.no ────────────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -193,7 +193,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.no', 'es-ES', 'No', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.no', 'de-DE', 'Nein', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.no', 'pt-PT', 'Não', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.chooseOption ─────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -203,7 +203,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.chooseOption', 'es-ES', 'Elige una opción regex:', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.chooseOption', 'de-DE', 'Wähle eine Regex-Option:', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.chooseOption', 'pt-PT', 'Escolhe uma opção regex:', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.send ─────────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -213,7 +213,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.send', 'es-ES', 'Enviar', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.send', 'de-DE', 'Senden', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.send', 'pt-PT', 'Enviar', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.stop ──────────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -223,7 +223,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.stop', 'es-ES', 'Detener', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.stop', 'de-DE', 'Stopp', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.stop', 'pt-PT', 'Parar', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.brainCta ──────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -233,7 +233,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.brainCta', 'es-ES', 'Asistente AI', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.brainCta', 'de-DE', 'KI-Assistent', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.brainCta', 'pt-PT', 'Assistente AI', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.flagsCta ──────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -243,7 +243,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.flagsCta', 'es-ES', 'Indicadores', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.flagsCta', 'de-DE', 'Flags', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.flagsCta', 'pt-PT', 'Sinalizadores', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.breakdown ────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -253,7 +253,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.breakdown', 'es-ES', 'Desglose', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.breakdown', 'de-DE', 'Aufschlüsselung', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.breakdown', 'pt-PT', 'Decomposição', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.common.copy ────────────────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -263,7 +263,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.common.copy', 'es-ES', 'Copiar', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.common.copy', 'de-DE', 'Kopieren', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.common.copy', 'pt-PT', 'Copiar', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.hereYouAre ──────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -273,6 +273,6 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.hereYouAre', 'es-ES', '¡Aquí tienes!', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.hereYouAre', 'de-DE', 'Hier ist es!', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.hereYouAre', 'pt-PT', 'Aqui está!', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

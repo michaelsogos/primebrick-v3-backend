@@ -41,13 +41,26 @@ export class AiCerebellumEntity implements IAuditableEntity, IExposableEntity {
   @Unique()
   uuid: string;
 
-  /** Assistant identifier (e.g. `regex`, `json_config`). */
+  /** Assistant identifier (e.g. `regex`, `json_config`).
+   *  Composite unique (assistant_key, model_id, dtype) — non-partial: a
+   *  soft-deleted twin conflicts too and must be restored, never
+   *  duplicated (DAL raises ERR05 with the row uuid). */
+  @Unique("ai_cerebellum_assistant_model_dtype_uq", 0)
   @Column({ length: 60, nullable: false })
   assistant_key: string;
 
-  /** FK → ai_models.model_id (the business unique key of the model catalog). */
+  /** FK → ai_models.model_id (business key part of the model variant). */
+  @Unique("ai_cerebellum_assistant_model_dtype_uq", 1)
   @Column({ length: 100, nullable: false })
   model_id: string;
+
+  /** Model variant dtype (e.g. `q4f16`); NULL = WebLLM variant
+   *  (quantization encoded in model_id). Mirrors ai_models.dtype —
+   *  (model_id, dtype) identifies the catalog variant; the runtime key is
+   *  `<model_id>#<dtype>` (modelVariantKey()). */
+  @Unique("ai_cerebellum_assistant_model_dtype_uq", 2)
+  @Column({ length: 40, nullable: true })
+  dtype?: string;
 
   /** Tuning name shown in the footer dropdown (e.g. `default`, `precise`). */
   @Column({ length: 80, nullable: false })

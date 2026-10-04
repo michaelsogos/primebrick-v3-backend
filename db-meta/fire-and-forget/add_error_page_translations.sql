@@ -50,6 +50,6 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.error.go_back', 'es-ES', 'Volver', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.error.go_back', 'de-DE', 'Zurück', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.error.go_back', 'pt-PT', 'Voltar', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+ON CONFLICT (key, language) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 COMMIT;

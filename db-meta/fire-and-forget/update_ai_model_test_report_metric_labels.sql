@@ -28,7 +28,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.test_report.quality', 'es-ES', 'Calidad', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.test_report.quality', 'de-DE', 'Qualität', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.test_report.quality', 'pt-PT', 'Qualidade', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+ON CONFLICT (key, language) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 UPDATE system.translations SET value = 'Passed tests', updated_at = now()
 WHERE key = 'system.entities.ai_model.test_report.passed' AND language = 'en-GB' AND deleted_at IS NULL;

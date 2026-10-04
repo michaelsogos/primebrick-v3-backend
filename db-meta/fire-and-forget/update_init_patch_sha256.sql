@@ -97,4 +97,15 @@ SET content_sha256 = 'bc21863482ccd231148d7a80568e94f652f1e156d8000429aa892de2f9
 WHERE patch_id = '00000000000000_init_database'
   AND content_sha256 <> 'bc21863482ccd231148d7a80568e94f652f1e156d8000429aa892de2f98dc51f';
 
+-- 7. (2025) Init patch changed: translations unique indexes made non-partial
+--    (deleted rows reserve the key; recreate hits ERR04/ERR05, never a
+--    deleted+live duplicate). Registry re-alignment only — DDL lives in
+--    make_unique_indexes_non_partial.sql.
+--    Old: bc21863482ccd231148d7a80568e94f652f1e156d8000429aa892de2f98dc51f
+--    New: 9f4f3164ca9990164201fa3f06ba845b14ceb6a57d346914f6b5b7b532357c8a
+UPDATE public.primebrick_database_patches
+SET content_sha256 = '9f4f3164ca9990164201fa3f06ba845b14ceb6a57d346914f6b5b7b532357c8a'
+WHERE patch_id = '00000000000000_init_database'
+  AND content_sha256 <> '9f4f3164ca9990164201fa3f06ba845b14ceb6a57d346914f6b5b7b532357c8a';
+
 COMMIT;

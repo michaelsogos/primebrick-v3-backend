@@ -31,14 +31,28 @@ export interface DocsSearchResult {
   metadata: Record<string, unknown>;
   similarity: number;
   keyword_hits: number;
+  /** ts_rank_cd of the full-text lexical channel (0 when absent). */
+  lexical_score: number;
   score: number;
   /** True for chunks added by doc-graph expansion (outbound links of the
    *  top hits), not by vector rank — they bypass the FE similarity floor. */
   graph_expanded?: boolean;
+  /** True for chunks recalled ONLY by the lexical channel (not in the
+   *  vector top-N) whose FTS rank is strong — they bypass the FE
+   *  similarity floor like graph_expanded ones. */
+  lexical_match?: boolean;
 }
 
 /** Weight of each keyword hit in the final score (similarity units). */
 const KEYWORD_BOOST = 0.05;
+/** Weight of the full-text lexical rank in the final score — larger than
+ *  the ILIKE boost: a real FTS match is a second recall channel, not just
+ *  a tie-breaker inside vector candidates. */
+const LEXICAL_BOOST = 0.15;
+/** Minimum ts_rank_cd for a lexical-only candidate (absent from the vector
+ *  top-N) to be kept and flagged `lexical_match` — below this the match is
+ *  too weak to bypass the similarity floor. */
+const LEX_MATCH_MIN = 0.1;
 /** How many HNSW candidates to fetch before keyword re-ranking. */
 const OVERSAMPLE = 4;
 
@@ -53,24 +67,64 @@ export async function searchDocsKb(
      *  cleared it. Without it, an uncovered question would seed expansion
      *  from near-zero hits and inject unrelated context. */
     min_similarity?: number;
+    /** Rank-tuning overrides — callers (e.g. the Guide cerebellum) may
+     *  retune the retrieval balance per assistant; defaults below. */
+    keyword_boost?: number;
+    lexical_boost?: number;
+    lex_match_min?: number;
+    oversample?: number;
+    graph_max_paths?: number;
   },
 ): Promise<DocsSearchResult[]> {
   const limit = Math.min(Math.max(opts.limit ?? 6, 1), 20);
+  const keywordBoost = opts.keyword_boost ?? KEYWORD_BOOST;
+  const lexicalBoost = opts.lexical_boost ?? LEXICAL_BOOST;
+  const lexMatchMin = opts.lex_match_min ?? LEX_MATCH_MIN;
+  const oversample = Math.min(Math.max(opts.oversample ?? OVERSAMPLE, 1), 10);
   const keywords = (opts.keywords ?? [])
     .map((k) => k.trim())
     .filter((k) => k.length >= 2)
     .slice(0, 10);
   const embeddingStr = `[${opts.embedding.join(",")}]`;
 
+  // Hybrid retrieval: the HNSW vector channel is unioned with a full-text
+  // lexical channel (websearch_to_tsquery over the S0 keywords, 'simple'
+  // dictionary — no stemming, safe for identifiers like `idp_code`).
+  // Lexical-only rows enter the candidate set with their real similarity,
+  // so exact-term docs the vectors miss can still surface; `similarity`
+  // stays the floor metric, `lexical_score` only re-ranks.
+  const lexQuery = keywords.join(" ").trim() || null;
+
   const result = await pool.query(
-    `WITH candidates AS (
-       SELECT
-         d.id, d.repo, d.path, d.title, d.chunk_idx, d.content, d.metadata,
-         1 - (d.embedding <=> $1::vector) AS similarity
+    `WITH vec AS (
+       SELECT d.id,
+              1 - (d.embedding <=> $1::vector) AS similarity
        FROM ai.docs_kb d
        WHERE ($4::text IS NULL OR d.repo = $4)
        ORDER BY d.embedding <=> $1::vector
        LIMIT $2::int * $6::int
+     ),
+     lex AS (
+       SELECT d.id,
+              ts_rank_cd(to_tsvector('simple', d.content),
+                         websearch_to_tsquery('simple', $7::text)) AS lexical_score
+       FROM ai.docs_kb d
+       WHERE $7::text IS NOT NULL
+         AND ($4::text IS NULL OR d.repo = $4)
+         AND to_tsvector('simple', d.content) @@ websearch_to_tsquery('simple', $7::text)
+       ORDER BY lexical_score DESC
+       LIMIT $2::int * $6::int
+     ),
+     candidates AS (
+       SELECT
+         d.id, d.repo, d.path, d.title, d.chunk_idx, d.content, d.metadata,
+         COALESCE(v.similarity, 1 - (d.embedding <=> $1::vector)) AS similarity,
+         COALESCE(l.lexical_score, 0)::float8 AS lexical_score,
+         (v.id IS NULL AND l.lexical_score >= $9::float8) AS lexical_match
+       FROM ai.docs_kb d
+       JOIN (SELECT id FROM vec UNION SELECT id FROM lex) cand ON cand.id = d.id
+       LEFT JOIN vec v ON v.id = d.id
+       LEFT JOIN lex l ON l.id = d.id
      ),
      scored AS (
        SELECT c.*, k.keyword_hits
@@ -85,8 +139,8 @@ export async function searchDocsKb(
      )
      SELECT
        id, repo, path, title, chunk_idx, content, metadata,
-       similarity, keyword_hits,
-       similarity + $5::float8 * keyword_hits
+       similarity, keyword_hits, lexical_score, lexical_match,
+       similarity + $5::float8 * keyword_hits + $8::float8 * lexical_score
          + CASE metadata->>'content_type'
              WHEN 'tutorial' THEN 0.08
              WHEN 'conceptual' THEN 0.03
@@ -101,21 +155,29 @@ export async function searchDocsKb(
       limit,
       keywords.length > 0 ? keywords : null,
       opts.repo ?? null,
-      KEYWORD_BOOST,
-      OVERSAMPLE,
+      keywordBoost,
+      oversample,
+      lexQuery,
+      lexicalBoost,
+      lexMatchMin,
     ],
   );
 
   const hits = result.rows.map((row) => ({
-    ...(row as Omit<DocsSearchResult, "score" | "similarity" | "keyword_hits">),
+    ...(row as Omit<DocsSearchResult, "score" | "similarity" | "keyword_hits" | "lexical_score" | "lexical_match">),
     similarity: Number(row.similarity),
     keyword_hits: Number(row.keyword_hits),
+    lexical_score: Number(row.lexical_score),
+    lexical_match: row.lexical_match === true,
     score: Number(row.score),
   }));
 
   const floor = opts.min_similarity ?? 0;
   const seeds = hits.filter((h) => h.similarity >= floor);
-  return [...hits, ...(await expandDocGraph(pool, opts.embedding, seeds))];
+  return [
+    ...hits,
+    ...(await expandDocGraph(pool, opts.embedding, seeds, opts.graph_max_paths)),
+  ];
 }
 
 /**
@@ -132,6 +194,7 @@ async function expandDocGraph(
   pool: Pool,
   embedding: number[],
   hits: DocsSearchResult[],
+  maxPaths: number = GRAPH_MAX_PATHS,
 ): Promise<DocsSearchResult[]> {
   const seen = new Set(hits.map((h) => h.path));
   const linked: string[] = [];
@@ -142,7 +205,7 @@ async function expandDocGraph(
       if (typeof p === "string" && !seen.has(p) && !linked.includes(p)) linked.push(p);
     }
   }
-  const paths = linked.slice(0, GRAPH_MAX_PATHS);
+  const paths = linked.slice(0, Math.min(Math.max(maxPaths, 0), 20));
   if (!paths.length) return [];
 
   const result = await pool.query(
@@ -165,6 +228,7 @@ async function expandDocGraph(
     metadata: row.metadata,
     similarity: Number(row.similarity),
     keyword_hits: 0,
+    lexical_score: 0,
     score: Number(row.similarity),
     graph_expanded: true,
   }));

@@ -18,14 +18,14 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
 SELECT key, 'en-US', value, now(), 'initial-setup', now(), 'initial-setup', 1
 FROM system.translations
 WHERE language = 'en-GB' AND deleted_at IS NULL
-ON CONFLICT (key, language) WHERE deleted_at IS NULL
+ON CONFLICT (key, language)
 DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version)
 SELECT key, 'en-US', value, now(), 'initial-setup', now(), 'initial-setup', 1
 FROM public.translations
 WHERE language = 'en-GB' AND deleted_at IS NULL
-ON CONFLICT (key, language) WHERE deleted_at IS NULL
+ON CONFLICT (key, language)
 DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 COMMIT;

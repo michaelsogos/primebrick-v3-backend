@@ -6,9 +6,11 @@
 -- ai_models value at FE resolution time.
 --
 -- Resolution rule: assistant loads model → lookup the cerebellum row for
--- (assistant_key, model_id) → its non-NULL values override model defaults.
--- There is exactly ONE cerebellum per (assistant_key, model_id): the row is
--- the model's specialization for that assistant, not a user-picked "preset".
+-- (assistant_key, model_id, dtype) → its non-NULL values override model
+-- defaults. There is exactly ONE cerebellum per (assistant_key, model_id,
+-- dtype): the row is the model variant's specialization for that assistant,
+-- not a user-picked "preset". model_id/dtype mirror ai_models (bare repo id
+-- + variant dtype); the runtime key is `${model_id}#${dtype}`.
 --
 -- test_scores stores per-cerebellum measurements keyed by test case — kept
 -- separate from ai_models.test_scores so tuning runs never overwrite
@@ -26,6 +28,7 @@ CREATE TABLE IF NOT EXISTS "public"."ai_cerebellum" (
   "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
   "assistant_key" varchar(60) NOT NULL,
   "model_id" varchar(100) NOT NULL,
+  "dtype" varchar(40),
   "name" varchar(80) NOT NULL,
   "description_key" varchar(200),
   "enable_thinking" boolean,
@@ -45,24 +48,24 @@ CREATE TABLE IF NOT EXISTS "public"."ai_cerebellum" (
   "version" integer DEFAULT 1,
   "deleted_at" timestamptz,
   "deleted_by" text,
-  PRIMARY KEY ("id"),
-  CONSTRAINT "ai_cerebellum_model_id_fk"
-    FOREIGN KEY ("model_id") REFERENCES "public"."ai_models" ("model_id")
-    ON UPDATE CASCADE ON DELETE RESTRICT
+  PRIMARY KEY ("id")
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "ai_cerebellum_uuid_uq"
   ON "public"."ai_cerebellum" ("uuid");
 
--- Exactly one cerebellum per (assistant, model) among non-deleted rows —
--- the cerebellum IS the specialization of that model for that assistant.
-CREATE UNIQUE INDEX IF NOT EXISTS "ai_cerebellum_assistant_model_uq"
-  ON "public"."ai_cerebellum" ("assistant_key", "model_id")
-  WHERE "deleted_at" IS NULL;
+-- Exactly one cerebellum per (assistant, model, dtype) — non-partial:
+-- a soft-deleted row still reserves the key and must be restored (ERR05),
+-- never duplicated. NULLS NOT DISTINCT so WebLLM variants (dtype NULL)
+-- enforce the triple too.
+CREATE UNIQUE INDEX IF NOT EXISTS "ai_cerebellum_assistant_model_dtype_uq"
+  ON "public"."ai_cerebellum" ("assistant_key", "model_id", "dtype")
+  NULLS NOT DISTINCT;
 
 COMMENT ON TABLE public.ai_cerebellum IS 'Per-assistant tuning presets for AI models. NULL param columns inherit ai_models defaults.';
 COMMENT ON COLUMN public.ai_cerebellum.assistant_key IS 'Assistant identifier (e.g. regex, json_config)';
-COMMENT ON COLUMN public.ai_cerebellum.model_id IS 'FK → ai_models.model_id (business unique key)';
+COMMENT ON COLUMN public.ai_cerebellum.model_id IS 'FK → ai_models.model_id (business key part of the variant identity)';
+COMMENT ON COLUMN public.ai_cerebellum.dtype IS 'Model variant dtype (e.g. q4f16); NULL = WebLLM variant. Mirrors ai_models.dtype';
 COMMENT ON COLUMN public.ai_cerebellum.name IS 'i18n translation key resolving to the assistant display name (e.g. app.smart.json.ai.cerebellum_name) — shown in the chat footer';
 COMMENT ON COLUMN public.ai_cerebellum.enable_thinking IS 'NULL = inherit ai_models.enable_thinking';
 COMMENT ON COLUMN public.ai_cerebellum.temperature IS 'NULL = inherit ai_models.temperature';
@@ -114,12 +117,12 @@ END $$;
 -- assistant's display name, shown in the chat footer when a cerebellum
 -- exists for the active model.
 INSERT INTO "public"."ai_cerebellum" (
-  "assistant_key", "model_id", "name",
+  "assistant_key", "model_id", "dtype", "name",
   "is_default", "is_enabled", "sort_order",
   "created_by", "updated_by"
 ) VALUES
-  ('regex', 'onnx-community/Qwen2.5-Coder-3B-Instruct#q4f16', 'app.smart.regex.ai.cerebellum_name', true, true, 10, 'system', 'system'),
-  ('json_config', 'onnx-community/Qwen2.5-Coder-3B-Instruct#q4f16', 'app.smart.json.ai.cerebellum_name', true, true, 10, 'system', 'system')
+  ('regex', 'onnx-community/Qwen2.5-Coder-3B-Instruct', 'q4f16', 'app.smart.regex.ai.cerebellum_name', true, true, 10, 'system', 'system'),
+  ('json_config', 'onnx-community/Qwen2.5-Coder-3B-Instruct', 'q4f16', 'app.smart.json.ai.cerebellum_name', true, true, 10, 'system', 'system')
 ON CONFLICT DO NOTHING;
 
 COMMIT;

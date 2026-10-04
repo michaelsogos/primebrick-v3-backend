@@ -23,6 +23,6 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.power_level.disclaimer', 'es-ES', 'El valor sintético de la potencia real del modelo es la Clasificación (Rank).', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.power_level.disclaimer', 'de-DE', 'Der synthetische Wert für die tatsächliche Gesamtleistung des Modells ist der Rang (Classifica).', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.power_level.disclaimer', 'pt-PT', 'O valor sintético da potência real do modelo é a Classificação (Rank).', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+ON CONFLICT (key, language) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 COMMIT;

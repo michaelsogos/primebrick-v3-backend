@@ -33,6 +33,7 @@ const AI_CEREBELLUM_RAW_COLUMNS: AiCerebellumListColumn[] = [
   { key: "uuid", label_key: "system.entities.ai_cerebellum.fields.uuid", type: "text", order: -1, sortable: true, default_visible: false },
   { key: "assistant_key", label_key: "system.entities.ai_cerebellum.fields.assistant_key", type: "text", order: 0, sortable: true, hideable: false, filterable: true },
   { key: "model_id", label_key: "system.entities.ai_cerebellum.fields.model_id", type: "text", order: 1, sortable: true, filterable: true },
+  { key: "dtype", label_key: "system.entities.ai_cerebellum.fields.dtype", type: "text", order: 1.5, sortable: true, filterable: true },
   { key: "name", label_key: "system.entities.ai_cerebellum.fields.name", type: "text", order: 2, sortable: true, filterable: true },
   { key: "description_key", label_key: "system.entities.ai_cerebellum.fields.description_key", type: "text", order: 3, sortable: false, default_visible: false },
   {

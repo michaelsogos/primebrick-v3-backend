@@ -16,6 +16,6 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.empty', 'es-ES', 'No hay modelos en caché', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.empty', 'de-DE', 'Keine Modelle im Cache', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.empty', 'pt-PT', 'Nenhum modelo em cache', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+ON CONFLICT (key, language) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 COMMIT;

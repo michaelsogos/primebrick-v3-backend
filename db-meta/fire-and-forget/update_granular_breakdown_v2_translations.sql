@@ -23,7 +23,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.explainer.char_class_brackets', 'es-ES', 'Cualquier caracter contenido entre corchetes', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.char_class_brackets', 'de-DE', 'Beliebiges Zeichen zwischen den Klammern', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.char_class_brackets', 'pt-PT', 'Qualquer caractere contido entre os colchetes', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('app.smart.regex.explainer.char_class_negated_brackets', 'en-GB', 'Any character NOT contained between the brackets', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -32,7 +32,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.explainer.char_class_negated_brackets', 'es-ES', 'Cualquier caracter NO contenido entre corchetes', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.char_class_negated_brackets', 'de-DE', 'Beliebiges Zeichen NICHT zwischen den Klammern', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.explainer.char_class_negated_brackets', 'pt-PT', 'Qualquer caractere NAO contido entre os colchetes', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── UPDATE: 7 existing keys × 6 languages = 42 rows ──────────────────
 

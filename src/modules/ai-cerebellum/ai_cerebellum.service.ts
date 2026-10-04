@@ -48,6 +48,9 @@ export class AiCerebellumService {
             filters: [
               { field: "assistant_key", op: "=", value: body.assistant_key as string },
               { field: "model_id", op: "=", value: body.model_id as string },
+              ...(body.dtype !== undefined && body.dtype !== null
+                ? [{ field: "dtype", op: "=" as const, value: body.dtype as string }]
+                : []),
             ],
             page_size: 100,
           });

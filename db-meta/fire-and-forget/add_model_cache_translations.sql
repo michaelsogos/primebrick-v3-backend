@@ -31,7 +31,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.title', 'es-ES', 'Caché de modelos', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.title', 'de-DE', 'Modell-Cache', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.title', 'pt-PT', 'Cache de modelos', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.cache.cached ────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -41,7 +41,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.cached', 'es-ES', 'En caché', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.cached', 'de-DE', 'Im Cache', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.cached', 'pt-PT', 'Em cache', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.cache.not_cached ────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -51,7 +51,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.not_cached', 'es-ES', 'No en caché', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.not_cached', 'de-DE', 'Nicht im Cache', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.not_cached', 'pt-PT', 'Não em cache', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.cache.size ──────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -61,7 +61,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.size', 'es-ES', 'Tamaño', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.size', 'de-DE', 'Größe', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.size', 'pt-PT', 'Tamanho', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.cache.delete ────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -71,7 +71,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.delete', 'es-ES', 'Eliminar', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.delete', 'de-DE', 'Löschen', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.delete', 'pt-PT', 'Eliminar', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.cache.delete_all ────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -81,7 +81,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.delete_all', 'es-ES', 'Eliminar todo', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.delete_all', 'de-DE', 'Alle löschen', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.delete_all', 'pt-PT', 'Eliminar tudo', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.cache.storage_used ──────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -91,7 +91,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.storage_used', 'es-ES', 'Almacenamiento usado: {used} de {quota}', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.storage_used', 'de-DE', 'Speicher verwendet: {used} von {quota}', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.storage_used', 'pt-PT', 'Armazenamento usado: {used} de {quota}', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.cache.confirm_delete ────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -101,7 +101,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.confirm_delete', 'es-ES', '¿Eliminar este modelo de la caché?', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.confirm_delete', 'de-DE', 'Dieses Modell aus dem Cache löschen?', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.confirm_delete', 'pt-PT', 'Eliminar este modelo da cache?', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.cache.confirm_delete_all ────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -111,7 +111,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.confirm_delete_all', 'es-ES', '¿Eliminar todos los modelos de la caché? El modelo activo se mantendrá.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.confirm_delete_all', 'de-DE', 'Alle Modelle aus dem Cache löschen? Das aktive Modell wird behalten.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.confirm_delete_all', 'pt-PT', 'Eliminar todos os modelos da cache? O modelo ativo será mantido.', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.cache.in_use ────────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -121,7 +121,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.in_use', 'es-ES', 'Este modelo está en uso. Cambia a otro modelo antes de eliminarlo.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.in_use', 'de-DE', 'Dieses Modell wird verwendet. Wechseln Sie zu einem anderen Modell, bevor Sie es löschen.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.in_use', 'pt-PT', 'Este modelo está em uso. Mude para outro modelo antes de eliminá-lo.', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.cache.deleted ───────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -131,7 +131,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.deleted', 'es-ES', 'Modelo eliminado de la caché', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.deleted', 'de-DE', 'Modell aus dem Cache gelöscht', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.deleted', 'pt-PT', 'Modelo eliminado da cache', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.cache.deleted_all ───────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -141,7 +141,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.deleted_all', 'es-ES', 'Todos los modelos eliminados de la caché (excepto el activo)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.deleted_all', 'de-DE', 'Alle Modelle aus dem Cache gelöscht (außer dem aktiven)', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.deleted_all', 'pt-PT', 'Todos os modelos eliminados da cache (exceto o ativo)', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── app.smart.regex.ai.cache.refresh ───────────────────────────────
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -151,6 +151,6 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.smart.regex.ai.cache.refresh', 'es-ES', 'Actualizar', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.refresh', 'de-DE', 'Aktualisieren', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.smart.regex.ai.cache.refresh', 'pt-PT', 'Atualizar', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

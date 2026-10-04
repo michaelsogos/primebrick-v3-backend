@@ -89,7 +89,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.sort_name', 'es-ES', 'Nombre A–Z', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.sort_name', 'de-DE', 'Name A–Z', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.sort_name', 'pt-PT', 'Nome A–Z', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- NOTE: out-of-band write — invalidate Redis after running:
 --   redis-cli --scan --pattern "translations:i18n:system:*" | xargs redis-cli DEL

@@ -30,6 +30,12 @@ const DocsSearchBodySchema = z.object({
   /** Caller's similarity floor — doc-graph expansion only follows links of
    *  hits that cleared it (a no-coverage question must stay uncovered). */
   min_similarity: zBoundedNumber(0, 1).optional(),
+  /** Rank-tuning overrides (bounded) — per-assistant retrieval balance. */
+  keyword_boost: zBoundedNumber(0, 1).optional(),
+  lexical_boost: zBoundedNumber(0, 1).optional(),
+  lex_match_min: zBoundedNumber(0, 1).optional(),
+  oversample: zBoundedInt(1, 10).optional(),
+  graph_max_paths: zBoundedInt(0, 20).optional(),
 });
 
 export function docsSearchRouter() {

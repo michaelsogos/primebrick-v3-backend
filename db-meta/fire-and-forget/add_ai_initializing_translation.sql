@@ -12,7 +12,7 @@ VALUES
   ('app.common.ai.initializing','es-ES','Inicializando...','system_migration','system_migration'),
   ('app.common.ai.initializing','de-DE','Initialisierung...','system_migration','system_migration'),
   ('app.common.ai.initializing','pt-PT','A inicializar...','system_migration','system_migration')
-ON CONFLICT (key, language) WHERE deleted_at IS NULL
+ON CONFLICT (key, language)
 DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 COMMIT;

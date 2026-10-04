@@ -18,7 +18,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.phonePrefixSelect.title', 'es-ES', 'Seleccionar Prefijo', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.phonePrefixSelect.title', 'de-DE', 'Vorwahl Auswählen', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.phonePrefixSelect.title', 'pt-PT', 'Selecionar Indicativo', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── phonePrefixSelect.searchPlaceholder ───────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -29,7 +29,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.phonePrefixSelect.searchPlaceholder', 'es-ES', 'Buscar país o prefijo...', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.phonePrefixSelect.searchPlaceholder', 'de-DE', 'Land oder Vorwahl suchen...', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.phonePrefixSelect.searchPlaceholder', 'pt-PT', 'Pesquisar país ou indicativo...', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── phonePrefixSelect.noResults ───────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -40,7 +40,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.phonePrefixSelect.noResults', 'es-ES', 'No se encontraron países', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.phonePrefixSelect.noResults', 'de-DE', 'Keine Länder gefunden', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.phonePrefixSelect.noResults', 'pt-PT', 'Nenhum país encontrado', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── phonePrefixSelect.suggested (supported-UI-language prefixes, sticky) ──
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -51,7 +51,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.phonePrefixSelect.suggested', 'es-ES', 'Sugeridos', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.phonePrefixSelect.suggested', 'de-DE', 'Vorgeschlagen', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.phonePrefixSelect.suggested', 'pt-PT', 'Sugeridos', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── phonePrefixSelect.allCountries ────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -62,7 +62,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.phonePrefixSelect.allCountries', 'es-ES', 'Todos los Países', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.phonePrefixSelect.allCountries', 'de-DE', 'Alle Länder', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.phonePrefixSelect.allCountries', 'pt-PT', 'Todos os Países', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── phonePrefixSelect.sortByName / sortByPrefix (sort toggle) ─────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -80,7 +80,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.phonePrefixSelect.sortByPrefix', 'es-ES', 'Ordenar por prefijo', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.phonePrefixSelect.sortByPrefix', 'de-DE', 'Nach Vorwahl sortieren', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.phonePrefixSelect.sortByPrefix', 'pt-PT', 'Ordenar por indicativo', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── protocolSelect.title ──────────────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -91,7 +91,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.protocolSelect.title', 'es-ES', 'Seleccionar Protocolo', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.title', 'de-DE', 'Protokoll Auswählen', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.title', 'pt-PT', 'Selecionar Protocolo', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── protocolSelect.noResults ──────────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -102,6 +102,6 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.protocolSelect.noResults', 'es-ES', 'No hay protocolos disponibles', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.noResults', 'de-DE', 'Keine Protokolle verfügbar', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.protocolSelect.noResults', 'pt-PT', 'Nenhum protocolo disponível', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

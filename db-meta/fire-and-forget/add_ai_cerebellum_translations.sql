@@ -23,7 +23,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.title', 'es-ES', 'Cerebello IA', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.title', 'de-DE', 'KI-Kleinhirn', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.title', 'pt-PT', 'Cerebelo IA', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── Field labels ────────────────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -33,7 +33,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.assistant_key', 'es-ES', 'Asistente', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.assistant_key', 'de-DE', 'Assistent', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.assistant_key', 'pt-PT', 'Assistente', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_cerebellum.fields.model_id', 'en-GB', 'Model ID', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -42,7 +42,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.model_id', 'es-ES', 'ID Modelo', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.model_id', 'de-DE', 'Modell-ID', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.model_id', 'pt-PT', 'ID Modelo', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_cerebellum.fields.name', 'en-GB', 'Tuning Name', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -51,7 +51,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.name', 'es-ES', 'Nombre de ajuste', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.name', 'de-DE', 'Tuning-Name', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.name', 'pt-PT', 'Nome do ajuste', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_cerebellum.fields.description_key', 'en-GB', 'Description Key', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -60,7 +60,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.description_key', 'es-ES', 'Clave de descripción', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.description_key', 'de-DE', 'Beschreibungsschlüssel', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.description_key', 'pt-PT', 'Chave de descrição', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_cerebellum.fields.enable_thinking', 'en-GB', 'Thinking', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -69,7 +69,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.enable_thinking', 'es-ES', 'Thinking', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.enable_thinking', 'de-DE', 'Thinking', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.enable_thinking', 'pt-PT', 'Thinking', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_cerebellum.fields.temperature', 'en-GB', 'Temperature', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -78,7 +78,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.temperature', 'es-ES', 'Temperatura', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.temperature', 'de-DE', 'Temperatur', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.temperature', 'pt-PT', 'Temperatura', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_cerebellum.fields.top_p', 'en-GB', 'Top P', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -87,7 +87,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.top_p', 'es-ES', 'Top P', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.top_p', 'de-DE', 'Top P', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.top_p', 'pt-PT', 'Top P', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_cerebellum.fields.max_tokens', 'en-GB', 'Max Tokens', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -96,7 +96,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.max_tokens', 'es-ES', 'Tokens máximos', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.max_tokens', 'de-DE', 'Max. Tokens', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.max_tokens', 'pt-PT', 'Tokens máximos', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_cerebellum.fields.repetition_penalty', 'en-GB', 'Repetition Penalty', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -105,7 +105,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.repetition_penalty', 'es-ES', 'Penalización de repetición', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.repetition_penalty', 'de-DE', 'Wiederholungsstrafe', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.repetition_penalty', 'pt-PT', 'Penalidade de repetição', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_cerebellum.fields.is_default', 'en-GB', 'Default Tuning', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -114,7 +114,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.is_default', 'es-ES', 'Ajuste predeterminado', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.is_default', 'de-DE', 'Standard-Tuning', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.is_default', 'pt-PT', 'Ajuste padrão', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_cerebellum.fields.is_enabled', 'en-GB', 'Enabled', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -123,7 +123,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.is_enabled', 'es-ES', 'Habilitado', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.is_enabled', 'de-DE', 'Aktiviert', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.is_enabled', 'pt-PT', 'Habilitado', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_cerebellum.fields.sort_order', 'en-GB', 'Sort Order', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -132,7 +132,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.sort_order', 'es-ES', 'Orden de clasificación', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.sort_order', 'de-DE', 'Sortierreihenfolge', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.sort_order', 'pt-PT', 'Ordem de classificação', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── Auditing field labels ───────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -184,7 +184,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.deleted_by', 'es-ES', 'Eliminado por', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.deleted_by', 'de-DE', 'Gelöscht von', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.fields.deleted_by', 'pt-PT', 'Excluído por', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── Badge values ────────────────────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -224,6 +224,6 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.enabled.false', 'es-ES', 'Deshabilitado', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.enabled.false', 'de-DE', 'Deaktiviert', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_cerebellum.enabled.false', 'pt-PT', 'Desabilitado', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

@@ -21,7 +21,7 @@ WITH localized(key, en_gb, it_it, fr_fr, es_es, de_de, pt_pt) AS (
 INSERT INTO system.translations (key, language, value, created_by, updated_by)
 SELECT key, language, value, 'system_migration', 'system_migration'
 FROM expanded
-ON CONFLICT (key, language) WHERE deleted_at IS NULL
+ON CONFLICT (key, language)
 DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by;
 
 COMMIT;

@@ -37,7 +37,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
 ('system.settings.config.typeConfig.minErrorLabelKey', 'de-DE', 'Übersetzungsschlüssel für „min_length"-Fehler', '2026-09-06T00:00:00Z', 'initial-setup', '2026-09-06T00:00:00Z', 'initial-setup', 1),
 ('system.settings.config.typeConfig.minErrorLabelKey', 'es-ES', 'Clave de traducción para el error «min_length»', '2026-09-06T00:00:00Z', 'initial-setup', '2026-09-06T00:00:00Z', 'initial-setup', 1),
 ('system.settings.config.typeConfig.minErrorLabelKey', 'pt-PT', 'Chave de tradução para o erro «min_length»', '2026-09-06T00:00:00Z', 'initial-setup', '2026-09-06T00:00:00Z', 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL
+ON CONFLICT (key, language)
 DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by, version = system.translations.version + 1;
 
 -- ─── New keys: maxErrorLabelKey ───────────────────────────────────
@@ -48,7 +48,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
 ('system.settings.config.typeConfig.maxErrorLabelKey', 'de-DE', 'Übersetzungsschlüssel für „max_length"-Fehler', '2026-09-06T00:00:00Z', 'initial-setup', '2026-09-06T00:00:00Z', 'initial-setup', 1),
 ('system.settings.config.typeConfig.maxErrorLabelKey', 'es-ES', 'Clave de traducción para el error «max_length»', '2026-09-06T00:00:00Z', 'initial-setup', '2026-09-06T00:00:00Z', 'initial-setup', 1),
 ('system.settings.config.typeConfig.maxErrorLabelKey', 'pt-PT', 'Chave de tradução para o erro «max_length»', '2026-09-06T00:00:00Z', 'initial-setup', '2026-09-06T00:00:00Z', 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL
+ON CONFLICT (key, language)
 DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by, version = system.translations.version + 1;
 
 -- ─── New keys: urlErrorLabelKey ───────────────────────────────────
@@ -59,7 +59,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
 ('system.settings.config.typeConfig.urlErrorLabelKey', 'de-DE', 'Übersetzungsschlüssel für „invalid_url"-Fehler', '2026-09-06T00:00:00Z', 'initial-setup', '2026-09-06T00:00:00Z', 'initial-setup', 1),
 ('system.settings.config.typeConfig.urlErrorLabelKey', 'es-ES', 'Clave de traducción para el error «invalid_url»', '2026-09-06T00:00:00Z', 'initial-setup', '2026-09-06T00:00:00Z', 'initial-setup', 1),
 ('system.settings.config.typeConfig.urlErrorLabelKey', 'pt-PT', 'Chave de tradução para o erro «invalid_url»', '2026-09-06T00:00:00Z', 'initial-setup', '2026-09-06T00:00:00Z', 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL
+ON CONFLICT (key, language)
 DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by, version = system.translations.version + 1;
 
 -- ─── New keys: regexErrorLabelKey ─────────────────────────────────
@@ -70,7 +70,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
 ('system.settings.config.typeConfig.regexErrorLabelKey', 'de-DE', 'Übersetzungsschlüssel für „regex_mismatch"-Fehler', '2026-09-06T00:00:00Z', 'initial-setup', '2026-09-06T00:00:00Z', 'initial-setup', 1),
 ('system.settings.config.typeConfig.regexErrorLabelKey', 'es-ES', 'Clave de traducción para el error «regex_mismatch»', '2026-09-06T00:00:00Z', 'initial-setup', '2026-09-06T00:00:00Z', 'initial-setup', 1),
 ('system.settings.config.typeConfig.regexErrorLabelKey', 'pt-PT', 'Chave de tradução para o erro «regex_mismatch»', '2026-09-06T00:00:00Z', 'initial-setup', '2026-09-06T00:00:00Z', 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL
+ON CONFLICT (key, language)
 DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by, version = system.translations.version + 1;
 
 -- ─── Clean "(optional)" from requiredErrorLabelKey ────────────────

@@ -37,6 +37,6 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('app.auth.login.refreshing_token_hint', 'es-ES', 'Restaurando tu sesión…', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.auth.login.refreshing_token_hint', 'de-DE', 'Sitzung wird wiederhergestellt…', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('app.auth.login.refreshing_token_hint', 'pt-PT', 'A restaurar a sua sessão…', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+ON CONFLICT (key, language) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 COMMIT;

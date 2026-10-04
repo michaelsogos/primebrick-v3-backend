@@ -12,7 +12,7 @@ VALUES
   ('app.smart.regex.ai.cancelLoad','es-ES','Cancelar','system_migration','system_migration'),
   ('app.smart.regex.ai.cancelLoad','de-DE','Abbrechen','system_migration','system_migration'),
   ('app.smart.regex.ai.cancelLoad','pt-PT','Cancelar','system_migration','system_migration')
-ON CONFLICT (key, language) WHERE deleted_at IS NULL
+ON CONFLICT (key, language)
 DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 COMMIT;

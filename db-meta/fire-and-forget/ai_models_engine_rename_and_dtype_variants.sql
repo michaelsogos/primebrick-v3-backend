@@ -101,6 +101,6 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.engine_type.webllm', 'es-ES', 'WebLLM', now(), 'migration-dtype-variants', now(), 'migration-dtype-variants', 1),
   ('system.entities.ai_model.engine_type.webllm', 'de-DE', 'WebLLM', now(), 'migration-dtype-variants', now(), 'migration-dtype-variants', 1),
   ('system.entities.ai_model.engine_type.webllm', 'pt-PT', 'WebLLM', now(), 'migration-dtype-variants', now(), 'migration-dtype-variants', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

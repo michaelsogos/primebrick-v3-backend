@@ -126,6 +126,6 @@ WITH localized(key_suffix, en_gb, it_it, fr_fr, es_es, de_de, pt_pt) AS (
 INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version)
 SELECT key, language, value, now(), 'initial-setup', now(), 'initial-setup', 1
 FROM expanded
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

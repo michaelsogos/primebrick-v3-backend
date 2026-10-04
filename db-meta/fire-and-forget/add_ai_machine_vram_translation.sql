@@ -10,7 +10,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.ai.machine.vram', 'es-ES', 'VRAM', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.ai.machine.vram', 'de-DE', 'VRAM', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.ai.machine.vram', 'pt-PT', 'VRAM', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 -- NOTE: out-of-band write — invalidate Redis after running:
 --   redis-cli --scan --pattern "translations:i18n:system:*" | xargs redis-cli DEL

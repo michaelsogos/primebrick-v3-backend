@@ -12,6 +12,6 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('app.common.inherit', 'es-ES', 'heredado', now(), 'devin', now(), 'devin', 1),
   ('app.common.inherit', 'de-DE', 'vererbt', now(), 'devin', now(), 'devin', 1),
   ('app.common.inherit', 'pt-PT', 'herdado', now(), 'devin', now(), 'devin', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

@@ -39,6 +39,6 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_cerebellum.fields.max_history_turns', 'es-ES', 'Turnos de Historial Máx', now(), 'devin', now(), 'devin', 1),
   ('system.entities.ai_cerebellum.fields.max_history_turns', 'de-DE', 'Max. Verlaufsschritte', now(), 'devin', now(), 'devin', 1),
   ('system.entities.ai_cerebellum.fields.max_history_turns', 'pt-PT', 'Máx. Turnos de Histórico', now(), 'devin', now(), 'devin', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

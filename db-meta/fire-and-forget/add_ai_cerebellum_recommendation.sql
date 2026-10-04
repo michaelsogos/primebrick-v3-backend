@@ -16,15 +16,15 @@ ALTER TABLE ai_cerebellum ADD COLUMN IF NOT EXISTS recommendation varchar(20) NU
 
 -- Seed values: empirically validated E2E tunings (see test_scores evidence).
 UPDATE ai_cerebellum SET recommendation = 'RECOMMENDED', version = version + 1, updated_at = now(), updated_by = 'devin'
-  WHERE deleted_at IS NULL AND assistant_key = 'regex'
+  WHERE deleted_at IS NULL AND assistant_key = 'regex' AND dtype = 'q4f16'
     AND model_id IN (
-      'onnx-community/Qwen2.5-Coder-3B-Instruct#q4f16',
-      'onnx-community/Phi-3.5-mini-instruct-ONNX-GQA#q4f16'
+      'onnx-community/Qwen2.5-Coder-3B-Instruct',
+      'onnx-community/Phi-3.5-mini-instruct-ONNX-GQA'
     );
 
 UPDATE ai_cerebellum SET recommendation = 'NOT_RECOMMENDED', version = version + 1, updated_at = now(), updated_by = 'devin'
-  WHERE deleted_at IS NULL AND assistant_key = 'json_config'
-    AND model_id = 'onnx-community/Phi-3.5-mini-instruct-ONNX-GQA#q4f16';
+  WHERE deleted_at IS NULL AND assistant_key = 'json_config' AND dtype = 'q4f16'
+    AND model_id = 'onnx-community/Phi-3.5-mini-instruct-ONNX-GQA';
 
 -- ─── Badge labels (× 6 languages) ────────────────────────────────────
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
@@ -40,6 +40,6 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('app.smart.ai.cerebellum.not_recommended', 'es-ES', 'No recomendado', now(), 'devin', now(), 'devin', 1),
   ('app.smart.ai.cerebellum.not_recommended', 'de-DE', 'Nicht empfohlen', now(), 'devin', now(), 'devin', 1),
   ('app.smart.ai.cerebellum.not_recommended', 'pt-PT', 'Não recomendado', now(), 'devin', now(), 'devin', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;

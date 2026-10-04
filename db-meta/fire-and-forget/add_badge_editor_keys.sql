@@ -76,6 +76,6 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.settings.config.typeConfig.badgeCodeInvalid', 'es-ES', 'Letras, números y guiones bajos, todo en minúsculas o todo en mayúsculas — p. ej. active, NOT_COMPATIBLE, 1.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.typeConfig.badgeCodeInvalid', 'de-DE', 'Buchstaben, Zahlen und Unterstriche, alles klein oder alles groß — z. B. active, NOT_COMPATIBLE, 1.', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.config.typeConfig.badgeCodeInvalid', 'pt-PT', 'Letras, números e underscores, tudo minúsculo ou tudo maiúsculo — ex. active, NOT_COMPATIBLE, 1.', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+ON CONFLICT (key, language) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 COMMIT;

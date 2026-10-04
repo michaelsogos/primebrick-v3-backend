@@ -8,7 +8,7 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.fields.rank', 'es-ES', 'Clasificación', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.fields.rank', 'de-DE', 'Rang', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.fields.rank', 'pt-PT', 'Classificação', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
 
 INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.entities.ai_model.fields.test_scores', 'en-GB', 'Test Scores', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -17,4 +17,4 @@ INSERT INTO system.translations (key, language, value, created_at, created_by, u
   ('system.entities.ai_model.fields.test_scores', 'es-ES', 'Puntuaciones de Test', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.fields.test_scores', 'de-DE', 'Testergebnisse', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.entities.ai_model.fields.test_scores', 'pt-PT', 'Pontuações de Teste', now(), 'initial-setup', now(), 'initial-setup', 1)
-ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;
+ON CONFLICT (key, language) DO NOTHING;
