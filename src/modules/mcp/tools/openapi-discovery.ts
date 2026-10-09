@@ -8,6 +8,7 @@
  */
 
 import { logger } from "@primebrick/sdk";
+import { backendIdentityHeaders } from "../../proxy/backend-identity.js";
 import type { Operation } from "./entity-registry.js";
 
 /** Entity info extracted from a microservice's OpenAPI spec. */
@@ -140,9 +141,21 @@ export function discoverEntitiesFromSpec(spec: {
 export async function discoverEntitiesFromService(baseUrl: string): Promise<DiscoveredEntity[]> {
   const specUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/openapi.json`;
   try {
-    const response = await fetch(specUrl, { signal: AbortSignal.timeout(5000) });
+    // Internal BE→US call: carry the BE service identity (UA + client key)
+    // or the US identity gate rejects it before we ever see a spec.
+    const response = await fetch(specUrl, {
+      signal: AbortSignal.timeout(5000),
+      headers: backendIdentityHeaders(),
+    });
     if (!response.ok) {
-      logger.warn(`Failed to fetch OpenAPI spec from ${specUrl}`, { tags: ["mcp", `${response.status}`] });
+      // The gate answers RFC7807 — surface the real reason (e.g.
+      // UNKNOWN_CLIENT, INVALID_CLIENT_KEY) instead of a bare status.
+      let reason = "request rejected";
+      try {
+        const problem = (await response.json()) as { internal_code?: string; code?: string; title?: string };
+        reason = problem.internal_code ?? problem.code ?? problem.title ?? reason;
+      } catch { /* body not json */ }
+      logger.warn(`OpenAPI discovery rejected by ${specUrl}`, { tags: ["mcp", `${response.status}`], reason });
       return [];
     }
     const spec = await response.json();

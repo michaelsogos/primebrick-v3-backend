@@ -15,6 +15,7 @@ import { Router } from "express";
 import { openapi } from "./openapi.js";
 import { getPool } from "../db/pool.js";
 import { ServiceRegistryRepo } from "../modules/proxy/service-registry-repo.js";
+import { backendIdentityHeaders } from "../modules/proxy/backend-identity.js";
 
 // In-memory cache to avoid hammering microservices on every request
 let cachedSpec: { spec: unknown; timestamp: number } | null = null;
@@ -57,7 +58,10 @@ export function aggregatedOpenApiRouter() {
 
       try {
         const specUrl = new URL("/api/v1/openapi.json", svc.base_url).toString();
-        const response = await fetch(specUrl, { signal: AbortSignal.timeout(5000) });
+        const response = await fetch(specUrl, {
+          signal: AbortSignal.timeout(5000),
+          headers: backendIdentityHeaders(),
+        });
         if (!response.ok) {
           logger.error(`${svc.code} returned non-OK status`, { tags: ["openapi", `${response.status}`] });
           continue;
