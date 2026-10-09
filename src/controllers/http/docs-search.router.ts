@@ -21,12 +21,19 @@ import { validateBody, zBoundedInt, zBoundedNumber } from "../../http/validation
 import { DocsSearchService } from "../../modules/system/docs-search.service.js";
 
 const DocsSearchBodySchema = z.object({
+  /** Raw query text — the BE embeds it via the AI microservice. The FE
+   *  never computes embeddings. */
+  query: z.string().min(1).max(2000).optional(),
   // extJsonBodyParser decodes every integer as bigint — embedding elements
   // that happen to serialize without decimals (0, 1) arrive as bigint too.
-  embedding: z.array(zBoundedNumber(-10, 10)).min(1),
+  embedding: z.array(zBoundedNumber(-10, 10)).min(1).optional(),
   keywords: z.array(z.string()).optional(),
   limit: zBoundedInt(1, 20).optional(),
   repo: z.string().optional(),
+  /** Corpus scoping inside the SQL candidate window — callers that filter
+   *  client-side AFTER top-N get empty sets when foreign docs outrank the
+   *  in-scope ones (observed: dev RBAC docs saturating a guide search). */
+  path_prefix: z.string().max(200).optional(),
   /** Caller's similarity floor — doc-graph expansion only follows links of
    *  hits that cleared it (a no-coverage question must stay uncovered). */
   min_similarity: zBoundedNumber(0, 1).optional(),
@@ -52,7 +59,7 @@ export function docsSearchRouter() {
     rbacHandler([Permission.AUTHENTICATED_USER]),
     validateBody(DocsSearchBodySchema),
     asyncHandler(async (req, res) => {
-      const results = await service.search(req.body);
+      const results = await service.search(req.body, req.user);
       res.json({ results });
     }),
   );

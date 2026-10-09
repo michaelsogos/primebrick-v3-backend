@@ -60,6 +60,7 @@ const {
 
 vi.mock("@primebrick/sdk", () => ({
   requireActor: () => "test-actor-uuid",
+  logger: { debug: vi.fn(), info: vi.fn(), done: vi.fn(), warn: vi.fn(), error: vi.fn() },
   runAsSystem: vi.fn((fn) => fn()),
   getAuthConfig: vi.fn().mockReturnValue({
     mode: "casdoor",

@@ -7,6 +7,7 @@
  * microservice entities in the MCP entity registry when services come online.
  */
 
+import { logger } from "@primebrick/sdk";
 import type { Operation } from "./entity-registry.js";
 
 /** Entity info extracted from a microservice's OpenAPI spec. */
@@ -141,15 +142,15 @@ export async function discoverEntitiesFromService(baseUrl: string): Promise<Disc
   try {
     const response = await fetch(specUrl, { signal: AbortSignal.timeout(5000) });
     if (!response.ok) {
-      console.warn(`Failed to fetch OpenAPI spec from ${specUrl}: ${response.status}`);
+      logger.warn(`Failed to fetch OpenAPI spec from ${specUrl}`, { tags: ["mcp", `${response.status}`] });
       return [];
     }
     const spec = await response.json();
     const entities = discoverEntitiesFromSpec(spec);
-    console.log(`Discovered ${entities.length} entities from ${specUrl}: ${entities.map((e) => e.entity).join(", ")}`);
+    logger.info(`Discovered ${entities.length} entities from ${specUrl}: ${entities.map((e) => e.entity).join(", ")}`, { tags: ["mcp"] });
     return entities;
   } catch (err) {
-    console.warn(`Error fetching OpenAPI spec from ${specUrl}:`, err instanceof Error ? err.message : String(err));
+    logger.warn(`Error fetching OpenAPI spec from ${specUrl}:`, { tags: ["mcp"], error: err instanceof Error ? err.message : String(err) });
     return [];
   }
 }

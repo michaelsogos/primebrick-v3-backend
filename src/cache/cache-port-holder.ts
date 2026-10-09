@@ -30,7 +30,7 @@ export async function initCache(
   logger: CacheLogger,
 ): Promise<void> {
   if (!redisUrl) {
-    logger.warn("redis_url not set — cache disabled (best-effort, system valid without it)");
+    logger.warn("redis_url not set — cache disabled (best-effort, system valid without it)", { tags: ["core"] });
     return;
   }
   try {
@@ -38,12 +38,12 @@ export async function initCache(
     cachePort = new RedisCachePort(redis);
     redisInfo = await getRedisInfo(redis);
     if (redisInfo) {
-      logger.info(`Redis connected (v${redisInfo.version})`);
+      (logger.done ?? logger.info).call(logger, `Redis connected (v${redisInfo.version})`, { tags: ["core"] });
     } else {
-      logger.info("Redis connected (version unknown)");
+      (logger.done ?? logger.info).call(logger, "Redis connected (version unknown)", { tags: ["core"] });
     }
   } catch (err) {
-    logger.warn(`Redis connection failed — cache disabled: ${err}`);
+    logger.warn(`Redis connection failed — cache disabled: ${err}`, { tags: ["core"] });
     // cachePort stays null — all cache calls are no-ops
   }
 }

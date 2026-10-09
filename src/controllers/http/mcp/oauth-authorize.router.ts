@@ -16,6 +16,7 @@
  * 9. If user denies → FE redirects directly to the AI client's redirect_uri with error=access_denied
  */
 
+import { logger } from "@primebrick/sdk";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { getAuthConfig } from "@primebrick/sdk";
 import { OAuthClientService } from "../../../modules/mcp/oauth/oauth-client.service.js";
@@ -175,7 +176,7 @@ export function authorizeRouter(): Router {
       // Redirect to Casdoor's authorize endpoint
       res.redirect(302, `${casdoorAuthorizeUrl}?${casdoorParams.toString()}`);
     } catch (err) {
-      console.error("Error:", err);
+      logger.error("Error:", { tags: ["mcp"], error: err });
       sendJson(res, 500, {
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Authorization failed",
@@ -244,7 +245,7 @@ export function authorizeRouter(): Router {
 
       res.redirect(302, `${state.client_redirect_uri}?${clientParams.toString()}`);
     } catch (err) {
-      console.error("Error:", err);
+      logger.error("Error:", { tags: ["mcp"], error: err });
       sendJson(res, 500, {
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Callback failed",
@@ -254,7 +255,7 @@ export function authorizeRouter(): Router {
 
   // Router-level error handler
   router.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("Unhandled error:", err);
+    logger.error("Unhandled error:", { tags: ["mcp"], error: err });
     sendJson(res, 500, { error: "server_error", error_description: err.message });
   });
 

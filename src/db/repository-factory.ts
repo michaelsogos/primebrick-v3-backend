@@ -12,14 +12,15 @@
  * since they're not `@Cached`.
  */
 
+import { logger } from "@primebrick/sdk";
 import type { Pool } from "pg";
 import { Repository } from "@primebrick/dal-pg";
 import { withCache, type CacheableRepository, type CacheLogger } from "@primebrick/sdk";
 import { getCachePort } from "../cache/cache-port-holder.js";
 
-const logger: CacheLogger = {
-  warn: console.warn.bind(console),
-  info: console.info.bind(console),
+const cacheLogger: CacheLogger = {
+  warn: logger.warn.bind(logger),
+  info: logger.info.bind(logger),
 };
 
 /**

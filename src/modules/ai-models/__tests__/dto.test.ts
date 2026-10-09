@@ -17,7 +17,7 @@ describe("AiModelUpdateBodySchema", () => {
       expect("temperature" in r.data).toBe(false);
       expect("engine_type" in r.data).toBe(false);
       expect("rank" in r.data).toBe(false);
-      expect("compatibility_status" in r.data).toBe(false);
+      expect("is_compatible" in r.data).toBe(false);
     }
   });
 
@@ -57,13 +57,13 @@ describe("AiModelUpdateBodySchema", () => {
       model_id: "onnx-community/Qwen2.5-Coder-3B-Instruct",
       dtype: "q4f16",
       engine_type: "onnx",
-      compatibility_status: "COMPATIBLE",
+      is_compatible: true,
       version: 43n,
     });
     expect(r.success).toBe(true);
     if (r.success) {
       expect(r.data.engine_type).toBe("onnx");
-      expect(r.data.compatibility_status).toBe("COMPATIBLE");
+      expect(r.data.is_compatible).toBe(true);
     }
   });
 });

@@ -103,8 +103,8 @@ const AI_MODEL_RAW_COLUMNS: AiModelListColumn[] = [
   { key: "download_size_mb", label_key: "system.entities.ai_model.fields.download_size_mb", type: "text", order: 12, sortable: true, default_visible: true },
   { key: "vram_mb", label_key: "system.entities.ai_model.fields.vram_mb", type: "text", order: 13, sortable: true, default_visible: true },
   {
-    key: "compatibility_status",
-    label_key: "system.entities.ai_model.fields.compatibility_status",
+    key: "is_compatible",
+    label_key: "system.entities.ai_model.fields.is_compatible",
     type: "badge",
     order: 14,
     sortable: true,
@@ -113,8 +113,8 @@ const AI_MODEL_RAW_COLUMNS: AiModelListColumn[] = [
     filterable: true,
     badge: {
       values: {
-        COMPATIBLE: { label_key: "system.entities.ai_model.compatibility.COMPATIBLE", color: "emerald-300" },
-        NOT_COMPATIBLE: { label_key: "system.entities.ai_model.compatibility.NOT_COMPATIBLE", color: "rose-300" },
+        true: { label_key: "system.entities.ai_model.compatibility.COMPATIBLE", color: "emerald-300" },
+        false: { label_key: "system.entities.ai_model.compatibility.NOT_COMPATIBLE", color: "rose-300" },
       },
     },
   },

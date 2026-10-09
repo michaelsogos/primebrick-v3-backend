@@ -5,6 +5,7 @@
  * methods only — no custom non-standard finders, no raw SQL strings.
  */
 
+import { logger } from "@primebrick/sdk";
 import type { Pool, PoolClient } from "pg";
 import { field, Filter, Sort, buildAuditableJoinsSelective, Repository } from "@primebrick/dal-pg";
 import { type CacheEntry, wrapCacheEntry } from "@primebrick/sdk";
@@ -435,11 +436,10 @@ export class ConfigEntriesDal {
       const { applyTelemetryConfigFromDb } = await import("../../observability/telemetry.js");
       await applyTelemetryConfigFromDb();
     } catch (err) {
-      console.warn(
+      logger.warn(
         "Failed to reload auth config cache after write. " +
           "The DB was updated but the in-memory cache is stale — restart the server to pick up the change.",
-        err,
-      );
+      { tags: ["auth"], error: err });
     }
   }
 }

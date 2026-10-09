@@ -22,6 +22,7 @@
  *   service returns `null` and logs a single warning (no spam on every call).
  */
 
+import { logger } from "@primebrick/sdk";
 import type { Pool } from "pg";
 import { CasdoorApiClient } from "../casdoor-api-client.js";
 import { getAuthConfig } from "../config.js";
@@ -60,7 +61,7 @@ export class CasdoorService {
       const adminClientId = clientIdRow?.value;
       const adminClientSecret = clientSecretRow?.value;
       if (!adminClientId || !adminClientSecret) {
-        console.warn("Admin credentials not configured; skipping Casdoor sync");
+        logger.warn("Admin credentials not configured; skipping Casdoor sync", { tags: ["casdoor"] });
         return null;
       }
       this.client = new CasdoorApiClient({
@@ -71,7 +72,7 @@ export class CasdoorService {
       });
       return this.client;
     } catch (error) {
-      console.error("Failed to create Casdoor API client:", error);
+      logger.error("Failed to create Casdoor API client:", { tags: ["casdoor"], error: error });
       return null;
     }
   }

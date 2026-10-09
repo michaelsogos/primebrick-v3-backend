@@ -39,14 +39,15 @@ export function logMcpStartupInfo(): void {
 
   // One logger call per line — the console bridge timestamps each call, so a
   // single multi-line message would leave every line after the first bare.
-  logger.info(`Server initialized — ${MCP_TOOL_NAMES.length} tools available:`);
-  for (const name of MCP_TOOL_NAMES) logger.info(`    - ${name}`);
-  logger.info(`Registered entities (${entityCount} across ${modules.length} module(s)):`);
+  logger.done(`Server initialized — ${MCP_TOOL_NAMES.length} tools available:`, { tags: ["mcp"] });
+  for (const name of MCP_TOOL_NAMES) logger.info(`  - ${name}`, { tags: ["mcp"] });
+  logger.info(`Entities registered across ${modules.length} module(s):`, { tags: ["mcp"] });
   for (const m of modules) {
-    logger.info(`    ${m.module}: ${m.entities.map((e) => e.entity).join(", ")}`);
+    const ref = m.entities[0]?.source_ref ?? m.module;
+    logger.info(`  - ${ref}`, { tags: ["mcp"] });
+    for (const e of m.entities) logger.info(`    - ${e.impl ?? e.entity}`, { tags: ["mcp"] });
   }
-  logger.info("Endpoint: POST /mcp (Streamable HTTP, stateless mode)");
-  logger.info("Auth: Bearer token (Casdoor JWT via requireBearerAuth)");
+  logger.info("Endpoint: POST /mcp (Streamable HTTP, stateless mode)", { tags: ["mcp"] });
 }
 
 /**

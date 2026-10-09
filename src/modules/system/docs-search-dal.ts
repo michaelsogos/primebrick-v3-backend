@@ -63,6 +63,11 @@ export async function searchDocsKb(
     keywords?: string[];
     limit?: number;
     repo?: string;
+    /** Corpus scoping applied INSIDE the candidate queries — a post-hoc
+     *  caller-side filter would let out-of-scope docs saturate the top-N
+     *  window before the filter runs (observed: manual RBAC page ranked
+     *  ~21st behind dev/api docs, so the caller saw an empty result set). */
+    path_prefix?: string;
     /** Similarity floor — graph expansion only follows links of hits that
      *  cleared it. Without it, an uncovered question would seed expansion
      *  from near-zero hits and inject unrelated context. */
@@ -101,6 +106,7 @@ export async function searchDocsKb(
               1 - (d.embedding <=> $1::vector) AS similarity
        FROM ai.docs_kb d
        WHERE ($4::text IS NULL OR d.repo = $4)
+         AND ($10::text IS NULL OR d.path LIKE $10 || '%')
        ORDER BY d.embedding <=> $1::vector
        LIMIT $2::int * $6::int
      ),
@@ -111,6 +117,7 @@ export async function searchDocsKb(
        FROM ai.docs_kb d
        WHERE $7::text IS NOT NULL
          AND ($4::text IS NULL OR d.repo = $4)
+         AND ($10::text IS NULL OR d.path LIKE $10 || '%')
          AND to_tsvector('simple', d.content) @@ websearch_to_tsquery('simple', $7::text)
        ORDER BY lexical_score DESC
        LIMIT $2::int * $6::int
@@ -160,6 +167,7 @@ export async function searchDocsKb(
       lexQuery,
       lexicalBoost,
       lexMatchMin,
+      opts.path_prefix ?? null,
     ],
   );
 

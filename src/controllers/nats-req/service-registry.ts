@@ -1,4 +1,8 @@
 /**
+ * DEPRECATO — NON PASSIAMO DA NATS REQ/RES. Pending migration to pub/sub
+ * correlation reply (`service.registry.get` → `service.registry.response.<id>`).
+ * Do not add new nats-req controllers.
+ *
  * NATS request-reply controller: `service.registry.get`.
  *
  * Returns a service_registry row by `code` — fallback for services that
@@ -9,6 +13,7 @@
  * returned verbatim, no business rules applied here.
  */
 
+import { logger } from "@primebrick/sdk";
 import { NatsClient } from "@primebrick/sdk";
 import { getPool } from "../../db/pool.js";
 import {
@@ -27,5 +32,5 @@ export async function startServiceRegistryController(): Promise<void> {
       return repo.findByCode(request.code);
     },
   );
-  console.log(`Subscribed to ${SERVICE_REGISTRY_GET_SUBJECT} (nats-req)`);
+  logger.info(`Subscribed to ${SERVICE_REGISTRY_GET_SUBJECT} (nats-req)`, { tags: ["nats"] });
 }

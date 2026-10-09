@@ -10,6 +10,7 @@
  * existing /api/v1/openapi.json endpoint.
  */
 
+import { logger } from "@primebrick/sdk";
 import { Router } from "express";
 import { openapi } from "./openapi.js";
 import { getPool } from "../db/pool.js";
@@ -39,7 +40,7 @@ export function aggregatedOpenApiRouter() {
       const repo = new ServiceRegistryRepo(pool);
       services = await repo.findAll();
     } catch (err) {
-      console.error("Failed to fetch service registry:", err);
+      logger.error("Failed to fetch service registry:", { tags: ["openapi"], error: err });
       // Return BE-only spec if registry is unavailable
       aggregated.info = {
         ...aggregated.info,
@@ -58,7 +59,7 @@ export function aggregatedOpenApiRouter() {
         const specUrl = new URL("/api/v1/openapi.json", svc.base_url).toString();
         const response = await fetch(specUrl, { signal: AbortSignal.timeout(5000) });
         if (!response.ok) {
-          console.error(`${svc.code} returned ${response.status}`);
+          logger.error(`${svc.code} returned non-OK status`, { tags: ["openapi", `${response.status}`] });
           continue;
         }
 
@@ -100,7 +101,7 @@ export function aggregatedOpenApiRouter() {
           }
         }
       } catch (err) {
-        console.error(`Failed to fetch spec for ${svc.code}:`, err);
+        logger.error(`Failed to fetch spec for ${svc.code}:`, { tags: ["openapi"], error: err });
         // Skip unavailable services — partial spec is valid
       }
     }

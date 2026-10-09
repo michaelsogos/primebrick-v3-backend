@@ -14,6 +14,7 @@
  * batched (see organizations.router.ts header).
  */
 
+import { logger } from "@primebrick/sdk";
 import type { PoolClient } from "pg";
 
 import { makeEntityService, type EntityService } from "../../../http/entity-service.js";
@@ -192,7 +193,7 @@ export class OrganizationsService {
           await cdClient.setApplicationWebAuthn(casdoorApp, casdoorAppOwner, true);
         }
       } catch (webauthnErr) {
-        console.error("Failed to auto-enable WebAuthn on Casdoor app:", webauthnErr);
+        logger.error("Failed to auto-enable WebAuthn on Casdoor app:", { tags: ["auth"], error: webauthnErr });
       }
     }
 
@@ -241,7 +242,7 @@ export class OrganizationsService {
         const casdoorAppOwner = "admin";
         await cdClient.setApplicationWebAuthn(casdoorApp, casdoorAppOwner, cfg.enable_webauthn);
       } catch (webauthnErr) {
-        console.error("Failed to sync WebAuthn flag on update:", webauthnErr);
+        logger.error("Failed to sync WebAuthn flag on update:", { tags: ["auth"], error: webauthnErr });
       }
     }
 

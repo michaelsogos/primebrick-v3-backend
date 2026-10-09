@@ -10,6 +10,7 @@
  * errorHandler middleware) while still having access to the auth config.
  */
 
+import { logger } from "@primebrick/sdk";
 import { Router, type Request, type Response } from "express";
 import cors from "cors";
 import { buildOAuthProtectedResourceMetadata } from "@modelcontextprotocol/server";
@@ -102,7 +103,7 @@ export function oauthMetadataRouter(): Router {
       const metadata = await buildAuthorizationServerMetadata(baseUrl, cfg);
       res.status(200).json(metadata);
     } catch (err) {
-      console.error("AS metadata error:", err);
+      logger.error("AS metadata error:", { tags: ["mcp"], error: err });
       res.status(500).json({
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Failed to build AS metadata",
@@ -120,7 +121,7 @@ export function oauthMetadataRouter(): Router {
       const prm = buildProtectedResourceMetadata(oauthMetadata, resourceServerUrl);
       res.status(200).json(prm);
     } catch (err) {
-      console.error("PRM error:", err);
+      logger.error("PRM error:", { tags: ["mcp"], error: err });
       res.status(500).json({
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Failed to build PRM",

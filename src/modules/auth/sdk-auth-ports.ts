@@ -11,6 +11,7 @@
  * - BeApiKeyPort: looks up API keys by hash from `api_keys` table
  */
 
+import { logger } from "@primebrick/sdk";
 import type { Pool } from "pg";
 import {
   type AuthConfig,
@@ -110,7 +111,7 @@ export class BeRoleMappingPort implements RoleMappingPort {
           return new Map(cached.map(({ role, entry }) => [role, entry]));
         }
       } catch (e) {
-        console.warn(`role_mappings get failed: ${e}`);
+        logger.warn(`role_mappings get failed: ${e}`, { tags: ["auth"] });
       }
     }
     // Cache miss or disabled — load from DB
@@ -120,7 +121,7 @@ export class BeRoleMappingPort implements RoleMappingPort {
         const serialized = [...raw.entries()].map(([role, entry]) => ({ role, entry }));
         await port.set(ROLE_MAPPINGS_CACHE_KEY, serialized, ROLE_MAPPINGS_TTL_MS);
       } catch (e) {
-        console.warn(`role_mappings set failed: ${e}`);
+        logger.warn(`role_mappings set failed: ${e}`, { tags: ["auth"] });
       }
     }
     return raw;
@@ -145,7 +146,7 @@ export class BeApiKeyPort implements ApiKeyPort {
         const cached = await port.get<ApiKeyRecord>(cacheKey);
         if (cached) return cached;
       } catch (e) {
-        console.warn(`api_keys get failed: ${e}`);
+        logger.warn(`api_keys get failed: ${e}`, { tags: ["auth"] });
       }
     }
     const result = await this.pool.query(
@@ -168,7 +169,7 @@ export class BeApiKeyPort implements ApiKeyPort {
       try {
         await port.set(cacheKey, record, API_KEY_CACHE_TTL_MS);
       } catch (e) {
-        console.warn(`api_keys set failed: ${e}`);
+        logger.warn(`api_keys set failed: ${e}`, { tags: ["auth"] });
       }
     }
     return record;

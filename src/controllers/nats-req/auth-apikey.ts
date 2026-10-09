@@ -1,4 +1,8 @@
 /**
+ * DEPRECATO — NON PASSIAMO DA NATS REQ/RES. Pending migration to pub/sub
+ * correlation reply (`auth.apikey.byHash` → `auth.apikey.response.<id>`).
+ * Do not add new nats-req controllers.
+ *
  * NATS request-reply controller: `auth.apikey.byHash`.
  *
  * Backs `NatsApiKeyPort` (SDK) — lets services WITHOUT a database (e.g.
@@ -9,6 +13,7 @@
  * rules; the record (or null) is returned verbatim.
  */
 
+import { logger } from "@primebrick/sdk";
 import { NatsClient, type ApiKeyRecord } from "@primebrick/sdk";
 import { getPool } from "../../db/pool.js";
 import { BeApiKeyPort } from "../../modules/auth/sdk-auth-ports.js";
@@ -24,5 +29,5 @@ export async function startAuthApiKeyController(): Promise<void> {
       return port.findByHash(request.hash);
     },
   );
-  console.log(`Subscribed to ${AUTH_APIKEY_BY_HASH_SUBJECT} (nats-req)`);
+  logger.info(`Subscribed to ${AUTH_APIKEY_BY_HASH_SUBJECT} (nats-req)`, { tags: ["nats"] });
 }

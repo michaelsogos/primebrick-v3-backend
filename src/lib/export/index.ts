@@ -1,3 +1,4 @@
+import { logger } from "@primebrick/sdk";
 import ExcelJS from 'exceljs';
 import fs from 'fs';
 import path from 'path';
@@ -53,7 +54,7 @@ async function loadTranslations(locale: string): Promise<Record<string, string>>
     const content = await fs.promises.readFile(translationsPath, 'utf-8');
     return JSON.parse(content);
   } catch (error) {
-    console.warn(`Translation file for locale "${locale}" not found, using empty translations`);
+    logger.warn(`Translation file for locale "${locale}" not found, using empty translations`, { tags: ["export"] });
     return {};
   }
 }
@@ -647,7 +648,7 @@ export async function exportDataWithTemplateToStream(
         };
       }) : [];
 
-    console.log('Table columns:', tableColumns.map(c => c.name));
+    logger.info('Table columns:', { tags: ["export"], error: tableColumns.map(c => c.name) });
 
     // Stream data and insert rows into worksheet
     let rowCount = dataStartRow; // Start from data row (header is at dataStartRow - 1)
@@ -687,7 +688,7 @@ export async function exportDataWithTemplateToStream(
         rowData[index] = value !== undefined && value !== null ? value : '';
       });
 
-      console.log('Row data:', rowData);
+      logger.info('Row data:', { tags: ["export"], error: rowData });
       
       let newRow;
       if (firstRecord) {
@@ -735,7 +736,7 @@ export async function exportDataWithTemplateToStream(
       const endColumnLetter = columnNumberToLetter(maxColNumber);
       const headerRow = dataStartRow - 1;
       const tableRef = `A${headerRow}:${endColumnLetter}${actualLastRow}`;
-      console.log('Creating table with ref:', tableRef);
+      logger.info('Creating table with ref:', { tags: ["export"], error: tableRef });
       
       // Create fake rows array to force ExcelJS to calculate correct table height
       const fakeRows = Array.from({ length: actualLastRow - headerRow }, () => []);

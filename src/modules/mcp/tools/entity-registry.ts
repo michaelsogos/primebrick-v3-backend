@@ -13,7 +13,7 @@
  *   - How to dispatch: in-process (BE) vs proxy (microservice)
  */
 
-import { Permission } from "@primebrick/sdk";
+import { Permission, detectPackageIdentity } from "@primebrick/sdk";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -44,6 +44,11 @@ export interface BeEntityConfig {
   entity: string;
   /** Human-readable label for the entity. */
   label: string;
+  /**
+   * Implementation reference for observability — `"EntityClass→table"`,
+   * e.g. `"CustomerEntity→customers"`. Displayed in the MCP startup log.
+   */
+  impl?: string;
   /** Operations supported by this entity. */
   supported_operations: Operation[];
   /** Bulk operations supported (empty if none). */
@@ -72,6 +77,10 @@ export interface EntityRegistryEntry {
   module: string;
   entity: string;
   label: string;
+  /** Implementation reference (`"EntityClass→table"`) when known — display only. */
+  impl?: string;
+  /** Owning package identity (`{pkg_name}/{version}`) — BE package for in-process entities, the microservice identity for proxy entities. */
+  source_ref?: string;
   handler_type: HandlerType;
   supported_operations: Operation[];
   supported_bulk_operations: BulkOperation[];
@@ -90,10 +99,13 @@ class EntityRegistry {
 
   /** Register a BE entity (in-process dispatch). */
   registerBeEntity(module: string, config: BeEntityConfig): void {
+    const pkg = detectPackageIdentity();
     const entry: EntityRegistryEntry = {
       module,
       entity: config.entity,
       label: config.label,
+      impl: config.impl,
+      source_ref: `${pkg.name}${pkg.version ? `/${pkg.version}` : ""}`,
       handler_type: "in-process",
       supported_operations: config.supported_operations,
       supported_bulk_operations: config.supported_bulk_operations ?? [],
@@ -103,11 +115,12 @@ class EntityRegistry {
   }
 
   /** Register a microservice entity (proxy dispatch). */
-  registerProxyEntity(module: string, config: ProxyEntityConfig): void {
+  registerProxyEntity(module: string, config: ProxyEntityConfig, sourceRef?: string): void {
     const entry: EntityRegistryEntry = {
       module,
       entity: config.entity,
       label: config.label,
+      source_ref: sourceRef,
       handler_type: "proxy",
       supported_operations: config.supported_operations,
       supported_bulk_operations: [],
@@ -180,6 +193,7 @@ export function registerBeEntities(): void {
   entityRegistry.registerBeEntity("be", {
     entity: "customer",
     label: "Customer",
+    impl: "CustomerEntity->customers",
     supported_operations: ["list", "get", "create", "update", "delete", "restore", "audit", "meta"],
     supported_bulk_operations: ["bulk_delete", "bulk_restore"],
     permissions: {
@@ -198,6 +212,7 @@ export function registerBeEntities(): void {
   entityRegistry.registerBeEntity("be", {
     entity: "organization",
     label: "Organization",
+    impl: "OrganizationEntity->organizations",
     supported_operations: ["list", "get", "create", "update", "delete", "restore", "audit", "meta"],
     permissions: {
       list: [Permission.ORGANIZATION_READ_ALL],
@@ -215,6 +230,7 @@ export function registerBeEntities(): void {
   entityRegistry.registerBeEntity("be", {
     entity: "user_profile",
     label: "User Profile",
+    impl: "UserProfileEntity->user_profiles",
     supported_operations: ["list", "get", "update", "restore", "audit", "meta"],
     permissions: {
       list: [Permission.USER_PROFILE_READ_ALL],
@@ -230,6 +246,7 @@ export function registerBeEntities(): void {
   entityRegistry.registerBeEntity("be", {
     entity: "auth_event",
     label: "Auth Events",
+    impl: "AuthEventEntity->auth_events",
     supported_operations: ["list", "aggregate", "meta"],
     permissions: {
       list: [Permission.AUTH_EVENT_READ_ALL],

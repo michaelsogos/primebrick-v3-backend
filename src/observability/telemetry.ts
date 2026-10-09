@@ -94,7 +94,9 @@ function toTelemetryConfig(t: TelemetrySharedConfig): TelemetryConfig {
 }
 
 function applyLogOptions(t: TelemetrySharedConfig): void {
-  setLogOptions({ level: t.log_level, format: t.log_format, service: serviceName });
+  // Logger identity stays package.json-derived (SDK logger.ts) — never
+  // override `service` or the tag would flip when telemetry is applied.
+  setLogOptions({ level: t.log_level, format: t.log_format });
 }
 
 /** SharedConfig.telemetry payload served to microservices via config.get. */
@@ -109,7 +111,7 @@ export async function initBackendTelemetry(name: string, version: string): Promi
   try {
     cached = await readTelemetryFromDb();
   } catch (err) {
-    logger.warn("failed to read config_entries — telemetry disabled", {
+    logger.warn("failed to read config_entries — telemetry disabled", { tags: ["telemetry"],
       error: err instanceof Error ? err.message : String(err),
     });
     cached = { enabled: false };
@@ -128,7 +130,7 @@ export async function applyTelemetryConfigFromDb(): Promise<void> {
   try {
     cached = await readTelemetryFromDb();
   } catch (err) {
-    logger.error("failed to reload config — keeping previous telemetry config", {
+    logger.error("failed to reload config — keeping previous telemetry config", { tags: ["telemetry"],
       error: err instanceof Error ? err.message : String(err),
     });
     return;
@@ -138,7 +140,7 @@ export async function applyTelemetryConfigFromDb(): Promise<void> {
   try {
     await NatsClient.publish(CONFIG_CHANGED_SUBJECT, { keys: [...TELEMETRY_KEYS] });
   } catch (err) {
-    logger.warn("config.changed broadcast failed (NATS down?)", {
+    logger.warn("config.changed broadcast failed (NATS down?)", { tags: ["telemetry"],
       error: err instanceof Error ? err.message : String(err),
     });
   }

@@ -44,10 +44,10 @@ const AiModelBaseSchema = z.object({
   working_set_mb: zBoundedNumber(0, Number.MAX_SAFE_INTEGER).optional(),
   working_set_source: z.enum(["hf_estimate", "e2e_measured"]).optional(),
   working_set_detail: z.record(z.string(), z.any()).optional(),
-  // Only COMPATIBLE / NOT_COMPATIBLE exist. New rows are COMPATIBLE by
-  // definition — the user adds a model BECAUSE they want it; NOT_COMPATIBLE
-  // is applied only after failing the internal test harness.
-  compatibility_status: z.enum(["COMPATIBLE", "NOT_COMPATIBLE"]).default("COMPATIBLE"),
+  // New rows are compatible by definition — the user adds a model BECAUSE
+  // they want it; false is applied only after the internal test harness
+  // proves absolute failures.
+  is_compatible: z.boolean().default(true),
   execution_config: z.record(z.string(), z.any()).optional(),
 });
 
@@ -122,7 +122,7 @@ export type AiModelDetailRow = {
   working_set_mb?: number;
   working_set_source: string;
   working_set_detail?: Record<string, any>;
-  compatibility_status: string;
+  is_compatible: boolean;
   dtype?: string;
   engine_type?: string;
   execution_config?: Record<string, any>;

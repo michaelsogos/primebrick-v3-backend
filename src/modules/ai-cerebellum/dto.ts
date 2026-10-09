@@ -31,6 +31,8 @@ const AiCerebellumBaseSchema = z.object({
   execution_config: z.record(z.string(), z.any()).nullish(),
   test_scores: z.record(z.string(), z.any()).nullish(),
   recommendation: z.enum(["RECOMMENDED", "NOT_RECOMMENDED"]).nullish(),
+  is_compatible: z.boolean().nullish(),
+  is_default: z.boolean().nullish(),
 });
 
 export const AiCerebellumCreateBodySchema = AiCerebellumBaseSchema;
@@ -97,6 +99,8 @@ export type AiCerebellumDetailRow = {
   execution_config?: Record<string, any>;
   test_scores?: Record<string, any>;
   recommendation?: string;
+  is_compatible?: boolean;
+  is_default?: boolean;
   created_at: Date;
   created_by: string;
   updated_at: Date;

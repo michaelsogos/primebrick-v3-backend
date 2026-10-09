@@ -1,3 +1,4 @@
+import { logger } from "@primebrick/sdk";
 import type { ErrorRequestHandler } from "express";
 import { mapDalError } from "@primebrick/sdk";
 import { isDatabaseUnavailableError, isApiError, type ApiErrorResponse } from "./api-errors.js";
@@ -8,7 +9,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   // The request line goes on its own line (amber) so the failed call is
   // visible at a glance before the payload. originalUrl keeps the QS.
   const requestLine = `${req.method} ${req.protocol}://${req.headers.host ?? "localhost"}${req.originalUrl || req.url}`;
-  console.error(`Backend Error\n  \x1b[38;5;214m${requestLine}\x1b[0m`, {
+  logger.error(`Backend Error\n  \x1b[38;5;214m${requestLine}\x1b[0m`, { tags: ["http"],
     message: err.message,
     stack: err.stack,
     name: err.name,

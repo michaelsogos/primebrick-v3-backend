@@ -18,6 +18,7 @@
  * For refresh_token grant, the BE forwards the refresh_token to Casdoor.
  */
 
+import { logger } from "@primebrick/sdk";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import express from "express";
 import { getAuthConfig } from "@primebrick/sdk";
@@ -185,7 +186,7 @@ export function tokenRouter(): Router {
         scope: params.scope ?? client.scope,
       });
     } catch (err) {
-      console.error("Error:", err);
+      logger.error("Error:", { tags: ["mcp"], error: err });
       sendJson(res, 500, {
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Token exchange failed",
@@ -195,7 +196,7 @@ export function tokenRouter(): Router {
 
   // Router-level error handler
   router.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("Unhandled error:", err);
+    logger.error("Unhandled error:", { tags: ["mcp"], error: err });
     sendJson(res, 500, { error: "server_error", error_description: err.message });
   });
 

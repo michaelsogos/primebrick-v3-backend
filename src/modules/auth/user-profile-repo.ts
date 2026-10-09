@@ -14,6 +14,7 @@
  * the DB — best-effort, the system is fully valid without Redis.
  */
 
+import { logger } from "@primebrick/sdk";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { field, Filter } from "@primebrick/dal-pg";
@@ -58,7 +59,7 @@ export async function resolveInternalUuid(
       const cached = await port.get<string>(idpCodeCacheKey(input.idp_code));
       if (cached) return cached;
     } catch (e) {
-      console.warn(`user_profiles get failed: ${e}`);
+      logger.warn(`user_profiles get failed: ${e}`, { tags: ["auth"] });
     }
   }
 
@@ -104,7 +105,7 @@ export async function resolveInternalUuid(
       try {
         await port.set(idpCodeCacheKey(input.idp_code), row.uuid, USER_PROFILE_CACHE_TTL_MS);
       } catch (e) {
-        console.warn(`user_profiles set failed: ${e}`);
+        logger.warn(`user_profiles set failed: ${e}`, { tags: ["auth"] });
       }
     }
     return row.uuid;
@@ -136,7 +137,7 @@ export async function resolveInternalUuid(
     try {
       await port.set(idpCodeCacheKey(input.idp_code), uuid, USER_PROFILE_CACHE_TTL_MS);
     } catch (e) {
-      console.warn(`user_profiles set failed: ${e}`);
+      logger.warn(`user_profiles set failed: ${e}`, { tags: ["auth"] });
     }
   }
   return uuid;

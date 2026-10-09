@@ -20,6 +20,7 @@
  *   - ...all registered metadata echoed back
  */
 
+import { logger } from "@primebrick/sdk";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { randomUUID } from "node:crypto";
 import { OAuthClientService } from "../../../modules/mcp/oauth/oauth-client.service.js";
@@ -136,7 +137,7 @@ export function dcrRouter(): Router {
 
       sendJson(res, 201, toRegistrationResponse(client));
     } catch (err) {
-      console.error("Registration error:", err);
+      logger.error("Registration error:", { tags: ["mcp"], error: err });
       sendJson(res, 500, {
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Registration failed",
@@ -156,7 +157,7 @@ export function dcrRouter(): Router {
       }
       res.status(204).send();
     } catch (err) {
-      console.error("Delete error:", err);
+      logger.error("Delete error:", { tags: ["mcp"], error: err });
       sendJson(res, 500, {
         error: "server_error",
         error_description: err instanceof Error ? err.message : "Delete failed",
@@ -166,7 +167,7 @@ export function dcrRouter(): Router {
 
   // Router-level error handler — catches any unhandled errors
   router.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("Unhandled error:", err);
+    logger.error("Unhandled error:", { tags: ["mcp"], error: err });
     sendJson(res, 500, { error: "server_error", error_description: err.message });
   });
 

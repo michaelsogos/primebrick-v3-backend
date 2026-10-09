@@ -11,6 +11,7 @@
  * still work, the user just won't receive the email. The admin can resend.
  */
 
+import { logger } from "@primebrick/sdk";
 import { NatsClient } from "@primebrick/sdk";
 import { randomUUID } from "crypto";
 
@@ -27,9 +28,9 @@ export interface SendEmailParams {
  */
 export async function sendEmail(params: SendEmailParams): Promise<void> {
   if (!NatsClient.isConnected()) {
-    console.warn(
+    logger.warn(
       `NATS not connected — skipping email send (template: ${params.template_code}, to: ${params.to.join(", ")})`,
-    );
+    { tags: ["auth"] });
     return;
   }
 
@@ -44,9 +45,8 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
   try {
     await NatsClient.publish("emailsender.send", request);
   } catch (err) {
-    console.error(
+    logger.error(
       `Failed to publish email send request to NATS (template: ${params.template_code}):`,
-      err,
-    );
+      { tags: ["auth"], error: err });
   }
 }

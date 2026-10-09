@@ -1,3 +1,4 @@
+import { logger } from "@primebrick/sdk";
 import type { Pool, PoolClient } from "pg";
 import {
   Repository,
@@ -292,7 +293,7 @@ export class RoleMappingRepo {
       try {
         await port.del(ROLE_MAPPINGS_CACHE_KEY);
       } catch (e) {
-        console.warn(`role_mappings invalidate failed: ${e}`);
+        logger.warn(`role_mappings invalidate failed: ${e}`, { tags: ["auth"] });
       }
     }
   }

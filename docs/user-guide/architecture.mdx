@@ -17,7 +17,7 @@ allowed in controllers, and no transport types are allowed in services.
 src/
   controllers/  Transport adapters — no business logic
     http/       HTTP routers (Express)
-    nats-req/   NATS request-reply endpoints
+    nats-req/   DEPRECATED — NATS request-reply is banned (see transport matrix)
     nats-sub/   NATS pub/sub + JetStream subscribers, cron/poll jobs
   db/           Database connection and patch runner
   domain/       Shared domain types and utilities
@@ -49,8 +49,23 @@ name encodes the transport, the file name encodes the domain.
 ## The Controller–Service contract
 
 This is the core architectural rule of the backend. It exists so that the
-same operation can be invoked over HTTP today and over NATS request-reply
-tomorrow — only the controller file moves, the service is untouched.
+same operation can be invoked over HTTP and reached by NATS pub/sub
+workflows — only the controller file changes, the service is untouched.
+
+### Legal transport matrix (decided 2026-10-09)
+
+| Direction | Transport | Pattern |
+|---|---|---|
+| FE → BE | HTTP | req/res + SSE — the ONLY public attack surface |
+| BE → US | HTTP via `/ws/:code/*` proxy | req/res, no BE logic added |
+| BE → US | NATS pub/sub | fire-and-forget (e.g. `emailsender.send`) |
+| US → BE / US → US | NATS pub/sub | fire-and-forget ONLY; sync-looking needs use correlation replies (`x.call` → `x.response.<requestId>`) |
+| any → any | NATS event bus | choreography: `entity.<entity>.<action>` subjects; identical replicas share a queue group (one copy, round-robin), different services each get a copy |
+
+**NATS request-reply (`NatsClient.request` / `subscribeRequest`) is
+DEPRECATED and must not be used in new code.** Microservices must never
+call the BE over HTTP — the only known legacy exception being migrated is
+the AI MCP client.
 
 **A controller MAY:**
 
@@ -368,8 +383,14 @@ plain parameters and reads the actor from `AsyncLocalStorage` (`requireActor()`
 via the DAL) — it never touches `req`/`res`. Errors are thrown as `ApiError`
 subclasses so the centralized `errorHandler` can convert them to RFC 7807.
 
+> **DAL rule**: the ONLY public DB API is `getDal()` from
+> `@primebrick/dal-pg`. `getPool()` in `src/db/pool.ts` is infra-internal —
+> it exists to construct dal-pg `Repository` instances, and must never be
+> imported by application code. (The example below shows the legacy
+> per-entity DAL wrapper; new services use `makeEntityService` instead.)
+
 ```typescript
-import { getPool } from "../../db/pool.js";
+import { getPool } from "../../db/pool.js"; // infra-internal — services use makeEntityService
 import { CustomersDal } from "./customers_dal.js";
 import { NotFoundError } from "../../http/api-errors.js";
 
@@ -514,6 +535,32 @@ The backend subscribes to microservice lifecycle events over NATS:
 When a microservice registers, the backend persists its metadata and
 exposes its endpoints through the aggregated OpenAPI router and the
 reverse proxy module.
+
+## Data access, audit, and events
+
+**One DAL API**: application code uses `getDal()` from `@primebrick/dal-pg`
+(singleton initialized in `src/db/dal-gateway.ts`). `getPool()` is
+infra-internal — never import it outside `src/db/`.
+
+**Three distinct concerns, often conflated**:
+
+1. **Audit trail** — persistent `{table}_audit` rows written by dal-pg's
+   `AuditPort` on every write/delete/restore. Same contract in the BE and in
+   every microservice schema.
+2. **Entity-changed event** — the event-sourcing signal emitted in parallel
+   to the write (`entity.<entity>.<action>` on NATS + a Redis marker), so any
+   service or subsystem can intercept lifecycle changes without polling.
+3. **Collaboration** — a *consumer* of the entity-changed event: the BE
+   bridges those markers into SSE so connected FE clients see changes in
+   real time. It is not part of audit.
+
+**Translations are per-module**: `public.translations` holds the global
+`app.*` keys, `system.translations` holds `system.*` keys, and each
+microservice owns `<schema>.translations` for its module's keys. The BE's
+central translations gateway manages CRUD over all module tables; modules
+read `app.*` globally and pull their own module table down on first load.
+Key prefixes are authoritative — `app.*` must never appear in
+`system.translations` and vice versa.
 
 ## Next steps
 

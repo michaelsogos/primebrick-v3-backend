@@ -121,11 +121,12 @@ export class AiModelEntity implements IAuditableEntity, IExposableEntity {
   @Column({ pgType: "numeric", nullable: true })
   vram_mb?: number;
 
-  /** Compatibility status: COMPATIBLE (default — user-added models are
-   *  wanted by definition) or NOT_COMPATIBLE (set internally only after
-   *  the test harness proves failures). */
-  @Column({ length: 30, nullable: false, defaultSql: "'COMPATIBLE'" })
-  compatibility_status: string;
+  /** Compatibility flag: true (default — user-added models are wanted by
+   *  definition), false only after the test harness proves absolute
+   *  failures (load crash, zero tokens, dead repo). Per-assistant blocks
+   *  live on ai_cerebellum.is_compatible. */
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })
+  is_compatible: boolean;
 
   /** KV cache bytes per token — derived from HF config.json
    *  (2 × layers × kv_heads × head_dim × dtype_bytes). Agnostic, machine-independent. */

@@ -18,6 +18,7 @@
  * MFA factor, the enrollment tests are skipped.
  */
 
+import { logger } from "@primebrick/sdk";
 import { describe, it, expect, beforeAll } from "vitest";
 import { createHmac } from "crypto";
 
@@ -140,7 +141,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
   describe("server reachability", () => {
     it("BE dev server is running on port 3001", () => {
       if (!serverReachable) {
-        console.warn("Skipping MFA integration tests: BE dev server not reachable on port 3001");
+        logger.warn("Skipping MFA integration tests: BE dev server not reachable on port 3001");
       }
       expect(serverReachable).toBe(true);
     });

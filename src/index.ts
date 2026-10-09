@@ -1,3 +1,4 @@
+import { logger } from "@primebrick/sdk";
 import "./observability/logging-init.js"; // must stay first import — async console bridge
 import cors from "cors";
 import express, { type Response } from "express";
@@ -30,6 +31,9 @@ import { dirname, resolve } from "node:path";
 import { ServiceRegistryRepo } from "./modules/proxy/service-registry-repo.js";
 import { ServiceLifecycleSubscriber } from "./controllers/nats-sub/service-lifecycle-subscriber.js";
 import { startServiceRegistryController } from "./controllers/nats-req/service-registry.js";
+import { startClientRegistryController } from "./controllers/nats-req/client-registry.js";
+import { ClientRegistryRepo } from "./modules/proxy/client-registry-repo.js";
+import { initBackendIdentity } from "./modules/proxy/backend-identity.js";
 import { startAuthApiKeyController } from "./controllers/nats-req/auth-apikey.js";
 import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js";
 import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
@@ -94,7 +98,7 @@ async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
         clientSecret = dbConfig.idp_client_secret || clientSecret;
         orgName = dbConfig.idp_organization || orgName;
       } catch (error) {
-        console.warn("Could not load configuration from database, using fallback:", error);
+        logger.warn("Could not load configuration from database, using fallback:", { tags: ["core"], error: error });
       }
     }
 
@@ -111,7 +115,7 @@ async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
     });
 
     if (!versionResponse.ok) {
-      console.error(`Version endpoint returned non-OK status: ${versionResponse.status}`);
+      logger.error("Version endpoint returned non-OK status", { tags: ["core", `${versionResponse.status}`] });
       return { ok: false };
     }
 
@@ -122,7 +126,7 @@ async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
       version: versionData.data?.version || "unknown",
     };
   } catch (e) {
-    console.error(`Error:`, (e as Error).message);
+    logger.error(`Error:`, { tags: ["core"], error: (e as Error).message });
     return { ok: false };
   }
 }
@@ -303,7 +307,7 @@ server.timeout = 300_000;
 // (503 from DB-unavailable errors, or 403 from empty role cache) until
 // the role mappings are successfully loaded.
 void runStartupTasks().catch((err) => {
-  console.error("background task failed:", err);
+  logger.error("background task failed", { tags: ["core"], error: err });
 });
 
 async function runStartupTasks(): Promise<void> {
@@ -318,7 +322,7 @@ async function runStartupTasks(): Promise<void> {
   if (ports) {
     initMcpModule(ports);
   } else {
-    console.warn("MCP module not initialized — auth ports unavailable");
+    logger.warn("MCP module not initialized — auth ports unavailable", { tags: ["core"] });
   }
   await startServiceLifecycle();
 }
@@ -333,11 +337,11 @@ async function runStartupTasks(): Promise<void> {
 async function initCacheFromConfig(): Promise<void> {
   try {
     const cfg = getAuthConfig();
-    await initCache(cfg.redis_url, console);
+    await initCache(cfg.redis_url, logger);
   } catch (err) {
-    console.warn(
+    logger.warn(
       "initCache failed (Redis unavailable?). Retrying in 5s.",
-      err
+      { tags: ["core"], error: err }
     );
     setTimeout(() => void initCacheFromConfig().catch(() => {}), 5000);
   }
@@ -352,19 +356,19 @@ async function initCacheFromConfig(): Promise<void> {
 async function initPresenceStoreFromConfig(): Promise<void> {
   try {
     const cfg = getAuthConfig();
-    await initPresenceStore(cfg.redis_url, console);
+    await initPresenceStore(cfg.redis_url, logger);
     // Start keyspace listener for presence expiry events (best-effort)
     if (cfg.redis_url) {
       try {
-        stopKeyspaceListener = await startKeyspaceListener(cfg.redis_url, console);
+        stopKeyspaceListener = await startKeyspaceListener(cfg.redis_url, logger);
       } catch (err) {
-        console.warn("keyspace listener failed (best-effort):", err);
+        logger.warn("keyspace listener failed (best-effort):", { tags: ["core"], error: err });
       }
     }
   } catch (err) {
-    console.warn(
+    logger.warn(
       "initPresenceStore failed (Redis unavailable?). Retrying in 5s.",
-      err
+      { tags: ["core"], error: err }
     );
     setTimeout(() => void initPresenceStoreFromConfig().catch(() => {}), 5000);
   }
@@ -374,9 +378,9 @@ async function refreshRoleMappings(): Promise<void> {
   try {
     await loadRoleMappings();
   } catch (err) {
-    console.warn(
+    logger.warn(
       "loadRoleMappings failed (database unavailable?). Retrying in 5s.",
-      err
+      { tags: ["core"], error: err }
     );
     setTimeout(() => void refreshRoleMappings().catch(() => {}), 5000);
   }
@@ -398,9 +402,9 @@ async function refreshAuthConfig(): Promise<void> {
       // version query failed — non-critical, DB is up (loadAuthConfig succeeded)
     }
   } catch (err) {
-    console.warn(
+    logger.warn(
       "loadAuthConfig failed (database unavailable?). Retrying in 5s.",
-      err
+      { tags: ["core"], error: err }
     );
     setTimeout(() => void refreshAuthConfig().catch(() => {}), 5000);
   }
@@ -419,16 +423,30 @@ async function startServiceLifecycle(): Promise<void> {
     const subscriber = new ServiceLifecycleSubscriber();
     await subscriber.start();
     await startServiceRegistryController();
+    await startClientRegistryController();
     await startAuthApiKeyController();
+    await enrollBackendIdentity();
     const staleJob = new StaleDetectionJob();
     staleJob.start();
   } catch (err) {
-    console.warn(
+    logger.warn(
       "NATS connection failed (service lifecycle subscriber not started). Retrying in 5s.",
-      err
+      { tags: ["core"], error: err }
     );
     setTimeout(() => void startServiceLifecycle().catch(() => {}), 5000);
   }
+}
+
+/**
+ * Self-enroll the BE into system.client_registry (B11): the BE never sends
+ * `service.register`, so it upserts its own `source='registry'` row keyed
+ * by `{pkg_name}/{version}` — the UA prefix it sends on proxied calls.
+ * The client key comes from the `client_key` config entry (module config,
+ * not env). Delegates to `initBackendIdentity()` which also primes the
+ * cached identity headers used by the proxy hot path.
+ */
+async function enrollBackendIdentity(): Promise<void> {
+  await initBackendIdentity();
 }
 
 // --- Graceful shutdown --------------------------------------------------------
@@ -450,30 +468,30 @@ async function gracefulShutdown(): Promise<void> {
   try {
     await closeCache();
   } catch (err) {
-    console.warn("closeCache failed:", err);
+    logger.warn("closeCache failed:", { tags: ["core"], error: err });
   }
   try {
     await closePresenceStore();
   } catch (err) {
-    console.warn("closePresenceStore failed:", err);
+    logger.warn("closePresenceStore failed:", { tags: ["core"], error: err });
   }
   try {
     collaborationBusRegistry.closeAll();
   } catch (err) {
-    console.warn("collaborationBusRegistry.closeAll failed:", err);
+    logger.warn("collaborationBusRegistry.closeAll failed:", { tags: ["core"], error: err });
   }
   if (stopKeyspaceListener) {
     try {
       await stopKeyspaceListener();
     } catch (err) {
-      console.warn("keyspace listener stop failed:", err);
+      logger.warn("keyspace listener stop failed:", { tags: ["core"], error: err });
     }
     stopKeyspaceListener = null;
   }
   try {
     await shutdownTelemetry();
   } catch (err) {
-    console.warn("shutdownTelemetry failed:", err);
+    logger.warn("shutdownTelemetry failed:", { tags: ["core"], error: err });
   }
   flushLogsSync();
 }

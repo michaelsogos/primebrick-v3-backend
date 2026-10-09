@@ -106,6 +106,20 @@ export class AiCerebellumEntity implements IAuditableEntity, IExposableEntity {
   @Column({ length: 20, nullable: true })
   recommendation?: string;
 
+  /** Per-assistant compatibility: true by default (a new tuning is born
+   *  compatible so it can be tested); set false only after empirical
+   *  evidence proves this (assistant, model, dtype) combo broken. The
+   *  assistant picker hides models whose cerebellum row for that
+   *  assistant is incompatible. */
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })
+  is_compatible: boolean;
+
+  /** Per-assistant default model: at most one row per assistant_key
+   *  (partial unique index). When set, the assistant panel loads this
+   *  model instead of the global `ai_assistant_model` config fallback. */
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
+  is_default: boolean;
+
   @AuditableField(AuditableFieldType.CREATED_AT)
   created_at: Date;
 

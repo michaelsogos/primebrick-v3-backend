@@ -902,7 +902,7 @@ export const openapi = {
       },
       OrganizationCreateResponse: {
         type: "object",
-        required: ["success", "organization"],
+        required: ["done", "organization"],
         properties: {
           success: { type: "boolean" },
           organization: { $ref: "#/components/schemas/OrganizationDetail" },
@@ -973,7 +973,7 @@ export const openapi = {
       },
       LoginResponse: {
         type: "object",
-        required: ["success", "user"],
+        required: ["done", "user"],
         properties: {
           success: { type: "boolean" },
           user: { $ref: "#/components/schemas/User" },

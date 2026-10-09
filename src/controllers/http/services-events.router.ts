@@ -15,6 +15,7 @@
  * @see @primebrick/sdk docs/user-guide/sse-standard.mdx for the full standard.
  */
 
+import { logger } from "@primebrick/sdk";
 import { makeProtectedRouter } from "../../http/protected-router.js";
 import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission, createSseWriter } from "@primebrick/sdk";
@@ -62,9 +63,9 @@ export function servicesEventsRouter() {
       });
 
       activeClients += 1;
-      console.info(
+      logger.info(
         `SSE client connected: user=${req.user?.idp_username ?? req.user?.id ?? "unknown"} org=${req.user?.idp_org ?? "?"} ip=${req.ip ?? "?"} ua="${req.headers["user-agent"] ?? "?"}" active=${activeClients}`,
-      );
+      { tags: ["sse"] });
 
       // 3. Keep-alive every 15s (comment line, not an event)
       const keepAlive = setInterval(() => writer.comment("keep-alive"), KEEPALIVE_MS);
@@ -75,7 +76,7 @@ export function servicesEventsRouter() {
         sub.unsubscribe();
         clearInterval(keepAlive);
         writer.close();
-        console.info(`SSE client disconnected: user=${req.user?.idp_username ?? "?"} active=${activeClients}`);
+        logger.info(`SSE client disconnected: user=${req.user?.idp_username ?? "?"} active=${activeClients}`, { tags: ["sse"] });
       });
     }),
   );

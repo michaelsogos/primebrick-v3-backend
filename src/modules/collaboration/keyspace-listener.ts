@@ -57,7 +57,7 @@ function parsePresenceKey(
  */
 export async function startKeyspaceListener(
   redisUrl: string,
-  logger: { warn: (msg: string) => void; info: (msg: string) => void },
+  logger: Pick<typeof import("@primebrick/sdk").logger, "warn" | "info" | "done">,
 ): Promise<() => Promise<void>> {
   const subscriber: RedisClientType = createClient({ url: redisUrl }) as RedisClientType;
 
@@ -95,7 +95,7 @@ export async function startKeyspaceListener(
     }
   });
 
-  logger.info(`keyspace listener started on channel ${channel}`);
+  logger.info(`keyspace listener started on channel ${channel}`, { tags: ["collaborativity-feature"] });
 
   return async () => {
     try {

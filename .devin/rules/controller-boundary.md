@@ -5,7 +5,7 @@ trigger: always_on
 # Devin Rule: Controller Boundary (MVC transport layer)
 
 ## Trigger
-- Applies to ALL code in `src/controllers/` (http/, nats-req/, nats-sub/),
+- Applies to ALL code in `src/controllers/` (http/, nats-sub/; nats-req/ is DEPRECATED — NATS req/res banned),
   and to any file handling an HTTP request, NATS request-reply, or NATS
   subscription.
 
@@ -15,7 +15,7 @@ trigger: always_on
 src/
   controllers/            # transport adapters ONLY — no business logic
     http/                 # HTTP route handlers (Express routers)
-    nats-req/             # NATS request-reply endpoints (subscribeRequest)
+    nats-req/             # DEPRECATED — NATS req/res is banned; do NOT add files here
     nats-sub/             # NATS pub/sub + JetStream subscribers, cron/poll jobs
   modules/<domain>/
     services/             # transport-agnostic business logic
@@ -58,14 +58,16 @@ Services are pure `(validatedInput, ctx) → result | throw`:
 - zero `req`/`res`/Msg imports — no transport types
 - `ctx` carries actor, permissions, correlation id — assembled by the
   controller
-- the same service must be callable identically from http/, nats-req/,
-  and nats-sub/ controllers
+- the same service must be callable identically from http/ and nats-sub/
+  controllers
 
 ## Why
 
-One operation must be invocable over HTTP and NATS without duplicating
-auth/validation/dispatch. HTTP endpoints progressively migrate to
-`nats-req`; only the controller file moves — the service is untouched.
+One operation must be invocable over HTTP and NATS pub/sub without
+duplicating auth/validation/dispatch — only the controller file changes,
+the service is untouched. (NATS req/res was considered and rejected:
+empirically ~1.5× slower than the HTTP proxy, no durability/ordering,
+and identical auth code-flow when done correctly.)
 
 ## Good / bad (canonical)
 
@@ -96,9 +98,9 @@ await runEntityWrite(req, res, () => service.createCustomer(body));
 
 1. Write/extend the **service method** first — pure input→output, throws
    `ApiError`/`mapDalError`. No transport types.
-2. Add the **controller** under `controllers/http/`, `nats-req/`, or
-   `nats-sub/` — pick the directory matching the transport, never the
-   domain folder.
+2. Add the **controller** under `controllers/http/` or `nats-sub/` —
+   pick the directory matching the transport, never the domain folder.
+   `nats-req/` is DEPRECATED: do not add files there.
 3. The controller calls **exactly one** service method. If you need two,
    compose them inside a service method.
 4. Declare the permission with `rbacHandler(...)` — missing declaration

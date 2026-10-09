@@ -33,6 +33,7 @@
  *   deployments, replace it with a shared store (Redis). Flagged in the plan.
  */
 
+import { logger } from "@primebrick/sdk";
 import type { Pool } from "pg";
 import type { Response } from "express";
 import { randomUUID } from "crypto";
@@ -178,7 +179,7 @@ async function stashCasdoorSession(cookie: string): Promise<string> {
     try {
       await port.set(sessionRelayKey(nonce), cookie, SESSION_RELAY_TTL_MS);
     } catch (e) {
-      console.warn(`webauthn session stash failed: ${e}`);
+      logger.warn(`webauthn session stash failed: ${e}`, { tags: ["auth"] });
     }
   }
   return nonce;
@@ -199,7 +200,7 @@ async function popCasdoorSession(nonce: string): Promise<string | null> {
     }
     return cookie;
   } catch (e) {
-    console.warn(`webauthn session pop failed: ${e}`);
+    logger.warn(`webauthn session pop failed: ${e}`, { tags: ["auth"] });
     throw new RedisUnavailableError(
       "Redis operation failed during WebAuthn session relay. " +
       "Passkey signin cannot proceed at this time.",
@@ -415,7 +416,7 @@ export class WebauthnService {
     const idpUsername = (claims as any).name as string | undefined;
     if (idpOrg && idpUsername) {
       this.syncPasskeys(undefined, idpOrg, idpUsername).catch((err) => {
-        console.error("Post-signin passkey sync failed (non-critical):", err);
+        logger.error("Post-signin passkey sync failed (non-critical)", { tags: ["auth"], error: err });
       });
     }
 
@@ -463,7 +464,7 @@ export class WebauthnService {
     } catch (lastUsedErr) {
       const fs = await import("fs");
       fs.appendFileSync("D:\\git\\primebrick\\temp\\webauthn-debug.log", `[${new Date().toISOString()}] ERROR: ${lastUsedErr}\n`);
-      console.error("Failed to bump last_used_at (non-critical):", lastUsedErr);
+      logger.error("Failed to bump last_used_at (non-critical):", { tags: ["auth"], error: lastUsedErr });
     }
 
     // Resolve the user UUID for the auth event log.
@@ -685,7 +686,7 @@ export class WebauthnService {
       }
     } catch (trackingErr) {
       // Best-effort: log but don't fail the ceremony
-      console.error("Failed to track passkey in PG:", trackingErr);
+      logger.error("Failed to track passkey in PG:", { tags: ["auth"], error: trackingErr });
     }
 
     return { success: true };
@@ -775,7 +776,7 @@ export class WebauthnService {
         }
       }
     } catch (pgErr) {
-      console.error("Failed to load PG passkey metadata:", pgErr);
+      logger.error("Failed to load PG passkey metadata:", { tags: ["auth"], error: pgErr });
     }
 
     return creds.map((c) => {
@@ -1038,7 +1039,7 @@ export class WebauthnService {
       }
     } catch (trackingErr) {
       // Best-effort: log but don't fail the deletion
-      console.error("Failed to remove passkey from PG:", trackingErr);
+      logger.error("Failed to remove passkey from PG:", { tags: ["auth"], error: trackingErr });
     }
 
     return { success: true };

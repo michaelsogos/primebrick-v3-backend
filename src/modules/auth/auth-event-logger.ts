@@ -11,6 +11,7 @@
  * The `auth_events` table is non-auditable (it IS itself an audit log), so no
  * actor context is required and no `created_by`/`created_at` columns exist.
  */
+import { logger } from "@primebrick/sdk";
 import type { Pool } from "pg";
 import { createRepository } from "../../db/repository-factory.js";
 import { AuthEventEntity } from "./auth_event_entity.js";
@@ -78,7 +79,7 @@ export async function insertAuthEvent(params: InsertAuthEventParams): Promise<vo
     await repo.add(AuthEventEntity, record, {});
   } catch (err) {
     // Best-effort — never break the auth flow over an audit log failure.
-    console.error("Failed to insert auth event:", {
+    logger.error("Failed to insert auth event:", { tags: ["auth"],
       event_type,
       success,
       user_profile_uuid,

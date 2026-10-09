@@ -11,6 +11,7 @@
  * `res.status(...).json({...})` blocks that used to live in the router.
  */
 
+import { logger } from "@primebrick/sdk";
 import { randomUUID, randomBytes } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 
@@ -414,7 +415,7 @@ export class UserService {
           },
         });
       } catch (emailErr) {
-        console.error("Failed to send password_changed email:", emailErr);
+        logger.error("Failed to send password_changed email:", { tags: ["auth"], error: emailErr });
       }
     }
 
@@ -499,7 +500,7 @@ export class UserService {
           },
         });
       } catch (emailErr) {
-        console.error("Failed to send password_changed email:", emailErr);
+        logger.error("Failed to send password_changed email:", { tags: ["auth"], error: emailErr });
       }
     }
 

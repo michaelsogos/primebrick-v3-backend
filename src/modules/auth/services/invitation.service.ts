@@ -14,6 +14,7 @@
  * must be called within an HTTP request context or `runAsSystem()`.
  */
 
+import { logger } from "@primebrick/sdk";
 import type { Pool } from "pg";
 import { createHash, randomBytes, randomInt, createHmac } from "crypto";
 import { runAsSystem, requireActor } from "@primebrick/sdk";
@@ -629,7 +630,7 @@ export class InvitationService {
     // Get admin email
     const adminEmail = await this.getAdminContactEmail();
     if (!adminEmail) {
-      console.warn("No admin contact email configured — cannot send alert");
+      logger.warn("No admin contact email configured — cannot send alert", { tags: ["auth"] });
       return;
     }
 

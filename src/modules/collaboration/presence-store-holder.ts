@@ -32,18 +32,18 @@ let presencePort: PresencePort | null = null;
  */
 export async function initPresenceStore(
   redisUrl: string | undefined,
-  logger: { warn: (msg: string) => void; info: (msg: string) => void },
+  logger: Pick<typeof import("@primebrick/sdk").logger, "warn" | "info" | "done">,
 ): Promise<void> {
   if (!redisUrl) {
-    logger.warn("redis_url not set — presence disabled (best-effort, system valid without it)");
+    logger.warn("redis_url not set — presence disabled (best-effort, system valid without it)", { tags: ["collaborativity-feature"] });
     return;
   }
   try {
     const redis = await createRedisClient(redisUrl);
     presencePort = new RedisPresencePort(redis);
-    logger.info("Redis presence store connected");
+    (logger.done ?? logger.info).call(logger, "Redis presence store connected", { tags: ["collaborativity-feature"] });
   } catch (err) {
-    logger.warn(`Redis connection failed — presence disabled: ${err}`);
+    logger.warn(`Redis connection failed — presence disabled: ${err}`, { tags: ["collaborativity-feature"] });
     // presencePort stays null — all presence calls are no-ops
   }
 }
