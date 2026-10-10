@@ -30,11 +30,11 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { ServiceRegistryRepo } from "./modules/proxy/service-registry-repo.js";
 import { ServiceLifecycleSubscriber } from "./controllers/nats-sub/service-lifecycle-subscriber.js";
-import { startServiceRegistryController } from "./controllers/nats-req/service-registry.js";
-import { startClientRegistryController } from "./controllers/nats-req/client-registry.js";
+import { startInternalRequestRoutes } from "./controllers/nats-sub/internal-request-routes.js";
+import { createPublisherVerifier } from "./controllers/nats-sub/publisher-identity.js";
 import { ClientRegistryRepo } from "./modules/proxy/client-registry-repo.js";
 import { initBackendIdentity } from "./modules/proxy/backend-identity.js";
-import { startAuthApiKeyController } from "./controllers/nats-req/auth-apikey.js";
+import { initSecretEngine } from "./modules/secrets/secret-engine.js";
 import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js";
 import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
@@ -423,18 +423,21 @@ async function startServiceLifecycle(): Promise<void> {
   try {
     const natsUrl = process.env.NATS_URL ?? "nats://127.0.0.1:4222";
     await NatsClient.getConnection(natsUrl);
-    // Subscribe to config.get — respond with shared config (redis_url, etc.)
-    // Microservices discover redis_url from the BE via this NATS request/reply.
+    // config.get — governed correlation-reply serving the shared config
+    // (redis_url, telemetry) to microservices at boot and on config.changed.
+    const sharedConfigVerifier = createPublisherVerifier(getPool());
     await subscribeSharedConfig(NatsClient, () => {
       const cfg = getAuthConfig();
       return { redis_url: cfg.redis_url, telemetry: getTelemetryShared() };
-    });
+    }, sharedConfigVerifier.asRouteVerify());
+    // Identity FIRST: the lifecycle subscriber publishes service.gateway_online
+    // and internal routes serve shield-verified calls — every NATS publish
+    // must already carry the BE's client-shield identity.
+    await enrollBackendIdentity();
     const subscriber = new ServiceLifecycleSubscriber();
     await subscriber.start();
-    await startServiceRegistryController();
-    await startClientRegistryController();
-    await startAuthApiKeyController();
-    await enrollBackendIdentity();
+    await startInternalRequestRoutes();
+    await initSecretEngine();
     const staleJob = new StaleDetectionJob();
     staleJob.start();
   } catch (err) {

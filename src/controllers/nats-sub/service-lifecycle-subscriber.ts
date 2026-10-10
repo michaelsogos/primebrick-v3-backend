@@ -12,9 +12,9 @@
  */
 
 import { logger } from "@primebrick/sdk";
-import { NatsClient, SERVICE_SUBJECTS, CLIENT_REGISTRY_SUBJECTS, verifyClientIdentity, clientKeyHash, CLIENT_SHIELD_KEY_HEADER, msgHeader, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
-import type { Msg } from "nats";
+import { NatsClient, SERVICE_SUBJECTS, CLIENT_REGISTRY_SUBJECTS, makeNatsRequestRoute, setNatsShieldRegistry, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
 import { getPool } from "../../db/pool.js";
+import { createPublisherVerifier } from "./publisher-identity.js";
 import { ServiceRegistryRepo } from "../../modules/proxy/service-registry-repo.js";
 import { entityRegistry } from "../../modules/mcp/tools/entity-registry.js";
 import { discoverEntitiesFromService } from "../../modules/mcp/tools/openapi-discovery.js";
@@ -31,45 +31,50 @@ export class ServiceLifecycleSubscriber {
   private repo: ServiceRegistryRepo;
   /** Tracks which services have already had their entities registered (avoids re-fetching on every heartbeat). */
   private registeredServices: Set<string> = new Set();
-  /** Snapshot of system.client_registry for publisher verification — 60s TTL + invalidated on `changed`. */
-  private clientRows: { ua_prefix: string; client_key_hash: string }[] | null = null;
-  private clientRowsAt = 0;
+  /** Shield-identity verifier for service publishers (60s row cache + `changed` invalidation). */
+  private readonly verifier = createPublisherVerifier(getPool());
 
   constructor() {
     this.repo = new ServiceRegistryRepo(getPool());
+    // Layer-1 shield for governed NATS routes in this process (same as US).
+    setNatsShieldRegistry(this.verifier.shieldRegistry);
   }
 
   async start(): Promise<void> {
-    // Registration is a request/reply handshake (B16): the service retries
-    // every 5s until this ack lands — no ack, no heartbeats.
-    await NatsClient.subscribeRequest<ServiceRegisterPayload, { registered: boolean; error?: string }>(
-      SERVICE_SUBJECTS.REGISTER,
-      async (payload, msg) => {
-        // service.register IS the enrollment channel — a first-time
-        // registration can't prove a key the registry doesn't know yet.
-        // Enrolled prefixes must present the matching key (no squatting).
-        if (!(await this.verifyPublisher(msg, SERVICE_SUBJECTS.REGISTER, payload, { allowNewPrefix: true }))) {
-          return { registered: false, error: "publisher identity rejected" };
-        }
-        if (!payload?.code || !payload?.base_url) {
-          logger.warn(`service.register rejected — missing required field(s): ${[!payload?.code && "code", !payload?.base_url && "base_url"].filter(Boolean).join(", ")}`, {
-            tags: ["nats"],
-            received_code: payload?.code ?? null,
-            received_base_url: payload?.base_url ?? null,
-          });
-          return { registered: false, error: "service.register requires non-empty code and base_url" };
-        }
-        await this.handleRegister(payload);
-        return { registered: true };
-      },
-      // Work items: one gateway replica owns each lifecycle message —
-      // the queue also prevents duplicate replies on the register req/res.
-      { queue: "primebrick-api" },
+    // Registration is a governed correlation-reply handshake (B16): the
+    // service publishes with a private reply inbox and retries every 5s
+    // until this ack lands — no ack, no heartbeats. Callers authenticate
+    // via client-shield identity (`verify`), not AuthUser headers.
+    await makeNatsRequestRoute<ServiceRegisterPayload, { registered: boolean; error?: string }>(
+      [
+        {
+          subject: SERVICE_SUBJECTS.REGISTER,
+          queue: "primebrick-api",
+          permissions: [],
+          // service.register IS the enrollment channel — a first-time
+          // registration can't prove a key the registry doesn't know yet.
+          // Enrolled prefixes must present the matching key (no squatting).
+          verify: this.verifier.asRouteVerify(undefined, { allowNewPrefix: true }),
+          handler: async ({ request: payload }) => {
+            if (!payload?.code || !payload?.base_url) {
+              logger.warn(`service.register rejected — missing required field(s): ${[!payload?.code && "code", !payload?.base_url && "base_url"].filter(Boolean).join(", ")}`, {
+                tags: ["nats"],
+                received_code: payload?.code ?? null,
+                received_base_url: payload?.base_url ?? null,
+              });
+              return { registered: false, error: "service.register requires non-empty code and base_url" };
+            }
+            await this.handleRegister(payload);
+            return { registered: true };
+          },
+        },
+      ],
+      { serviceCode: "primebrick-api" },
     );
     await NatsClient.subscribe<ServiceHeartbeatPayload>(
       SERVICE_SUBJECTS.HEARTBEAT,
       async (payload, msg) => {
-        if (!(await this.verifyPublisher(msg, SERVICE_SUBJECTS.HEARTBEAT, payload))) return;
+        if (!(await this.verifier.verify(msg, payload))) return;
         return this.handleHeartbeat(payload);
       },
       { queue: "primebrick-api" },
@@ -77,19 +82,25 @@ export class ServiceLifecycleSubscriber {
     await NatsClient.subscribe<ServiceUnregisterPayload>(
       SERVICE_SUBJECTS.UNREGISTER,
       async (payload, msg) => {
-        if (!(await this.verifyPublisher(msg, SERVICE_SUBJECTS.UNREGISTER, payload))) return;
+        if (!(await this.verifier.verify(msg, payload))) return;
         return this.handleUnregister(payload);
       },
       { queue: "primebrick-api" },
     );
     await NatsClient.subscribe<ServiceStalePayload>(
       SERVICE_SUBJECTS.STALE,
-      (payload) => this.handleStale(payload),
+      async (payload, msg) => {
+        if (!(await this.verifier.verify(msg, payload))) return;
+        return this.handleStale(payload);
+      },
       { queue: "primebrick-api" },
     );
     // Keep the publisher-identity cache fresh when clients enroll/rotate.
-    await NatsClient.subscribe(CLIENT_REGISTRY_SUBJECTS.CHANGED, async () => {
-      this.clientRows = null;
+    // Shield-verified too: a rogue publisher must not be able to force
+    // allowlist refetches.
+    await NatsClient.subscribe(CLIENT_REGISTRY_SUBJECTS.CHANGED, async (_payload, msg) => {
+      if (!(await this.verifier.verify(msg))) return;
+      this.verifier.invalidate();
     });
     logger.done("Subscribed to service.register, service.heartbeat, service.unregister, service.stale", { tags: ["nats"] });
 
@@ -131,56 +142,6 @@ export class ServiceLifecycleSubscriber {
     } catch (err) {
       logger.warn("Failed to discover existing services:", { tags: ["core"], error: err instanceof Error ? err.message : String(err) });
     }
-  }
-
-  /**
-   * Publisher-identity gate for lifecycle subjects: the same
-   * `verifyClientIdentity` rule as the HTTP gate, applied to NATS headers
-   * (NatsClient.publish stamps them automatically). Rows are cached 60s and
-   * invalidated on `system.client_registry.changed`.
-   */
-  private async verifyPublisher(
-    msg: Msg,
-    subject: string,
-    claimed?: { code?: string; base_url?: string; pkg_name?: string; service_version?: string; client_key_hash?: string } | null,
-    opts: { allowNewPrefix?: boolean } = {},
-  ): Promise<boolean> {
-    if (!this.clientRows || Date.now() - this.clientRowsAt > 60_000) {
-      this.clientRows = await getPool().query<{ ua_prefix: string; client_key_hash: string }>(
-        `SELECT ua_prefix, client_key_hash FROM system.client_registry WHERE is_enabled AND deleted_at IS NULL`,
-      ).then((r) => r.rows);
-      this.clientRowsAt = Date.now();
-    }
-    const hdrs = msg.headers;
-    const getHdr = (name: string): string | null => msgHeader(hdrs, name); // MsgHdrs is case-sensitive
-    const rows = this.clientRows ?? [];
-    const ua = getHdr("user-agent") ?? "";
-    const knownPrefix = rows.find((r) => ua.startsWith(r.ua_prefix))?.ua_prefix;
-    if (opts.allowNewPrefix && ua && !knownPrefix && claimed?.client_key_hash) {
-      // First enrollment — the payload's client_key_hash becomes the
-      // registry row in handleRegister/handleHeartbeat; nothing to verify
-      // against yet. Without a hash there is nothing to enroll → reject.
-      return true;
-    }
-    const result = await verifyClientIdentity(
-      { headers: { get: getHdr } },
-      {
-        allowedPrefixes: rows.map((r) => r.ua_prefix),
-        verifyKey: (prefix, key) =>
-          rows.find((r) => r.ua_prefix === prefix)?.client_key_hash === clientKeyHash(key),
-      },
-    );
-    if (!result.ok) {
-      const claimedRef = claimed
-        ? this.serviceRef(claimed, claimed.code ?? "unknown")
-        : "unknown";
-      logger.error(`${claimedRef} "${subject}" rejected — ${result.error}`, {
-        tags: ["nats", `${result.status}`, claimed?.base_url ?? "no-base-url"],
-        presented_ua: ua || null,
-        shield_key_present: Boolean(getHdr(CLIENT_SHIELD_KEY_HEADER)),
-      });
-    }
-    return result.ok;
   }
 
   /**

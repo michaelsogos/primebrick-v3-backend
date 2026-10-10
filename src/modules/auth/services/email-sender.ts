@@ -11,7 +11,7 @@
  * still work, the user just won't receive the email. The admin can resend.
  */
 
-import { logger } from "@primebrick/sdk";
+import { logger, buildNatsAuthHeaders, getAuthConfig, getSession, systemAuthUser } from "@primebrick/sdk";
 import { NatsClient } from "@primebrick/sdk";
 import { randomUUID } from "crypto";
 
@@ -40,10 +40,19 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     languageIso: params.language_iso,
     to: params.to,
     variables: params.variables,
+    // Audit metadata: the real session actor when the send was triggered
+    // inside a request, else the service code. The authorizing identity on
+    // the wire is the synthetic is_system user (service-initiated sends
+    // have no acting user — governed by client shield + gateway secret).
+    initiatedBy: getSession()?.actor ?? "primebrick-api",
   };
 
   try {
-    await NatsClient.publish("emailsender.send", request);
+    const authHeaders = buildNatsAuthHeaders(
+      systemAuthUser(request.initiatedBy),
+      await getAuthConfig(),
+    );
+    await NatsClient.publish("emailsender.send", request, authHeaders);
   } catch (err) {
     logger.error(
       `Failed to publish email send request to NATS (template: ${params.template_code}):`,

@@ -5,7 +5,7 @@ trigger: always_on
 # Devin Rule: Controller Boundary (MVC transport layer)
 
 ## Trigger
-- Applies to ALL code in `src/controllers/` (http/, nats-sub/; nats-req/ is DEPRECATED — NATS req/res banned),
+- Applies to ALL code in `src/controllers/` (http/, nats-sub/; NATS req/res is banned — sync replies go through governed correlation (`callNats`/`makeNatsRequestRoute`)),
   and to any file handling an HTTP request, NATS request-reply, or NATS
   subscription.
 
@@ -15,8 +15,16 @@ trigger: always_on
 src/
   controllers/            # transport adapters ONLY — no business logic
     http/                 # HTTP route handlers (Express routers)
-    nats-req/             # DEPRECATED — NATS req/res is banned; do NOT add files here
+    nats-sub/             # includes governed correlation-reply request routes
     nats-sub/             # NATS pub/sub + JetStream subscribers, cron/poll jobs
+    #                    # EVERY inbound NATS route/subscriber runs TWO layers:
+    #                    # 1) client shield (UA+key vs client_registry) — governs
+    #                    #    WHO may publish; 2) user shield (gateway secret +
+    #                    #    AuthUser + RBAC) — governs WHICH actor accesses the
+    #                    #    resource. Use makeNatsRoutes/makeNatsRequestRoute
+    #                    # (shield-first built in) or subscribeShielded for
+    #                    #    broadcasts. Raw NatsClient.subscribe on shared
+    #                    #    subjects is a security gap.
   modules/<domain>/
     services/             # transport-agnostic business logic
     *_dal.ts / *-repo.ts  # data access — imported ONLY by services
@@ -100,7 +108,7 @@ await runEntityWrite(req, res, () => service.createCustomer(body));
    `ApiError`/`mapDalError`. No transport types.
 2. Add the **controller** under `controllers/http/` or `nats-sub/` —
    pick the directory matching the transport, never the domain folder.
-   `nats-req/` is DEPRECATED: do not add files there.
+   NATS req/res is banned: `NatsClient.request`/`subscribeRequest` no longer exist — use `callNats`/`makeNatsRequestRoute`.
 3. The controller calls **exactly one** service method. If you need two,
    compose them inside a service method.
 4. Declare the permission with `rbacHandler(...)` — missing declaration
