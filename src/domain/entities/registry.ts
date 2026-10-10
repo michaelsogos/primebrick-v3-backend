@@ -5,8 +5,6 @@
 import "reflect-metadata";
 
 import type { EntityClass } from "@primebrick/dal-pg";
-import { AiCerebellumEntity } from "../../modules/ai-cerebellum/ai_cerebellum_entity.js";
-import { AiModelEntity } from "../../modules/ai-models/ai_model_entity.js";
 import { AuthEventEntity } from "../../modules/auth/auth_event_entity.js";
 import { ConfigEntryEntity } from "../../modules/auth/config_entry_entity.js";
 import { MfaActionAuthorizationEntity } from "../../modules/auth/mfa_action_authorization_entity.js";
@@ -20,8 +18,6 @@ import { CustomerEntity } from "../../modules/customers/customer_entity.js";
 import { ServiceRegistryEntity } from "../../modules/system/service_registry_entity.js";
 
 export const ENTITY_REGISTRY = [
-  AiCerebellumEntity,
-  AiModelEntity,
   AuthEventEntity,
   ConfigEntryEntity,
   MfaActionAuthorizationEntity,

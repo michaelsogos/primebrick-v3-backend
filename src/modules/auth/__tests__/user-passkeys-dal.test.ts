@@ -241,7 +241,10 @@ describe("UserPasskeysDal", () => {
       const [, data, options] = mockRepo.update.mock.calls[0];
       expect(data.uuid).toBe("pk-uuid");
       expect(data.label).toBe("My New Label");
-      expect(data.updated_by).toBe("test-actor-uuid");
+      // updated_by is NOT set in the body — the `{ actor }` option writes it
+      // (setting both yields PG 42601 "multiple assignments to same column").
+      expect(data.updated_by).toBeUndefined();
+      expect(options.actor).toBe("test-actor-uuid");
       expect(options.actor).toBe("test-actor-uuid");
     });
   });
@@ -257,7 +260,7 @@ describe("UserPasskeysDal", () => {
       expect(mockRepo.find).toHaveBeenCalledTimes(1);
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
       const [, data, options] = mockRepo.update.mock.calls[0];
-      expect(data.id).toBe(77n);
+      expect(data.credential_id).toBe("cred-abc");
       expect(data.last_used_at).toBe(when);
       // version is required for optimistic locking (auditable entity)
       expect(data.version).toBe(1);

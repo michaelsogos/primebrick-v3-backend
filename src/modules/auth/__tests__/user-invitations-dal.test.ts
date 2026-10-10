@@ -170,7 +170,10 @@ describe("UserInvitationsDal", () => {
       expect(data.uuid).toBe("inv-uuid");
       expect(data.status).toBe("COMPLETED");
       expect(data.completed_at).toBe(completedAt);
-      expect(data.updated_by).toBe("test-actor-uuid");
+      // updated_by is NOT set in the body — the `{ actor }` option writes it
+      // (setting both yields PG 42601 "multiple assignments to same column").
+      expect(data.updated_by).toBeUndefined();
+      expect(options.actor).toBe("test-actor-uuid");
     });
 
     it("should update status without extra fields", async () => {

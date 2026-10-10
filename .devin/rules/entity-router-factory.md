@@ -75,7 +75,7 @@ conventional `<entityName>.duplicate.bulk` permission string and applies a
 default `{uuids: uuid[].min(1).max(100)}` body schema. Opt out per entity
 with `duplicate: false` — required for IdP-synced entities (`organization`,
 `role_mapping`, `user_profile`) and domain entities where cloning is
-meaningless (`ai_model`, `ai_cerebellum`).
+meaningless .
 
 Clone semantics (DAL `repo.clone`): new `uuid`, `@Unique`/`@Key`/audit/
 deletable columns reset, all other fields copied verbatim, `@CloneField`
@@ -134,7 +134,7 @@ const svc = makeEntityService<CustomerDetailDto>({
   },
   hooks: {
     beforeCreate: (body) => transformedBody,        // validation/derivation
-    beforeUpdate: (uuid, body) => transformedBody,  // (e.g. ai_model power_level)
+    beforeUpdate: (uuid, body) => transformedBody,  // (e.g. derived fields)
     afterWrite: (op, entity) => invalidateCache(),  // post-write side effects
   },
 });
@@ -207,31 +207,29 @@ makeEntityRouter({
 
 ## Examples
 
-### Canonical entity (ai_model)
+### Canonical entity (customer)
 
 ```ts
-export function aiModelsRouter() {
-  const service = new AiModelsService();
+export function customersRouter() {
+  const service = new CustomersService();
   return makeEntityRouter({
-    entityName: 'ai_model',
-    entity: AiModelEntity,
-    meta: aiModelMeta,
+    entityName: 'customer',
+    entity: CustomerEntity,
+    meta: customerMeta,
     service,
     permissions: {
-      meta: [Permission.AI_MODEL_READ_ALL, Permission.AI_MODEL_READ_SINGLE],
-      list: [Permission.AI_MODEL_READ_ALL],
-      get: [Permission.AI_MODEL_READ_SINGLE],
-      create: [Permission.AI_MODEL_CREATE_SINGLE],
-      update: [Permission.AI_MODEL_UPDATE_SINGLE],
-      delete: [Permission.AI_MODEL_DELETE_SINGLE],
-      restore: [Permission.AI_MODEL_RESTORE_SINGLE],
-      audit: [Permission.AI_MODEL_READ_AUDIT],
+      meta: [Permission.CUSTOMER_READ_ALL, Permission.CUSTOMER_READ_SINGLE],
+      list: [Permission.CUSTOMER_READ_ALL],
+      get: [Permission.CUSTOMER_READ_SINGLE],
+      create: [Permission.CUSTOMER_CREATE_SINGLE],
+      update: [Permission.CUSTOMER_UPDATE_SINGLE],
+      delete: [Permission.CUSTOMER_DELETE_SINGLE],
+      restore: [Permission.CUSTOMER_RESTORE_SINGLE],
+      audit: [Permission.CUSTOMER_READ_AUDIT],
     },
     schemas: { listQuery, createBody, updateBody, auditQuery },
-    methods: { list: 'listAiModels', /* ... */ },
     hooks: {
-      afterWrite: () => service.invalidateCache(),
-      actionMiddlewares: { delete: [requireMfaStepUp('delete', 'ai_model')] },
+      actionMiddlewares: { delete: [requireMfaStepUp('delete', 'customer')] },
     },
   });
 }

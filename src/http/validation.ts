@@ -82,8 +82,9 @@ export function zBoundedNumber(min: number, max: number) {
  * Why: in zod v4 `.partial()` keeps `.default()` wrappers — an omitted key
  * parses to its DEFAULT, and the DAL then writes that default over the
  * existing column. A partial PUT like `{vram_mb: 2257}` silently resets
- * temperature/top_p/rank/engine_type/... to schema defaults (observed on
- * ai_model, version 41→42). Pass the FULL update shape (incl. `version`)
+ * temperature/top_p/rank/engine_type/... to schema defaults (originally
+ * observed on the ai_model entity, version 41→42). Pass the FULL update
+ * shape (incl. `version`)
  * so required fields still validate.
  */
 export function zPartialNoDefaults<S extends z.ZodObject<z.ZodRawShape>>(

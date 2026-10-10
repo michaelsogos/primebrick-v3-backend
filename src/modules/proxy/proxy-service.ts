@@ -2,7 +2,7 @@
  * Generic microservice proxy — forwards HTTP requests to any registered
  * microservice via the service registry.
  *
- * URL pattern: /ws/:serviceCode/v1/... → {base_url}/api/v1/...
+ * URL pattern: /ws/:serviceCode/api/v1/... → {base_url}/api/v1/... (path forwarded verbatim)
  *
  * The proxy:
  *   1. Authenticates the caller (via rbacHandler([AUTHENTICATED_USER]) on the route)
@@ -161,9 +161,11 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
   const instance = onlineInstances[counter % onlineInstances.length];
   rrCounters.set(serviceCode, counter + 1);
 
-  // Build the target URL: {base_url}/api/{path_after_serviceCode}
+  // Build the target URL: {base_url}{path_after_serviceCode} — every US
+  // exposes its governed routes under /api/v1/*, so the path after
+  // /ws/:serviceCode is forwarded verbatim (no prefix rewriting).
   const pathAfterService = req.url.replace(/^\/ws\/[^/]+/, "");
-  const targetPath = `/api${pathAfterService}`;
+  const targetPath = pathAfterService;
   const targetUrl = new URL(targetPath, instance.base_url).toString();
 
   // Serialize the resolved AuthUser into headers for the microservice (GATEWAY-RESOLVED mode)
@@ -322,10 +324,10 @@ export async function proxyRequestSse(req: Request, res: Response): Promise<void
   const instance = await resolveServiceInstance(serviceCode, res);
   if (!instance) return; // error already sent
 
-  // Build target URL: {ai_base_url}/api/{pathAfterAi}
-  // req.url here is the full path after the router mount point, e.g. "/api/v1/ai/chat".
-  const pathAfterAi = req.url.replace(/^\/api\/v1\/ai/, "");
-  const targetPath = `/api${pathAfterAi}`;
+  // Build target URL: {ai_base_url}{req.url} — the AI service exposes the
+  // same /api/v1/ai/* namespace the FE calls; the path is forwarded
+  // verbatim (no prefix rewriting).
+  const targetPath = req.url;
   const targetUrl = new URL(targetPath, instance.base_url).toString();
 
   // Serialize the resolved AuthUser into headers (GATEWAY-RESOLVED mode).

@@ -342,7 +342,7 @@ function buildProxyPath(module: string, entity: string, operation: Operation, uu
  * reconstructing the Express proxy logic and ensures the proxy's RBAC and
  * token forwarding are reused.
  */
-async function proxyToMicroservice(
+export async function proxyToMicroservice(
   authInfo: AuthInfo,
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,

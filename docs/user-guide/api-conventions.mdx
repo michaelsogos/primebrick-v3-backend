@@ -56,7 +56,8 @@ entity-factory router (`<entity>.duplicate.bulk` permission derived by
 convention) and is switched OFF explicitly via `duplicate: false` — currently
 disabled on `organization`, `role_mapping`, `user_profile`, `ai_model`, and
 `ai_cerebellum` (IdP-synced or domain-lifecycle entities where cloning is
-meaningless). `organization` has no bulk routes by architectural necessity
+meaningless; the last two are served by the AI microservice via the
+`/ws/ai` proxy, but `duplicate` stays off there too). `organization` has no bulk routes by architectural necessity
 (per-record IdP sync) — see
 [Authentication → Organizations](./authentication#organizations). Since
 `meta.actions` is derived from the registered route table and always emits
@@ -247,11 +248,11 @@ curl -H "Authorization: Bearer <jwt>" \
   http://localhost:3001/api/v1/system/password-policy
 ```
 
-`POST /api/v1/system/docs/search` is an authenticated system RPC used by the
-local Guide assistant and the MCP `search_docs` tool. The caller supplies the
-precomputed 384-dimensional embedding plus optional `keywords`, `limit` (1–20),
-and `repo`; the response contains ranked documentation chunks. The backend
-searches the `ai.docs_kb` vectors and does not generate embeddings.
+`POST /ws/ai/api/v1/system/docs/search` is an authenticated RPC served by the
+AI microservice (the docs knowledge base is AI-owned — the BE only proxies).
+The caller supplies either raw `query` text or a precomputed `embedding`,
+plus optional `keywords`, `limit` (1–20), and `repo`; the response contains
+ranked documentation chunks from `ai.docs_kb`.
 
 ## MCP
 

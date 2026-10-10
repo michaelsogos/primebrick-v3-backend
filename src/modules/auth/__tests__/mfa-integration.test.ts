@@ -112,6 +112,12 @@ beforeAll(async () => {
 
   if (!serverReachable) return;
 
+  if (!ADMIN_PASSWORD) {
+    // No E2E credentials configured — login-dependent tests skip cleanly.
+    logger.warn("Skipping MFA integration login tests: E2E_ADMIN_PASSWORD not set");
+    return;
+  }
+
   // Try to login — if MFA is required, we know the admin has MFA
   try {
     const loginResp = await apiCall("/api/v1/auth/login", {
@@ -149,7 +155,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
 
   describe("login flow with MFA", () => {
     it("returns mfa_required when admin has MFA factors", async () => {
-      if (!serverReachable) return;
+      if (!serverReachable || !ADMIN_PASSWORD) return;
       const resp = await apiCall("/api/v1/auth/login", {
         method: "POST",
         body: { username: ADMIN_USERNAME, password: ADMIN_PASSWORD },
@@ -165,7 +171,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
     });
 
     it("rejects wrong password", async () => {
-      if (!serverReachable) return;
+      if (!serverReachable || !ADMIN_PASSWORD) return;
       const resp = await apiCall("/api/v1/auth/login", {
         method: "POST",
         body: { username: ADMIN_USERNAME, password: "wrong-password" },
@@ -176,7 +182,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
 
   describe("MFA enrollment endpoints (session-gated)", () => {
     it("GET /api/v1/auth/mfa/factors returns 401 without session", async () => {
-      if (!serverReachable) return;
+      if (!serverReachable || !ADMIN_PASSWORD) return;
       const resp = await apiCall("/api/v1/auth/mfa/factors");
       expect(resp.status).toBe(401);
     });
@@ -193,7 +199,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
 
   describe("step-up MFA endpoints", () => {
     it("POST /api/v1/auth/mfa/step-up/initiate returns 401 without session", async () => {
-      if (!serverReachable) return;
+      if (!serverReachable || !ADMIN_PASSWORD) return;
       const resp = await apiCall("/api/v1/auth/mfa/step-up/initiate", {
         method: "POST",
         body: { action: "delete", target_resource: "organizations" },
@@ -228,7 +234,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
 
   describe("MFA verify endpoint (PUBLIC)", () => {
     it("POST /api/v1/auth/mfa/verify returns 400 with missing fields", async () => {
-      if (!serverReachable) return;
+      if (!serverReachable || !ADMIN_PASSWORD) return;
       const resp = await apiCall("/api/v1/auth/mfa/verify", {
         method: "POST",
         body: {},
@@ -237,7 +243,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
     });
 
     it("POST /api/v1/auth/mfa/verify returns 401 with invalid challenge token", async () => {
-      if (!serverReachable) return;
+      if (!serverReachable || !ADMIN_PASSWORD) return;
       const resp = await apiCall("/api/v1/auth/mfa/verify", {
         method: "POST",
         body: {

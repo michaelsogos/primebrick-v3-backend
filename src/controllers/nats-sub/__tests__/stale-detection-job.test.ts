@@ -130,7 +130,7 @@ describe("StaleDetectionJob", () => {
     // svc-c already offline are skipped — no re-marking, no repeated logs.
     expect(mockRepo.updateByCode).toHaveBeenCalledTimes(1);
     expect(mockRepo.updateByCode).toHaveBeenCalledWith("svc-a", { status: "going_live" });
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("marked going_live"), expect.anything());
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("is going_live"), expect.anything());
   });
 
   it("some stale, some fresh → only stale ones updated", async () => {

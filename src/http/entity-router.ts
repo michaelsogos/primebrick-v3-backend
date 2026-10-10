@@ -151,7 +151,8 @@ export interface EntityRouterConfig<TEntity = unknown, S extends object = object
    *  conventional `<entity>.duplicate.bulk` permission even when
    *  `permissions.duplicate` is unset. Set to `false` to disable —
    *  required for IdP-synced entities (org/role_mapping/user_profile)
-   *  and domain entities where cloning is meaningless (ai_model/…). */
+   *  and domain entities where cloning is meaningless (e.g. ai_model in the
+   *  AI service — the same factory option exists in the US SDK router). */
   duplicate?: false;
 
   /** Override an action's handler body; the mandatory chain still applies. */

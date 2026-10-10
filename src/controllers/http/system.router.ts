@@ -13,9 +13,9 @@
  *   DELETE /api/v1/system/services/:code         → hard delete from registry
  *   PUT    /api/v1/system/services/:code         → admin field update
  *
- * Plus mounted sub-routers: services-events (SSE) and docs-search.
+ * Plus mounted sub-routers: services-events (SSE).
  * The router contains NO business logic — all data access and shaping
- * lives in SystemService / DocsSearchService. Errors are thrown as
+ * lives in SystemService. Errors are thrown as
  * `ApiError` subclasses and converted to RFC 7807 by `errorHandler`.
  */
 
@@ -30,7 +30,6 @@ import { ValidationError } from "../../http/api-errors.js";
 import { SystemService } from "../../modules/system/system.service.js";
 import { RoutesCensusService } from "../../modules/system/routes-census.service.js";
 import { servicesEventsRouter } from "./services-events.router.js";
-import { docsSearchRouter } from "./docs-search.router.js";
 import { mcpCallRouter } from "./mcp-call.router.js";
 
 const ServiceCodeParamSchema = z.object({
@@ -65,7 +64,6 @@ export function systemRouter() {
   // Mount the SSE events endpoint for service registry
   router.use(servicesEventsRouter());
   // Mount the documentation KB search endpoint
-  router.use(docsSearchRouter());
   // Mount the MCP tool invocation shim (REST → shared tool handlers)
   router.use(mcpCallRouter());
 

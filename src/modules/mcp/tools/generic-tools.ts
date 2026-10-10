@@ -59,8 +59,7 @@ import {
   deleteService,
 } from "./dispatch.js";
 import type { AuthInfo } from "@modelcontextprotocol/server";
-import { getPool } from "../../../db/pool.js";
-import { searchDocsKb } from "../../system/docs-search-dal.js";
+import { proxyToMicroservice } from "./dispatch.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -720,14 +719,21 @@ export function registerGenericTools(server: McpServer): void {
       }),
     },
     withErrorHandling(async (args, _ctx) => {
-      getAuthInfo(_ctx); // authenticated users only — docs KB is not public
-      const results = await searchDocsKb(getPool(), {
-        embedding: args.embedding,
-        keywords: args.keywords,
-        limit: args.limit,
-        repo: args.repo,
-      });
-      return textResult({ results });
+      const authInfo = getAuthInfo(_ctx); // authenticated users only — docs KB is not public
+      // The docs knowledge base is owned by the AI microservice — dispatch
+      // through the BE→US HTTP proxy; the BE never touches ai.* tables.
+      const results = await proxyToMicroservice(
+        authInfo,
+        "POST",
+        "/ws/ai/api/v1/system/docs/search",
+        {
+          embedding: args.embedding,
+          keywords: args.keywords,
+          limit: args.limit,
+          repo: args.repo,
+        },
+      );
+      return textResult(results);
     }),
   );
 }
