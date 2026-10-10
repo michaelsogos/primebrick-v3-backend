@@ -48,7 +48,7 @@ import { asyncHandler } from "./async-handler.js";
 import { validateBody, validateQuery } from "./validation.js";
 import { ValidationError } from "./api-errors.js";
 import { rbacHandler } from "../modules/auth/rbac.middleware.js";
-import type { Permission } from "@primebrick/sdk";
+import { entityCrudSpec, type Permission } from "@primebrick/sdk";
 import type { EntityMeta } from "./entity-meta.types.js";
 import { assembleMeta } from "./meta-assembler.js";
 import { deriveEntityActions, type ExtraActionScan } from "./entity-actions.js";
@@ -344,5 +344,50 @@ export function makeEntityRouter<TEntity, S extends object>(
   });
 
   registerRoutes(router, [...literalDefs, ...(config.extraRoutes ?? []), ...paramDefs]);
+
+  // OpenAPI self-documentation: the action set the router ACTUALLY
+  // registered (same `perms()` presence logic — duplicate included) is
+  // pushed into a module registry; the openapi router merges the generated
+  // canonical paths under the hand-written spec, so hand-written entries
+  // still win where they exist.
+  const registeredOps = (Object.keys(defaults) as EntityAction[]).filter((a) => perms(a));
+  entitySpecRegistry.push({ entity: config.entityName, ops: registeredOps });
   return router;
+}
+
+// ─── OpenAPI spec registry ──────────────────────────────────────────────────
+// Filled by makeEntityRouter() calls at startup; consumed by
+// collectEntitySpecPaths() when /api/v1/openapi.json is served — the spec is
+// always in sync with the routes that exist.
+
+const ACTION_TO_CRUD_OP = {
+  meta: "meta", list: "list", export: "export", get: "get", create: "create",
+  update: "update", delete: "delete", purge: "purge", restore: "restore",
+  audit: "audit", duplicate: "duplicate",
+  bulkDelete: "bulk_delete", bulkRestore: "bulk_restore",
+} as const;
+
+export interface EntitySpecEntry {
+  entity: string;
+  ops: EntityAction[];
+  tag?: string;
+  label?: string;
+}
+
+const entitySpecRegistry: EntitySpecEntry[] = [];
+
+/** Merged canonical CRUD paths for every entity registered via makeEntityRouter. */
+export function collectEntitySpecPaths(): Record<string, unknown> {
+  const merged: Record<string, unknown> = {};
+  for (const entry of entitySpecRegistry) {
+    Object.assign(
+      merged,
+      entityCrudSpec(entry.entity, {
+        ops: entry.ops.map((a) => ACTION_TO_CRUD_OP[a]),
+        ...(entry.tag ? { tag: entry.tag } : {}),
+        ...(entry.label ? { label: entry.label } : {}),
+      }),
+    );
+  }
+  return merged;
 }

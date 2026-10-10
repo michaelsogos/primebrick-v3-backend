@@ -13,7 +13,7 @@
  *     enforce their own RBAC)
  */
 
-import { isPermissionGranted, type Permission } from "@primebrick/sdk";
+import { isPermissionGranted, internalFetch, type Permission } from "@primebrick/sdk";
 import type { AuthInfo } from "@modelcontextprotocol/server";
 import { authInfoToUser } from "../token-verifier.js";
 import { entityRegistry, type Operation } from "./entity-registry.js";
@@ -359,7 +359,7 @@ async function proxyToMicroservice(
     }
   }
 
-  const response = await fetch(url.toString(), {
+  const response = await internalFetch(url.toString(), {
     method,
     headers: {
       Authorization: `Bearer ${token}`,

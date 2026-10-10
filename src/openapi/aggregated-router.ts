@@ -12,10 +12,10 @@
 
 import { logger } from "@primebrick/sdk";
 import { Router } from "express";
-import { openapi } from "./openapi.js";
+import { mergedOpenApiSpec } from "./spec.js";
 import { getPool } from "../db/pool.js";
 import { ServiceRegistryRepo } from "../modules/proxy/service-registry-repo.js";
-import { backendIdentityHeaders } from "../modules/proxy/backend-identity.js";
+import { internalFetch } from "@primebrick/sdk";
 
 // In-memory cache to avoid hammering microservices on every request
 let cachedSpec: { spec: unknown; timestamp: number } | null = null;
@@ -31,8 +31,8 @@ export function aggregatedOpenApiRouter() {
       return;
     }
 
-    // Start with a deep copy of the BE's own spec
-    const aggregated = JSON.parse(JSON.stringify(openapi));
+    // Start with a deep copy of the BE's own (merged) spec
+    const aggregated = JSON.parse(JSON.stringify(mergedOpenApiSpec()));
 
     // Fetch all registered services
     let services: Awaited<ReturnType<ServiceRegistryRepo["findAll"]>> = [];
@@ -58,12 +58,19 @@ export function aggregatedOpenApiRouter() {
 
       try {
         const specUrl = new URL("/api/v1/openapi.json", svc.base_url).toString();
-        const response = await fetch(specUrl, {
+        const svcRef = svc.pkg_name
+          ? `${svc.pkg_name}/${svc.service_version ?? "?"}`
+          : svc.code;
+        const response = await internalFetch(specUrl, {
           signal: AbortSignal.timeout(5000),
-          headers: backendIdentityHeaders(),
         });
         if (!response.ok) {
-          logger.error(`${svc.code} returned non-OK status`, { tags: ["openapi", `${response.status}`] });
+          let reason: string | undefined;
+          try {
+            const problem = (await response.json()) as { internal_code?: string };
+            reason = problem.internal_code;
+          } catch { /* body not json */ }
+          logger.error(`OpenAPI spec fetch rejected by ${svcRef}`, { tags: ["openapi", `${response.status}`], ...(reason ? { reason } : {}) });
           continue;
         }
 

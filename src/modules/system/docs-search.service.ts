@@ -5,8 +5,8 @@
  * controllers never hold a direct reference to the DAL layer.
  */
 
+import { internalFetch, getAuthConfig, serializeAuthUserToHeaders, type AuthUser } from "@primebrick/sdk";
 import { getPool } from "../../db/pool.js";
-import { getAuthConfig, serializeAuthUserToHeaders, type AuthUser } from "@primebrick/sdk";
 import { ServiceRegistryRepo } from "../proxy/service-registry-repo.js";
 import { searchDocsKb, getDocByPath } from "./docs-search-dal.js";
 
@@ -28,7 +28,7 @@ async function embedQueryText(query: string, user: AuthUser | undefined): Promis
     const cfg = await getAuthConfig();
     Object.assign(headers, serializeAuthUserToHeaders(user, cfg));
   }
-  const res = await fetch(new URL("/api/v1/ai/embed", instance.base_url).toString(), {
+  const res = await internalFetch(new URL("/api/v1/ai/embed", instance.base_url).toString(), {
     method: "POST",
     headers,
     body: JSON.stringify({ text: query, kind: "query" }),

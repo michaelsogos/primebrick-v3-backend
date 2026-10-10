@@ -9,7 +9,7 @@
  */
 
 import type { CachePort, CacheLogger } from "@primebrick/sdk";
-import { RedisCachePort, createRedisClient, closeRedisClient, getRedisInfo, type RedisInfo } from "@primebrick/sdk";
+import { RedisCachePort, createRedisClient, closeRedisClient, getRedisInfo, logModuleStartup, type RedisInfo } from "@primebrick/sdk";
 
 let cachePort: CachePort | null = null;
 let redisInfo: RedisInfo | null = null;
@@ -37,11 +37,7 @@ export async function initCache(
     const redis = await createRedisClient(redisUrl);
     cachePort = new RedisCachePort(redis);
     redisInfo = await getRedisInfo(redis);
-    if (redisInfo) {
-      (logger.done ?? logger.info).call(logger, `Redis connected (v${redisInfo.version})`, { tags: ["core"] });
-    } else {
-      (logger.done ?? logger.info).call(logger, "Redis connected (version unknown)", { tags: ["core"] });
-    }
+    logModuleStartup("Redis", redisInfo?.version ?? null, redisUrl.replace(/(:\/\/[^:/]+):[^@]+@/, "$1@"));
   } catch (err) {
     logger.warn(`Redis connection failed — cache disabled: ${err}`, { tags: ["core"] });
     // cachePort stays null — all cache calls are no-ops

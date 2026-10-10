@@ -40,6 +40,14 @@ export class ServiceRegistryEntity implements IAuditableEntity {
   @Column({ nullable: true })
   service_version?: string;
 
+  /** Package name from the service's package.json (e.g. `primebrick-ai`) — with service_version it forms the canonical identity `{pkg_name}/{version}` used in client_registry and logs. */
+  @Column({ nullable: true })
+  pkg_name?: string;
+
+  /** Capabilities declared in the service's package.json, refreshed at every service.register (e.g. ["llm_orchestrator","vectorizing_engine"]). */
+  @Column({ pgType: "jsonb", nullable: false, defaultSql: "'[]'" })
+  capabilities: string[];
+
   @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   is_behind_scaler: boolean;
 

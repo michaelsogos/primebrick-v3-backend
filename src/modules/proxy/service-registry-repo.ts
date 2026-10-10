@@ -18,6 +18,8 @@ export interface ServiceRegistryEntry {
   author?: string;
   github_repo_url?: string;
   service_version?: string;
+  pkg_name?: string;
+  capabilities?: string[];
   is_behind_scaler: boolean;
   status: string;
   last_health_check_at?: Date;
@@ -158,6 +160,8 @@ export class ServiceRegistryRepo {
       Project.field(field(ServiceRegistryEntity, "author" as any)),
       Project.field(field(ServiceRegistryEntity, "github_repo_url" as any)),
       Project.field(field(ServiceRegistryEntity, "service_version" as any)),
+      Project.field(field(ServiceRegistryEntity, "pkg_name" as any)),
+      Project.field(field(ServiceRegistryEntity, "capabilities" as any)),
       Project.field(field(ServiceRegistryEntity, "is_behind_scaler" as any)),
       Project.field(field(ServiceRegistryEntity, "status" as any)),
       Project.field(field(ServiceRegistryEntity, "last_health_check_at" as any)),

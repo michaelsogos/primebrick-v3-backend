@@ -11,7 +11,7 @@
  */
 
 import type { PresencePort } from "@primebrick/sdk";
-import { RedisPresencePort, createRedisClient } from "@primebrick/sdk";
+import { RedisPresencePort, createRedisClient, getRedisInfo } from "@primebrick/sdk";
 
 let presencePort: PresencePort | null = null;
 
@@ -41,7 +41,11 @@ export async function initPresenceStore(
   try {
     const redis = await createRedisClient(redisUrl);
     presencePort = new RedisPresencePort(redis);
-    (logger.done ?? logger.info).call(logger, "Redis presence store connected", { tags: ["collaborativity-feature"] });
+    const redisInfo = await getRedisInfo(redis);
+    logger.done(
+      `Redis ${redisInfo?.version ?? ""} is ready for the collaborativity feature (${redisUrl.replace(/(:\/\/[^:/]+):[^@]+@/, "$1@")})`,
+      { tags: ["collaborativity-feature"] },
+    );
   } catch (err) {
     logger.warn(`Redis connection failed — presence disabled: ${err}`, { tags: ["collaborativity-feature"] });
     // presencePort stays null — all presence calls are no-ops

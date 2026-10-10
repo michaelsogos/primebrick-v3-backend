@@ -501,6 +501,7 @@ CREATE TABLE IF NOT EXISTS "public"."service_registry" (
   "author" text,
   "github_repo_url" text,
   "service_version" text,
+  "pkg_name" text,
   "is_behind_scaler" boolean NOT NULL DEFAULT false,
   "is_reserved" boolean NOT NULL DEFAULT false,
   "status" text NOT NULL DEFAULT 'unknown',

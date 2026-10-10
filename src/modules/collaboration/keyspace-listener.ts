@@ -95,7 +95,7 @@ export async function startKeyspaceListener(
     }
   });
 
-  logger.info(`keyspace listener started on channel ${channel}`, { tags: ["collaborativity-feature"] });
+  logger.info("Redis keyspace notification listener is ready for stale entities", { tags: ["collaborativity-feature"] });
 
   return async () => {
     try {

@@ -33,10 +33,7 @@ export class StaleDetectionJob {
   start(): void {
     if (this.timer) return;
     this.timer = setInterval(() => void this.run(), POLL_INTERVAL_MS);
-    logger.info(
-      `Service heartbeat watchdog started — a registered service with no heartbeat for >${STALE_THRESHOLD_MS / 1000}s is marked going_live (checks every ${POLL_INTERVAL_MS / 1000}s)`,
-      { tags: ["nats"] },
-    );
+    logger.info("Service heartbeats watchdog started", { tags: ["nats"] });
   }
 
   stop(): void {
@@ -83,9 +80,12 @@ export class StaleDetectionJob {
       } else {
         await this.repo.updateByCodeAndBaseUrl(s.code, s.base_url, { status: "going_live" });
       }
+      const ref = s.pkg_name
+        ? `${s.pkg_name}${s.service_version ? `/${s.service_version}` : ""}`
+        : s.code;
       logger.warn(
-        `${s.code} at ${s.base_url}: no heartbeat for >${STALE_THRESHOLD_MS / 1000}s — marked going_live (was ${oldStatus})`,
-        { tags: ["nats"] },
+        `The service ${ref} is going_live — no heartbeat for >${STALE_THRESHOLD_MS / 1000}s`,
+        { tags: ["nats", s.base_url], was: oldStatus },
       );
 
       // Publish service.stale on NATS so all BE instances (and their SSE clients)

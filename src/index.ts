@@ -311,6 +311,7 @@ void runStartupTasks().catch((err) => {
 });
 
 async function runStartupTasks(): Promise<void> {
+  await logPostgresBanner();
   initAuthPorts();
   await refreshRoleMappings();
   await refreshAuthConfig();
@@ -374,6 +375,22 @@ async function initPresenceStoreFromConfig(): Promise<void> {
   }
 }
 
+async function logPostgresBanner(): Promise<void> {
+  try {
+    const result = await getPool().query("select version() as pg_version");
+    const pgVersion = result.rows[0]?.pg_version as string | undefined;
+    const versionMatch = pgVersion?.match(/PostgreSQL\s+([\d.]+)/);
+    const dbUrl = (process.env.DATABASE_URL ?? "localhost:5432").replace(/(:\/\/[^:/]+):[^@]+@/, "$1@");
+    logModuleStartup("PostgreSQL", versionMatch?.[1], dbUrl);
+  } catch (err) {
+    logger.warn(
+      "PostgreSQL connection failed. Retrying in 5s.",
+      { tags: ["core"], error: err }
+    );
+    setTimeout(() => void logPostgresBanner().catch(() => {}), 5000);
+  }
+}
+
 async function refreshRoleMappings(): Promise<void> {
   try {
     await loadRoleMappings();
@@ -388,19 +405,11 @@ async function refreshRoleMappings(): Promise<void> {
 
 async function refreshAuthConfig(): Promise<void> {
   try {
-    await loadAuthConfig(getPool());
+    const authConfig = await loadAuthConfig(getPool());
+    logger.done(`Global configuration loaded — ${Object.keys(authConfig ?? {}).length} keys found (public.config_entries)`, { tags: ["core"] });
+    logger.done("Auth settings resolved", { tags: ["core"] });
     // Telemetry/logging config lives in config_entries — init once DB is up.
     await initBackendTelemetry("primebrick-api", BACKEND_VERSION);
-    // Log PostgreSQL version after successful DB connection
-    try {
-      const result = await getPool().query("select version() as pg_version");
-      const pgVersion = result.rows[0]?.pg_version as string | undefined;
-      const versionMatch = pgVersion?.match(/PostgreSQL\s+([\d.]+)/);
-      const dbUrl = process.env.DATABASE_URL ?? "localhost:5432";
-      logModuleStartup("PostgreSQL", versionMatch?.[1], dbUrl);
-    } catch {
-      // version query failed — non-critical, DB is up (loadAuthConfig succeeded)
-    }
   } catch (err) {
     logger.warn(
       "loadAuthConfig failed (database unavailable?). Retrying in 5s.",
@@ -441,7 +450,7 @@ async function startServiceLifecycle(): Promise<void> {
  * Self-enroll the BE into system.client_registry (B11): the BE never sends
  * `service.register`, so it upserts its own `source='registry'` row keyed
  * by `{pkg_name}/{version}` — the UA prefix it sends on proxied calls.
- * The client key comes from the `client_key` config entry (module config,
+ * The client key comes from the `service_client_shield_key` config entry (module config,
  * not env). Delegates to `initBackendIdentity()` which also primes the
  * cached identity headers used by the proxy hot path.
  */

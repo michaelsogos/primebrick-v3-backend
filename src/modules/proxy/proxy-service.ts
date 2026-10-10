@@ -86,7 +86,7 @@ export function buildProxyRequestHeaders(req: Request): Record<string, string> {
   // B11 service identity: the outbound User-Agent identifies the BE as the
   // internal caller (registry-allowlisted); the original client UA is kept
   // in x-forwarded-user-agent for US-side audit/observability. The client
-  // key is the BE's module config (`client_key`), cached at startup by
+  // key is the BE's module config (`service_client_shield_key`), cached at startup by
   // initBackendIdentity() — never an env var.
   const clientUa = req.headers["user-agent"];
   if (typeof clientUa === "string" && clientUa.length > 0) {
