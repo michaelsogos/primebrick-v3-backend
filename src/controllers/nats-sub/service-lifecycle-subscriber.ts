@@ -51,9 +51,20 @@ export class ServiceLifecycleSubscriber {
         if (!(await this.verifyPublisher(msg, SERVICE_SUBJECTS.REGISTER, payload, { allowNewPrefix: true }))) {
           return { registered: false, error: "publisher identity rejected" };
         }
+        if (!payload?.code || !payload?.base_url) {
+          logger.warn(`service.register rejected — missing required field(s): ${[!payload?.code && "code", !payload?.base_url && "base_url"].filter(Boolean).join(", ")}`, {
+            tags: ["nats"],
+            received_code: payload?.code ?? null,
+            received_base_url: payload?.base_url ?? null,
+          });
+          return { registered: false, error: "service.register requires non-empty code and base_url" };
+        }
         await this.handleRegister(payload);
         return { registered: true };
       },
+      // Work items: one gateway replica owns each lifecycle message —
+      // the queue also prevents duplicate replies on the register req/res.
+      { queue: "primebrick-api" },
     );
     await NatsClient.subscribe<ServiceHeartbeatPayload>(
       SERVICE_SUBJECTS.HEARTBEAT,
@@ -61,6 +72,7 @@ export class ServiceLifecycleSubscriber {
         if (!(await this.verifyPublisher(msg, SERVICE_SUBJECTS.HEARTBEAT, payload))) return;
         return this.handleHeartbeat(payload);
       },
+      { queue: "primebrick-api" },
     );
     await NatsClient.subscribe<ServiceUnregisterPayload>(
       SERVICE_SUBJECTS.UNREGISTER,
@@ -68,16 +80,23 @@ export class ServiceLifecycleSubscriber {
         if (!(await this.verifyPublisher(msg, SERVICE_SUBJECTS.UNREGISTER, payload))) return;
         return this.handleUnregister(payload);
       },
+      { queue: "primebrick-api" },
     );
     await NatsClient.subscribe<ServiceStalePayload>(
       SERVICE_SUBJECTS.STALE,
       (payload) => this.handleStale(payload),
+      { queue: "primebrick-api" },
     );
     // Keep the publisher-identity cache fresh when clients enroll/rotate.
     await NatsClient.subscribe(CLIENT_REGISTRY_SUBJECTS.CHANGED, async () => {
       this.clientRows = null;
     });
     logger.done("Subscribed to service.register, service.heartbeat, service.unregister, service.stale", { tags: ["nats"] });
+
+    // Announce the gateway is (back) online: every service already up
+    // re-sends service.register, so a BE restart visibly re-ingests
+    // identity/endpoints/capabilities and re-discovers OpenAPI — no polling.
+    await NatsClient.publish(SERVICE_SUBJECTS.GATEWAY_ONLINE, { at: new Date().toISOString() });
 
     // Discover entities for services that are already online at startup.
     // This handles the case where the BE restarts while microservices are running.
@@ -199,18 +218,6 @@ export class ServiceLifecycleSubscriber {
       );
     }
 
-    logger.done(`The service ${ref} has been registered`, {
-      tags: ["nats", base_url],
-      capabilities: payload.capabilities ?? [],
-    });
-
-    // service.register ALWAYS re-discovers: a restarted service may carry
-    // new endpoints/capabilities — registration is the moment that
-    // sanitizes service continuity. Only heartbeats keep the dedup guard.
-    if (status === "online") {
-      void this.registerMcpEntities(code, base_url);
-    }
-
     if (is_behind_scaler) {
       const existing = await this.repo.findByCode(code);
       if (existing) {
@@ -299,6 +306,19 @@ export class ServiceLifecycleSubscriber {
         const inserted = await this.repo.findByCodeAndBaseUrl(code, base_url);
         if (inserted) this.emitServiceEvent("service.register", inserted);
       }
+    }
+
+    // The row is persisted — only now is the service "registered".
+    logger.done(`The service ${ref} has been registered`, {
+      tags: ["nats", base_url],
+      capabilities: payload.capabilities ?? [],
+    });
+
+    // service.register ALWAYS re-discovers: a restarted service may carry
+    // new endpoints/capabilities — registration is the moment that
+    // sanitizes service continuity. Only heartbeats keep the dedup guard.
+    if (status === "online") {
+      void this.registerMcpEntities(code, base_url);
     }
   }
 

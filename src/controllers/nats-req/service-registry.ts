@@ -31,6 +31,7 @@ export async function startServiceRegistryController(): Promise<void> {
       if (!request?.code || typeof request.code !== "string") return null;
       return repo.findByCode(request.code);
     },
+    { queue: "primebrick-api" },
   );
   logger.info(`Subscribed to ${SERVICE_REGISTRY_GET_SUBJECT} (nats-req)`, { tags: ["nats"] });
 }

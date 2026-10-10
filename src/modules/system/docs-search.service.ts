@@ -18,7 +18,7 @@ import { searchDocsKb, getDocByPath } from "./docs-search-dal.js";
 async function embedQueryText(query: string, user: AuthUser | undefined): Promise<number[]> {
   const pool = getPool();
   const registry = new ServiceRegistryRepo(pool);
-  const instances = (await registry.findAllByCode("AI")).filter((i) => i.status === "online");
+  const instances = (await registry.findAllByCode("ai")).filter((i) => i.status === "online");
   if (!instances.length) {
     throw new Error("AI microservice is not available — cannot embed the search query");
   }

@@ -28,6 +28,7 @@ export async function startAuthApiKeyController(): Promise<void> {
       if (!request?.hash || typeof request.hash !== "string") return null;
       return port.findByHash(request.hash);
     },
+    { queue: "primebrick-api" },
   );
   logger.info(`Subscribed to ${AUTH_APIKEY_BY_HASH_SUBJECT} (nats-req)`, { tags: ["nats"] });
 }

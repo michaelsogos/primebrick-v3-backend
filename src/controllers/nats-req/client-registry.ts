@@ -19,6 +19,7 @@ export async function startClientRegistryController(): Promise<void> {
   await NatsClient.subscribeRequest<null, ClientRegistryRow[]>(
     CLIENT_REGISTRY_SUBJECTS.GET,
     async () => repo.findAllEnabled(),
+    { queue: "primebrick-api" },
   );
   logger.info(`Subscribed to ${CLIENT_REGISTRY_SUBJECTS.GET} (nats-req)`, { tags: ["nats"] });
 }

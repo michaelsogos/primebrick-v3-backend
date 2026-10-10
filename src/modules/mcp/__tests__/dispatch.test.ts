@@ -379,24 +379,24 @@ describe("MCP Dispatch — Service registry (manage_service)", () => {
 
   it("listServices returns all services from repo", async () => {
     mockRepo.findAll.mockResolvedValue([
-      { code: "EMAILSENDER", is_enabled: true },
+      { code: "emailsender", is_enabled: true },
       { code: "home", is_enabled: true },
     ]);
     const result = await listServices();
     expect(mockRepo.findAll).toHaveBeenCalled();
     expect(result).toEqual({
       services: [
-        { code: "EMAILSENDER", is_enabled: true },
+        { code: "emailsender", is_enabled: true },
         { code: "home", is_enabled: true },
       ],
     });
   });
 
   it("getService returns service by code", async () => {
-    mockRepo.findByCode.mockResolvedValue({ code: "EMAILSENDER", is_enabled: true });
-    const result = await getService("EMAILSENDER");
-    expect(mockRepo.findByCode).toHaveBeenCalledWith("EMAILSENDER");
-    expect(result).toEqual({ service: { code: "EMAILSENDER", is_enabled: true } });
+    mockRepo.findByCode.mockResolvedValue({ code: "emailsender", is_enabled: true });
+    const result = await getService("emailsender");
+    expect(mockRepo.findByCode).toHaveBeenCalledWith("emailsender");
+    expect(result).toEqual({ service: { code: "emailsender", is_enabled: true } });
   });
 
   it("getService throws when service not found", async () => {
@@ -405,11 +405,11 @@ describe("MCP Dispatch — Service registry (manage_service)", () => {
   });
 
   it("activateService toggles is_enabled", async () => {
-    mockRepo.findByCode.mockResolvedValue({ code: "EMAILSENDER", is_enabled: true });
+    mockRepo.findByCode.mockResolvedValue({ code: "emailsender", is_enabled: true });
     mockRepo.toggleEnabled.mockResolvedValue(undefined);
-    const result = await activateService("EMAILSENDER");
-    expect(mockRepo.toggleEnabled).toHaveBeenCalledWith("EMAILSENDER", false);
-    expect(result).toEqual({ code: "EMAILSENDER", is_enabled: false });
+    const result = await activateService("emailsender");
+    expect(mockRepo.toggleEnabled).toHaveBeenCalledWith("emailsender", false);
+    expect(result).toEqual({ code: "emailsender", is_enabled: false });
   });
 
   it("activateService throws when service not found", async () => {
@@ -419,24 +419,24 @@ describe("MCP Dispatch — Service registry (manage_service)", () => {
 
   it("updateService updates and returns the updated service", async () => {
     mockRepo.findByCode
-      .mockResolvedValueOnce({ code: "EMAILSENDER", is_enabled: true })
-      .mockResolvedValueOnce({ code: "EMAILSENDER", name: "Updated", is_enabled: true });
+      .mockResolvedValueOnce({ code: "emailsender", is_enabled: true })
+      .mockResolvedValueOnce({ code: "emailsender", name: "Updated", is_enabled: true });
     mockRepo.updateByCodeAdmin.mockResolvedValue(undefined);
 
-    const result = await updateService("EMAILSENDER", { name: "Updated" });
+    const result = await updateService("emailsender", { name: "Updated" });
     expect(mockRepo.updateByCodeAdmin).toHaveBeenCalledWith(
-      "EMAILSENDER",
+      "emailsender",
       expect.objectContaining({ name: "Updated" }),
     );
-    expect(result).toEqual({ service: { code: "EMAILSENDER", name: "Updated", is_enabled: true } });
+    expect(result).toEqual({ service: { code: "emailsender", name: "Updated", is_enabled: true } });
   });
 
   it("deleteService hard-deletes and returns permanent: true", async () => {
-    mockRepo.findByCode.mockResolvedValue({ code: "EMAILSENDER", is_enabled: true });
+    mockRepo.findByCode.mockResolvedValue({ code: "emailsender", is_enabled: true });
     mockRepo.hardDeleteByCode.mockResolvedValue(undefined);
-    const result = await deleteService("EMAILSENDER");
-    expect(mockRepo.hardDeleteByCode).toHaveBeenCalledWith("EMAILSENDER");
-    expect(result).toEqual({ code: "EMAILSENDER", deleted: true, permanent: true });
+    const result = await deleteService("emailsender");
+    expect(mockRepo.hardDeleteByCode).toHaveBeenCalledWith("emailsender");
+    expect(result).toEqual({ code: "emailsender", deleted: true, permanent: true });
   });
 
   it("deleteService throws when service not found", async () => {

@@ -163,14 +163,14 @@ function checkNats(): HealthCheckResult {
  * LLM health check — calls the AI microservice health endpoint to get
  * LLM connectivity + model + version info for the version panel.
  *
- * The AI microservice must be registered in service_registry with code='AI'.
+ * The AI microservice must be registered in service_registry with code='ai'.
  * If the AI microservice is not registered or not running, the LLM check
  * returns ok:false (the BE itself stays healthy — LLM is optional infra).
  */
 async function checkLlm(): Promise<HealthCheckResult> {
   try {
     const repo = new ServiceRegistryRepo(getPool());
-    const service = await repo.findByCode("AI");
+    const service = await repo.findByCode("ai");
     if (!service || !service.base_url) {
       return { ok: false, error: "AI microservice not registered in service_registry" };
     }
