@@ -1,0 +1,87 @@
+---
+title: Translations
+description: "How i18n works end to end — module-scoped translations tables, the flat dict contract, literal templates with {param} interpolation, singular/plural entity keys, cache + ETag delivery, and the write API."
+---
+
+# Translations
+
+Every user-facing string lives in a `translations` table and reaches the
+UI as a **flat dict** of `{ dot.path.key: "translated string" }`. Nothing
+is hardcoded in the frontend — labels, errors, page titles, entity names.
+
+## Module segregation
+
+Each module schema owns its own `translations` table — keys are namespaced
+by module:
+
+| Schema | Key prefix | Contents |
+|---|---|---|
+| `public.translations` | `app.*` | chrome, auth, login, shared UI |
+| `system.translations` | `system.*` | settings, entities, config labels, RBAC |
+| `<module>.translations` | `<module>.*` | the module's own surface — same pattern for US schemas |
+
+Because each schema keeps its own table and its own cache key
+(`translations:i18n:{schema}:{lang}`), a module's strings never collide
+with another's — and a remote service can ship its own dict with its own
+schema.
+
+## The contract
+
+```
+GET /api/v1/translations/{module}/{lang}  →  flat I18nDict (ETag/304 cached)
+```
+
+`TranslationsService` (BE) → `TranslationsDal` → SDK `TranslationsService`
+— Postgres builds the dict natively with `jsonb_object_agg`, Redis caches
+it per `{schema, lang}` (6h TTL + invalidation-on-write). The FE merges
+module dicts on top of the base `app.*` dict — flat merge, no nesting.
+
+## Literal templates — `{param}` interpolation
+
+Values may embed `{name}` placeholders; the FE's `t(key, params)` fills
+them:
+
+```ts
+t("system.entities.customer.delete.confirm", { name: "ACME" })
+// "Delete customer ACME?"
+```
+
+Templates are **single-brace** `{param}` — not `{{}}` Handlebars (that's
+the emailsender's template engine, a different system).
+
+## Singular / plural — the entity naming convention
+
+Every entity carries two keys used everywhere (titles, buttons, bulk
+confirmations, assistant answers):
+
+```
+system.entities.customer.singular  → "customer"
+system.entities.customer.plural    → "customers"
+system.entities.user_profile.singular → "User"
+system.entities.user_profile.plural   → "Users"
+```
+
+Field labels follow `system.entities.<entity>.<field>` — the generated
+entity-field-reference doc lists each `label_key` alongside its column.
+
+## Typical key families
+
+| Pattern | Meaning |
+|---|---|
+| `app.auth.*` | login/auth chrome |
+| `system.entities.<e>.{singular,plural,<field>}` | entity names + field labels |
+| `system.settings.*` | settings pages, config labels/descriptions |
+| `system.entities.<e>.actions.*` | action buttons and confirmations |
+| `config.<key>.{label,description}` | config_entries row labels |
+
+## Authoring and CRUD
+
+`controllers/http/translations.router.ts` exposes module-scoped
+`list/create/update/softDelete/restore` — the same entity machinery as
+everything else. Entity write bodies may **piggyback translations**
+(`{entity, translations}` envelope — see entity-crud-pipeline): setting a
+field's per-language label in the same request that edits the row.
+
+Missing keys surface as the **raw key** in the UI (deliberate — visible
+gaps instead of silently mixed languages); the en-GB fallback dict is
+used only when the BE itself is unreachable.

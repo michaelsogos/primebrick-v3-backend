@@ -1,0 +1,54 @@
+---
+title: Entity CRUD Pipeline
+description: "The machinery behind every /api/v1/entities/:entity route — entity-router, entity-service, the {entity,translations} write envelope, runEntityWrite, list-query, meta-assembler, and the bulk/export/audit helpers."
+---
+
+# Entity CRUD pipeline
+
+`src/http/` contains the engine that turns a `*.meta.ts` + a service into
+the full canonical entity route set — every entity page the FE renders
+flows through this pipeline. The SDK edition (`entity-router.mdx` in the
+sdk dev-guide) mirrors it for microservices; this is the BE original.
+
+## The pieces
+
+| File | Role |
+|---|---|
+| `entity-router.ts` | Route registration: the canonical action set (list/get/create/update/delete/purge/restore/audit/duplicate/bulk/export/meta), permission-declared |
+| `entity-service.ts` | The service contract every entity service implements |
+| `entity-write.ts` | `runEntityWrite` — write-path orchestration inside one transaction |
+| `entity-actions.ts` | Action metadata → `meta.actions` (which ops exist and are enabled) |
+| `list-query.ts` | Structured parsing of list params (filters, connector, sort, search, page) |
+| `meta-assembler.ts` | Assembles `GET /meta` — columns, labels, actions, collaboration flags |
+| `protected-router.ts` | Route protection plumbing (auth + RBAC wiring) |
+| `etag-middleware.ts` | ETag/304 handling on cacheable GETs |
+| `error-handler.ts` / `api-errors.ts` | Central RFC 7807 mapping |
+| `lib/bulk/` | `bulk-action-runner` — chunked bulk ops with per-item results |
+| `lib/export/` | CSV/structured export engine behind the `export` action |
+| `lib/audit/` | audit transformer — history rows → UI-ready timeline |
+
+## The write envelope — `{entity, translations}`
+
+BE write bodies carry **two** payloads: the entity itself plus optional
+per-language field translations in the same request. `runEntityWrite`
+runs the whole thing inside one transaction — entity write and
+translation writes commit or roll back together. This is a deliberate
+BE-vs-US asymmetry: translations live in the BE's system schema, so only
+the gateway may piggyback them; a US entity route receives `{entity}`
+only (see sdk `entity-router`).
+
+## Read path
+
+`GET /list` → `list-query.ts` parses the bracket-notation query into the
+structured filter/sort/search/page shape the DAL consumes →
+`service.list(query)` → rows serialized as-is (snake_case, no DTO
+reshaping). `GET /meta` is assembled by `meta-assembler` from the static
+`*.meta.ts` plus the *derived* action set — the FE builds its whole page
+(columns, filters, buttons) from that single response.
+
+## Error discipline
+
+Domain errors come from the service layer (`ApiError`/`mapDalError`); the
+controller maps them to RFC 7807 — it never invents codes. Optimistic
+locking surfaces as `409` on `version` mismatch; soft-deleted records
+404/restore per action semantics.
