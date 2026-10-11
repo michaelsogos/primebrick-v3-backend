@@ -35,6 +35,8 @@ export class DocsPackService {
       path: relative(docsDir, full).split(sep).join("/"),
       content: readFileSync(full, "utf-8"),
     }));
-    return parseDocsPackPayload({ manifest, files });
+    const openapiPath = join(this.packDir, "openapi.json");
+    const openapi = existsSync(openapiPath) ? readFileSync(openapiPath, "utf-8") : undefined;
+    return parseDocsPackPayload({ manifest, files, openapi });
   }
 }
