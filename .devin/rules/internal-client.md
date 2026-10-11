@@ -32,3 +32,8 @@
   client identity. A service that is genuinely public (e.g. the `webhook`
   DMZ ingress) declares `identityExemptPaths` in `createMicroservice`
   options; its public endpoints keep their own auth (API key).
+
+
+## Deep dive
+
+The normative rules live here; the full mechanics and rationale are in `docs/dev-guide/service-registry.mdx + SDK client-shield-and-secrets` — link, do not duplicate.

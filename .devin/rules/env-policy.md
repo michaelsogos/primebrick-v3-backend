@@ -33,3 +33,8 @@ microservices).
   `ConfigLoader`/`ConfigEntriesDal`.
 - When reviewing code, flag any new `process.env.` read other than the DB
   connection as a violation.
+
+
+## Deep dive
+
+The normative rules live here; the full mechanics and rationale are in `docs/dev-guide/environment-configuration.mdx` — link, do not duplicate.

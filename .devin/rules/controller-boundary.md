@@ -123,3 +123,8 @@ await runEntityWrite(req, res, () => service.createCustomer(body));
 If you can answer "what does this endpoint DO?" by reading only the
 service signature, the boundary is right. If you must read the controller
 to understand the operation's semantics, logic leaked into the transport.
+
+
+## Deep dive
+
+The normative rules live here; the full mechanics and rationale are in `docs/dev-guide/entity-crud-pipeline.mdx` — link, do not duplicate.

@@ -57,3 +57,8 @@ Consumers MUST NOT:
   `system.translations`, `system.*` must never live in `public.translations`
   (drift detected 2026-10-09 — see plan
   `ai-ownership-migration-and-nats-transport.md`).
+
+
+## Deep dive
+
+The normative rules live here; the full mechanics and rationale are in `DAL dev-guide repository-pattern` — link, do not duplicate.

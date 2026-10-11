@@ -21,7 +21,7 @@ Every documentation file belongs to exactly ONE tier:
    layout, or build/deploy commands → it is `dev-guide`, even if it lives
    near end-user content. If it explains what a user can do on a page,
    what a field means, or what an action does → `user-guide`.
-2. **The AI knowledge base ingests `docs/dev-guide/` ONLY.** Putting dev
+2. **The AI knowledge base ingests `docs/user-guide/` ONLY.** Putting dev
    content in `user-guide` pollutes the end-user KB — the guide agent will
    quote developer internals to end users. This is a production defect,
    not a style issue.
@@ -29,7 +29,7 @@ Every documentation file belongs to exactly ONE tier:
    and architecture rationale stay in `.devin/`, `docs/ai/`, `AGENTS.md`.
 4. **Generated docs inherit the tier of their output directory.** A
    generator emitting into `docs/dev-guide/generated/` is dev content;
-   into `docs/dev-guide/generated/` is end-user content — pick the dir
+   into `docs/user-guide/generated/` is end-user content — pick the dir
    accordingly, don't mix.
 5. **Cross-tier links are allowed** (e.g. a user-guide page may link a
    dev-guide deep-dive) but knowledge lives in ONE place — link, don't

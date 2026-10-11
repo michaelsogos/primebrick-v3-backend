@@ -75,3 +75,8 @@ Check in order before inventing theories:
 3. Is `role.isEnabled === true`? (a partial `update-role` disabled it once)
 4. Is `user.isForbidden === false`? (comes from `is_active` at creation)
 5. Only then look at password/signup fields.
+
+
+## Deep dive
+
+The normative rules live here; the full mechanics and rationale are in `docs/dev-guide/authentication.mdx` — link, do not duplicate.

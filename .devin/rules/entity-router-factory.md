@@ -292,3 +292,8 @@ return makeEntityRouter({
 `DELETE /:uuid?version=`; `purge.single` enabled (with `delete.single`
 disabled) ⇒ `DELETE /:uuid/purge?version=`; `restore.single` ⇒ restore CTA.
 No per-page wiring — a new entity gets correct CTAs and endpoints for free.
+
+
+## Deep dive
+
+The normative rules live here; the full mechanics and rationale are in `docs/dev-guide/entity-crud-pipeline.mdx` — link, do not duplicate.

@@ -215,3 +215,8 @@ Rules:
 - AI agent MUST use snake_case **plural** for `@Entity` table names.
 - When reviewing existing code, flag any plural entity segments in URLs as
   violations (deferred fixes documented in the endpoint taxonomy plan).
+
+
+## Deep dive
+
+The normative rules live here; the full mechanics and rationale are in `docs/dev-guide/api-conventions.mdx` — link, do not duplicate.

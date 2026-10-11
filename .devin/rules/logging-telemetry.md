@@ -22,3 +22,8 @@
    Do not hand-roll traceparent strings.
 6. **OTel globals are registered once** — never call `setGlobalTracerProvider`
    or `NodeSDK` in consumer code; use `initTelemetry`/`restartTelemetry`.
+
+
+## Deep dive
+
+The normative rules live here; the full mechanics and rationale are in `SDK dev-guide telemetry-logging` — link, do not duplicate.

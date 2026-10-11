@@ -53,3 +53,8 @@ Any inline meta object in router files (e.g. `auth-session.router.ts`) MUST also
 - AI agent MUST NOT use camelCase or PascalCase in translation key entity segments.
 - AI agent MUST NOT use snake_case plural in translation key entity segments.
 - When reviewing existing code, flag any camelCase or plural entity segments in translation keys as violations.
+
+
+## Deep dive
+
+The normative rules live here; the full mechanics and rationale are in `docs/dev-guide/translations.mdx` — link, do not duplicate.

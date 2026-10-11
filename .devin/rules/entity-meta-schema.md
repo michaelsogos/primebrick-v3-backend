@@ -141,3 +141,8 @@ default search but remain selectable in the scope selector.
 - ❌ `actions`/`actions_overrides` inside `table` — they are root-level
 - ❌ Static `actions`/`collaboration`/`display_name` defaults duplicated per meta —
   `display_name` is only written when it differs from `"${display_field}"`
+
+
+## Deep dive
+
+The normative rules live here; the full mechanics and rationale are in `docs/dev-guide/entity-metadata.mdx` — link, do not duplicate.

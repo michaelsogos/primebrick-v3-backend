@@ -33,3 +33,8 @@ For Node scripts (fire-and-forget runners), the equivalent is
 - ❌ Reducing the TTL as a correctness fix — TTL exists only to bound DB load.
 - ❌ Shipping a fire-and-forget script that mutates translations without a
   trailing cache invalidation step.
+
+
+## Deep dive
+
+The normative rules live here; the full mechanics and rationale are in `docs/dev-guide/translations.mdx` — link, do not duplicate.
