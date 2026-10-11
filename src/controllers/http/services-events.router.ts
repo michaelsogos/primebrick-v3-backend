@@ -12,7 +12,7 @@
  * - service.stale: stale-detection job marked service as going_live
  * - error: server shutdown or auth expired
  *
- * @see @primebrick/sdk docs/user-guide/sse-standard.mdx for the full standard.
+ * @see @primebrick/sdk docs/dev-guide/sse-standard.mdx for the full standard.
  */
 
 import { logger } from "@primebrick/sdk";

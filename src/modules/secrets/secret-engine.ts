@@ -6,7 +6,7 @@
  *   - serves them to consumers over the governed `secret.get` correlation
  *     route (client-shield verified — services only);
  *   - rotates on a timer and broadcasts the shielded `secret.rotated` event;
- *   - keeps the local gateway-secret slot warm so this process's own
+ *   - keeps the local client-shield secret slot warm so this process's own
  *     outbound headers (proxy, buildNatsAuthHeaders) stamp `current`.
  *
  * `secret.get` is allowlisted: only declared refs are served, everything
@@ -19,22 +19,24 @@ import {
   makeNatsRequestRoute,
   getRedisClient,
   logger,
+  humanizeMs,
+  SECRET_DEFAULTS,
+  CLIENT_SHIELD_SECRET_REF,
   type RotatingSecretRef,
 } from "@primebrick/sdk";
 import { getPool } from "../../db/pool.js";
 import { createPublisherVerifier } from "../../controllers/nats-sub/publisher-identity.js";
 
 /** Secrets the engine owns and may serve — explicit, no wildcards. */
-const SERVED_SECRETS: readonly RotatingSecretRef[] = [
-  { scope: "global", name: "gateway_secret" },
-];
+const SERVED_SECRETS: readonly RotatingSecretRef[] = [CLIENT_SHIELD_SECRET_REF];
 
 export async function initSecretEngine(): Promise<void> {
   const redis = getRedisClient();
   if (!redis) {
-    logger.error("secret engine disabled — Redis client not initialized (redis_url missing?)", {
-      tags: ["secrets"],
-    });
+    logger.error(
+      "The secret engine is disabled — Redis client not initialized (redis_url missing?). Client-shield secrets will not rotate.",
+      { tags: ["secret-engine"] },
+    );
     return;
   }
   const engine = new RotatingSecretEngine(redis);
@@ -50,7 +52,7 @@ export async function initSecretEngine(): Promise<void> {
           const ref = request as RotatingSecretRef;
           const served = SERVED_SECRETS.some((s) => s.scope === ref?.scope && s.name === ref?.name);
           if (!served) {
-            logger.error(`secret.get denied — undeclared ref ${ref?.scope}/${ref?.name}`, { tags: ["secrets"] });
+            logger.error(`The secret engine refused to serve ${ref?.scope}/${ref?.name} — it is not a declared secret`, { tags: ["secret-engine"] });
             return { error: "secret not servable" };
           }
           return engine.get(ref);
@@ -64,5 +66,8 @@ export async function initSecretEngine(): Promise<void> {
   // this process's outbound headers, then rotate on the cadence.
   await engine.get(SERVED_SECRETS[0]);
   engine.startAutoRotation(SERVED_SECRETS[0]);
-  logger.done("secret engine ready — gateway_secret rotating (60m cadence, 5m grace)", { tags: ["secrets"] });
+  logger.done(
+    `The secret engine is ready — the service client-shield secret rotates every ${humanizeMs(SECRET_DEFAULTS.rotationMs)} with ${humanizeMs(SECRET_DEFAULTS.graceMs)} of grace`,
+    { tags: ["secret-engine"] },
+  );
 }

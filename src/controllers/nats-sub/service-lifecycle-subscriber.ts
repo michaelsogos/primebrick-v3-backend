@@ -270,10 +270,11 @@ export class ServiceLifecycleSubscriber {
     }
 
     // The row is persisted — only now is the service "registered".
-    logger.done(`The service ${ref} has been registered`, {
-      tags: ["nats", base_url],
-      capabilities: payload.capabilities ?? [],
-    });
+    const caps = payload.capabilities ?? [];
+    logger.done(
+      `The service ${ref} has been registered${caps.length ? ` with the following capabilities: ${caps.join(", ")}` : " with no declared capabilities"}`,
+      { tags: ["nats", base_url] },
+    );
 
     // service.register ALWAYS re-discovers: a restarted service may carry
     // new endpoints/capabilities — registration is the moment that

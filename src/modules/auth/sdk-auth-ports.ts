@@ -56,8 +56,8 @@ export class BeAuthConfigPort implements AuthConfigPort {
         idp_type: db.idp_type,
       },
       gateway: {
-        secret: db.gateway_secret,
-        secret_header_name: db.gateway_secret_header,
+        secret: db.service_client_shield_secret,
+        secret_header_name: db.service_client_shield_secret_header,
         public_secret: db.gateway_public_secret,
         public_secret_header_name: db.gateway_public_secret_header,
         headers: {

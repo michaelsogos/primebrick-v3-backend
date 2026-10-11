@@ -41,7 +41,7 @@ export class ConfigEntryEntity implements IAuditableEntity {
   @Unique()
   uuid: string;
 
-  /** Unique config key (e.g. "oidc_issuer_url", "auth_mode", "gateway_secret"). */
+  /** Unique config key (e.g. "oidc_issuer_url", "auth_mode", "service_client_shield_secret"). */
   @Unique()
   @Column({ length: 100, nullable: false })
   key: string;

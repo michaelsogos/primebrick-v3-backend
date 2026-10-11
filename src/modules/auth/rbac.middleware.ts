@@ -5,7 +5,7 @@
  * declare the permissions it requires. The handler orchestrates, in order:
  *
  *   1. **Gateway authentication** (only when `AUTH_MODE=GATEWAY`)
- *      Validates the configured gateway-secret header. The header / value used
+ *      Validates the configured client-shield secret header. The header / value used
  *      depend on whether the route is `PUBLIC` (uses `publicSecret` /
  *      `publicSecretHeaderName`) or authenticated (uses `secret` /
  *      `secretHeaderName`). This step also applies to PUBLIC routes — a proxy
@@ -96,7 +96,7 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
     try {
       const cfg = await getAuthConfig();
 
-      // --- Step 1: gateway-secret check (ALWAYS in GATEWAY mode) ----------
+      // --- Step 1: client-shield secret check (ALWAYS in GATEWAY mode) ----------
       if (cfg.mode === AuthMode.GATEWAY) {
         const headerName = isPublic
           ? cfg.gateway.public_secret_header_name!
@@ -104,8 +104,8 @@ function build(perms: readonly string[], mode: "any" | "all"): DeclaredHandler {
         const expected = isPublic ? cfg.gateway.public_secret : cfg.gateway.secret;
         const provided = req.headers[headerName!];
         if (typeof provided !== "string" || provided !== expected) {
-          throw new UnauthorizedError("Gateway authentication failed", {
-            internal_code: "AUTH_GATEWAY_SECRET_INVALID",
+          throw new UnauthorizedError("Client-shield authentication failed", {
+            internal_code: "AUTH_CLIENT_SHIELD_SECRET_INVALID",
           });
         }
       }

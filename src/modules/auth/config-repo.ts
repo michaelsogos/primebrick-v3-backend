@@ -36,8 +36,8 @@ export interface AuthConfigDb {
   auth_roles_path?: string;
 
   // --- Gateway config (only required in GATEWAY mode) ---
-  gateway_secret?: string;
-  gateway_secret_header?: string;
+  service_client_shield_secret?: string;
+  service_client_shield_secret_header?: string;
   gateway_public_secret?: string;
   gateway_public_secret_header?: string;
   gateway_header_user_id?: string;
@@ -99,8 +99,8 @@ export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
   // In GATEWAY mode, ALL gateway fields are mandatory — no fake defaults.
   if (mode === AuthMode.GATEWAY) {
     const requiredGatewayFields = [
-      "gateway_secret",
-      "gateway_secret_header",
+      "service_client_shield_secret",
+      "service_client_shield_secret_header",
       "gateway_public_secret",
       "gateway_public_secret_header",
       "gateway_header_user_id",
