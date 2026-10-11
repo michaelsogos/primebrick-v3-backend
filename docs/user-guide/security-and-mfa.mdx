@@ -1,0 +1,59 @@
+---
+title: Signing In and MFA
+description: How signing in works, what multi-factor authentication adds, why the app sometimes asks for your code again, and how to manage your own credentials.
+---
+
+# Signing in and MFA
+
+Primebrick protects your account in layers. This page explains what those
+layers are — and why the app occasionally asks you to prove it's really
+you *again*.
+
+## The everyday sign-in
+
+You sign in with your organization's identity provider — typically an email
+and password. If your administrator has enabled it, you may also be asked
+for a **second factor**: a 6-digit code from an authenticator app on your
+phone (TOTP), or a **passkey** — the fingerprint, face scan or device PIN
+your phone or computer already uses.
+
+That second factor is what makes stolen passwords mostly useless: an
+attacker who knows your password still can't produce the code living on
+*your* device.
+
+## "Why is it asking for my code again?"
+
+Sensitive actions — things like deleting records in bulk, changing
+permissions, or letting the assistant modify data — trigger a **step-up**
+check: Primebrick asks for your authenticator code one more time, right
+before the action happens.
+
+This is deliberate. Your sign-in proves who sat down at the computer; the
+step-up proves who's still sitting there *now*. If Jane Doe steps away for
+coffee, nobody else can perform sensitive actions from her open session —
+the code lives on her phone, not in the browser.
+
+The confirmation is quick: the app shows what it's about to do, you type
+the 6 digits, and the action proceeds. Each code authorizes that one
+action — it can't be replayed for anything else.
+
+## Managing your own credentials
+
+From **Settings → Credentials** you can:
+
+- register or remove a **passkey** (fingerprint / face / device PIN)
+- set up or reset your **authenticator app** pairing (TOTP)
+- see which sign-in methods are active on your account
+
+If you lose your phone or your authenticator app, ask your administrator —
+they can reset your second factor from the Users administration screen so
+you can enroll a new device.
+
+## What we recommend
+
+- **Enable MFA if your organization offers it** — it's the single largest
+  upgrade to your account's safety.
+- **Prefer a passkey over codes** when your device supports it — same
+  protection, less typing.
+- **Never share your authenticator codes** — no admin or support person
+  will ever legitimately ask for one.

@@ -1,3 +1,15 @@
 {
-  "pages": ["overview", "architecture", "api-conventions", "entity-metadata", "authentication", "rbac", "environment-configuration", "collaboration"]
+  "pages": [
+    "overview",
+    "architecture",
+    "api-conventions",
+    "entity-metadata",
+    "authentication",
+    "rbac",
+    "environment-configuration",
+    "collaboration",
+    "mcp",
+    "proxy",
+    "secrets-engine"
+  ]
 }

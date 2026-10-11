@@ -2,6 +2,8 @@
   "pages": [
     "rbac",
     "collaboration",
+    "modules",
+    "security-and-mfa",
     "manual/users",
     "manual/organizations",
     "generated/entity-field-reference",
