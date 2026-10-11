@@ -24,7 +24,8 @@ import { z } from "zod";
 
 import { makeProtectedRouter } from "../../http/protected-router.js";
 import { asyncHandler } from "../../http/async-handler.js";
-import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
+import { rbacHandler, serviceShieldHandler } from "../../modules/auth/rbac.middleware.js";
+import { DocsPackService } from "../../modules/docs-pack/docs-pack.service.js";
 import { Permission } from "@primebrick/sdk";
 import { ValidationError } from "../../http/api-errors.js";
 import { SystemService } from "../../modules/system/system.service.js";
@@ -66,6 +67,16 @@ export function systemRouter() {
   // Mount the documentation KB search endpoint
   // Mount the MCP tool invocation shim (REST → shared tool handlers)
   router.use(mcpCallRouter());
+
+  // Docs pack — service-to-service only (rotating client-shield secret,
+  // no user context). Pulled by the AI service for KB ingestion.
+  router.get(
+    "/api/v1/system/docs/pack",
+    serviceShieldHandler(),
+    asyncHandler(async (_req, res) => {
+      res.json(new DocsPackService().getPack());
+    }),
+  );
 
   router.get(
     "/api/v1/system/organizations/active",

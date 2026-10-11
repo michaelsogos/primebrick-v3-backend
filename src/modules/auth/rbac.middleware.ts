@@ -39,6 +39,9 @@ import {
   Permission,
   isPermissionSentinel,
   checkRbac,
+  validClientShieldSecrets,
+  SECRET_DEFAULTS,
+  DOCS_PACK_SHIELD_HEADER,
 } from "@primebrick/sdk";
 import { authMiddleware } from "./auth.middleware.js";
 
@@ -209,3 +212,45 @@ const factory = ((perms: readonly string[]) => build(perms, "any")) as RbacFacto
 factory.all = (perms: readonly string[]) => build(perms, "all");
 
 export const rbacHandler = factory;
+
+/**
+ * Service-to-service authentication — rotating client-shield secret only,
+ * no user context. For endpoints consumed by other services (e.g. the AI
+ * pulling `GET /api/v1/system/docs/pack`), never by browsers.
+ *
+ * Accepts the engine's current secret plus the previous one while still in
+ * grace (validClientShieldSecrets), falling back to the static config value.
+ * The handler carries PERMISSION_DECLARED so makeProtectedRouter's
+ * defaultDeny does not kick in — the shield check IS the declaration.
+ */
+export function serviceShieldHandler(): DeclaredHandler {
+  const handler: RequestHandler = async (
+    req: Request,
+    _res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const cfg = await getAuthConfig();
+      const headerName = cfg.gateway.secret_header_name ?? DOCS_PACK_SHIELD_HEADER;
+      const provided = req.headers[headerName];
+      const valid = validClientShieldSecrets(SECRET_DEFAULTS.graceMs, cfg.gateway.secret);
+      if (typeof provided !== "string" || !valid.includes(provided)) {
+        throw new UnauthorizedError("Client-shield authentication failed", {
+          internal_code: "AUTH_CLIENT_SHIELD_SECRET_INVALID",
+        });
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  Object.defineProperty(handler, PERMISSION_DECLARED, {
+    value: { declared: ["__service_to_service__"], mode: "any" } satisfies PermissionDeclaration,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+
+  return handler as DeclaredHandler;
+}

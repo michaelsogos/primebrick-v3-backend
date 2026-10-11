@@ -20,7 +20,8 @@
     "db:migrate": "tsx scripts/database-patch-apply.ts",
     "db:truncate:customers": "tsx scripts/truncate-customers.ts",
     "db:seed:customers": "tsx scripts/seed-customers.ts",
-    "setup:casdoor": "tsx scripts/setup-casdoor.ts"
+    "setup:casdoor": "tsx scripts/setup-casdoor.ts",
+    "generate:docs": "tsx scripts/generate-docs-pack.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/express": "2.0.0-beta.4",
