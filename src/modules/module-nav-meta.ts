@@ -11,10 +11,8 @@
 
 import type { ModuleNavWithPrefixes } from "./module-nav-types.js";
 
-export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
-  switch (code.toLowerCase()) {
-    case "crm":
-      return {
+const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
+  crm: {
         module: "crm",
         icon: "users",
         route_prefixes: ["/system/customers", "/crm"],
@@ -27,9 +25,8 @@ export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
           { route: "/system/customers/new", kind: "create", entity: "customer" },
           { route: "/crm/pipeline", kind: "page" },
         ],
-      };
-    case "settings":
-      return {
+  },
+  settings: {
         module: "settings",
         icon: "settings",
         route_prefixes: ["/system"],
@@ -70,8 +67,14 @@ export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
           { route: "/system/settings/translations", kind: "page" },
           { route: "/system/settings/email-providers", kind: "list", entity: "email_provider" },
         ],
-      };
-    default:
-      return null;
-  }
+  },
+};
+
+/** All statically declared module codes — the nav-map doc generator iterates these. */
+export function listModuleNavCodes(): string[] {
+  return Object.keys(MODULE_NAV);
+}
+
+export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
+  return MODULE_NAV[code.toLowerCase()] ?? null;
 }
