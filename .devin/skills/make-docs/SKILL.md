@@ -1,6 +1,6 @@
 ---
 name: make-docs
-description: Refresh docs-from-code extraction and surgically update docs/user-guide based on current branch diff
+description: Refresh docs-from-code extraction and surgically update docs/dev-guide based on current branch diff
 allowed-tools: [read, write, edit, exec, grep, find_file_by_name]
 ---
 
@@ -58,9 +58,9 @@ For each doc page that might be affected:
 
 A 10-line code change → at most a few lines of doc changes, not a rewritten page.
 
-### 5. Update docs/user-guide/
+### 5. Update docs/dev-guide/
 
-Follow `.devin/rules/docs-user-guide.md` for editorial conventions:
+Follow `.devin/rules/docs-dev-guide.md` for editorial conventions:
 - Use `<Mermaid chart={...} />` for diagrams, never ```Code or ```mermaid
 - Minimal edits — preserve existing prose structure
 - Update `<!-- AUTO-GENERATED:reference -->` blocks if API signatures changed

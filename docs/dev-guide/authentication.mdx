@@ -303,7 +303,7 @@ Every auth error is a RFC 7807 Problem Details object with a stable
 | `internal_code` | HTTP | Meaning |
 |-----------------|------|---------|
 | `UNAUTHORIZED` | 401 | Missing or invalid Bearer token / cookie |
-| `AUTH_GATEWAY_SECRET_INVALID` | 401 | GATEWAY mode: wrong gateway-secret header |
+| `AUTH_CLIENT_SHIELD_SECRET_INVALID` | 401 | GATEWAY mode: wrong client-shield secret header |
 | `AUTH_USER_CONTEXT_MISSING` | 401 | authMiddleware ran but `req.user` is null |
 | `AUTH_ROLE_MAPPINGS_NOT_LOADED` | 403 | Startup race — role mappings not yet loaded |
 | `RBAC_PERMISSION_DENIED` | 403 | User lacks the required permission(s) |

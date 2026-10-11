@@ -1,0 +1,3 @@
+{
+  "pages": ["overview", "architecture", "api-conventions", "entity-metadata", "authentication", "rbac", "environment-configuration", "collaboration"]
+}

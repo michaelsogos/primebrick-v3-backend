@@ -90,7 +90,7 @@ system. Non-reserved rows allow `value`, `type`, and `type_config` updates.
 | `oidc_issuer_url` | OIDC issuer URL (defaults to Casdoor endpoint) |
 | `oidc_client_id` | OIDC client ID |
 | `oidc_client_secret` | OIDC client secret |
-| `gateway_secret` | Shared secret for microservice gateway auth |
+| `service_client_shield_secret` | Shared secret protecting service-to-service calls (client shield); value auto-rotated by the secret engine — this row is only the static fallback |
 | `invitation_expiry_days` | Invitation expiry in days (type: `bigint`) |
 | `mfa_challenge_token_ttl_seconds` | MFA token TTL in seconds (type: `bigint`) |
 

@@ -144,7 +144,7 @@ declare its permission is never accidentally exposed.
   Note over R: secure-first: no rbacHandler?<br/>→ 403 ROUTE_PERMISSION_NOT_DECLARED
   R->>RBAC: declared handler runs first
   alt GATEWAY mode
-    RBAC->>RBAC: validate gateway-secret header
+    RBAC->>RBAC: validate client-shield secret header
   end
   RBAC->>Auth: (skip for PUBLIC)
   Auth->>SDK: verifyAuth(HeaderProvider, cfg, ports)

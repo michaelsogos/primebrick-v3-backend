@@ -416,18 +416,22 @@ The system is integrated with Casdoor™ IDP. Role names must match Casdoor™ r
 
 When testing RBAC changes, ensure the role mapping cache is reloaded by restarting the backend server after database updates.
 
-## User-facing documentation
+## Documentation (3 tiers — see `.devin/rules/docs-audience.md`)
 
-User-facing developer documentation lives in `docs/user-guide/` as MDX files.
-These are synced to `docs.primebrick.dev` by the docs repo's CI pipeline.
+- `docs/dev-guide/` — **developer documentation** (architecture, API
+  conventions, RBAC internals, entity-meta contract, env config). Synced to
+  `docs.primebrick.dev` under the dev section; never ingested into the
+  end-user AI KB.
+- `docs/user-guide/` — **end-user documentation**. `generated/` holds the
+  metadata-derived entity manual pages produced by the docs pipeline
+  (AUTO-GENERATED — never hand-edit); hand-authored end-user pages live at
+  the root. Ingested into the AI KB AND published.
+- `docs/ai/`, `docs/skills/` — agent/internal docs, never synced or ingested.
 
-- **Location**: `docs/user-guide/*.mdx` — one file per topic
-- **Ordering**: `docs/user-guide/_order.json` defines the sidebar page order
-- **Conventions**: see `.devin/rules/docs-user-guide.md` for editorial rules
+- **Ordering**: each dir has its own `_order.json` defining sidebar page order
+- **Conventions**: see `.devin/rules/docs-dev-guide.md` for editorial rules
 - **Mermaid**: use `<Mermaid chart={...} />`, never ` ```Code ` or ` ```mermaid `
 - **Do NOT hand-edit** files in `docs/ai/` or `docs/skills/` — those are internal
-- **Internal docs** (`docs/ai/`, `docs/skills/`, `docs/gitflow.md`) are NOT synced
-  to the docs site — they stay in this repo for AI agents only
 
 ## Logging & Telemetry
 

@@ -70,17 +70,17 @@ against the diff:
 **The goal is surgical edits, not regeneration.** A 10-line code change
 should produce at most a few lines of doc changes, not a rewritten page.
 
-### 4. Update docs/user-guide/ and commit
+### 4. Update docs/dev-guide/ and commit
 For each page that needs updating (after the anti-rewrite check):
-- Follow `.devin/rules/docs-user-guide.md` for editorial conventions
+- Follow `.devin/rules/docs-dev-guide.md` for editorial conventions
 - Use `<Mermaid chart={...} />` for diagrams, never ```Code or ```mermaid
 - Update `<!-- AUTO-GENERATED:reference -->` blocks if API signatures changed
 - Make minimal edits — preserve existing prose structure
 
 Commit the doc updates ON the branch BEFORE merging:
 ```
-git add docs/user-guide/
-git commit -m "docs: update user-guide for <branch-name> changes"
+git add docs/dev-guide/
+git commit -m "docs: update dev-guide for <branch-name> changes"
 ```
 
 ### 5. Proceed with normal close

@@ -120,7 +120,7 @@ import { Permission } from "../auth/permissions.js";
 
 const router = makeProtectedRouter();
 
-// Public endpoint (no JWT required, but gateway-secret still verified in GATEWAY mode)
+// Public endpoint (no JWT required, but client-shield secret still verified in GATEWAY mode)
 router.get("/api/v1/health", rbacHandler([Permission.PUBLIC]), asyncHandler(async (_req, res) => {
   res.json({ ok: true });
 }));
