@@ -25,7 +25,7 @@
  *     RFC 7807 502 Bad Gateway.
  */
 
-import { logger } from "@primebrick/sdk";
+import { extJsonStringify, logger } from "@primebrick/sdk";
 import type { Request, Response } from "express";
 import { getPool } from "../../db/pool.js";
 import {
@@ -186,7 +186,7 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
     };
 
     if (req.method !== "GET" && req.method !== "HEAD") {
-      fetchOptions.body = JSON.stringify(req.body);
+      fetchOptions.body = extJsonStringify(req.body);
     }
 
     const response = await fetch(targetUrl, fetchOptions);
@@ -363,7 +363,7 @@ export async function proxyRequestSse(req: Request, res: Response): Promise<void
     };
 
     if (req.method !== "GET" && req.method !== "HEAD") {
-      fetchOptions.body = JSON.stringify(req.body);
+      fetchOptions.body = extJsonStringify(req.body);
     }
 
     const response = await fetch(targetUrl, fetchOptions);
