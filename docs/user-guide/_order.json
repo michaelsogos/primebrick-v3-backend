@@ -1,6 +1,8 @@
 {
   "pages": [
     "rbac",
-    "collaboration"
+    "collaboration",
+    "manual/users",
+    "manual/organizations"
   ]
 }
