@@ -20,6 +20,7 @@ import { asyncHandler } from "../../http/async-handler.js";
 import { validateBody } from "../../http/validation.js";
 import { UnauthorizedError } from "../../http/api-errors.js";
 import { McpCallService } from "../../modules/mcp/mcp-call.service.js";
+import { listGenericToolDefs } from "../../modules/mcp/tools/generic-tools.js";
 
 const McpCallBodySchema = z.object({
   tool: z.string().min(1).max(100),
@@ -29,6 +30,14 @@ const McpCallBodySchema = z.object({
 export function mcpCallRouter() {
   const router = makeProtectedRouter();
   const service = new McpCallService();
+
+  router.get(
+    "/api/v1/system/mcp/tools",
+    rbacHandler([Permission.AUTHENTICATED_USER]),
+    asyncHandler(async (_req, res) => {
+      res.json({ tools: listGenericToolDefs() });
+    }),
+  );
 
   router.post(
     "/api/v1/system/mcp/call",

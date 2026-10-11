@@ -169,6 +169,37 @@ type GenericToolHandler = (
 /** name → wrapped handler (withErrorHandling already applied). */
 const toolHandlers = new Map<string, GenericToolHandler>();
 
+/** name → public tool definition (for REST discovery by loop drivers). */
+interface GenericToolDef {
+  name: string;
+  title: string;
+  description: string;
+  input_schema: unknown;
+  read_only: boolean;
+}
+const toolDefs = new Map<string, GenericToolDef>();
+
+/** Tools that never mutate state — loop drivers may auto-execute them;
+ *  write tools must be confirmed by the user client-side (RBAC is still
+ *  the final protection, enforced per-call in the handlers). */
+const READ_ONLY_TOOLS = new Set([
+  "list_entities",
+  "get_entity",
+  "get_entity_audit",
+  "list_available_entities",
+  "get_entity_meta",
+  "search_docs",
+]);
+
+/**
+ * Public tool catalog for REST consumers (GET /api/v1/system/mcp/tools) —
+ * the same names/schemas the MCP server exposes via tools/list, plus a
+ * read_only hint so loop drivers can auto-execute safe calls.
+ */
+export function listGenericToolDefs(): GenericToolDef[] {
+  return [...toolDefs.values()];
+}
+
 /**
  * Invoke a registered generic tool outside the MCP transport.
  * `authInfo` is built from the HTTP session — same shape the MCP bearer
@@ -203,6 +234,17 @@ export function registerGenericTools(server: McpServer): void {
     handler: unknown,
   ) => {
     toolHandlers.set(name, handler as GenericToolHandler);
+    const m = meta as { title?: string; description?: string; inputSchema?: unknown };
+    toolDefs.set(name, {
+      name,
+      title: m.title ?? name,
+      description: m.description ?? "",
+      input_schema:
+        m.inputSchema instanceof z.ZodType
+          ? z.toJSONSchema(m.inputSchema)
+          : { type: "object" },
+      read_only: READ_ONLY_TOOLS.has(name),
+    });
     return (
       server.registerTool as (n: string, m: unknown, h: unknown) => unknown
     )(name, meta, handler);
