@@ -59,8 +59,8 @@ export class UserService {
     const actor = requireActor();
     const { username, password, display_name, email, roles, avatar_initials, avatar_color, idp_org, is_active, is_admin, is_verified, email_verified, send_invitation } = input;
 
-    const defaultColor = avatar_color || "#4f46e5";
     const calculatedInitials = avatar_initials || computeInitials(display_name);
+    const defaultColor = avatar_color || avatarPaletteHex(calculatedInitials);
 
     // 1. Create in Casdoor (if configured)
     const cdClient = await this.casdoor.getClient();
@@ -561,6 +561,24 @@ export class UserService {
 }
 
 // --- helpers ---------------------------------------------------------------
+
+// Avatar fallback palette — MUST mirror the FE palette in
+// primebrick-fe-v3/src/lib/avatar-chrome-palette.ts (same 10 hexes, same
+// index hashing) so server-defaulted colors match client-rendered ones.
+const AVATAR_PALETTE_HEXES = [
+  "#0284c7", "#059669", "#7c3aed", "#e11d48", "#4f46e5",
+  "#0e7490", "#c026d3", "#0d9488", "#1d4ed8", "#ea580c",
+] as const;
+
+/** Deterministic palette color for a seed (avatar_initials). Same hash as
+ * the FE `hashSeedToIndex` — a user keeps the same color everywhere. */
+export function avatarPaletteHex(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) {
+    h = (Math.imul(31, h) + seed.charCodeAt(i)) | 0;
+  }
+  return AVATAR_PALETTE_HEXES[(h >>> 0) % AVATAR_PALETTE_HEXES.length]!;
+}
 
 /** Compute 1-2 letter initials from a display name. Pure function, no I/O. */
 export function computeInitials(displayName?: string): string {
