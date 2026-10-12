@@ -1,0 +1,56 @@
+---
+title: Profile List
+description: List, search and manage all profile.
+---
+
+List, search and manage all profile.
+
+## Fields
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **code** | optional | text input |
+| **org** | optional | text input |
+| **username** | optional | text input |
+| **display name** | required | text input |
+| **email** | required | text input — must be a valid email |
+| **avatar color** | required | text input — shown when no avatar image is set; min 1 |
+| **avatar initials** | required | text input — min 1 |
+| **is admin** | optional | checkbox |
+| **is verified** | optional | checkbox |
+| **email verified** | optional | checkbox |
+| **issuer** | optional | text input |
+| **roles** | optional | select — administrator roles show a System Administrator badge |
+
+- The **code** field is an optional text input.
+- The **org** field is an optional text input.
+- The **username** field is an optional text input.
+- The **display name** field is a required text input.
+- The **email** field is a required text input that must be a valid email.
+- The **avatar color** field is a required text input that requires at least 1 character — shown when no avatar image is set.
+- The **avatar initials** field is a required text input that requires at least 1 character.
+- The **is admin** field is an optional checkbox.
+- The **is verified** field is an optional checkbox.
+- The **email verified** field is an optional checkbox.
+- The **issuer** field is an optional text input.
+- The **roles** field is an optional select — administrator roles show a System Administrator badge.
+
+## Related entities
+
+- A **Profile** is linked to **Organizations** through the **Org** field — see [Organizations](/docs/user-guide/generated/organizations).
+- A **Profile** is linked to **Roles** through the **Roles** field — see [Roles](/docs/user-guide/generated/roles).
+
+## Actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **Save** | ENABLED | — | Validates the form and saves changes to the profile | no |
+
+- The **Save** action is available on this page — validates the form and saves changes to the profile.
+
+## Doc references
+
+- [Organizations](/docs/user-guide/generated/organizations)
+- [Roles](/docs/user-guide/generated/roles)
+- [Entities Crud](/docs/user-guide/manual/entities-crud)
+

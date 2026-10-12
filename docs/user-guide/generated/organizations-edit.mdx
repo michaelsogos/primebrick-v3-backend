@@ -1,0 +1,54 @@
+---
+title: Edit Organization
+description: View and edit an existing organization.
+entity: organization
+---
+
+View and edit an existing organization.
+
+## Pages routes
+
+- `/system/settings/organizations` — List, search and manage all organizations.
+- `/system/settings/organizations/create` — Create a new organization.
+- `/system/settings/organizations/{uuid}` — View and edit an existing organization. *(this page)*
+
+## What you can do here
+
+### How to edit an organization
+1. On the **Organizations** list page, open the row actions menu on the organization you want to edit and click **Edit**.
+2. Update the fields below — required: **Display name**, **Identity Owner**, **Identity Name**.
+3. Click **Save** — the changes to the organization are saved.
+
+
+## Fields
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **Identity ID** | optional | text input |
+| **Display name** | required | text input |
+| **Website URL** | optional | text input — max 2048; must be a valid URL |
+| **Identity Owner** | required | text input — max 255; min 1 |
+| **Identity Name** | required | text input |
+
+- The **Identity ID** field is an optional text input.
+- The **Display name** field is a required text input.
+- The **Website URL** field is an optional text input that allows up to 2048 characters and must be a valid URL.
+- The **Identity Owner** field is a required text input that allows up to 255 characters and requires at least 1 character.
+- The **Identity Name** field is a required text input.
+
+## Actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **Save** | ENABLED | `organization.update.single` | Validates the form and saves changes to the organization | no |
+| **Cancel** | ENABLED | — | Discards changes and returns to the previous page | no |
+
+- The **Save** action is available on this page — validates the form and saves changes to the organization and it requires the `organization.update.single` permission.
+- The **Cancel** action is available on this page — discards changes and returns to the previous page.
+
+## Doc references
+
+- [Organizations](/docs/user-guide/generated/organizations)
+- [Organizations Create](/docs/user-guide/generated/organizations-create)
+- [Entities Crud](/docs/user-guide/manual/entities-crud)
+

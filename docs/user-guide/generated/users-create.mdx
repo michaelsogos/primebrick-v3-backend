@@ -1,0 +1,78 @@
+---
+title: Create User
+description: Create a new user.
+entity: user_profile
+---
+
+Create a new user.
+
+## Pages routes
+
+- `/system/settings/users` — List, search and manage all users.
+- `/system/settings/users/create` — Create a new user. *(this page)*
+- `/system/settings/users/{uuid}` — View and edit an existing user.
+
+## What you can do here
+
+### How to create a new user
+1. On the **Users** list page, click **New** in the toolbar.
+2. Fill in the fields below — required: **Username**, **Display Name**, **Email**, **Organization**.
+3. Click **Save** — the new user is created.
+
+### How to grant admin rights to a user
+1. In **Application Roles**, select a role whose **Admin** flag is enabled; administrator roles are marked with a **System Administrator** badge — the flag is configured on the role via **Edit Role**.
+2. Click **Save** — the user now has the permissions granted by the assigned roles.
+
+## Fields
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **IDP Username** | required | validated input — checked for availability in the selected organization while you type |
+| **Password** | optional | checkbox — validated against the active password policy (live checklist); required unless *Send invitation* is enabled; max 64 |
+| **Send invitation email** | optional | checkbox — When enabled, an invitation email will be sent to the user. They will set their own password via a secure welcome page. The password field above becomes optional — if left blank, a random placeholder is set in the identity provider and the user sets it on first access. |
+| **Display Name** | required | text input |
+| **Email** | required | text input — also used for the invitation email; max 320; must be a valid email; min 1 |
+| **Application Roles** | optional | select — administrator roles show a System Administrator badge; min 1 |
+| **Avatar Color** | optional | text input — shown when no avatar image is set; hex color |
+| **Organization** | required | select — only organizations backed by a real identity-provider organization are listed; min 1 |
+| **Enable** | optional | checkbox |
+| **Admin** | optional | checkbox — The Identity Administrator flag allows the user to access the IDP system to make administrative-level changes, but does not grant administration rights to this application. To grant application administration access, set the application roles. |
+| **Verified** | optional | checkbox — Indicates whether the identity verification process has been successfully completed. It may depend on a KYC process or other type of verification. |
+| **Email Verified** | optional | checkbox — Indicates whether the email has been verified, typically via a link sent to the email inbox that is presumed to be readable only by the user whose profile we are configuring. |
+
+- The **IDP Username** field is a required validated input — checked for availability in the selected organization while you type.
+- The **Password** field is an optional checkbox that allows up to 64 characters — validated against the active password policy (live checklist); required unless *Send invitation* is enabled.
+- The **Send invitation email** field is an optional checkbox — when enabled, an invitation email will be sent to the user. They will set their own password via a secure welcome page. The password field above becomes optional — if left blank, a random placeholder is set in the identity provider and the user sets it on first access.
+- The **Display Name** field is a required text input.
+- The **Email** field is a required text input that allows up to 320 characters and must be a valid email and requires at least 1 character — also used for the invitation email.
+- The **Application Roles** field is an optional select that requires at least 1 selection — administrator roles show a System Administrator badge.
+- The **Avatar Color** field is an optional text input that must be a hex color — shown when no avatar image is set.
+- The **Organization** field is a required select that requires at least 1 selection — only organizations backed by a real identity-provider organization are listed.
+- The **Enable** field is an optional checkbox.
+- The **Admin** field is an optional checkbox — the Identity Administrator flag allows the user to access the IDP system to make administrative-level changes, but does not grant administration rights to this application. To grant application administration access, set the application roles.
+- The **Verified** field is an optional checkbox — indicates whether the identity verification process has been successfully completed. It may depend on a KYC process or other type of verification.
+- The **Email Verified** field is an optional checkbox — indicates whether the email has been verified, typically via a link sent to the email inbox that is presumed to be readable only by the user whose profile we are configuring.
+
+## Related entities
+
+- A **User** is linked to **Organizations** through the **IDP Owner** field — see [Organizations](/docs/user-guide/generated/organizations).
+- A **User** is linked to **Roles** through the **Roles** field — see [Roles](/docs/user-guide/generated/roles).
+
+## Actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **Save** | ENABLED | — | Validates the form and creates the user | no |
+| **Cancel** | ENABLED | — | Discards changes and returns to the previous page | no |
+
+- The **Save** action is available on this page — validates the form and creates the user.
+- The **Cancel** action is available on this page — discards changes and returns to the previous page.
+
+## Doc references
+
+- [Users](/docs/user-guide/generated/users)
+- [Users Edit](/docs/user-guide/generated/users-edit)
+- [Roles](/docs/user-guide/generated/roles)
+- [Organizations](/docs/user-guide/generated/organizations)
+- [Entities Crud](/docs/user-guide/manual/entities-crud)
+

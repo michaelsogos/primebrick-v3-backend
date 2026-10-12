@@ -1,0 +1,63 @@
+---
+title: Edit User
+description: View and edit an existing user.
+entity: user_profile
+---
+
+View and edit an existing user.
+
+## Pages routes
+
+- `/system/settings/users` — List, search and manage all users.
+- `/system/settings/users/create` — Create a new user.
+- `/system/settings/users/{uuid}` — View and edit an existing user. *(this page)*
+
+## What you can do here
+
+### How to edit a user
+1. On the **Users** list page, open the row actions menu on the user you want to edit and click **Edit**.
+2. Update the fields below — required: **Display Name**.
+3. Click **Save** — the changes to the user are saved.
+
+### How to grant admin rights to a user
+1. In **Application Roles**, select a role whose **Admin** flag is enabled; administrator roles are marked with a **System Administrator** badge — the flag is configured on the role via **Edit Role**.
+2. Click **Save** — the user now has the permissions granted by the assigned roles.
+
+
+## Fields
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **Display Name** | required | text input |
+| **Email** | optional | text input — max 320; must be a valid email |
+| **Application Roles** | optional | select — administrator roles show a System Administrator badge; min 1 |
+| **Avatar Color** | optional | text input — shown when no avatar image is set; hex color |
+
+- The **Display Name** field is a required text input.
+- The **Email** field is an optional text input that allows up to 320 characters and must be a valid email.
+- The **Application Roles** field is an optional select that requires at least 1 selection — administrator roles show a System Administrator badge.
+- The **Avatar Color** field is an optional text input that must be a hex color — shown when no avatar image is set.
+
+## Related entities
+
+- A **User** is linked to **Organizations** through the **IDP Owner** field — see [Organizations](/docs/user-guide/generated/organizations).
+- A **User** is linked to **Roles** through the **Roles** field — see [Roles](/docs/user-guide/generated/roles).
+
+## Actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **Save** | ENABLED | `user_profile.update.single` | Validates the form and saves changes to the user | no |
+| **Cancel** | ENABLED | — | Discards changes and returns to the previous page | no |
+
+- The **Save** action is available on this page — validates the form and saves changes to the user and it requires the `user_profile.update.single` permission.
+- The **Cancel** action is available on this page — discards changes and returns to the previous page.
+
+## Doc references
+
+- [Users](/docs/user-guide/generated/users)
+- [Users Create](/docs/user-guide/generated/users-create)
+- [Roles](/docs/user-guide/generated/roles)
+- [Organizations](/docs/user-guide/generated/organizations)
+- [Entities Crud](/docs/user-guide/manual/entities-crud)
+

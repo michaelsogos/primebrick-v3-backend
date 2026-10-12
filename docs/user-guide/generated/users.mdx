@@ -1,0 +1,135 @@
+---
+title: Users List
+description: List, search and manage all users.
+entity: user_profile
+---
+
+List, search and manage all users.
+
+Each row shows the Display Name, the Email, the IDP Owner, the IDP Username, plus the status flags Enable, Admin, and Email Verified.
+
+This user is backed by the identity provider (Casdoor) — its identity fields are managed there.
+
+## Pages routes
+
+- `/system/settings/users` — List, search and manage all users. *(this page)*
+- `/system/settings/users/create` — Create a new user.
+- `/system/settings/users/{uuid}` — View and edit an existing user.
+
+## What you can do here
+
+### How to create a new user
+1. Click **New** in the toolbar.
+2. Fill in the form — required: **Username**, **Display Name**, **Email**, **Organization**.
+3. Click **Save** — the new user is created.
+
+### How to edit a user
+1. Open the row actions menu on the user and click **Edit**.
+2. Update the fields — required: **Display Name**.
+3. Click **Save** — the changes to the user are saved.
+
+### How to delete a user
+1. Open the row actions menu on the user and click **Delete**.
+2. Confirm the deletion in the dialog — the user is soft-deleted and can be restored.
+
+### How to restore a deleted user
+1. Set the deleted-records filter to **Deleted only** or **All records** to show recoverable records.
+2. Open the row actions menu on the user and click **Restore**.
+3. Confirm in the dialog — the user is active again.
+
+### How to view the change history of a user
+1. Open the row actions menu on the user and click **Audit history**.
+2. The version history of the user will appear on the right sheet panel.
+
+### How to change the user's password
+1. Open the row actions menu on the user and click **Change Password**.
+2. Set a new password for this user; they will need to use the new password on next login.
+
+### How to grant admin rights to a user
+1. Open the user in its form (see *How to create a new user* / *How to edit a user* above).
+2. In **Application Roles**, select a role whose **Admin** flag is enabled; administrator roles are marked with a **System Administrator** badge — the flag is configured on the role via **Edit Role**.
+3. Click **Save** — the user now has the permissions granted by the assigned roles.
+
+## Columns
+
+| Column | Visible | Sortable | Filterable | Notes |
+|--------|---------|----------|------------|-------|
+| **Display Name** | yes | yes | yes |  |
+| **UUID** | no | yes | yes |  |
+| **IDP Code** | no | yes | yes | the record's identifier code in Casdoor — the link between this row and the IDP record |
+| **Email** | yes | yes | yes |  |
+| **Avatar Color** | no | no | no |  |
+| **Avatar Initials** | no | yes | yes |  |
+| **IDP Owner** | yes | yes | yes | the Casdoor organization this row belongs to |
+| **IDP Username** | yes | yes | yes | the login name in Casdoor |
+| **Enable** | yes | yes | yes |  |
+| **Admin** | yes | yes | yes | The Identity Administrator flag allows the user to access the IDP system to make administrative-level changes, but does not grant administration rights to this application. To grant application administration access, set the application roles. |
+| **Verified** | no | yes | yes | Indicates whether the identity verification process has been successfully completed. It may depend on a KYC process or other type of verification. |
+| **Email Verified** | yes | yes | yes | Indicates whether the email has been verified, typically via a link sent to the email inbox that is presumed to be readable only by the user whose profile we are configuring. |
+| **Roles** | no | no | no |  |
+| **IDP Issuer** | no | no | yes | the identity-provider issuer that owns this identity |
+
+- The Display Name column is shown by default and can be sorted and filtered.
+- The UUID column is hidden by default and can be sorted and filtered.
+- The IDP Code column is hidden by default and can be sorted and filtered — the record's identifier code in Casdoor — the link between this row and the IDP record.
+- The Email column is shown by default and can be sorted and filtered.
+- The Avatar Color column is hidden by default and cannot be sorted or filtered.
+- The Avatar Initials column is hidden by default and can be sorted and filtered.
+- The IDP Owner column is shown by default and can be sorted and filtered — the Casdoor organization this row belongs to.
+- The IDP Username column is shown by default and can be sorted and filtered — the login name in Casdoor.
+- The Enable column is shown by default and can be sorted and filtered.
+- The Admin column is shown by default and can be sorted and filtered — the Identity Administrator flag allows the user to access the IDP system to make administrative-level changes, but does not grant administration rights to this application. To grant application administration access, set the application roles.
+- The Verified column is hidden by default and can be sorted and filtered — indicates whether the identity verification process has been successfully completed. It may depend on a KYC process or other type of verification.
+- The Email Verified column is shown by default and can be sorted and filtered — indicates whether the email has been verified, typically via a link sent to the email inbox that is presumed to be readable only by the user whose profile we are configuring.
+- The Roles column is hidden by default and cannot be sorted or filtered.
+- The IDP Issuer column is hidden by default and can be filtered but not sorted — the identity-provider issuer that owns this identity.
+
+## Related entities
+
+- A **User** is linked to **Organizations** through the **IDP Owner** field — see [Organizations](/docs/user-guide/generated/organizations).
+- A **User** is linked to **Roles** through the **Roles** field — see [Roles](/docs/user-guide/generated/roles).
+
+## Actions
+
+### Row actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **create** | ENABLED | `user_profile.create.single` | Creates a new user | no |
+| **update** | ENABLED | `user_profile.update.single` | Opens the user for editing | no |
+| **delete** | ENABLED | `user_profile.delete.single` | Marks the user as deleted but keeps it so it can be restored | no |
+| **restore** | ENABLED | `user_profile.restore.single` | Brings a soft-deleted user back | no |
+| **purge** | DISABLED | — | Removes the user forever | no |
+| **audit history** | ENABLED | `user_profile.read.audit` | Shows the change history of the user | no |
+| **Change Password** | ENABLED | `AUTHENTICATED_ADMIN` | Set a new password for this user. They will need to use the new password on next login. | no |
+
+- Creating a new user is available on this page — the create action opens the create form in a new browser tab and it requires the `user_profile.create.single` permission.
+- Editing a user is available on this page — the row action opens the record in a new browser tab and it requires the `user_profile.update.single` permission.
+- Soft-deleting a user is available on this page — marks the user as deleted but keeps it so it can be restored and it requires the `user_profile.delete.single` permission.
+- Restoring a soft-deleted user is available on this page — brings a soft-deleted user back and it requires the `user_profile.restore.single` permission.
+- Permanently deleting a user is not available on this page — no permission is declared for it on users.
+- Viewing the change history of a user is available on this page — every user keeps a full version history and it requires the `user_profile.read.audit` permission.
+- The Change Password action is available on this page — set a new password for this user; they will need to use the new password on next login — it is unavailable on deleted rows and it requires the `AUTHENTICATED_ADMIN` permission.
+
+### Bulk actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **delete** | DISABLED | `user_profile.delete.bulk` | Marks the selected users as deleted | no |
+| **restore** | DISABLED | `user_profile.restore.bulk` | Restores the selected users | no |
+| **duplicate** | DISABLED | `user_profile.duplicate.bulk` | Duplicates the selected users | no |
+| **export** | DISABLED | `user_profile.export` | Exports the list | no |
+
+- Soft-deleting the selected users is not available on this page — if enabled, it would require the `user_profile.delete.bulk` permission.
+- Restoring the selected users is not available on this page — if enabled, it would require the `user_profile.restore.bulk` permission.
+- Duplicating the selected users is not available on this page — if enabled, it would require the `user_profile.duplicate.bulk` permission.
+- Exporting the list is not available on this page — if enabled, it would require the `user_profile.export` permission.
+
+## Doc references
+
+- [Users Create](/docs/user-guide/generated/users-create)
+- [Users Edit](/docs/user-guide/generated/users-edit)
+- [Organizations](/docs/user-guide/generated/organizations)
+- [Roles](/docs/user-guide/generated/roles)
+- [Entities Crud](/docs/user-guide/manual/entities-crud)
+

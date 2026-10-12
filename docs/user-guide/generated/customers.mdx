@@ -1,0 +1,111 @@
+---
+title: Customers List
+description: List, search and manage all customers.
+entity: customer
+---
+
+List, search and manage all customers.
+
+Each row shows the Onboarded At.
+
+## Pages routes
+
+- `/system/customers` — List, search and manage all customers. *(this page)*
+- `/system/customers/new` — Create a new customer.
+
+## What you can do here
+
+### How to create a new customer
+1. Click **New** in the toolbar.
+2. Fill in the form — required fields are marked.
+3. Click **Save** — the new customer is created.
+
+### How to delete a customer
+1. Open the row actions menu on the customer and click **Delete**.
+2. Confirm the deletion in the dialog — the customer is soft-deleted and can be restored.
+
+### How to restore a deleted customer
+1. Set the deleted-records filter to **Deleted only** or **All records** to show recoverable records.
+2. Open the row actions menu on the customer and click **Restore**.
+3. Confirm in the dialog — the customer is active again.
+
+### How to view the change history of a customer
+1. Open the row actions menu on the customer and click **Audit history**.
+2. The version history of the customer will appear on the right sheet panel.
+
+## Columns
+
+| Column | Visible | Sortable | Filterable | Notes |
+|--------|---------|----------|------------|-------|
+| **UUID** | no | yes | no |  |
+| **Code** | no | yes | yes |  |
+| **First name** | no | yes | yes |  |
+| **Last name** | no | yes | yes |  |
+| **Company** | no | yes | yes |  |
+| **Email** | no | yes | yes |  |
+| **Phone** | no | no | no |  |
+| **Status** | no | yes | yes |  |
+| **Onboarded At** | yes | yes | yes |  |
+| **Status reason** | no | no | no |  |
+| **Address** | no | no | no |  |
+| **City** | no | yes | yes |  |
+| **State/Region** | no | yes | yes |  |
+| **Country** | no | yes | yes |  |
+| **ZIP** | no | no | no |  |
+| **Onboarding time zone** | no | yes | no |  |
+
+- The UUID column is hidden by default and can be sorted but not filtered.
+- The Code column is hidden by default and can be sorted and filtered.
+- The First name column is hidden by default and can be sorted and filtered.
+- The Last name column is hidden by default and can be sorted and filtered.
+- The Company column is hidden by default and can be sorted and filtered.
+- The Email column is hidden by default and can be sorted and filtered.
+- The Phone column is hidden by default and cannot be sorted or filtered.
+- The Status column is hidden by default and can be sorted and filtered.
+- The Onboarded At column is shown by default and can be sorted and filtered.
+- The Status reason column is hidden by default and cannot be sorted or filtered.
+- The Address column is hidden by default and cannot be sorted or filtered.
+- The City column is hidden by default and can be sorted and filtered.
+- The State/Region column is hidden by default and can be sorted and filtered.
+- The Country column is hidden by default and can be sorted and filtered.
+- The ZIP column is hidden by default and cannot be sorted or filtered.
+- The Onboarding time zone column is hidden by default and can be sorted but not filtered.
+
+## Actions
+
+### Row actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **create** | ENABLED | `customer.create.single` | Creates a new customer | no |
+| **update** | DISABLED | `customer.update.single` | Opens the customer for editing | no |
+| **delete** | ENABLED | `customer.delete.single` | Marks the customer as deleted but keeps it so it can be restored | no |
+| **restore** | ENABLED | `customer.restore.single` | Brings a soft-deleted customer back | no |
+| **purge** | DISABLED | — | Removes the customer forever | no |
+| **audit history** | ENABLED | `customer.read.audit` | Shows the change history of the customer | no |
+
+- Creating a new customer is available on this page — the create action opens the create form in the same tab and it requires the `customer.create.single` permission.
+- Editing a customer is not available on this page — if enabled, it would require the `customer.update.single` permission.
+- Soft-deleting a customer is available on this page — marks the customer as deleted but keeps it so it can be restored and it requires the `customer.delete.single` permission.
+- Restoring a soft-deleted customer is available on this page — brings a soft-deleted customer back and it requires the `customer.restore.single` permission.
+- Permanently deleting a customer is not available on this page — no permission is declared for it on customers.
+- Viewing the change history of a customer is available on this page — every customer keeps a full version history and it requires the `customer.read.audit` permission.
+
+### Bulk actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **delete** | ENABLED | `customer.delete.bulk` | Marks the selected customers as deleted | no |
+| **restore** | ENABLED | `customer.restore.bulk` | Restores the selected customers | no |
+| **duplicate** | ENABLED | `customer.duplicate.bulk` | Duplicates the selected customers | no |
+| **export** | ENABLED | `customer.export` | Exports the list | no |
+
+- Soft-deleting the selected customers is available on this page — marks the selected customers as deleted and it requires the `customer.delete.bulk` permission.
+- Restoring the selected customers is available on this page — restores the selected customers and it requires the `customer.restore.bulk` permission.
+- Duplicating the selected customers is available on this page — duplicates the selected customers and it requires the `customer.duplicate.bulk` permission.
+- Exporting the list is available on this page — exports the list and it requires the `customer.export` permission.
+
+## Doc references
+
+- [Entities Crud](/docs/user-guide/manual/entities-crud)
+
