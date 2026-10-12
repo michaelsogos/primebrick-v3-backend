@@ -44,6 +44,69 @@ decides how to group them**. That is what makes the model flexible — it
 adapts to how your company is actually organised instead of forcing you
 into a fixed hierarchy.
 
+## How a permission is written
+
+Every permission in the catalogue follows one grammar:
+
+```
+{scope}.{action}.{cardinality}
+```
+
+- **scope** — the entity the permission acts on, in *singular* snake_case:
+  `customer`, `organization`, `user_profile`, `role_mapping`,
+  `auth_event` (the audit log). Entities that live in a module carry the
+  module prefix: `modules.config.read.single`.
+- **action** — what is allowed: `read`, `create`, `update`, `delete`,
+  `restore`, `duplicate`, plus `audit` (history) and `export`.
+- **cardinality** — how much of the scope it covers:
+  - `.single` — one record at a time (open a customer, edit a user)
+  - `.all` — the whole list (the grid itself)
+  - `.bulk` — many records in one shot (bulk delete, bulk restore)
+  - read-audit and export have no cardinality: `customer.read.audit`,
+    `customer.export`
+
+Real examples from the catalogue:
+
+| Permission | Meaning |
+|---|---|
+| `customer.read.all` | see the customers list |
+| `customer.read.single` | open a single customer |
+| `customer.create.single` | create a customer |
+| `customer.delete.bulk` | bulk-delete customers |
+| `role_mapping.update.single` | edit a role mapping |
+| `auth_event.read.audit` | view the audit history |
+| `customer.export` | export the customers list |
+
+Every CRUD entity owns the same canonical set of fourteen permissions —
+the four read flavours, and the five write actions in both `.single` and
+`.bulk` cardinality. You will recognise the pattern everywhere.
+
+### Wildcards
+
+You do not have to list permissions one by one. In a role's permission
+list, `*` matches **any sequence of segments**:
+
+| Pattern | Grants |
+|---|---|
+| `customer.*` | every customer permission — all actions, all cardinalities |
+| `customer.read.*` | all three read flavours (`single`, `all`, `audit`) |
+| `*.read.all` | list access to every entity |
+| `*` | everything — equivalent to an administrator role |
+
+Start broad when a role genuinely owns a whole entity (`finance` gets
+`invoice.*`), narrow when it should only look (`auditor` gets
+`*.read.single`).
+
+### Where roles come from
+
+A *role mapping* links a **role defined in your identity provider** to the
+permission patterns it grants inside Primebrick. When a user signs in,
+their identity token carries the IDP roles they hold; the platform looks
+each one up in the role mappings table and unfolds the union of the
+permission patterns. Nothing is stored on the user record itself —
+the mapping *is* the bridge between the outside identity world and the
+application's permission catalogue.
+
 ## Shaping roles around your organisation
 
 There is no single "right" way to carve up roles. Two common approaches —
@@ -89,13 +152,37 @@ flowchart TD
   create, edit, delete, restore, audit…). Administrators compose them
   into roles; they never edit the permission list itself.
 
+## How to grant permissions to a user
+
+1. Open the **Roles** page and create or edit a role mapping: pick the
+   **IDP Role**, the **Organization**, a **Label** and the **Permissions**
+   patterns to grant (e.g. `customer.*`, `customer.read.single`). See
+   [Create a role](/docs/user-guide/generated/roles-create) and
+   [Edit a role](/docs/user-guide/generated/roles-edit).
+2. Open the user from **Users** and, in the edit form, select the role in
+   **Application Roles** — administrator roles show a
+   **System Administrator** badge next to their name. See
+   [Edit a user](/docs/user-guide/generated/users-edit).
+3. Click **Save** — the user now holds the union of all permissions
+   granted by the assigned roles.
+
 ## A word on administrator roles
 
-Some roles are marked as **administrator roles** — they unlock the
-administration areas of the application (user management, role
-management, configuration). Assign them deliberately: an administrator
-role is not "a role with more permissions", it is the keys to the control
-room. Regular users should receive task-oriented roles instead.
+Some roles are marked with the **Administrator** flag. This flag does not
+merely add permissions — it **bypasses every permission check entirely**:
+a user holding an administrator role can perform any action in the
+application, equivalent to granting `*`. That is why administrator roles
+show the *System Administrator* badge in the Application Roles picker.
+
+Assign them deliberately: an administrator role is not "a role with more
+permissions", it is the keys to the control room. Regular users should
+receive task-oriented roles instead.
+
+> **Do not confuse the two admin flags.** The *Administrator* flag lives
+> on the **role mapping** and grants application administration. The
+> separate *Admin / Identity Administrator* flag on the **user record**
+> grants administration of the identity-provider system itself — it does
+> not make the user an application administrator.
 
 ## A worked example
 
