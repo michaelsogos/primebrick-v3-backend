@@ -7,7 +7,7 @@
 BEGIN;
 
 -- ─── system.settings.tabs.docsIndex ────────────────────────────────
-INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
+INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.settings.tabs.docsIndex', 'en-GB', 'Docs index', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.tabs.docsIndex', 'en-US', 'Docs index', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.tabs.docsIndex', 'it-IT', 'Indice documenti', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -18,7 +18,7 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
 ON CONFLICT (key, language) DO NOTHING;
 
 -- ─── system.settings.docsIndex.* ───────────────────────────────────
-INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
+INSERT INTO system.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
   ('system.settings.docsIndex.title', 'en-GB', 'Documentation index', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.title', 'it-IT', 'Indice della documentazione', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.description', 'en-GB', 'Knowledge-base index status, source-vs-index drift and ingestion history across all modules.', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -37,13 +37,24 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('system.settings.docsIndex.col.docs', 'en-GB', 'Docs', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.col.chunks', 'en-GB', 'Chunks', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.col.unembedded', 'en-GB', 'Unembedded', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.repo', 'it-IT', 'Repo', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.docs', 'it-IT', 'Documenti', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.chunks', 'it-IT', 'Chunk', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.unembedded', 'it-IT', 'Non embeddati', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.col.trigger', 'en-GB', 'Trigger', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.col.result', 'en-GB', 'Result', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.col.when', 'en-GB', 'When', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.col.service', 'en-GB', 'Service', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.col.status', 'en-GB', 'Status', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.result', 'it-IT', 'Esito', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.when', 'it-IT', 'Quando', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.service', 'it-IT', 'Servizio', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.trigger', 'it-IT', 'Trigger', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.status', 'it-IT', 'Stato', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.aligned', 'en-GB', 'Aligned', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.aligned', 'it-IT', 'Allineato', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.driftDetected', 'en-GB', 'Drift detected', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.driftDetected', 'it-IT', 'Drift rilevato', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.missing', 'en-GB', 'Missing from index', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.missing', 'it-IT', 'Mancanti nell''indice', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.stale', 'en-GB', 'Stale (changed content)', now(), 'initial-setup', now(), 'initial-setup', 1),
@@ -67,7 +78,15 @@ INSERT INTO public.translations (key, language, value, created_at, created_by, u
   ('system.settings.docsIndex.packError', 'en-GB', 'Pack unreachable', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.packError', 'it-IT', 'Pack non raggiungibile', now(), 'initial-setup', now(), 'initial-setup', 1),
   ('system.settings.docsIndex.storage', 'en-GB', 'Index size', now(), 'initial-setup', now(), 'initial-setup', 1),
-  ('system.settings.docsIndex.storage', 'it-IT', 'Dimensione indice', now(), 'initial-setup', now(), 'initial-setup', 1)
+  ('system.settings.docsIndex.storage', 'it-IT', 'Dimensione indice', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.contentSize', 'en-GB', 'Content', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.contentSize', 'it-IT', 'Contenuto', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.vectorSize', 'en-GB', 'Vectors', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.vectorSize', 'it-IT', 'Vettori', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.expectedDocs', 'en-GB', 'Pack docs', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.expectedDocs', 'it-IT', 'Doc nel pack', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.expectedChunks', 'en-GB', 'Pack chunks', now(), 'initial-setup', now(), 'initial-setup', 1),
+  ('system.settings.docsIndex.col.expectedChunks', 'it-IT', 'Chunk nel pack', now(), 'initial-setup', now(), 'initial-setup', 1)
 ON CONFLICT (key, language) DO NOTHING;
 
 COMMIT;
