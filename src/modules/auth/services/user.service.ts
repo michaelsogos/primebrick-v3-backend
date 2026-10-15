@@ -13,7 +13,7 @@
 
 import { logger } from "@primebrick/sdk";
 import { randomUUID, randomBytes } from "node:crypto";
-import type { Pool, PoolClient } from "pg";
+import type { Repository } from "@primebrick/dal-pg";
 
 import { UserProfilesDal, type UserListQuery, type UserListResponse } from "../user-profiles-dal.js";
 import { CasdoorService } from "./casdoor.service.js";
@@ -38,7 +38,6 @@ export interface CreateUserResult {
 
 export class UserService {
   constructor(
-    private pool: Pool,
     private dal: UserProfilesDal,
     private casdoor: CasdoorService,
   ) {}
@@ -51,7 +50,7 @@ export class UserService {
    * controllers).
    */
   async getPasswordPolicy(): Promise<PasswordPolicy> {
-    const cfg = await loadAuthConfigFromDb(this.pool);
+    const cfg = await loadAuthConfigFromDb();
     return parsePasswordPolicy(cfg.password_policy!);
   }
 
@@ -166,11 +165,7 @@ export class UserService {
     let invitation_uuid: string | undefined;
     if (send_invitation) {
       // Get the internal bigint id of the profile (not exposed in the DTO)
-      const idResult = await this.pool.query(
-        `SELECT id FROM user_profiles WHERE uuid = $1`,
-        [newUuid],
-      );
-      const profileId = idResult.rows[0]?.id;
+      const profileId = await this.dal.getIdByUuid(newUuid);
       if (!profileId) {
         throw new ApiError(
           "/errors/internal-error",
@@ -181,7 +176,7 @@ export class UserService {
         );
       }
 
-      const invitationService = new InvitationService(this.pool, this.casdoor);
+      const invitationService = new InvitationService(this.casdoor);
       const result = await invitationService.createInvitation(
         BigInt(profileId),
         profile.uuid,
@@ -300,7 +295,7 @@ export class UserService {
    * Syncs display_name / email / avatar / roles to Casdoor first (non-best-
    * effort), then updates the local DB.
    */
-  async updateUserProfile(uuid: string, body: UserUpdateBody, tx?: PoolClient): Promise<UserProfileDetailDto> {
+  async updateUserProfile(uuid: string, body: UserUpdateBody, tx?: Repository): Promise<UserProfileDetailDto> {
     const profile = await this.dal.getByUuid(uuid);
     if (!profile) {
       throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
@@ -350,6 +345,7 @@ export class UserService {
     if (body.email !== undefined) updateBody.email = body.email || undefined;
     if (body.avatar_color !== undefined) updateBody.avatar_color = body.avatar_color;
     if (body.avatar_initials !== undefined) updateBody.avatar_initials = body.avatar_initials;
+    // standards-exempt: ext-json — Casdoor-compatible column format (roles stored as stringified plain JSON)
     if (body.roles !== undefined) updateBody.roles = JSON.stringify(body.roles);
 
     // The write response IS the new observation — no follow-up GET.
@@ -398,7 +394,7 @@ export class UserService {
     // Send password_changed notification email (best-effort)
     if (existing.email) {
       try {
-        const invitationService = new InvitationService(this.pool, this.casdoor);
+        const invitationService = new InvitationService(this.casdoor);
         const alertLink = await invitationService.generateAlertLink(existing.uuid, "password-change");
         const adminMailto = await invitationService.generateAdminMailto(
           existing.display_name ?? "",
@@ -483,7 +479,7 @@ export class UserService {
     // Step 3: send notification email (best-effort)
     if (existing.email) {
       try {
-        const invitationService = new InvitationService(this.pool, this.casdoor);
+        const invitationService = new InvitationService(this.casdoor);
         const alertLink = await invitationService.generateAlertLink(existing.uuid, "password-change");
         const adminMailto = await invitationService.generateAdminMailto(
           existing.display_name ?? "",

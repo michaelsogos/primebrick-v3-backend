@@ -114,7 +114,7 @@ await runEntityWrite(req, res, () => service.createCustomer(body));
 4. Declare the permission with `rbacHandler(...)` — missing declaration
    means `ROUTE_PERMISSION_NOT_DECLARED` 403 by design.
 5. Tests: use `src/controllers/http/__tests__/harness.ts` — mock the
-   service, rbac, mfa-step-up, `db/pool`; keep zod validation and the
+   service, rbac, mfa-step-up, `db/dal-gateway`; keep zod validation and the
    centralized `errorHandler` real. Assert status, service args, and
    RFC7807 shape — this IS the boundary test.
 

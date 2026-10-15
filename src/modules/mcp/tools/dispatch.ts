@@ -13,15 +13,25 @@
  *     enforce their own RBAC)
  */
 
-import { isPermissionGranted, internalFetch, type Permission } from "@primebrick/sdk";
+import { isPermissionGranted, internalFetch, extJsonStringify, type Permission } from "@primebrick/sdk";
+import {
+  field,
+  Filter,
+  Project,
+  Sort,
+  type FilterExpr,
+  type FieldProjector,
+  type SortingExpr,
+} from "@primebrick/dal-pg";
 import type { AuthInfo } from "@modelcontextprotocol/server";
 import { authInfoToUser } from "../token-verifier.js";
 import { entityRegistry, type Operation } from "./entity-registry.js";
-import { getPool } from "../../../db/pool.js";
+import { initDal } from "../../../db/dal-gateway.js";
+import { AuthEventEntity } from "../../auth/auth_event_entity.js";
 import { CustomersService } from "../../customers/customers.service.js";
 import { OrganizationsService } from "../../auth/services/organizations.service.js";
 import { UserService } from "../../auth/services/user.service.js";
-import { ServiceRegistryRepo } from "../../proxy/service-registry-repo.js";
+import { SystemService } from "../../system/system.service.js";
 import { customerMeta } from "../../customers/customers.meta.js";
 import { organizationMeta } from "../../auth/organizations.meta.js";
 import { userProfileMeta } from "../../auth/user-profiles.meta.js";
@@ -102,10 +112,9 @@ function getOrganizationService(): OrganizationsService {
 }
 
 function getUserService(): UserService {
-  const pool = getPool();
-  const dal = new UserProfilesDal(pool);
-  const casdoor = new CasdoorService(pool);
-  return new UserService(pool, dal, casdoor);
+  const dal = new UserProfilesDal();
+  const casdoor = new CasdoorService();
+  return new UserService(dal, casdoor);
 }
 
 /**
@@ -365,7 +374,7 @@ export async function proxyToMicroservice(
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? extJsonStringify(body) : undefined,
   });
 
   if (!response.ok) {
@@ -405,7 +414,7 @@ export async function dispatchProxyList(
   if (params.sort_dir) query.sort_dir = params.sort_dir;
   if (params.page) query.page = String(params.page);
   if (params.page_size) query.page_size = String(params.page_size);
-  if (params.filters) query.filters = JSON.stringify(params.filters);
+  if (params.filters) query.filters = extJsonStringify(params.filters);
   if (params.deleted_records) query.deleted_records = params.deleted_records;
 
   const path = buildProxyPath(module, entity, "list");
@@ -530,8 +539,9 @@ export interface AggregateSpec {
  * Dispatch an aggregate operation to the BE service layer.
  *
  * For `auth_events` (the only BE entity supporting aggregate in v1), this
- * builds a raw SQL query against the auth_events table. Other entities could
- * be added here in the future.
+ * runs through the DAL DSL — `field()` resolves columns via entity meta
+ * (unknown keys throw UNKNOWN_COLUMN instead of a PG error) and every value
+ * is a bound parameter. Other entities could be added here in the future.
  *
  * Returns: { results: [{ group: {...}, value: number }], total: number }
  */
@@ -550,94 +560,86 @@ export async function dispatchBeAggregate(
     throw new EntityNotFoundError("be", entity);
   }
 
-  const pool = getPool();
   const { aggregate, filters, sort_key, sort_dir, page, page_size } = params;
 
-  // Build SELECT clause
   const aggExpr =
     aggregate.type === "count"
       ? "COUNT(*)"
       : `${aggregate.type.toUpperCase()}(${quoteIdent(aggregate.field!)})`;
 
   const groupBy = aggregate.group_by ?? [];
-  const selectClause =
-    groupBy.length > 0
-      ? `${groupBy.map((f) => quoteIdent(f)).join(", ")}, ${aggExpr} AS agg_value`
-      : `${aggExpr} AS agg_value`;
 
-  // Build WHERE clause from filters (simple equality for now — auth_events
-  // supports event_type, success, user_profile_uuid, event_at BETWEEN).
-  const whereParts: string[] = [];
-  const queryParams: unknown[] = [];
-  let paramIdx = 1;
-
+  // Filters — the MCP payload shapes: scalar equality, array → IN,
+  // `{op:"BETWEEN", value:[a,b]}` → two range predicates.
+  const filterExprs: FilterExpr[] = [];
   if (filters) {
-    for (const [field, value] of Object.entries(filters)) {
+    for (const [key, value] of Object.entries(filters)) {
       if (value === null || value === undefined) continue;
+      const ref = field(AuthEventEntity, key as never);
 
-      // Handle BETWEEN: { op: "BETWEEN", value: [start, end] }
       if (typeof value === "object" && !Array.isArray(value) && "op" in (value as Record<string, unknown>)) {
         const v = value as { op: string; value: unknown[] };
         if (v.op === "BETWEEN" && Array.isArray(v.value) && v.value.length === 2) {
-          whereParts.push(`${quoteIdent(field)} BETWEEN $${paramIdx} AND $${paramIdx + 1}`);
-          queryParams.push(v.value[0], v.value[1]);
-          paramIdx += 2;
+          filterExprs.push(
+            Filter.fieldValue(ref, ">=", v.value[0]),
+            Filter.fieldValue(ref, "<=", v.value[1]),
+          );
           continue;
         }
       }
-
-      // Handle IN: array of values
       if (Array.isArray(value)) {
-        const placeholders = value.map((_, i) => `$${paramIdx + i}`).join(", ");
-        whereParts.push(`${quoteIdent(field)} IN (${placeholders})`);
-        queryParams.push(...value);
-        paramIdx += value.length;
+        filterExprs.push(Filter.fieldValue(ref, "IN", value));
         continue;
       }
-
-      // Simple equality
-      whereParts.push(`${quoteIdent(field)} = $${paramIdx}`);
-      queryParams.push(value);
-      paramIdx += 1;
+      filterExprs.push(Filter.fieldValue(ref, "=", value));
     }
   }
 
-  const whereClause = whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
+  const fields: FieldProjector[] = [
+    ...groupBy.map((f) => Project.field(field(AuthEventEntity, f as never))),
+    Project.expr(aggExpr, "agg_value"),
+  ];
 
-  // Build GROUP BY clause
-  const groupByClause = groupBy.length > 0 ? `GROUP BY ${groupBy.map((f) => quoteIdent(f)).join(", ")}` : "";
-
-  // Build ORDER BY clause
   // sort_key can be a group_by field or "agg_value" (the aggregate result)
-  const sortField = sort_key === "count" || sort_key === aggregate.type ? "agg_value" : quoteIdent(sort_key ?? "");
+  const sorting: SortingExpr[] = [];
   const sortDir = (sort_dir ?? "desc").toUpperCase() === "ASC" ? "ASC" : "DESC";
-  const orderBy = sortField ? `ORDER BY ${sortField} ${sortDir}` : "";
+  if (sort_key) {
+    sorting.push(
+      sort_key === "count" || sort_key === aggregate.type
+        ? Sort.byAlias("agg_value", sortDir)
+        : Sort.by(field(AuthEventEntity, sort_key as never), sortDir),
+    );
+  }
 
-  // Pagination
-  const limit = Math.min(page_size ?? 25, 100);
-  const offset = ((page ?? 1) - 1) * limit;
+  const pageNum = Math.max(1, page ?? 1);
+  const pageSize = Math.min(page_size ?? 25, 100);
+  // `findByPage` computes `total_records` via COUNT(*) OVER() — over a
+  // GROUP BY result that counts the number of groups (same semantic as the
+  // removed `COUNT(*) FROM (… GROUP BY)` count query).
+  const page_ = await initDal().findByPage<AuthEventEntity, Record<string, unknown> & { agg_value: unknown }>(
+    AuthEventEntity,
+    pageNum,
+    pageSize,
+    fields,
+    {
+      filters: filterExprs,
+      groupBy: groupBy.map((f) => field(AuthEventEntity, f as never)),
+      sorting,
+    },
+  );
 
-  // Count total groups (for pagination metadata)
-  const countSql = `SELECT COUNT(*) AS total FROM (SELECT 1 FROM auth_events ${whereClause} ${groupByClause}) AS grouped`;
-  const countResult = await pool.query<{ total: string }>(countSql, queryParams);
-  const total = BigInt(countResult.rows[0]?.total ?? 0);
-
-  // Main query
-  const sql = `SELECT ${selectClause} FROM auth_events ${whereClause} ${groupByClause} ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
-  const result = await pool.query(sql, queryParams);
-
-  const results = result.rows.map((row) => {
+  const results = page_.entities.map((row) => {
     const group: Record<string, unknown> = {};
     for (const f of groupBy) {
       group[f] = row[f];
     }
     return {
       group,
-      value: typeof row.agg_value === "bigint" ? row.agg_value : BigInt(row.agg_value ?? 0),
+      value: typeof row.agg_value === "bigint" ? row.agg_value : BigInt(row.agg_value as number ?? 0),
     };
   });
 
-  return { results, total };
+  return { results, total: page_.total_records };
 }
 
 /**
@@ -678,35 +680,21 @@ function quoteIdent(name: string): string {
  * List all services from the service registry.
  */
 export async function listServices(): Promise<unknown> {
-  const repo = new ServiceRegistryRepo(getPool());
-  const services = await repo.findAll();
-  return { services };
+  return new SystemService().listServices();
 }
 
 /**
  * Get a single service by code.
  */
 export async function getService(code: string): Promise<unknown> {
-  const repo = new ServiceRegistryRepo(getPool());
-  const service = await repo.findByCode(code);
-  if (!service) {
-    throw new Error(`Service '${code}' not found`);
-  }
-  return { service };
+  return new SystemService().getService(code);
 }
 
 /**
  * Toggle a service's is_enabled flag.
  */
 export async function activateService(code: string): Promise<unknown> {
-  const repo = new ServiceRegistryRepo(getPool());
-  const existing = await repo.findByCode(code);
-  if (!existing) {
-    throw new Error(`Service '${code}' not found`);
-  }
-  const newEnabled = !existing.is_enabled;
-  await repo.toggleEnabled(code, newEnabled);
-  return { code, is_enabled: newEnabled };
+  return new SystemService().toggleService(code);
 }
 
 /**
@@ -716,12 +704,7 @@ export async function updateService(
   code: string,
   data: Record<string, unknown>,
 ): Promise<unknown> {
-  const repo = new ServiceRegistryRepo(getPool());
-  const existing = await repo.findByCode(code);
-  if (!existing) {
-    throw new Error(`Service '${code}' not found`);
-  }
-  await repo.updateByCodeAdmin(code, {
+  return new SystemService().updateService(code, {
     name: data.name as string | undefined,
     description: data.description as string | undefined,
     base_url: data.base_url as string | undefined,
@@ -730,8 +713,6 @@ export async function updateService(
     author: data.author as string | undefined,
     github_repo_url: data.github_repo_url as string | undefined,
   });
-  const updated = await repo.findByCode(code);
-  return { service: updated };
 }
 
 /**
@@ -739,11 +720,6 @@ export async function updateService(
  * This is a PERMANENT deletion — the record cannot be restored.
  */
 export async function deleteService(code: string): Promise<unknown> {
-  const repo = new ServiceRegistryRepo(getPool());
-  const existing = await repo.findByCode(code);
-  if (!existing) {
-    throw new Error(`Service '${code}' not found`);
-  }
-  await repo.hardDeleteByCode(code);
-  return { code, deleted: true, permanent: true };
+  const result = await new SystemService().deleteService(code);
+  return { ...result, permanent: true };
 }

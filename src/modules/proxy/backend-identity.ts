@@ -23,9 +23,8 @@ import {
   detectPackageIdentity,
   configureInternalClient,
 } from "@primebrick/sdk";
-import { getPool } from "../../db/pool.js";
 import { ConfigEntriesDal } from "../auth/config_entries_dal.js";
-import { ClientRegistryRepo } from "./client-registry-repo.js";
+import { ClientRegistryService } from "../system/client-registry.service.js";
 
 let currentUa: string | null = null;
 let currentKey: string | null = null;
@@ -48,7 +47,7 @@ export async function initBackendIdentity(): Promise<void> {
   configureInternalClient(backendIdentityHeaders);
   const uaPrefix = `${identity.name}/${identity.version ?? ""}`;
 
-  const dal = new ConfigEntriesDal(getPool());
+  const dal = new ConfigEntriesDal();
   const row = await dal.findByKey("service_client_shield_key");
   currentKey = row?.value ?? null;
 
@@ -60,14 +59,14 @@ export async function initBackendIdentity(): Promise<void> {
     return;
   }
 
-  const repo = new ClientRegistryRepo(getPool());
-  await repo.upsertRegistryRow(uaPrefix, clientKeyHash(currentKey));
+  const registry = new ClientRegistryService();
+  await registry.enrollRegistryRow(uaPrefix, clientKeyHash(currentKey));
   await NatsClient.publish(CLIENT_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
   logger.done(`The service ${uaPrefix} has been registered and its protection shield key enrolled`, { tags: ["core"] });
 
   // Same allowlist visibility the microservices log — the BE's view of the
   // internal caller registry it owns (source='manual' rows are admin-managed).
-  const rows = await repo.findAllEnabled();
+  const rows = await registry.findAllEnabled();
   logger.info("Services allowed to communicate with are:", { tags: ["core"] });
   for (const r of rows) {
     logger.info(`  - ${r.ua_prefix}`, { tags: ["core"] });

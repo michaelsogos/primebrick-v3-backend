@@ -12,7 +12,6 @@
  */
 
 import { logger } from "@primebrick/sdk";
-import type { Pool } from "pg";
 import {
   type AuthConfig,
   type AuthConfigPort,
@@ -23,13 +22,14 @@ import {
   type ApiKeyRecord,
   type ResolveInput,
   AuthMode,
-  apiKeyCacheKey,
-  API_KEY_CACHE_TTL_MS,
 } from "@primebrick/sdk";
 import { loadAuthConfigFromDb } from "./config-repo.js";
 import { resolveInternalUuid } from "./user-profile-repo.js";
 import { RoleMappingRepo } from "./role-mapping-repo.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
+import { field, Filter, Project } from "@primebrick/dal-pg";
+import { initDal } from "../../db/dal-gateway.js";
+import { ApiKeyEntity } from "./api_key_entity.js";
 
 // ─── Cache keys + TTLs (BE custom logic — not entity-level @Cached) ──────────
 
@@ -41,10 +41,8 @@ const ROLE_MAPPINGS_TTL_MS = 5 * 60 * 1000; // 5 min
 // ─── AuthConfigPort ───────────────────────────────────────────────────────────
 
 export class BeAuthConfigPort implements AuthConfigPort {
-  constructor(private pool: Pool) {}
-
   async load(): Promise<AuthConfig> {
-    const db = await loadAuthConfigFromDb(this.pool);
+    const db = await loadAuthConfigFromDb();
     return {
       mode: db.auth_mode as AuthMode,
       roles_path: db.auth_roles_path!,
@@ -84,21 +82,15 @@ export class BeAuthConfigPort implements AuthConfigPort {
 // ─── UserResolverPort ─────────────────────────────────────────────────────────
 
 export class BeUserResolverPort implements UserResolverPort {
-  constructor(private pool: Pool) {}
-
   async resolveInternalUuid(input: ResolveInput): Promise<string> {
-    return resolveInternalUuid(input, this.pool);
+    return resolveInternalUuid(input);
   }
 }
 
 // ─── RoleMappingPort ──────────────────────────────────────────────────────────
 
 export class BeRoleMappingPort implements RoleMappingPort {
-  private repo: RoleMappingRepo;
-
-  constructor(pool: Pool) {
-    this.repo = new RoleMappingRepo(pool);
-  }
+  private repo = new RoleMappingRepo();
 
   async loadAllMappings(): Promise<Map<string, RoleMappingEntry>> {
     const port = getCachePort();
@@ -135,28 +127,37 @@ export class BeRoleMappingPort implements RoleMappingPort {
 
 // ─── ApiKeyPort ───────────────────────────────────────────────────────────────
 
+/**
+ * DB resolver for `api_keys` — BE owns `public.api_keys`, so this is the
+ * only implementation allowed to read the table. Caching is NOT inside this
+ * class: callers compose `new CachingApiKeyPort(new BeApiKeyPort(), cache)`
+ * from the SDK (single cached implementation, platform-shared key).
+ */
 export class BeApiKeyPort implements ApiKeyPort {
-  constructor(private pool: Pool) {}
-
   async findByHash(hash: string): Promise<ApiKeyRecord | null> {
-    const cacheKey = apiKeyCacheKey(hash);
-    const port = getCachePort();
-    if (port) {
-      try {
-        const cached = await port.get<ApiKeyRecord>(cacheKey);
-        if (cached) return cached;
-      } catch (e) {
-        logger.warn(`api_keys get failed: ${e}`, { tags: ["auth"] });
-      }
-    }
-    const result = await this.pool.query(
-      `SELECT uuid, name, permissions, is_system, is_active, expires_at
-       FROM public.api_keys
-       WHERE key_hash = $1`,
-      [hash],
+    const row = await initDal().find<ApiKeyEntity, {
+      uuid: string;
+      name: string;
+      permissions: string[] | null;
+      is_system: boolean | null;
+      is_active: boolean | null;
+      expires_at: Date | null;
+    }>(
+      ApiKeyEntity,
+      [
+        Project.field(field(ApiKeyEntity, "uuid")),
+        Project.field(field(ApiKeyEntity, "name")),
+        Project.field(field(ApiKeyEntity, "permissions")),
+        Project.field(field(ApiKeyEntity, "is_system")),
+        Project.field(field(ApiKeyEntity, "is_active")),
+        Project.field(field(ApiKeyEntity, "expires_at")),
+      ],
+      {
+        filters: [Filter.fieldValue(field(ApiKeyEntity, "key_hash"), "=", hash)],
+        throwIfNotFound: false,
+      },
     );
-    if (result.rows.length === 0) return null;
-    const row = result.rows[0];
+    if (!row) return null;
     const record: ApiKeyRecord = {
       uuid: row.uuid,
       name: row.name,
@@ -165,13 +166,6 @@ export class BeApiKeyPort implements ApiKeyPort {
       is_active: row.is_active !== false,
       expires_at: row.expires_at ? new Date(row.expires_at) : null,
     };
-    if (port) {
-      try {
-        await port.set(cacheKey, record, API_KEY_CACHE_TTL_MS);
-      } catch (e) {
-        logger.warn(`api_keys set failed: ${e}`, { tags: ["auth"] });
-      }
-    }
     return record;
   }
 }

@@ -1,4 +1,4 @@
-import { logger } from "@primebrick/sdk";
+import { logger, extJsonParse, extJsonStringify } from "@primebrick/sdk";
 import ExcelJS from 'exceljs';
 import fs from 'fs';
 import path from 'path';
@@ -52,7 +52,7 @@ async function loadTranslations(locale: string): Promise<Record<string, string>>
   try {
     const translationsPath = path.join(__dirname, '../../i18n', `${locale}.json`);
     const content = await fs.promises.readFile(translationsPath, 'utf-8');
-    return JSON.parse(content);
+    return extJsonParse(content);
   } catch (error) {
     logger.warn(`Translation file for locale "${locale}" not found, using empty translations`, { tags: ["export"] });
     return {};
@@ -709,7 +709,7 @@ export async function exportDataWithTemplateToStream(
         if (cell.style) {
           const newCell = newRow.getCell(colNumber);
           if (newCell) {
-            newCell.style = JSON.parse(JSON.stringify(cell.style));
+            newCell.style = extJsonParse(extJsonStringify(cell.style));
           }
         }
       });

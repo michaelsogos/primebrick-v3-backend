@@ -1,5 +1,10 @@
 import type { Repository } from "@primebrick/dal-pg";
 import { AuditLogEntity, Project, Filter, Sort, field, buildAuditTrailJoins } from "@primebrick/dal-pg";
+
+/** Structural minimum the audit queries need — satisfied by both the
+ *  gateway `Dal` and a tx-scoped `Repository`. Callers pass `initDal()`;
+ *  the Repository is never exposed to services. */
+type AuditQueryable = Pick<Repository, "find" | "findByPage">;
 import { UserProfileEntity } from "../modules/auth/user_profile_entity.js";
 
 export interface AuditPageOptions {
@@ -56,7 +61,7 @@ const AUDIT_PROJECTIONS = [
  * Uses AuditLogEntity + tableName override + buildAuditTrailJoins.
  * No raw SQL — fully typed via DAL-pg query DSL.
  */
-export async function findAuditPage(repo: Repository, opts: AuditPageOptions): Promise<AuditPageResult> {
+export async function findAuditPage(repo: AuditQueryable, opts: AuditPageOptions): Promise<AuditPageResult> {
   // Count query
   const countResult = await repo.find<AuditLogEntity, { total: bigint }>(
     AuditLogEntity,
@@ -115,7 +120,7 @@ export async function findAuditPage(repo: Repository, opts: AuditPageOptions): P
  * Returns `null` if the audit log entry is not found.
  */
 export async function findAuditById(
-  repo: Repository,
+  repo: AuditQueryable,
   tableName: string,
   auditLogId: bigint,
 ): Promise<AuditRow | null> {

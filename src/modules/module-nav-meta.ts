@@ -43,6 +43,8 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
           { id: "modules", label_key: "system.settings.tabs.modules", href: "/system/settings/modules", icon: "package" },
           { id: "templates", label_key: "system.settings.tabs.templates", href: "/system/settings/templates", icon: "file-text" },
           { id: "email-providers", label_key: "system.settings.tabs.emailProviders", href: "/system/settings/email-providers", icon: "mail" },
+          { id: "jobs", label_key: "system.jobs.nav", href: "/system/jobs", icon: "list-clock" },
+          { id: "migrations", label_key: "system.migrations.nav", href: "/system/migrations", icon: "database-zap" },
         ],
         // Full route census — every FE path this module owns, including
         // detail/create/param routes not deducible from nav links.
@@ -68,6 +70,8 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
           { route: "/system/settings/templates", kind: "list", entity: "template" },
           { route: "/system/settings/translations", kind: "page" },
           { route: "/system/settings/email-providers", kind: "list", entity: "email_provider" },
+          { route: "/system/jobs", kind: "page" },
+          { route: "/system/migrations", kind: "page" },
         ],
   },
 };

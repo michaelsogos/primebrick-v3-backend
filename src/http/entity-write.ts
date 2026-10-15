@@ -10,7 +10,7 @@
  *
  * `translations` piggyback rows are inserted in the SAME transaction as the
  * entity write (atomic: all-or-nothing) via `persistPendingTranslations`
- * inside `runInTransaction`. They are translation WRITES and therefore
+ * inside `dal.transaction`. They are translation WRITES and therefore
  * require `translation.create.single` on top of the route's gate
  * (`assertTranslationsPermission`).
  *
@@ -21,11 +21,11 @@
  */
 
 import type { Request } from "express";
-import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 
 import { Permission, checkRbac } from "@primebrick/sdk";
-import { runInTransaction } from "@primebrick/dal-pg";
+import type { Repository } from "@primebrick/dal-pg";
+import { initDal } from "../db/dal-gateway.js";
 
 import { ForbiddenError, ValidationError } from "./api-errors.js";
 
@@ -47,7 +47,7 @@ export function requireVersionQuery(req: Request): number {
   }
   return parsed.data;
 }
-import { TranslationsDal } from "../modules/system/translations-dal.js";
+import { TranslationsService } from "../modules/system/translations.service.js";
 
 export const PendingTranslationSchema = z.object({
   key: z.string().min(1).max(255),
@@ -104,12 +104,12 @@ export function assertTranslationsPermission(
  * Key prefix == translation module code (app.*, system.*, custom.*).
  */
 export async function persistPendingTranslations(
-  translationsDal: TranslationsDal,
+  translationsSvc: TranslationsService,
   rows: PendingTranslation[],
-  tx: PoolClient,
+  tx: Repository,
 ): Promise<void> {
   for (const t of rows) {
-    await translationsDal.create(t.key.split(".")[0], t, {
+    await translationsSvc.create(t.key.split(".")[0], t, {
       tx,
       onConflict: "ignore",
     });
@@ -121,12 +121,12 @@ export async function persistPendingTranslations(
  * i18n dict of every touched module (key prefix).
  */
 export async function invalidateTranslationModules(
-  translationsDal: TranslationsDal,
+  translationsSvc: TranslationsService,
   rows: PendingTranslation[],
 ): Promise<void> {
   const modules = new Set(rows.map((t) => t.key.split(".")[0]));
   for (const moduleCode of modules) {
-    await translationsDal.invalidateModuleCache(moduleCode);
+    await translationsSvc.invalidateModuleCache(moduleCode);
   }
 }
 
@@ -139,25 +139,25 @@ export async function invalidateTranslationModules(
  *   post-commit.
  *
  * `write(tx?)` must forward `tx` down to the dal write so the entity row
- * lands in the same transaction.
+ * lands in the same transaction. `tx` is the tx-scoped Repository handed
+ * out by `dal.transaction` — callers never see a raw `PoolClient`.
  */
 export async function runEntityWrite<T>(
-  pool: Pool,
   translations: PendingTranslation[] | undefined,
-  write: (tx?: PoolClient) => Promise<T>,
+  write: (tx?: Repository) => Promise<T>,
   invalidateEntityCache?: () => Promise<void>,
 ): Promise<T> {
   if (!translations?.length) {
     return write();
   }
-  const translationsDal = new TranslationsDal(pool);
-  const result = await runInTransaction(pool, async (tx) => {
+  const translationsSvc = new TranslationsService();
+  const result = await initDal().transaction(async (tx) => {
     const out = await write(tx);
-    await persistPendingTranslations(translationsDal, translations, tx);
+    await persistPendingTranslations(translationsSvc, translations, tx);
     return out;
   });
   // Post-commit: deferred cache invalidation (entity cache + i18n dicts)
   if (invalidateEntityCache) await invalidateEntityCache();
-  await invalidateTranslationModules(translationsDal, translations);
+  await invalidateTranslationModules(translationsSvc, translations);
   return result;
 }

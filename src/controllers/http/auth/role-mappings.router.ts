@@ -44,7 +44,6 @@ import { RoleService } from "../../../modules/auth/services/role.service.js";
 import { RoleMappingListQuerySchema } from "../../../modules/auth/dto.js";
 import { roleMappingsMeta } from "../../../modules/auth/role-mappings.meta.js";
 import { RoleMappingEntity } from "../../../modules/auth/role_mapping_entity.js";
-import { getPool } from "../../../db/pool.js";
 import {
   entityWriteBody,
   assertTranslationsPermission,
@@ -108,7 +107,6 @@ export function roleMappingsRouter() {
     const body = req.body as z.infer<typeof CreateBodySchema>;
     assertTranslationsPermission(req, body.translations);
     const role = await runEntityWrite(
-      getPool(),
       body.translations,
       (tx) => service.createRole(body.entity, actor(req), tx),
       invalidateRolesCache,
@@ -120,7 +118,6 @@ export function roleMappingsRouter() {
     const body = req.body as z.infer<typeof UpdateBodySchema>;
     assertTranslationsPermission(req, body.translations);
     const role = await runEntityWrite(
-      getPool(),
       body.translations,
       (tx) => service.updateRoleByUuid(req.params.uuid as string, body.entity, actor(req), tx),
       invalidateRolesCache,

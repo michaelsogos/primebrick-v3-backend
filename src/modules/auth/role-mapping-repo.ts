@@ -1,7 +1,6 @@
 import { logger } from "@primebrick/sdk";
-import type { Pool, PoolClient } from "pg";
 import {
-  Repository,
+  type Repository,
   Project,
   field,
   Filter,
@@ -9,10 +8,10 @@ import {
   entityDateToApiIso,
   type FilterExpr,
 } from "@primebrick/dal-pg";
+import { initDal } from "../../db/dal-gateway.js";
 import { RoleMappingEntity } from "./role_mapping_entity.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
-import type { AuditService } from "../../lib/audit/audit-service.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
 
 
@@ -77,12 +76,21 @@ export type RoleMappingListResponse = {
  * This is the single source of truth for role permissions. The auth middleware
  * uses this to expand a user's IDP roles into a set of granted permission patterns.
  */
+/**
+ * Queryable seam — the governed gateway `Dal` (non-tx) or a tx-scoped
+ * `Repository` handed in by `dal.transaction` callers.
+ */
+type RepoLike = Pick<
+  Repository,
+  "find" | "findAll" | "add" | "update" | "hardDelete"
+>;
+
 export class RoleMappingRepo {
-  private repo: Repository;
+  private repo: RepoLike;
   private auditPort: BeAuditPortAdapter;
 
-  constructor(pool: Pool, _auditService?: AuditService) {
-    this.repo = new Repository(pool);
+  constructor() {
+    this.repo = initDal();
     this.auditPort = new BeAuditPortAdapter(this.repo);
   }
 
@@ -217,9 +225,9 @@ export class RoleMappingRepo {
     permissions: string[],
     isAdmin: boolean,
     labelKey?: string,
-    extras?: { idp_org?: string; last_synced_at?: Date; actor?: string; tx?: PoolClient }
+    extras?: { idp_org?: string; last_synced_at?: Date; actor?: string; tx?: Repository }
   ): Promise<void> {
-    const repo = extras?.tx ? new Repository(extras.tx) : this.repo;
+    const repo = extras?.tx ?? this.repo;
     await repo.add(
       RoleMappingEntity,
       {
@@ -230,7 +238,7 @@ export class RoleMappingRepo {
         is_admin: isAdmin,
         last_synced_at: extras?.last_synced_at,
       },
-      { actor: extras?.actor ?? "system" }
+      { actor: extras?.actor ?? "system", audit: new BeAuditPortAdapter(repo) }
     );
     if (!extras?.tx) await this.invalidateRoleMappingsCache();
   }
@@ -245,9 +253,9 @@ export class RoleMappingRepo {
     isAdmin: boolean,
     labelKey: string | undefined,
     version: number,
-    extras?: { last_synced_at?: Date; actor?: string; tx?: PoolClient }
+    extras?: { last_synced_at?: Date; actor?: string; tx?: Repository }
   ): Promise<void> {
-    const repo = extras?.tx ? new Repository(extras.tx) : this.repo;
+    const repo = extras?.tx ?? this.repo;
     await repo.update(
       RoleMappingEntity,
       {
@@ -258,7 +266,7 @@ export class RoleMappingRepo {
         last_synced_at: extras?.last_synced_at,
         version,
       },
-      { actor: extras?.actor ?? "system", matchBy: "uuid" as any }
+      { actor: extras?.actor ?? "system", matchBy: "uuid" as any, audit: new BeAuditPortAdapter(repo) }
     );
     if (!extras?.tx) await this.invalidateRoleMappingsCache();
   }
@@ -278,7 +286,7 @@ export class RoleMappingRepo {
     await this.repo.hardDelete(
       RoleMappingEntity,
       { uuid, version },
-      { actor: actor ?? "system", matchBy: "uuid" }
+      { actor: actor ?? "system", matchBy: "uuid", audit: this.auditPort }
     );
     await this.invalidateRoleMappingsCache();
   }

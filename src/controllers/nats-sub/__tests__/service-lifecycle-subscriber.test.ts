@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock the pool module
-vi.mock("../../../db/pool.js", () => ({ getPool: vi.fn() }));
-
-// Shared mock repo instance — returned by every `new ServiceRegistryRepo()` call
+// Shared mock service instance — returned by every `new ServiceRegistryService()` call
 const mockRepo = {
   findByCode: vi.fn(),
   findByCodeAndBaseUrl: vi.fn(),
@@ -12,9 +10,9 @@ const mockRepo = {
   updateByCodeAndBaseUrl: vi.fn(),
 };
 
-// Mock ServiceRegistryRepo — always returns the shared mockRepo instance
-vi.mock("../../../modules/proxy/service-registry-repo.js", () => ({
-  ServiceRegistryRepo: vi.fn().mockImplementation(function () { return mockRepo; }),
+// Mock ServiceRegistryService — always returns the shared mockRepo instance
+vi.mock("../../../modules/system/service-registry.service.js", () => ({
+  ServiceRegistryService: vi.fn().mockImplementation(function () { return mockRepo; }),
 }));
 
 // Import after mock

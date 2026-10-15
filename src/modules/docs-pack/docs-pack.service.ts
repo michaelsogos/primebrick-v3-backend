@@ -6,7 +6,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { parseDocsPackPayload, type DocsPackPayload } from "@primebrick/sdk";
+import { parseDocsPackPayload, extJsonParse, type DocsPackPayload } from "@primebrick/sdk";
 import { NotFoundError } from "../../http/api-errors.js";
 
 function listFilesRecursive(dir: string): string[] {
@@ -30,7 +30,7 @@ export class DocsPackService {
         internal_code: "DOCS_PACK_NOT_BUILT",
       });
     }
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+    const manifest = extJsonParse(readFileSync(manifestPath, "utf-8"));
     const files = listFilesRecursive(docsDir).map((full) => ({
       path: relative(docsDir, full).split(sep).join("/"),
       content: readFileSync(full, "utf-8"),

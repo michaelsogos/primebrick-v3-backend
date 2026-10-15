@@ -12,8 +12,8 @@
  * actor context is required and no `created_by`/`created_at` columns exist.
  */
 import { logger } from "@primebrick/sdk";
-import type { Pool } from "pg";
-import { createRepository } from "../../db/repository-factory.js";
+
+import { initDal } from "../../db/dal-gateway.js";
 import { AuthEventEntity } from "./auth_event_entity.js";
 
 /** Request context forwarded from the controller (IP + User-Agent). */
@@ -31,7 +31,6 @@ export type AuthEventType =
 
 /** Parameters for inserting an auth event. */
 export interface InsertAuthEventParams {
-  pool: Pool;
   event_type: AuthEventType;
   success: boolean;
   /** User UUID — required for SUCCESS events, omitted for failed login. */
@@ -52,7 +51,6 @@ export interface InsertAuthEventParams {
  */
 export async function insertAuthEvent(params: InsertAuthEventParams): Promise<void> {
   const {
-    pool,
     event_type,
     success,
     user_profile_uuid,
@@ -60,8 +58,6 @@ export async function insertAuthEvent(params: InsertAuthEventParams): Promise<vo
     failure_reason,
     request_ctx,
   } = params;
-
-  const repo = createRepository(pool);
 
   const record = {
     user_profile_uuid: user_profile_uuid ?? null,
@@ -76,7 +72,7 @@ export async function insertAuthEvent(params: InsertAuthEventParams): Promise<vo
 
   try {
     // auth_events is non-auditable → WriteOptions (no actor required).
-    await repo.add(AuthEventEntity, record, {});
+    await initDal().add(AuthEventEntity, record, {});
   } catch (err) {
     // Best-effort — never break the auth flow over an audit log failure.
     logger.error("Failed to insert auth event:", { tags: ["auth"],

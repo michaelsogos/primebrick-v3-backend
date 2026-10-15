@@ -13,7 +13,7 @@
  * transition status, they are never deleted).
  */
 
-import type { IAuditableEntity } from "@primebrick/dal-pg";
+import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
@@ -33,10 +33,10 @@ export class UserInvitationEntity implements IAuditableEntity {
   id: bigint;
 
   @Unique()
-  uuid: string;
+  uuid: UUID;
 
   /** FK to user_profiles.id (not a @Column — it's a raw FK, no ORM relationship). */
-  @Column({ pgType: "bigint", nullable: false })
+  @Column({ nullable: false })
   user_profile_id: bigint;
 
   /** SHA-256 hash of the invitation token (raw token never stored). */
@@ -53,11 +53,11 @@ export class UserInvitationEntity implements IAuditableEntity {
   email: string;
 
   /** Token expiry timestamp (default: now() + invitation_expiry_days). */
-  @Column({ pgType: "timestamp with time zone", nullable: false })
+  @Column({ nullable: false })
   expires_at: Date;
 
   /** When the user completed onboarding (null until COMPLETED). */
-  @Column({ pgType: "timestamp with time zone", nullable: true })
+  @Column({ nullable: true })
   completed_at?: Date;
 
   /** SHA-256 hash of the 6-digit OTP code (null if not sent). */
@@ -65,7 +65,7 @@ export class UserInvitationEntity implements IAuditableEntity {
   otp_hash?: string;
 
   /** OTP validity window (5 minutes from send). */
-  @Column({ pgType: "timestamp with time zone", nullable: true })
+  @Column({ nullable: true })
   otp_expires_at?: Date;
 
   /** Failed OTP verify attempts (max 10). */
@@ -73,7 +73,7 @@ export class UserInvitationEntity implements IAuditableEntity {
   otp_attempts: number;
 
   /** When the user verified the OTP (gate for password set). */
-  @Column({ pgType: "timestamp with time zone", nullable: true })
+  @Column({ nullable: true })
   otp_verified_at?: Date;
 
   @AuditableField(AuditableFieldType.CREATED_AT)

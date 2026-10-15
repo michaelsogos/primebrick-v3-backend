@@ -5,17 +5,13 @@
  * (no raw SQL strings). The actor for audit fields comes from `requireActor()`.
  */
 
-import type { Pool } from "pg";
-import { Repository, field, Filter } from "@primebrick/dal-pg";
+import { initDal } from "../../db/dal-gateway.js";
+import { type Repository, field, Filter } from "@primebrick/dal-pg";
 import { requireActor } from "@primebrick/sdk";
 import { UserInvitationEntity, type InvitationStatus } from "./user_invitation_entity.js";
 
 export class UserInvitationsDal {
-  private repo: Repository;
-
-  constructor(pool: Pool) {
-    this.repo = new Repository(pool);
-  }
+  private repo = initDal();
 
   /**
    * Insert a new invitation row.
@@ -119,6 +115,32 @@ export class UserInvitationsDal {
         ...extra,
         version: existing.version,
       },
+      { actor },
+    );
+  }
+
+  /**
+   * Resend — refresh the existing row with a new token hash + expiry and
+   * reset status/OTP state to PENDING (no new row: invitations are
+   * immutable identity records).
+   */
+  async resetForResend(uuid: string, tokenHash: string, expiresAt: Date): Promise<void> {
+    const actor = requireActor();
+    const existing = await this.findByUuid(uuid);
+    if (!existing) return;
+    await this.repo.update(
+      UserInvitationEntity,
+      {
+        uuid,
+        token_hash: tokenHash,
+        expires_at: expiresAt,
+        status: "PENDING",
+        otp_hash: null,
+        otp_expires_at: null,
+        otp_attempts: 0,
+        otp_verified_at: null,
+        version: existing.version,
+      } as unknown as Partial<UserInvitationEntity>,
       { actor },
     );
   }

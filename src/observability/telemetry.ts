@@ -17,12 +17,15 @@ import {
   restartTelemetry,
   setLogOptions,
   logger,
+  extJsonParse,
   NatsClient,
   CONFIG_CHANGED_SUBJECT,
   type TelemetrySharedConfig,
   type TelemetryConfig,
 } from "@primebrick/sdk";
-import { getPool } from "../db/pool.js";
+import { field, Filter, Project } from "@primebrick/dal-pg";
+import { initDal } from "../db/dal-gateway.js";
+import { ConfigEntryEntity } from "../modules/auth/config_entry_entity.js";
 
 const TELEMETRY_KEYS = [
   "telemetry_enabled",
@@ -41,7 +44,7 @@ let serviceVersion = "0.0.0";
 function parseJsonObject(raw: string | null): Record<string, string> | undefined {
   if (!raw) return undefined;
   try {
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed = extJsonParse(raw) as unknown;
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       return parsed as Record<string, string>;
     }
@@ -52,13 +55,17 @@ function parseJsonObject(raw: string | null): Record<string, string> | undefined
 }
 
 async function readTelemetryFromDb(): Promise<TelemetrySharedConfig> {
-  const res = await getPool().query(
-    `select "key", "value" from config_entries where "key" = any($1) and deleted_at is null`,
-    [TELEMETRY_KEYS],
-  );
-  const map = new Map<string, string | null>(
-    res.rows.map((r: { key: string; value: string | null }) => [r.key, r.value]),
-  );
+  const rows = (await initDal().findAll(
+    ConfigEntryEntity,
+    [
+      Project.field(field(ConfigEntryEntity, "key")),
+      Project.field(field(ConfigEntryEntity, "value")),
+    ],
+    {
+      filters: [Filter.fieldValue(field(ConfigEntryEntity, "key"), "IN", [...TELEMETRY_KEYS])],
+    },
+  )) as { key: string; value: string | null }[];
+  const map = new Map<string, string | null>(rows.map((r) => [r.key, r.value]));
   const get = (k: string): string | null => map.get(k) ?? null;
 
   const samplerRaw = get("otel_traces_sampler");

@@ -2,10 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Permission } from "@primebrick/sdk";
 import type { AuthInfo } from "@modelcontextprotocol/server";
 
-// Mock the pool module (used by dispatch for service construction)
-vi.mock("../../../db/pool.js", () => ({
-  getPool: vi.fn(() => ({})),
-}));
 
 // Mock BE services so we can spy on dispatch calls
 const mockCustomersService = {
@@ -63,7 +59,8 @@ vi.mock("../../auth/user-profiles.meta.js", () => ({
   userProfileMeta: { entity: "user_profile", fields: [] },
 }));
 
-// Mock ServiceRegistryRepo
+// Mock ServiceRegistryService — the dal-level seam; SystemService runs for
+// real so find→toggle/find→delete domain logic stays covered.
 const mockRepo = {
   findAll: vi.fn(),
   findByCode: vi.fn(),
@@ -71,8 +68,8 @@ const mockRepo = {
   updateByCodeAdmin: vi.fn(),
   hardDeleteByCode: vi.fn(),
 };
-vi.mock("../../proxy/service-registry-repo.js", () => ({
-  ServiceRegistryRepo: vi.fn().mockImplementation(function () { return mockRepo; }),
+vi.mock("../../system/service-registry.service.js", () => ({
+  ServiceRegistryService: vi.fn().mockImplementation(function () { return mockRepo; }),
 }));
 
 // Import after mocks
@@ -418,9 +415,9 @@ describe("MCP Dispatch — Service registry (manage_service)", () => {
   });
 
   it("updateService updates and returns the updated service", async () => {
-    mockRepo.findByCode
-      .mockResolvedValueOnce({ code: "emailsender", is_enabled: true })
-      .mockResolvedValueOnce({ code: "emailsender", name: "Updated", is_enabled: true });
+    // The updated row is fetched once, after the write (the existence
+    // guard lives inside updateByCodeAdmin → findByCode).
+    mockRepo.findByCode.mockResolvedValue({ code: "emailsender", name: "Updated", is_enabled: true });
     mockRepo.updateByCodeAdmin.mockResolvedValue(undefined);
 
     const result = await updateService("emailsender", { name: "Updated" });

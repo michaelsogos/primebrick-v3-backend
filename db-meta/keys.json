@@ -1,0 +1,8 @@
+[
+  {
+    "key_id": "dev-micha",
+    "algo": "ed25519",
+    "public_key": "MCowBQYDK2VwAyEAUzzT+vzgkbJuDMb3xwp9SXs+UvUMQU7SfPv3L7nuqCU=",
+    "trust": "dev"
+  }
+]

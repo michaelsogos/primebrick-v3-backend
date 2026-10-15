@@ -22,6 +22,11 @@ vi.mock("@primebrick/dal-pg", async (importOriginal) => {
   };
 });
 
+// The DAL goes through the governed gateway — mock initDal at the seam.
+vi.mock("../../../db/dal-gateway.js", () => ({
+  initDal: () => mockRepo,
+}));
+
 // Import after mocks
 import { UserInvitationsDal } from "../user-invitations-dal.js";
 
@@ -67,7 +72,7 @@ describe("UserInvitationsDal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    dal = new UserInvitationsDal({} as any);
+    dal = new UserInvitationsDal();
   });
 
   describe("create", () => {

@@ -1,4 +1,4 @@
-import type { IAuditableEntity } from "@primebrick/dal-pg";
+import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
@@ -14,7 +14,7 @@ export class ServiceRegistryEntity implements IAuditableEntity {
   id: bigint;
 
   @Unique()
-  uuid: string;
+  uuid: UUID;
 
   @Column({ length: 100, nullable: false })
   code: string;
@@ -22,7 +22,7 @@ export class ServiceRegistryEntity implements IAuditableEntity {
   @Column({ nullable: false })
   base_url: string;
 
-  @Column({ pgType: "jsonb", nullable: false })
+  @Column({ nullable: false })
   endpoints: Record<string, unknown>;
 
   @Column({ nullable: true })
@@ -48,16 +48,20 @@ export class ServiceRegistryEntity implements IAuditableEntity {
   @Column({ pgType: "jsonb", nullable: false, defaultSql: "'[]'" })
   capabilities: string[];
 
-  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
+  /** PG schema ownership claim from the service's DATABASE_SCHEMA env contract (first = owned schema). The BE rejects registration when a claimed schema is owned by a different code or is a platform schema. Claim persists while the row exists — released by unregister or admin purge only. */
+  @Column({ nullable: false, defaultSql: "'{}'" })
+  schemas: string[];
+
+  @Column({ nullable: false, defaultSql: "false" })
   is_behind_scaler: boolean;
 
   @Column({ nullable: false, defaultSql: "'unknown'" })
   status: string;
 
-  @Column({ pgType: "timestamptz", nullable: true })
+  @Column({ nullable: true })
   last_health_check_at?: Date;
 
-  @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })
+  @Column({ nullable: false, defaultSql: "true" })
   is_enabled: boolean;
 
   @Column({ nullable: true })
@@ -66,7 +70,7 @@ export class ServiceRegistryEntity implements IAuditableEntity {
   @Column({ nullable: false, defaultSql: "'icon'" })
   icon_type: string;
 
-  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
+  @Column({ nullable: false, defaultSql: "false" })
   is_reserved: boolean;
 
   @AuditableField(AuditableFieldType.CREATED_AT)

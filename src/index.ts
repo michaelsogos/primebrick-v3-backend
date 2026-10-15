@@ -1,17 +1,17 @@
-import { logger } from "@primebrick/sdk";
+import "dotenv/config"; // must stay first — loads .env before any module reads it
+import { logger, assertDbEnv } from "@primebrick/sdk";
 import "./observability/logging-init.js"; // must stay first import — async console bridge
 import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
-import { extJsonMiddleware, extJsonBodyParser, Permission, NatsClient, subscribeSharedConfig, logModuleStartup, logServiceStartup, type HealthResponse } from "@primebrick/sdk";
+import { extJsonMiddleware, extJsonBodyParser, extJsonParse, Permission, NatsClient, subscribeSharedConfig, logModuleStartup, logServiceStartup, type HealthResponse } from "@primebrick/sdk";
 import { mountModules } from "./modules/index.js";
-import { Pool } from "pg";
 import CasdoorSDK from "casdoor-nodejs-sdk";
 import { loadAuthConfigFromDb, type AuthConfigDb } from "./modules/auth/config-repo.js";
 import { openApiRouter } from "./openapi/router.js";
 import { aggregatedOpenApiRouter } from "./openapi/aggregated-router.js";
 import { errorHandler } from "./http/error-handler.js";
-import { getPool } from "./db/pool.js";
+import { initDal } from "./db/dal-gateway.js";
 import { isDatabaseUnavailableError } from "./http/api-errors.js";
 import { makeProtectedRouter } from "./http/protected-router.js";
 import { rbacHandler } from "./modules/auth/rbac.middleware.js";
@@ -28,11 +28,10 @@ import "./modules/auth/express-augmentation.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { ServiceRegistryRepo } from "./modules/proxy/service-registry-repo.js";
+import { ServiceRegistryService } from "./modules/system/service-registry.service.js";
 import { ServiceLifecycleSubscriber } from "./controllers/nats-sub/service-lifecycle-subscriber.js";
 import { startInternalRequestRoutes } from "./controllers/nats-sub/internal-request-routes.js";
 import { createPublisherVerifier } from "./controllers/nats-sub/publisher-identity.js";
-import { ClientRegistryRepo } from "./modules/proxy/client-registry-repo.js";
 import { initBackendIdentity } from "./modules/proxy/backend-identity.js";
 import { initSecretEngine } from "./modules/secrets/secret-engine.js";
 import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js";
@@ -40,6 +39,10 @@ import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
 import { initBackendTelemetry, getTelemetryShared } from "./observability/telemetry.js";
 import { shutdownTelemetry, flushLogsSync } from "@primebrick/sdk";
+
+// Closed-set env contract: DATABASE_URL + DATABASE_SCHEMA are the ONLY
+// env vars this service may consume — any violation crashes before listen.
+assertDbEnv();
 
 // Keyspace listener cleanup function (set during startup, called during shutdown)
 let stopKeyspaceListener: (() => Promise<void>) | null = null;
@@ -61,7 +64,7 @@ type HealthCheckResult = { ok: boolean; version?: string; type?: string; model?:
 function readBackendVersion(): string {
   const here = dirname(fileURLToPath(import.meta.url)); // backend/src
   const pkgPath = resolve(here, "..", "package.json");
-  const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { version?: string };
+  const pkg = extJsonParse(readFileSync(pkgPath, "utf-8")) as { version?: string };
   return pkg.version ?? "0.0.0";
 }
 
@@ -69,12 +72,10 @@ const BACKEND_VERSION = readBackendVersion();
 
 async function checkDb(): Promise<HealthCheckResult> {
   try {
-    const pool = getPool();
-    // Keep it cheap; if DB is down this will throw quickly.
-    const result = await pool.query("select 1 as ok, version() as pg_version");
-    const pgVersion = result.rows[0]?.pg_version as string | undefined;
+    const dal = initDal();
+    const { version } = await dal.serverVersion();
     // version() returns e.g. "PostgreSQL 18.0, compiled by Visual C++ ..."
-    const versionMatch = pgVersion?.match(/PostgreSQL\s+([\d.]+)/);
+    const versionMatch = version.match(/PostgreSQL\s+([\d.]+)/);
     return { ok: true, version: versionMatch?.[1] };
   } catch (e) {
     if (isDatabaseUnavailableError(e)) return { ok: false };
@@ -82,7 +83,7 @@ async function checkDb(): Promise<HealthCheckResult> {
   }
 }
 
-async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
+async function checkIdp(): Promise<HealthCheckResult> {
   try {
     // Load configuration from database or fallback to environment variables
     let casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
@@ -90,16 +91,14 @@ async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
     let clientSecret = process.env.CASDOOR_BUILTIN_CLIENT_SECRET || "47b2e05673a5307ccf0552e32ba45a18f6627f21";
     let orgName = "admin";
 
-    if (pool) {
-      try {
-        const dbConfig = await loadAuthConfigFromDb(pool);
-        casdoorEndpoint = dbConfig.idp_endpoint || casdoorEndpoint;
-        clientId = dbConfig.idp_client_id || clientId;
-        clientSecret = dbConfig.idp_client_secret || clientSecret;
-        orgName = dbConfig.idp_organization || orgName;
-      } catch (error) {
-        logger.warn("Could not load configuration from database, using fallback:", { tags: ["core"], error: error });
-      }
+    try {
+      const dbConfig = await loadAuthConfigFromDb();
+      casdoorEndpoint = dbConfig.idp_endpoint || casdoorEndpoint;
+      clientId = dbConfig.idp_client_id || clientId;
+      clientSecret = dbConfig.idp_client_secret || clientSecret;
+      orgName = dbConfig.idp_organization || orgName;
+    } catch (error) {
+      logger.warn("Could not load configuration from database, using fallback:", { tags: ["core"], error: error });
     }
 
     // Call the correct version endpoint from Casdoor docs with authentication
@@ -169,8 +168,7 @@ function checkNats(): HealthCheckResult {
  */
 async function checkLlm(): Promise<HealthCheckResult> {
   try {
-    const repo = new ServiceRegistryRepo(getPool());
-    const service = await repo.findByCode("ai");
+    const service = await new ServiceRegistryService().findByCode("ai");
     if (!service || !service.base_url) {
       return { ok: false, error: "AI microservice not registered in service_registry" };
     }
@@ -202,10 +200,9 @@ async function checkLlm(): Promise<HealthCheckResult> {
 }
 
 async function healthPayload(): Promise<HealthResponse> {
-  const pool = getPool();
   const checks: Record<string, HealthCheckResult> = {
     db: await checkDb(),
-    idp: await checkIdp(pool),
+    idp: await checkIdp(),
     redis: await checkRedis(),
     nats: checkNats(),
     // LLM is optional infrastructure — included for the version panel but
@@ -244,8 +241,7 @@ app.use(aggregatedOpenApiRouter());
 // Use makeProtectedRouter for /modules endpoint
 const apiRouter = makeProtectedRouter();
 apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_req, res) => {
-  const repo = new ServiceRegistryRepo(getPool());
-  const services = await repo.findAll();
+  const services = await new ServiceRegistryService().findAll();
   res.json({
     modules: services.map((s) => {
       const navMeta = buildModuleNavMeta(s.code);
@@ -312,6 +308,10 @@ void runStartupTasks().catch((err) => {
 
 async function runStartupTasks(): Promise<void> {
   await logPostgresBanner();
+  // Step 0 — own-schema migrations BEFORE role mappings / auth config /
+  // any other table read. Mode lives in public.config_entries.
+  const { runBeMigrations } = await import("./db/run-be-migrations.js");
+  await runBeMigrations();
   initAuthPorts();
   await refreshRoleMappings();
   await refreshAuthConfig();
@@ -377,9 +377,8 @@ async function initPresenceStoreFromConfig(): Promise<void> {
 
 async function logPostgresBanner(): Promise<void> {
   try {
-    const result = await getPool().query("select version() as pg_version");
-    const pgVersion = result.rows[0]?.pg_version as string | undefined;
-    const versionMatch = pgVersion?.match(/PostgreSQL\s+([\d.]+)/);
+    const { version } = await initDal().serverVersion();
+    const versionMatch = version.match(/PostgreSQL\s+([\d.]+)/);
     const dbUrl = (process.env.DATABASE_URL ?? "localhost:5432").replace(/(:\/\/[^:/]+):[^@]+@/, "$1@");
     logModuleStartup("PostgreSQL", versionMatch?.[1], dbUrl);
   } catch (err) {
@@ -405,7 +404,7 @@ async function refreshRoleMappings(): Promise<void> {
 
 async function refreshAuthConfig(): Promise<void> {
   try {
-    const authConfig = await loadAuthConfig(getPool());
+    const authConfig = await loadAuthConfig();
     logger.done(`Global configuration loaded — ${Object.keys(authConfig ?? {}).length} keys found (public.config_entries)`, { tags: ["core"] });
     logger.done("Auth settings resolved", { tags: ["core"] });
     // Telemetry/logging config lives in config_entries — init once DB is up.
@@ -425,7 +424,7 @@ async function startServiceLifecycle(): Promise<void> {
     await NatsClient.getConnection(natsUrl);
     // config.get — governed correlation-reply serving the shared config
     // (redis_url, telemetry) to microservices at boot and on config.changed.
-    const sharedConfigVerifier = createPublisherVerifier(getPool());
+    const sharedConfigVerifier = createPublisherVerifier();
     await subscribeSharedConfig(NatsClient, () => {
       const cfg = getAuthConfig();
       return { redis_url: cfg.redis_url, telemetry: getTelemetryShared() };

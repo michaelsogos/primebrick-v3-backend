@@ -42,6 +42,8 @@ const {
   },
   mockProfilesDal: {
     getByUuid: vi.fn(),
+    getIdByUuid: vi.fn(),
+    getIdpIdentityByUuid: vi.fn(),
   },
   mockCasdoor: {
     getClient: vi.fn(),
@@ -119,11 +121,7 @@ vi.mock("../casdoor.service.js", () => ({
 // ─── Import after mocks ─────────────────────────────────────────────────────
 import { MfaService, generateTotp } from "../mfa.service.js";
 import { encrypt } from "../../crypto-helpers.js";
-import type { Pool } from "pg";
 
-const mockPool = {
-  query: vi.fn(),
-} as unknown as Pool;
 
 const SIGNING_SECRET = "a".repeat(64);
 const TOTP_SECRET = "JBSWY3DPEHPK3PXP"; // base32
@@ -134,7 +132,7 @@ const FAKE_JWT = "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYWRtaW4ifQ.fake-signature";
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function makeService(): MfaService {
-  return new MfaService(mockPool, mockCasdoor as any);
+  return new MfaService(mockCasdoor as any);
 }
 
 function makeFactor(overrides: Partial<any> = {}): any {
@@ -168,15 +166,12 @@ beforeEach(() => {
   mockActionDal.findByJti.mockResolvedValue(null);
   mockActionDal.markUsed.mockResolvedValue(undefined);
   mockCasdoor.getClient.mockResolvedValue(mockCasdoorClient);
-  // Default: pool.query returns a profile id for resolveProfileId
-  (mockPool as any).query.mockImplementation((sql: string, _params: any[]) => {
-    if (sql.includes("SELECT id FROM user_profiles")) {
-      return Promise.resolve({ rows: [{ id: 1 }] });
-    }
-    if (sql.includes("SELECT idp_org, idp_username, idp_code FROM user_profiles")) {
-      return Promise.resolve({ rows: [{ idp_org: "acme", idp_username: "test-admin", idp_code: "idp-code-1" }] });
-    }
-    return Promise.resolve({ rows: [] });
+  // Default: profile lookups used by resolveProfileId / resolveCasdoorIdentity
+  mockProfilesDal.getIdByUuid.mockResolvedValue(BigInt(1));
+  mockProfilesDal.getIdpIdentityByUuid.mockResolvedValue({
+    idp_org: "acme",
+    idp_username: "test-admin",
+    idp_code: "idp-code-1",
   });
 });
 

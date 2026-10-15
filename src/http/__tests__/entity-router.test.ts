@@ -29,7 +29,6 @@ vi.mock("../../modules/auth/mfa-step-up.middleware.js", () => ({
   requireMfaStepUp: () => (_req: any, _res: any, next: any) => next(),
 }));
 
-vi.mock("../../db/pool.js", () => ({ getPool: vi.fn(() => ({})) }));
 
 vi.mock("../meta-assembler.js", () => ({ assembleMeta: () => ({ meta: true }) }));
 
@@ -40,7 +39,6 @@ vi.mock("../entity-write.js", async (importOriginal) => {
   return {
     ...orig,
     runEntityWrite: async (
-      _pool: unknown,
       _translations: unknown,
       fn: (tx: unknown) => Promise<unknown>,
       afterWrite?: () => void | Promise<void>,

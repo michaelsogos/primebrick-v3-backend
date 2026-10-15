@@ -10,11 +10,10 @@
  * existing /api/v1/openapi.json endpoint.
  */
 
-import { logger } from "@primebrick/sdk";
+import { logger, extJsonParse, extJsonStringify } from "@primebrick/sdk";
 import { Router } from "express";
 import { mergedOpenApiSpec } from "./spec.js";
-import { getPool } from "../db/pool.js";
-import { ServiceRegistryRepo } from "../modules/proxy/service-registry-repo.js";
+import { ServiceRegistryService } from "../modules/system/service-registry.service.js";
 import { internalFetch } from "@primebrick/sdk";
 
 // In-memory cache to avoid hammering microservices on every request
@@ -32,14 +31,13 @@ export function aggregatedOpenApiRouter() {
     }
 
     // Start with a deep copy of the BE's own (merged) spec
-    const aggregated = JSON.parse(JSON.stringify(mergedOpenApiSpec()));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- spec merge mutates dynamic paths/tags
+    const aggregated = extJsonParse<any>(extJsonStringify(mergedOpenApiSpec()));
 
     // Fetch all registered services
-    let services: Awaited<ReturnType<ServiceRegistryRepo["findAll"]>> = [];
+    let services: Awaited<ReturnType<ServiceRegistryService["findAll"]>> = [];
     try {
-      const pool = getPool();
-      const repo = new ServiceRegistryRepo(pool);
-      services = await repo.findAll();
+      services = await new ServiceRegistryService().findAll();
     } catch (err) {
       logger.error("Failed to fetch service registry:", { tags: ["openapi"], error: err });
       // Return BE-only spec if registry is unavailable

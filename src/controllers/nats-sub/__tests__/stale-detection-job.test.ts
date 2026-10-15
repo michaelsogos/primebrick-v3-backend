@@ -1,20 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock the pool module
-vi.mock("../../../db/pool.js", () => ({
-  getPool: vi.fn(),
-}));
-
-// Shared mock repo instance — returned by every `new ServiceRegistryRepo()` call
+// Shared mock service instance — returned by every `new ServiceRegistryService()` call
 const mockRepo = {
   findAll: vi.fn(),
   updateByCode: vi.fn(),
   updateByCodeAndBaseUrl: vi.fn(),
 };
 
-// Mock ServiceRegistryRepo — always returns the shared mockRepo instance
-vi.mock("../../../modules/proxy/service-registry-repo.js", () => ({
-  ServiceRegistryRepo: vi.fn().mockImplementation(function () { return mockRepo; }),
+// Mock ServiceRegistryService — always returns the shared mockRepo instance
+vi.mock("../../../modules/system/service-registry.service.js", () => ({
+  ServiceRegistryService: vi.fn().mockImplementation(function () { return mockRepo; }),
 }));
 
 // Import after mock
@@ -69,7 +65,7 @@ describe("StaleDetectionJob", () => {
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
-  it("1 stale service (was online) → marked going_live", async () => {
+  it("1 stale service (was online) → marked stale", async () => {
     const job = new StaleDetectionJob();
     mockRepo.findAll.mockResolvedValue([
       makeService({
@@ -82,7 +78,7 @@ describe("StaleDetectionJob", () => {
 
     await (job as any).run();
 
-    expect(mockRepo.updateByCode).toHaveBeenCalledWith("svc-a", { status: "going_live" });
+    expect(mockRepo.updateByCode).toHaveBeenCalledWith("svc-a", { status: "stale" });
     expect(mockRepo.updateByCodeAndBaseUrl).not.toHaveBeenCalled();
   });
 
@@ -108,17 +104,17 @@ describe("StaleDetectionJob", () => {
     const staleTime = new Date(Date.now() - 100000);
     mockRepo.findAll.mockResolvedValue([
       makeService({ code: "svc-a", status: "online", is_behind_scaler: true, last_health_check_at: staleTime }),
-      makeService({ code: "svc-b", status: "going_live", is_behind_scaler: true, last_health_check_at: staleTime }),
+      makeService({ code: "svc-b", status: "stale", is_behind_scaler: true, last_health_check_at: staleTime }),
       makeService({ code: "svc-c", status: "offline", is_behind_scaler: true, last_health_check_at: staleTime }),
     ]);
 
     await (job as any).run();
 
-    // Second poll: svc-a is now persisted going_live → nothing is re-marked
+    // Second poll: svc-a is now persisted stale → nothing is re-marked
     // and the outage alarm does not repeat.
     mockRepo.findAll.mockResolvedValue([
-      makeService({ code: "svc-a", status: "going_live", is_behind_scaler: true, last_health_check_at: staleTime }),
-      makeService({ code: "svc-b", status: "going_live", is_behind_scaler: true, last_health_check_at: staleTime }),
+      makeService({ code: "svc-a", status: "stale", is_behind_scaler: true, last_health_check_at: staleTime }),
+      makeService({ code: "svc-b", status: "stale", is_behind_scaler: true, last_health_check_at: staleTime }),
       makeService({ code: "svc-c", status: "offline", is_behind_scaler: true, last_health_check_at: staleTime }),
     ]);
     await (job as any).run();
@@ -126,11 +122,11 @@ describe("StaleDetectionJob", () => {
     expect(errorSpy).toHaveBeenCalledTimes(1);
     const errorMsg = errorSpy.mock.calls[0][0] as string;
     expect(errorMsg).toContain("NATS outage suspected");
-    // transition-only: svc-a marked going_live once; svc-b already going_live and
+    // transition-only: svc-a marked stale once; svc-b already stale and
     // svc-c already offline are skipped — no re-marking, no repeated logs.
     expect(mockRepo.updateByCode).toHaveBeenCalledTimes(1);
-    expect(mockRepo.updateByCode).toHaveBeenCalledWith("svc-a", { status: "going_live" });
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("is going_live"), expect.anything());
+    expect(mockRepo.updateByCode).toHaveBeenCalledWith("svc-a", { status: "stale" });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("is stale"), expect.anything());
   });
 
   it("some stale, some fresh → only stale ones updated", async () => {
@@ -153,7 +149,7 @@ describe("StaleDetectionJob", () => {
     await (job as any).run();
 
     expect(mockRepo.updateByCode).toHaveBeenCalledTimes(1);
-    expect(mockRepo.updateByCode).toHaveBeenCalledWith("svc-a", { status: "going_live" });
+    expect(mockRepo.updateByCode).toHaveBeenCalledWith("svc-a", { status: "stale" });
   });
 
   it("no services → no action", async () => {

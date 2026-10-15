@@ -6,25 +6,23 @@
  */
 
 import { logger } from "@primebrick/sdk";
-import type { Pool, PoolClient } from "pg";
-import { field, Filter, Sort, buildAuditableJoinsSelective, Repository } from "@primebrick/dal-pg";
+import { field, Filter, Sort, buildAuditableJoinsSelective, trustedUUID, type Repository } from "@primebrick/dal-pg";
 import { type CacheEntry, wrapCacheEntry } from "@primebrick/sdk";
 import { ConfigEntryEntity } from "./config_entry_entity.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
-import { createRepository } from "../../db/repository-factory.js";
+import { initDal } from "../../db/dal-gateway.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
+import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 
 const LIST_CACHE_KEY = "dal:config_entries:list";
 const LIST_CACHE_TTL = 300_000; // 5 min — same as entity TTL
 
 export class ConfigEntriesDal {
-  private repo: ReturnType<typeof createRepository>;
-  private pool: Pool;
-
-  constructor(pool: Pool) {
-    this.pool = pool;
-    this.repo = createRepository(pool);
-  }
+  private repo: Pick<
+    Repository,
+    "find" | "findAll" | "findByUUID" | "add" | "update" | "updateMany" | "delete" | "deleteMany" | "restore"
+  > = initDal();
+  private auditPort = new BeAuditPortAdapter(this.repo);
 
   /**
    * Load all auth config rows (excluding soft-deleted).
@@ -55,7 +53,6 @@ export class ConfigEntriesDal {
       ConfigEntryEntity,
       null,
       {
-        deletedRecords: "EXCLUDED",
         sorting: [
           Sort.by(field(ConfigEntryEntity, "group_key" as any), "ASC"),
           Sort.by(field(ConfigEntryEntity, "key" as any), "ASC"),
@@ -93,7 +90,6 @@ export class ConfigEntriesDal {
             key
           ),
         ],
-        deletedRecords: "EXCLUDED",
         throwIfNotFound: false,
       }
     );
@@ -107,7 +103,7 @@ export class ConfigEntriesDal {
     return this.repo.findByUUID<ConfigEntryEntity, ConfigEntryEntity>(
       ConfigEntryEntity,
       uuid,
-      { deletedRecords: "EXCLUDED", throwIfNotFound: false }
+      { throwIfNotFound: false }
     );
   }
 
@@ -131,11 +127,11 @@ export class ConfigEntriesDal {
       reserved?: boolean;
     },
     updatedBy: string,
-    tx?: PoolClient
+    tx?: Repository
   ): Promise<ConfigEntryEntity> {
     // When tx is provided, the write is appended to the open transaction and
     // the cache reload is deferred — the caller must run it post-commit.
-    const repo = tx ? new Repository(tx) : this.repo;
+    const repo = tx ?? this.repo;
     const row = await repo.add(
       ConfigEntryEntity,
       {
@@ -150,7 +146,7 @@ export class ConfigEntriesDal {
         created_by: updatedBy,
         updated_by: updatedBy,
       },
-      { actor: updatedBy }
+      { actor: updatedBy, audit: new BeAuditPortAdapter(repo) }
     );
     if (!tx) await this.reloadCache();
     return row as ConfigEntryEntity;
@@ -193,7 +189,7 @@ export class ConfigEntriesDal {
     uuid: string,
     patch: { value?: string; type?: string; type_config?: string | null; version?: number | bigint },
     updatedBy: string,
-    tx?: PoolClient
+    tx?: Repository
   ): Promise<void> {
     const existing = await this.findByUuid(uuid);
     if (!existing) {
@@ -245,11 +241,11 @@ export class ConfigEntriesDal {
     if (Object.keys(updateEntity).length > 1) {
       // When tx is provided, the write is appended to the open transaction
       // and the cache reload is deferred to the caller (post-commit).
-      const repo = tx ? new Repository(tx) : this.repo;
+      const repo = tx ?? this.repo;
       await repo.update(
         ConfigEntryEntity,
         updateEntity as Partial<ConfigEntryEntity> & { id: bigint },
-        { actor: updatedBy }
+        { actor: updatedBy, audit: new BeAuditPortAdapter(repo) }
       );
       if (!tx) await this.reloadCache();
     }
@@ -333,7 +329,7 @@ export class ConfigEntriesDal {
     const row = await this.repo.delete(
       ConfigEntryEntity,
       { uuid, version },
-      { actor: deletedBy }
+      { actor: deletedBy, audit: this.auditPort }
     );
     await this.reloadCache();
     return row as ConfigEntryEntity;
@@ -363,12 +359,13 @@ export class ConfigEntriesDal {
             items.map((i) => i.uuid),
           ),
         ],
-        deletedRecords: "EXCLUDED",
       },
     )) as ConfigEntryEntity[];
     const byUuid = new Map(rows.map((r: ConfigEntryEntity) => [r.uuid, r]));
     for (const item of items) {
-      const row = byUuid.get(item.uuid);
+      // The uuid format was already enforced by Postgres in the Filter IN
+      // query above (a malformed uuid errors before this point).
+      const row = byUuid.get(trustedUUID(item.uuid));
       if (!row) {
         throw new Error(`Auth config row with uuid ${item.uuid} not found`);
       }
@@ -403,7 +400,7 @@ export class ConfigEntriesDal {
     const row = await this.repo.restore(
       ConfigEntryEntity,
       { uuid, version },
-      { actor: updatedBy }
+      { actor: updatedBy, audit: this.auditPort }
     );
     await this.reloadCache();
     return row as ConfigEntryEntity;
@@ -430,7 +427,7 @@ export class ConfigEntriesDal {
     }
     try {
       const { loadAuthConfig } = await import("./config.js");
-      await loadAuthConfig(this.pool);
+      await loadAuthConfig();
       // Telemetry/logging rows live in config_entries too — re-apply in
       // process (no restarts) and broadcast `config.changed` to microservices.
       const { applyTelemetryConfigFromDb } = await import("../../observability/telemetry.js");

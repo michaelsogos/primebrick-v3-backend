@@ -16,8 +16,7 @@
  * selection) — responses are small and cached in-process for 30s.
  */
 
-import { getPool } from "../../db/pool.js";
-import { ServiceRegistryRepo } from "../proxy/service-registry-repo.js";
+import { ServiceRegistryService } from "./service-registry.service.js";
 import { buildModuleNavMeta } from "../module-nav-meta.js";
 import type { ModuleRouteDecl } from "../module-nav-types.js";
 
@@ -36,7 +35,7 @@ export class RoutesCensusService {
   async list(): Promise<{ routes: CensusRoute[] }> {
     if (cache && Date.now() - cache.at < CACHE_TTL_MS) return { routes: cache.routes };
 
-    const services = await new ServiceRegistryRepo(getPool()).findAll();
+    const services = await new ServiceRegistryService().findAll();
     const seen = new Set<string>();
     const routes: CensusRoute[] = [];
 

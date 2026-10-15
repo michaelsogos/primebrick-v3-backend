@@ -39,7 +39,6 @@ import {
   assertTranslationsPermission,
   runEntityWrite,
 } from "../../../http/entity-write.js";
-import { getPool } from "../../../db/pool.js";
 import { ConfigEntryEntity } from "../../../modules/auth/config_entry_entity.js";
 import { configEntriesMeta } from "../../../modules/auth/config-entries.meta.js";
 import { ConfigEntriesService } from "../../../modules/auth/services/config-entries.service.js";
@@ -163,7 +162,6 @@ export function configEntriesRouter() {
     // rows commit atomically (all-or-nothing). Post-commit cache invalidation
     // is handled by runEntityWrite.
     const row = await runEntityWrite(
-      getPool(),
       translations,
       (tx) => service.create(params, userUuid, tx),
       () => service.refreshCache(),
@@ -182,7 +180,6 @@ export function configEntriesRouter() {
 
     const patch = await service.prepareUpdate(uuid, body.entity);
     await runEntityWrite(
-      getPool(),
       translations,
       (tx) =>
         service.update(uuid, { ...patch, version: Number(body.entity.version) }, userUuid, tx),

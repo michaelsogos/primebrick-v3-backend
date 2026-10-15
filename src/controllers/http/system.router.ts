@@ -28,6 +28,7 @@ import { rbacHandler, serviceShieldHandler } from "../../modules/auth/rbac.middl
 import { DocsPackService } from "../../modules/docs-pack/docs-pack.service.js";
 import { Permission } from "@primebrick/sdk";
 import { ValidationError } from "../../http/api-errors.js";
+import { DbMigrationService } from "../../modules/system/db-migration.service.js";
 import { SystemService } from "../../modules/system/system.service.js";
 import { RoutesCensusService } from "../../modules/system/routes-census.service.js";
 import { servicesEventsRouter } from "./services-events.router.js";
@@ -145,6 +146,14 @@ export function systemRouter() {
   );
 
   router.delete(
+    "/api/v1/system/services/instances/:uuid",
+    rbacHandler([Permission.MODULES_DELETE_SINGLE]),
+    asyncHandler(async (req, res) => {
+      res.json(await service.deleteServiceInstance(req.params.uuid as string));
+    }),
+  );
+
+  router.delete(
     "/api/v1/system/services/:code",
     rbacHandler([Permission.MODULES_DELETE_SINGLE]),
     serviceCodeParam,
@@ -163,6 +172,72 @@ export function systemRouter() {
         throw new ValidationError("Invalid request body", { internal_code: "VALIDATION_ERROR" });
       }
       res.json(await service.updateService(req.params.code as string, bodyResult.data));
+    }),
+  );
+
+  // ── db_patch system module (admin remediation) ─────────────────────────
+  // BE's own migration registry lives in public.primebrick_database_patches;
+  // per-service registries are reachable through the generic proxy
+  // (/ws/<code>/api/v1/system/db-migration/*), which exempts that prefix for
+  // `migration_failed` instances.
+  const dbMigration = new DbMigrationService();
+  const actorUuid = (req: Parameters<RequestHandler>[0]) => req.user?.id ?? "unknown";
+  const PatchActionBodySchema = z.object({
+    patch_name: z.string().min(1),
+    note: z.string().optional(),
+  });
+
+  router.get(
+    "/api/v1/system/db-migration/status",
+    rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+    asyncHandler(async (_req, res) => {
+      res.json(await dbMigration.status());
+    }),
+  );
+
+  router.post(
+    "/api/v1/system/db-migration/retry",
+    rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+    asyncHandler(async (req, res) => {
+      res.json(await dbMigration.retry(actorUuid(req)));
+    }),
+  );
+
+  router.post(
+    "/api/v1/system/db-migration/approve",
+    rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+    asyncHandler(async (req, res) => {
+      const parsed = PatchActionBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError("patch_name required", { internal_code: "VALIDATION_ERROR" });
+      }
+      res.json(await dbMigration.approve(parsed.data.patch_name, parsed.data.note, actorUuid(req)));
+    }),
+  );
+
+  router.post(
+    "/api/v1/system/db-migration/resolve",
+    rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+    asyncHandler(async (req, res) => {
+      const parsed = PatchActionBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError("patch_name required", { internal_code: "VALIDATION_ERROR" });
+      }
+      res.json(
+        await dbMigration.resolve(
+          parsed.data.patch_name,
+          parsed.data.note ?? "resolved manually",
+          actorUuid(req),
+        ),
+      );
+    }),
+  );
+
+  router.post(
+    "/api/v1/system/db-migration/drift-check",
+    rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+    asyncHandler(async (_req, res) => {
+      res.json(await dbMigration.driftCheck());
     }),
   );
 

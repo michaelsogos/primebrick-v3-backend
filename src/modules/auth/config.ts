@@ -17,7 +17,6 @@
  */
 
 import { logger } from "@primebrick/sdk";
-import type { Pool } from "pg";
 import {
   initAuthConfig,
   loadAuthConfig as sdkLoadAuthConfig,
@@ -44,8 +43,8 @@ export const getAuthConfig = sdkGetAuthConfig;
  * Load auth config from DB into the SDK's in-memory cache AND Redis.
  * Called once at startup and on invalidation.
  */
-export async function loadAuthConfig(pool: Pool): Promise<AuthConfig> {
-  initAuthConfig(new BeAuthConfigPort(pool));
+export async function loadAuthConfig(): Promise<AuthConfig> {
+  initAuthConfig(new BeAuthConfigPort());
   const config = await sdkLoadAuthConfig();
 
   // Also store in Redis for cross-pod sharing

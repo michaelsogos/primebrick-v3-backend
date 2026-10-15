@@ -22,7 +22,6 @@
  */
 
 import type { Request, Response, NextFunction, RequestHandler } from "express";
-import { getPool } from "../../db/pool.js";
 import { CasdoorService } from "./services/casdoor.service.js";
 import { MfaService } from "./services/mfa.service.js";
 import { ApiError } from "../../http/api-errors.js";
@@ -62,9 +61,8 @@ export function requireMfaStepUp(
       );
     }
 
-    const pool = getPool();
-    const casdoor = new CasdoorService(pool);
-    const mfaService = new MfaService(pool, casdoor);
+    const casdoor = new CasdoorService();
+    const mfaService = new MfaService(casdoor);
 
     try {
       await mfaService.consumeActionAuthorization(token, action, targetResource);

@@ -1,4 +1,3 @@
-import type { Pool } from "pg";
 import { ConfigEntriesDal } from "./config_entries_dal.js";
 import { AuthMode } from "@primebrick/sdk";
 
@@ -65,8 +64,8 @@ export interface AuthConfigDb {
  *   - `auth_mode`: validated + normalized to uppercase
  * NO lowercasing, NO fallback defaults, NO field-by-field DTO mapping.
  */
-export async function loadAuthConfigFromDb(pool: Pool): Promise<AuthConfigDb> {
-  const dal = new ConfigEntriesDal(pool);
+export async function loadAuthConfigFromDb(): Promise<AuthConfigDb> {
+  const dal = new ConfigEntriesDal();
   const rows = await dal.findAll();
 
   // Reduce typed entity rows into a key/value map. Snake_case keys preserved

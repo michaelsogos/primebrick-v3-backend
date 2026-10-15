@@ -5,19 +5,14 @@
  * (no raw SQL strings). The actor for audit fields comes from `requireActor()`.
  */
 
-import type { Pool } from "pg";
-import { Repository, field, Filter } from "@primebrick/dal-pg";
+import { initDal } from "../../db/dal-gateway.js";
+import { type Repository, field, Filter } from "@primebrick/dal-pg";
 import { requireActor } from "@primebrick/sdk";
 import { MfaActionAuthorizationEntity } from "./mfa_action_authorization_entity.js";
 
 export class MfaActionAuthorizationsDal {
-  private repo: Repository;
-  private pool: Pool;
-
-  constructor(pool: Pool) {
-    this.repo = new Repository(pool);
-    this.pool = pool;
-  }
+  private repo = initDal();
+  
 
   /**
    * Create a new action authorization record.
@@ -90,9 +85,25 @@ export class MfaActionAuthorizationsDal {
    * Called periodically for cleanup (same pattern as sessionRelay cleanup).
    */
   async deleteExpired(): Promise<number> {
-    const result = await this.pool.query(
-      `DELETE FROM mfa_action_authorizations WHERE expires_at < now() - interval '1 hour'`,
+    const expired = (await this.repo.findAll<MfaActionAuthorizationEntity, MfaActionAuthorizationEntity>(
+      MfaActionAuthorizationEntity,
+      null,
+      {
+        filters: [
+          Filter.expr(
+            { sql: "expires_at" },
+            "<",
+            { sql: "now() - interval '1 hour'" },
+          ),
+        ],
+      },
+    )) as MfaActionAuthorizationEntity[];
+    if (expired.length === 0) return 0;
+    const res = await this.repo.hardDeleteMany(
+      MfaActionAuthorizationEntity,
+      expired.map((e) => ({ id: e.id, version: e.version })),
+      { actor: requireActor() },
     );
-    return result.rowCount ?? 0;
+    return res.affected;
   }
 }

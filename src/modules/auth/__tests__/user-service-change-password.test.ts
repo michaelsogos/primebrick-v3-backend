@@ -59,11 +59,9 @@ vi.mock("../config.js", () => ({
 // Import after mocks
 import { UserService } from "../services/user.service.js";
 import { CasdoorService } from "../services/casdoor.service.js";
-import type { Pool } from "pg";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const mockPool = {} as Pool;
 
 function makeMockCasdoorService(checkResult: any, changeResult: any) {
   const mockClient = {
@@ -87,7 +85,7 @@ function makeUserService(mockCasdoor: any): UserService {
       email: "test-admin@example.com",
     }),
   };
-  return new UserService(mockPool, dal as any, mockCasdoor as any);
+  return new UserService(dal as any, mockCasdoor as any);
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

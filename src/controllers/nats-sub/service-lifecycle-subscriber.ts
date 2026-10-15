@@ -3,7 +3,7 @@
  *
  * Subscribes to service.register, service.heartbeat, service.unregister
  * and persists state changes to the service_registry table via
- * ServiceRegistryRepo (DAL Repository — no raw SQL).
+ * ServiceRegistryService (the domain owner — no Repository here).
  *
  * Status derivation:
  *   http_healthy && nats_connected → 'online'
@@ -11,11 +11,11 @@
  *   one true, one false → 'going_live'
  */
 
-import { logger } from "@primebrick/sdk";
+import { assertDbEnv, logger } from "@primebrick/sdk";
 import { NatsClient, SERVICE_SUBJECTS, CLIENT_REGISTRY_SUBJECTS, makeNatsRequestRoute, setNatsShieldRegistry, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
-import { getPool } from "../../db/pool.js";
 import { createPublisherVerifier } from "./publisher-identity.js";
-import { ServiceRegistryRepo } from "../../modules/proxy/service-registry-repo.js";
+import { ServiceRegistryService } from "../../modules/system/service-registry.service.js";
+import { ClientRegistryService } from "../../modules/system/client-registry.service.js";
 import { entityRegistry } from "../../modules/mcp/tools/entity-registry.js";
 import { discoverEntitiesFromService } from "../../modules/mcp/tools/openapi-discovery.js";
 import { serviceEventsBus } from "../../modules/proxy/service-events-bus.js";
@@ -28,14 +28,14 @@ import { serviceEventsBus } from "../../modules/proxy/service-events-bus.js";
 export type McpEntityRegistrationCallback = (serviceCode: string, baseUrl: string) => Promise<void>;
 
 export class ServiceLifecycleSubscriber {
-  private repo: ServiceRegistryRepo;
+  private repo: ServiceRegistryService;
   /** Tracks which services have already had their entities registered (avoids re-fetching on every heartbeat). */
   private registeredServices: Set<string> = new Set();
   /** Shield-identity verifier for service publishers (60s row cache + `changed` invalidation). */
-  private readonly verifier = createPublisherVerifier(getPool());
+  private readonly verifier = createPublisherVerifier();
 
   constructor() {
-    this.repo = new ServiceRegistryRepo(getPool());
+    this.repo = new ServiceRegistryService();
     // Layer-1 shield for governed NATS routes in this process (same as US).
     setNatsShieldRegistry(this.verifier.shieldRegistry);
   }
@@ -53,7 +53,11 @@ export class ServiceLifecycleSubscriber {
           permissions: [],
           // service.register IS the enrollment channel — a first-time
           // registration can't prove a key the registry doesn't know yet.
-          // Enrolled prefixes must present the matching key (no squatting).
+          // `enrollment` skips the global L1 (snapshot) check so the
+          // route's own verify — which does the equivalent check with
+          // allowNewPrefix — decides. Enrolled prefixes must present the
+          // matching key (no squatting).
+          enrollment: true,
           verify: this.verifier.asRouteVerify(undefined, { allowNewPrefix: true }),
           handler: async ({ request: payload }) => {
             if (!payload?.code || !payload?.base_url) {
@@ -63,6 +67,15 @@ export class ServiceLifecycleSubscriber {
                 received_base_url: payload?.base_url ?? null,
               });
               return { registered: false, error: "service.register requires non-empty code and base_url" };
+            }
+            const ownershipError = await this.checkSchemaOwnership(payload);
+            if (ownershipError) {
+              logger.warn(`service.register rejected — ${ownershipError}`, {
+                tags: ["nats"],
+                received_code: payload.code,
+                received_schemas: payload.schemas ?? [],
+              });
+              return { registered: false, error: ownershipError };
             }
             await this.handleRegister(payload);
             return { registered: true };
@@ -155,15 +168,67 @@ export class ServiceLifecycleSubscriber {
       : code;
   }
 
-  private deriveStatus(http_healthy: boolean, nats_connected: boolean): string {
+  private deriveStatus(
+    http_healthy: boolean,
+    nats_connected: boolean,
+    checks?: Record<string, { ok: boolean }>,
+  ): string {
+    // A service whose db migration failed must never serve domain traffic —
+    // the dedicated status wins over the generic health derivation.
+    if (checks?.db_migration && checks.db_migration.ok === false) return "migration_failed";
     if (http_healthy && nats_connected) return "online";
     if (!http_healthy && !nats_connected) return "offline";
     return "going_live";
   }
 
+  /**
+   * Schema ownership gate for `service.register`.
+   *
+   * A service claims the PG schemas of its DATABASE_SCHEMA env contract.
+   * The claim is refused (`SCHEMA_OWNERSHIP_CONFLICT`) when:
+   *   1. it covers a platform schema — the BE's own DATABASE_SCHEMA list
+   *      (public/system/custom) is owned by the platform, never claimable
+   *      by a microservice;
+   *   2. it overlaps the `schemas` of any registry row whose `code` differs
+   *      — claim persists while the row exists (offline/stale included), so
+   *      a down service never loses ownership; only the same `code` may
+   *      re-claim (restarts, multi-instance).
+   *
+   * Released only by explicit `service.unregister` (schemas cleared) or
+   * admin purge of the row — never by status transitions.
+   */
+  private async checkSchemaOwnership(payload: ServiceRegisterPayload): Promise<string | null> {
+    const claimed = (payload.schemas ?? []).filter((s) => typeof s === "string" && s.length > 0);
+    if (claimed.length === 0) {
+      logger.warn(`The service ${this.serviceRef(payload, payload.code)} registered with no schema claim — it owns no PG schema`, {
+        tags: ["nats", payload.base_url],
+      });
+      return null;
+    }
+
+    const claimedSet = new Set(claimed);
+
+    // Platform schemas are reserved: the BE's own DATABASE_SCHEMA declares
+    // them (public/system/custom); a microservice claiming one is refused.
+    const platformHit = assertDbEnv().schemas.find((s) => claimedSet.has(s));
+    if (platformHit) {
+      return `SCHEMA_OWNERSHIP_CONFLICT: schema '${platformHit}' is platform-owned and cannot be claimed by service '${payload.code}'`;
+    }
+
+    const rows = await this.repo.findAll();
+    for (const row of rows) {
+      if (row.code === payload.code) continue;
+      const hit = (row.schemas ?? []).find((s) => claimedSet.has(s));
+      if (hit) {
+        return `SCHEMA_OWNERSHIP_CONFLICT: schema '${hit}' is already claimed by service '${row.code}' (${row.base_url}, status=${row.status})`;
+      }
+    }
+    return null;
+  }
+
   private async handleRegister(payload: ServiceRegisterPayload): Promise<void> {
     const { code, base_url, is_behind_scaler } = payload;
-    const status = this.deriveStatus(payload.http_healthy, payload.nats_connected);
+    const status = this.deriveStatus(payload.http_healthy, payload.nats_connected, payload.checks);
     const now = new Date();
     const ref = this.serviceRef(payload, code);
     logger.info(`The service ${ref} is registering`, { tags: ["nats", base_url] });
@@ -187,6 +252,7 @@ export class ServiceLifecycleSubscriber {
           service_version: payload.service_version,
           pkg_name: payload.pkg_name,
           capabilities: payload.capabilities ?? [],
+          schemas: payload.schemas ?? [],
           name: payload.name,
           description: payload.description,
           author: payload.author,
@@ -208,6 +274,7 @@ export class ServiceLifecycleSubscriber {
           service_version: payload.service_version,
           pkg_name: payload.pkg_name,
           capabilities: payload.capabilities ?? [],
+          schemas: payload.schemas ?? [],
           name: payload.name,
           description: payload.description,
           author: payload.author,
@@ -231,6 +298,7 @@ export class ServiceLifecycleSubscriber {
           service_version: payload.service_version,
           pkg_name: payload.pkg_name,
           capabilities: payload.capabilities ?? [],
+          schemas: payload.schemas ?? [],
           name: payload.name,
           description: payload.description,
           author: payload.author,
@@ -252,6 +320,7 @@ export class ServiceLifecycleSubscriber {
           service_version: payload.service_version,
           pkg_name: payload.pkg_name,
           capabilities: payload.capabilities ?? [],
+          schemas: payload.schemas ?? [],
           name: payload.name,
           description: payload.description,
           author: payload.author,
@@ -285,22 +354,12 @@ export class ServiceLifecycleSubscriber {
   }
 
   /**
-   * Upsert a `source='registry'` row in system.client_registry.
-   * Registry rows are system-owned — ON CONFLICT keeps them fresh on
+   * Enroll/refresh a `source='registry'` row in system.client_registry.
+   * Registry rows are system-owned — find→add|update keeps them fresh on
    * re-registration; admins can only touch `source='manual'` rows.
    */
   private async upsertClientRegistry(uaPrefix: string, clientKeyHash: string): Promise<void> {
-    const pool = getPool();
-    await pool.query(
-      `INSERT INTO system.client_registry (ua_prefix, client_key_hash, source, is_enabled, created_by, updated_by)
-       VALUES ($1, $2, 'registry', true, 'service-registry', 'service-registry')
-       ON CONFLICT (ua_prefix) DO UPDATE
-         SET client_key_hash = EXCLUDED.client_key_hash,
-             updated_at = now(), updated_by = 'service-registry',
-             deleted_at = NULL, deleted_by = NULL
-         WHERE system.client_registry.source = 'registry'`,
-      [uaPrefix, clientKeyHash],
-    );
+    await new ClientRegistryService().enrollRegistryRow(uaPrefix, clientKeyHash, "service-registry");
     logger.done(`The service ${uaPrefix} has been enrolled and its protection shield key registered`, { tags: ["nats"] });
     // Invalidate consumer-side allowlist caches.
     await NatsClient.publish(CLIENT_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
@@ -308,7 +367,7 @@ export class ServiceLifecycleSubscriber {
 
   private async handleHeartbeat(payload: ServiceHeartbeatPayload): Promise<void> {
     const { code, base_url, is_behind_scaler } = payload;
-    const status = this.deriveStatus(payload.http_healthy, payload.nats_connected);
+    const status = this.deriveStatus(payload.http_healthy, payload.nats_connected, payload.checks);
     const now = new Date();
 
     // If the service transitioned to online, discover and register its MCP entities.
@@ -373,15 +432,19 @@ export class ServiceLifecycleSubscriber {
       logger.info(`Unregistered entities for service ${code}`, { tags: ["nats"] });
     }
 
+    // Explicit unregister releases the schema claim — only an admin purge
+    // or a deliberate shutdown frees ownership; offline/stale rows keep it.
     if (is_behind_scaler) {
       await this.repo.updateByCode(code, {
         status: "offline",
         last_health_check_at: now,
+        schemas: [],
       });
     } else {
       await this.repo.updateByCodeAndBaseUrl(code, base_url, {
         status: "offline",
         last_health_check_at: now,
+        schemas: [],
       });
     }
     logger.warn(`The service ${this.serviceRef(payload, code)} is down (unregistered)`, { tags: ["nats", base_url] });

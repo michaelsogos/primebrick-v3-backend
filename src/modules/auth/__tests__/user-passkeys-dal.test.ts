@@ -1,9 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock @primebrick/sdk — requireActor returns a fixed actor for audit fields
-vi.mock("@primebrick/sdk", () => ({
-  requireActor: () => "test-actor-uuid",
-}));
+// Mock @primebrick/sdk — requireActor returns a fixed actor for audit fields.
+// Spread actual: user-profiles-dal pulls UserProfileEntity whose @Cached
+// decorator is re-exported through the sdk barrel.
+vi.mock("@primebrick/sdk", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@primebrick/sdk")>();
+  return {
+    ...actual,
+    requireActor: () => "test-actor-uuid",
+  };
+});
 
 // Mock @primebrick/dal-pg — preserve decorators via importOriginal, mock Repository
 const mockRepo = {
@@ -21,6 +27,11 @@ vi.mock("@primebrick/dal-pg", async (importOriginal) => {
     Repository: vi.fn().mockImplementation(function () { return mockRepo; }),
   };
 });
+
+// The DAL goes through the governed gateway — mock initDal at the seam.
+vi.mock("../../../db/dal-gateway.js", () => ({
+  initDal: () => mockRepo,
+}));
 
 // Import after mocks
 import { UserPasskeysDal } from "../user-passkeys-dal.js";
@@ -57,7 +68,7 @@ describe("UserPasskeysDal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    dal = new UserPasskeysDal({} as any);
+    dal = new UserPasskeysDal();
   });
 
   describe("create", () => {

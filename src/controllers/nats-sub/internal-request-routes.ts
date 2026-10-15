@@ -9,30 +9,35 @@
  * verbatim, no business rules.
  */
 
-import { logger, makeNatsRequestRoute, setNatsShieldRegistry, CLIENT_REGISTRY_SUBJECTS, AUTH_MFA_CONSUME_SUBJECT, type ClientRegistryRow, type MfaConsumeResult } from "@primebrick/sdk";
+import { logger, makeNatsRequestRoute, setNatsShieldRegistry, CLIENT_REGISTRY_SUBJECTS, AUTH_MFA_CONSUME_SUBJECT, CachingApiKeyPort, type ClientRegistryRow, type MfaConsumeResult } from "@primebrick/sdk";
 import type { Msg } from "nats";
-import { getPool } from "../../db/pool.js";
 import { ApiError } from "../../http/api-errors.js";
 import { BeApiKeyPort } from "../../modules/auth/sdk-auth-ports.js";
 import { CasdoorService } from "../../modules/auth/services/casdoor.service.js";
 import { MfaService } from "../../modules/auth/services/mfa.service.js";
-import { ClientRegistryRepo } from "../../modules/proxy/client-registry-repo.js";
-import { ServiceRegistryRepo, type ServiceRegistryEntry } from "../../modules/proxy/service-registry-repo.js";
+import { ClientRegistryService } from "../../modules/system/client-registry.service.js";
+import { ServiceRegistryService, type ServiceRegistryEntry } from "../../modules/system/service-registry.service.js";
 import { createPublisherVerifier } from "./publisher-identity.js";
+import { getCachePort } from "../../cache/cache-port-holder.js";
 
 export const AUTH_APIKEY_BY_HASH_SUBJECT = "auth.apikey.byHash";
 export const SERVICE_REGISTRY_GET_SUBJECT = "service.registry.get";
 
 export async function startInternalRequestRoutes(): Promise<void> {
-  const pool = getPool();
-  const verifier = createPublisherVerifier(pool);
+  const verifier = createPublisherVerifier();
   // Layer-1 shield for every governed NATS route in this process — same
   // contract as US microservices (createMicroservice sets it there).
   setNatsShieldRegistry(verifier.shieldRegistry);
   const verify = verifier.asRouteVerify();
-  const apiKeyPort = new BeApiKeyPort(pool);
-  const clientRepo = new ClientRegistryRepo(pool);
-  const serviceRepo = new ServiceRegistryRepo(pool);
+  // Cached composition: CachingApiKeyPort (SDK, shared `be:api_keys` Redis
+  // key) wrapping the DB resolver — same cache behavior as before the
+  // unification, now through the single SDK implementation.
+  const apiKeyPort = new CachingApiKeyPort(
+    new BeApiKeyPort(),
+    () => getCachePort(),
+  );
+  const clientSvc = new ClientRegistryService();
+  const serviceSvc = new ServiceRegistryService();
 
   await makeNatsRequestRoute<unknown, unknown>(
     [
@@ -53,18 +58,32 @@ export async function startInternalRequestRoutes(): Promise<void> {
         subject: CLIENT_REGISTRY_SUBJECTS.GET,
         permissions: [],
         verify,
-        handler: async (): Promise<ClientRegistryRow[]> => clientRepo.findAllEnabled(),
+        handler: async (): Promise<ClientRegistryRow[]> => clientSvc.findAllEnabled(),
       },
       {
         // Registry row by service code — fallback for services that missed
         // the `service.*` lifecycle events (e.g. webhook cold start).
+        // `{ capability }` instead returns every online+enabled instance
+        // exposing that capability (e.g. docs_pack discovery by ai) — this
+        // is the sanctioned replacement for direct public.service_registry
+        // reads, which no US may perform under schema sovereignty.
         subject: SERVICE_REGISTRY_GET_SUBJECT,
         permissions: [],
         verify,
-        handler: async ({ request }): Promise<ServiceRegistryEntry | null> => {
-          const { code } = (request ?? {}) as { code?: string };
+        handler: async ({ request }): Promise<ServiceRegistryEntry | ServiceRegistryEntry[] | null> => {
+          const { code, capability } = (request ?? {}) as { code?: string; capability?: string };
+          if (capability && typeof capability === "string") {
+            const rows = await serviceSvc.findAll();
+            return rows.filter(
+              (r) =>
+                r.status === "online" &&
+                r.is_enabled !== false &&
+                Array.isArray(r.capabilities) &&
+                r.capabilities.includes(capability),
+            );
+          }
           if (!code || typeof code !== "string") return null;
-          return serviceRepo.findByCode(code);
+          return serviceSvc.findByCode(code);
         },
       },
       {
@@ -86,7 +105,7 @@ export async function startInternalRequestRoutes(): Promise<void> {
             return { ok: false, code: "MFA_CONSUME_BAD_REQUEST" };
           }
           try {
-            const mfaService = new MfaService(pool, new CasdoorService(pool));
+            const mfaService = new MfaService(new CasdoorService());
             const { user_uuid } = await mfaService.consumeActionAuthorization(
               token,
               action,

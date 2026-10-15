@@ -60,7 +60,6 @@ import {
   type PendingTranslation,
 } from "./entity-write.js";
 import type { EntityService } from "./entity-service.js";
-import { getPool } from "../db/pool.js";
 
 export type EntityAction =
   | "meta"
@@ -216,7 +215,6 @@ export function makeEntityRouter<TEntity, S extends object>(
       const body = req.body as { entity: unknown; translations?: PendingTranslation[] };
       assertTranslationsPermission(req, body.translations);
       const created = await runEntityWrite(
-        getPool(),
         body.translations,
         (tx) => call("create", body.entity, tx),
         afterWrite,
@@ -242,7 +240,6 @@ export function makeEntityRouter<TEntity, S extends object>(
       const body = req.body as { entity: unknown; translations?: PendingTranslation[] };
       assertTranslationsPermission(req, body.translations);
       const updated = await runEntityWrite(
-        getPool(),
         body.translations,
         (tx) => call("update", req.params.uuid, body.entity, tx),
         afterWrite,

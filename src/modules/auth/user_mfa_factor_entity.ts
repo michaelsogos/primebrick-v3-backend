@@ -15,7 +15,7 @@
  *   - determine which factors are available for login/step-up challenges
  */
 
-import type { IAuditableEntity } from "@primebrick/dal-pg";
+import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
@@ -36,10 +36,10 @@ export class UserMfaFactorEntity implements IAuditableEntity {
   id: bigint;
 
   @Unique()
-  uuid: string;
+  uuid: UUID;
 
   /** FK to user_profiles.id. */
-  @Column({ pgType: "bigint", nullable: false })
+  @Column({ nullable: false })
   user_profile_id: bigint;
 
   /** Factor type: "totp" (v1 only). */
@@ -64,11 +64,11 @@ export class UserMfaFactorEntity implements IAuditableEntity {
   label?: string;
 
   /** Whether the factor is enabled. */
-  @Column({ pgType: "boolean", nullable: false })
+  @Column({ nullable: false })
   is_enabled: boolean;
 
   /** Whether this is the preferred factor (shown first in challenge UI). */
-  @Column({ pgType: "boolean", nullable: false })
+  @Column({ nullable: false })
   is_preferred: boolean;
 
   /** When the factor was last used for verification. */

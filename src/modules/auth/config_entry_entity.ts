@@ -17,7 +17,7 @@
  * connection and `NODE_ENV` for the cookie `secure` attribute).
  */
 
-import type { IAuditableEntity } from "@primebrick/dal-pg";
+import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
@@ -39,7 +39,7 @@ export class ConfigEntryEntity implements IAuditableEntity {
   id: bigint;
 
   @Unique()
-  uuid: string;
+  uuid: UUID;
 
   /** Unique config key (e.g. "oidc_issuer_url", "auth_mode", "service_client_shield_secret"). */
   @Unique()
@@ -67,7 +67,7 @@ export class ConfigEntryEntity implements IAuditableEntity {
   description_key?: string;
 
   /** If true, the row is system-critical: editable but not deletable. */
-  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
+  @Column({ nullable: false, defaultSql: "false" })
   reserved: boolean;
 
   @Column({ length: 100, nullable: true })

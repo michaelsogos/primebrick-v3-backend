@@ -22,7 +22,6 @@
  *   This service is stateless (no in-memory maps). All state is in PG or Casdoor.
  */
 
-import type { Pool } from "pg";
 import { createHmac, createHash, randomBytes, randomUUID } from "crypto";
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 
@@ -30,6 +29,7 @@ import { runAsSystem } from "@primebrick/sdk";
 import { getCachePort } from "../../../cache/cache-port-holder.js";
 import { getAuthConfig } from "../config.js";
 import { ConfigEntriesDal } from "../config_entries_dal.js";
+import { UserProfilesDal } from "../user-profiles-dal.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { UserMfaFactorsDal } from "../user_mfa_factors_dal.js";
 import { MfaActionAuthorizationsDal } from "../mfa_action_authorizations_dal.js";
@@ -256,7 +256,6 @@ async function moveTokens(oldJti: string, newJti: string): Promise<boolean> {
 
 export class MfaService {
   constructor(
-    private pool: Pool,
     private casdoor: CasdoorService,
   ) {}
 
@@ -283,7 +282,7 @@ export class MfaService {
    * `notification_alert_secret` in invitation.service.ts).
    */
   private async getMfaChallengeSecret(): Promise<string> {
-    const dal = new ConfigEntriesDal(this.pool);
+    const dal = new ConfigEntriesDal();
     let row = await dal.findByKey("mfa_challenge_signing_secret");
     if (!row || !row.value || row.value.trim() === "") {
       const secret = randomBytes(32).toString("hex");
@@ -303,7 +302,7 @@ export class MfaService {
    * Falls back to 300 seconds (5 minutes) if missing.
    */
   private async getMfaChallengeTtl(): Promise<number> {
-    const dal = new ConfigEntriesDal(this.pool);
+    const dal = new ConfigEntriesDal();
     const row = await dal.findByKey("mfa_challenge_token_ttl_seconds");
     if (!row || !row.value) return 300;
     const ttl = parseInt(row.value, 10);
@@ -315,16 +314,13 @@ export class MfaService {
    * Throws 404 if the profile doesn't exist.
    */
   private async resolveProfileId(userUuid: string): Promise<bigint> {
-    const result = await this.pool.query(
-      `SELECT id FROM user_profiles WHERE uuid = $1 AND deleted_at IS NULL`,
-      [userUuid],
-    );
-    if (!result.rows[0]?.id) {
+    const id = await new UserProfilesDal().getIdByUuid(userUuid);
+    if (!id) {
       throw new NotFoundError("User profile not found", {
         internal_code: "USER_PROFILE_NOT_FOUND",
       });
     }
-    return BigInt(result.rows[0].id);
+    return id;
   }
 
   /**
@@ -336,16 +332,12 @@ export class MfaService {
     owner: string;
     name: string;
   }> {
-    const result = await this.pool.query(
-      `SELECT idp_org, idp_username, idp_code FROM user_profiles WHERE uuid = $1`,
-      [userUuid],
-    );
-    if (!result.rows[0]) {
+    const row = await new UserProfilesDal().getIdpIdentityByUuid(userUuid);
+    if (!row) {
       throw new NotFoundError("User profile not found", {
         internal_code: "USER_PROFILE_NOT_FOUND",
       });
     }
-    const row = result.rows[0];
     const cfg = getAuthConfig();
     const owner = row.idp_org || cfg.idp_organization || "";
     const name = row.idp_username || row.idp_code || "";
@@ -377,7 +369,7 @@ export class MfaService {
 
     // Refuse if the user already has an enabled TOTP factor (v1: one TOTP factor per user)
     const profileId = await this.resolveProfileId(userUuid);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
+    const factorsDal = new UserMfaFactorsDal();
     const existing = await factorsDal.findEnabledByUserProfileId(profileId);
     if (existing.length > 0) {
       throw new ApiError(
@@ -498,7 +490,7 @@ export class MfaService {
     const profileId = await this.resolveProfileId(userUuid);
     const secret = await this.getMfaChallengeSecret();
     const encryptedSecret = encrypt(entry.secret, secret);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
+    const factorsDal = new UserMfaFactorsDal();
     const factorUuid = await factorsDal.create({
       user_profile_id: profileId,
       factor_type: "totp",
@@ -523,7 +515,7 @@ export class MfaService {
   async listFactors(userUuid: string): Promise<MfaFactorInfo[]> {
     await this.requireMfaEnabled();
     const profileId = await this.resolveProfileId(userUuid);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
+    const factorsDal = new UserMfaFactorsDal();
     const factors = await factorsDal.findByUserProfileId(profileId);
     return factors.map((f) => ({
       uuid: f.uuid,
@@ -545,7 +537,7 @@ export class MfaService {
   async deleteFactor(userUuid: string, factorUuid: string): Promise<{ success: true }> {
     await this.requireMfaEnabled();
 
-    const factorsDal = new UserMfaFactorsDal(this.pool);
+    const factorsDal = new UserMfaFactorsDal();
     const factor = await factorsDal.findByUuid(factorUuid);
     if (!factor) {
       throw new NotFoundError("MFA factor not found", {
@@ -598,7 +590,7 @@ export class MfaService {
   async hasMfa(userUuid: string): Promise<boolean> {
     if (!getAuthConfig().enable_mfa) return false;
     const profileId = await this.resolveProfileId(userUuid);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
+    const factorsDal = new UserMfaFactorsDal();
     const count = await factorsDal.countEnabledByUserProfileId(profileId);
     return count > 0;
   }
@@ -625,7 +617,7 @@ export class MfaService {
     await this.requireMfaEnabled();
 
     const profileId = await this.resolveProfileId(userUuid);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
+    const factorsDal = new UserMfaFactorsDal();
     const factors = await factorsDal.findEnabledByUserProfileId(profileId);
     if (factors.length === 0) {
       throw new ApiError(
@@ -701,7 +693,7 @@ export class MfaService {
     }
 
     const profileId = await this.resolveProfileId(payload.sub);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
+    const factorsDal = new UserMfaFactorsDal();
     const factors = await factorsDal.findEnabledByUserProfileId(profileId);
 
     const ttl = await this.getMfaChallengeTtl();
@@ -773,7 +765,7 @@ export class MfaService {
     }
 
     // Verify the factor exists and is enabled
-    const factorsDal = new UserMfaFactorsDal(this.pool);
+    const factorsDal = new UserMfaFactorsDal();
     const factor = await factorsDal.findByUuid(factorId);
     if (!factor || !factor.is_enabled) {
       throw new NotFoundError("MFA factor not found", {
@@ -833,7 +825,6 @@ export class MfaService {
     // Insert MFA verify auth event (best-effort, non-blocking).
     // The user is authenticated at the first factor → we have their UUID.
     await insertAuthEvent({
-      pool: this.pool,
       event_type: "mfa_verify",
       success: true,
       user_profile_uuid: payload.sub,
@@ -874,7 +865,7 @@ export class MfaService {
     await this.requireMfaEnabled();
 
     const profileId = await this.resolveProfileId(userUuid);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
+    const factorsDal = new UserMfaFactorsDal();
     const factors = await factorsDal.findEnabledByUserProfileId(profileId);
     if (factors.length === 0) {
       throw new ApiError(
@@ -953,7 +944,7 @@ export class MfaService {
     }
 
     // Load the factor and verify the TOTP code locally
-    const factorsDal = new UserMfaFactorsDal(this.pool);
+    const factorsDal = new UserMfaFactorsDal();
     const factor = await factorsDal.findByUuid(factorId);
     if (!factor || !factor.is_enabled) {
       throw new UnauthorizedError("MFA factor not found", {
@@ -1013,7 +1004,7 @@ export class MfaService {
       .sign(new Uint8Array(Buffer.from(secret, "hex")));
 
     // Store the action authorization in the DB (for single-use enforcement + audit)
-    const actionDal = new MfaActionAuthorizationsDal(this.pool);
+    const actionDal = new MfaActionAuthorizationsDal();
     const tokenHash = createHash("sha256").update(actionToken).digest("hex");
     const expiresAt = new Date(Date.now() + actionTtl * 1000);
 
@@ -1068,7 +1059,7 @@ export class MfaService {
     }
 
     // Check the DB for single-use enforcement
-    const actionDal = new MfaActionAuthorizationsDal(this.pool);
+    const actionDal = new MfaActionAuthorizationsDal();
     const record = await actionDal.findByJti(payload.jti!);
     if (!record) {
       throw new UnauthorizedError("Action authorization token not found", {
@@ -1112,5 +1103,6 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
   const parts = token.split(".");
   const encodedPayload = parts[1];
   const rawPayload = Buffer.from(encodedPayload, "base64").toString("utf-8");
+  // standards-exempt: ext-json — JWT payload is RFC7519 plain JSON
   return JSON.parse(rawPayload);
 }

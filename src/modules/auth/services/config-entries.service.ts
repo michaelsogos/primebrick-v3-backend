@@ -12,7 +12,7 @@
  * `ApiError` subclasses so `errorHandler` converts them to RFC 7807.
  */
 
-import type { PoolClient } from "pg";
+import type { Repository } from "@primebrick/dal-pg";
 import {
   validateConfigValue,
   coerceConfigValue,
@@ -21,9 +21,8 @@ import {
   type ConfigType,
   type CacheEntry,
 } from "@primebrick/sdk";
-import { Repository } from "@primebrick/dal-pg";
+import { initDal } from "../../../db/dal-gateway.js";
 
-import { getPool } from "../../../db/pool.js";
 import { findAuditPage } from "../../../db/audit-query-helper.js";
 import { ApiError, ValidationError } from "../../../http/api-errors.js";
 import {
@@ -57,7 +56,7 @@ export class ConfigEntriesService {
 
   private getDal(): ConfigEntriesDal {
     if (this.dal) return this.dal;
-    this.dal = new ConfigEntriesDal(getPool());
+    this.dal = new ConfigEntriesDal();
     return this.dal;
   }
 
@@ -124,8 +123,7 @@ export class ConfigEntriesService {
 
   async getAudit(uuid: string, page: number, limit: number) {
     await this.getByUuid(uuid); // verifies the config entry exists
-    const repo = new Repository(getPool());
-    return findAuditPage(repo, {
+    return findAuditPage(initDal(), {
       tableName: "config_entries_audit",
       entityUuid: uuid,
       page,
@@ -164,7 +162,7 @@ export class ConfigEntriesService {
   async create(
     params: Parameters<ConfigEntriesDal["add"]>[0],
     userUuid: string,
-    tx?: PoolClient,
+    tx?: Repository,
   ): Promise<ConfigEntryEntity> {
     return this.getDal().add(params, userUuid, tx);
   }
@@ -203,7 +201,7 @@ export class ConfigEntriesService {
     uuid: string,
     patch: { value?: string; type?: string; type_config?: string | null; version?: number | bigint },
     userUuid: string,
-    tx?: PoolClient,
+    tx?: Repository,
   ): Promise<void> {
     try {
       await this.getDal().update(uuid, patch, userUuid, tx);

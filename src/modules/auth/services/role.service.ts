@@ -25,8 +25,7 @@
  * can convert them to RFC 7807 JSON.
  */
 
-import type { PoolClient } from "pg";
-import { getPool } from "../../../db/pool.js";
+import type { Repository } from "@primebrick/dal-pg";
 import { makeEntityService } from "../../../http/entity-service.js";
 import { deriveSearchableKeys } from "../../../lib/search-keys.js";
 import { roleMappingsMeta } from "../role-mappings.meta.js";
@@ -77,7 +76,7 @@ export class RoleService {
   });
 
   private getRepo(): RoleMappingRepo {
-    if (!this.repo) this.repo = new RoleMappingRepo(getPool());
+    if (!this.repo) this.repo = new RoleMappingRepo();
     return this.repo;
   }
 
@@ -87,13 +86,13 @@ export class RoleService {
   }
 
   private getCasdoor(): CasdoorService {
-    if (!this.casdoor) this.casdoor = new CasdoorService(getPool());
+    if (!this.casdoor) this.casdoor = new CasdoorService();
     return this.casdoor;
   }
 
   // --- Create ---------------------------------------------------------------
 
-  async createRole(input: CreateRoleInput, actor: string, tx?: PoolClient): Promise<RoleMappingDetailed> {
+  async createRole(input: CreateRoleInput, actor: string, tx?: Repository): Promise<RoleMappingDetailed> {
     const { idp_role, idp_org, label_key, is_admin, permissions } = input;
 
     // 1. Casdoor must be configured.
@@ -191,7 +190,7 @@ export class RoleService {
    * fetches by uuid once). `existing.idp_role`/`idp_org` feed the Casdoor
    * identity; the local write matches by `uuid`.
    */
-  async updateRole(existing: RoleMappingDto, input: UpdateRoleInput, actor: string, tx?: PoolClient): Promise<RoleMappingDetailed> {
+  async updateRole(existing: RoleMappingDto, input: UpdateRoleInput, actor: string, tx?: Repository): Promise<RoleMappingDetailed> {
     const { label_key, is_admin, permissions } = input;
     const idpRole = existing.idp_role;
 
@@ -359,7 +358,7 @@ export class RoleService {
     return role;
   }
 
-  async updateRoleByUuid(uuid: string, input: UpdateRoleInput, actor: string, tx?: PoolClient): Promise<RoleMappingDetailed> {
+  async updateRoleByUuid(uuid: string, input: UpdateRoleInput, actor: string, tx?: Repository): Promise<RoleMappingDetailed> {
     const existing = await this.getRoleByUuid(uuid);
     return this.updateRole(existing, input, actor, tx);
   }

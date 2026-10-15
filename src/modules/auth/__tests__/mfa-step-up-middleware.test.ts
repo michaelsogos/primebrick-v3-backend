@@ -1,17 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ─── Hoisted mocks ──────────────────────────────────────────────────────────
-const { mockPool, mockMfaService, mockCasdoor } = vi.hoisted(() => ({
-  mockPool: {},
+const { mockMfaService, mockCasdoor } = vi.hoisted(() => ({
   mockMfaService: {
     consumeActionAuthorization: vi.fn(),
   },
   mockCasdoor: {},
 }));
 
-vi.mock("../../db/pool.js", () => ({
-  getPool: vi.fn(() => mockPool),
-}));
 
 vi.mock("../services/casdoor.service.js", () => ({
   CasdoorService: vi.fn().mockImplementation(function () { return mockCasdoor; }),

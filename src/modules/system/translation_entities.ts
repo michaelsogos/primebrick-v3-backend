@@ -28,7 +28,7 @@ export class EmailsenderTranslationEntity extends TranslationEntityBase {}
 /**
  * User-created translations (schema: custom).
  * Global, shared, cross-system/cross-org — keys MUST start with `custom.`
- * (enforced in TranslationsDal). Never seed data, never module-owned.
+ * (enforced in TranslationsService). Never seed data, never module-owned.
  */
 @Entity("translations", "custom")
 export class CustomTranslationEntity extends TranslationEntityBase {}

@@ -18,11 +18,12 @@
 
 import { logger } from "@primebrick/sdk";
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { getAuthConfig } from "@primebrick/sdk";
+import { getAuthConfig, extJsonStringify, extJsonParse } from "@primebrick/sdk";
 import { OAuthClientService } from "../../../modules/mcp/oauth/oauth-client.service.js";
 
 /** Send a JSON response bypassing extJsonMiddleware (which forces bigint serialization). */
 function sendJson(res: Response, status: number, data: unknown): void {
+  // standards-exempt: ext-json — RFC6749 OAuth response is plain JSON by spec
   res.status(status).set("Content-Type", "application/json").send(JSON.stringify(data));
 }
 
@@ -161,7 +162,7 @@ export function authorizeRouter(): Router {
 
       // Encode the client's state and redirect_uri in the Casdoor state parameter
       // so the callback can forward them to the client.
-      const statePayload = JSON.stringify({
+      const statePayload = extJsonStringify({
         client_state: params.state ?? "",
         client_redirect_uri: params.redirect_uri,
         mcp_client_id: params.client_id,
@@ -198,7 +199,9 @@ export function authorizeRouter(): Router {
         let clientRedirectUri = "";
         if (stateEncoded) {
           try {
-            const state = JSON.parse(Buffer.from(stateEncoded, "base64url").toString("utf-8"));
+            const state = extJsonParse<{ client_redirect_uri?: string }>(
+              Buffer.from(stateEncoded, "base64url").toString("utf-8"),
+            );
             clientRedirectUri = state.client_redirect_uri ?? "";
           } catch {
             // ignore
@@ -221,7 +224,9 @@ export function authorizeRouter(): Router {
       // Decode the state to get the client's redirect_uri and state
       let state: { client_state?: string; client_redirect_uri?: string; mcp_client_id?: string };
       try {
-        state = JSON.parse(Buffer.from(stateEncoded, "base64url").toString("utf-8"));
+        state = extJsonParse<typeof state>(
+          Buffer.from(stateEncoded, "base64url").toString("utf-8"),
+        );
       } catch {
         return sendJson(res, 400, {
           error: "invalid_request",

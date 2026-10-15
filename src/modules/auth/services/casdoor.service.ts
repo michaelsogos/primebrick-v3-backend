@@ -23,7 +23,6 @@
  */
 
 import { logger } from "@primebrick/sdk";
-import type { Pool } from "pg";
 import { CasdoorApiClient } from "../casdoor-api-client.js";
 import { getAuthConfig } from "../config.js";
 
@@ -31,7 +30,6 @@ export class CasdoorService {
   private client: CasdoorApiClient | null = null;
   private initialized = false;
 
-  constructor(private pool: Pool) {}
 
   /**
    * Returns the lazily-initialized `CasdoorApiClient`, or `null` when Casdoor
@@ -53,7 +51,7 @@ export class CasdoorService {
       // and idp_organization; the admin credentials are read from DB on
       // first init.
       const { ConfigEntriesDal } = await import("../config_entries_dal.js");
-      const dal = new ConfigEntriesDal(this.pool);
+      const dal = new ConfigEntriesDal();
       const [clientIdRow, clientSecretRow] = await Promise.all([
         dal.findByKey("idp_client_id"),
         dal.findByKey("idp_client_secret"),

@@ -6,11 +6,14 @@
 
 ## Golden Rule
 
-**The ONLY allowed environment variable is the database connection string**
-(`DATABASE_URL` / equivalent bootstrap). Everything else — URLs, ports,
-secrets, keys, feature flags — is a **module config** read from the config
-table (`config_entries` on the BE, `<schema>.config` via `ConfigLoader` in
-microservices).
+**The ONLY allowed environment variables are the database bootstrap pair**
+`DATABASE_URL` (connection string) + `DATABASE_SCHEMA` (declared schema
+domain — CSV or JSON array; `[0]` is the service's owned schema, sent to the
+BE as the registry schema claim). Everything else — URLs, ports, secrets,
+keys, feature flags — is a **module config** read from the config table
+(`config_entries` on the BE, `<schema>.config` via `ConfigLoader` in
+microservices). `assertDbEnv()` validates the pair at boot — unknown,
+missing, empty or malformed keys crash startup.
 
 ## Why
 
@@ -26,8 +29,9 @@ microservices).
   (secrets included — a secret is config, not env).
 - ❌ NEVER use env vars for URLs, ports, credentials, client keys, feature
   flags, or anything the service could read from its config table.
-- ✅ `DATABASE_URL` (or the DB connection bootstrap) is the sole exception —
-  it must exist before the config table is readable.
+- ✅ `DATABASE_URL` + `DATABASE_SCHEMA` are the sole exceptions — they must
+  exist before the config table is readable, and `DATABASE_SCHEMA` declares
+  which PG schemas the service may touch (entity guard + registry claim).
 - ✅ When adding a config value: create a config entry (key, type, i18n
   label) in the module's config seed, document it, and read it via
   `ConfigLoader`/`ConfigEntriesDal`.

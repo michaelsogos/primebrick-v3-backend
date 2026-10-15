@@ -12,12 +12,11 @@
 
 import { listNonSentinelPermissions } from "@primebrick/sdk";
 
-import { getPool } from "../../db/pool.js";
 import { NotFoundError } from "../../http/api-errors.js";
 import { OrganizationsService } from "../auth/services/organizations.service.js";
 import { RoleMappingRepo } from "../auth/role-mapping-repo.js";
 import { loadAuthConfigFromDb } from "../auth/config-repo.js";
-import { ServiceRegistryRepo } from "../proxy/service-registry-repo.js";
+import { ServiceRegistryService } from "./service-registry.service.js";
 import {
   parsePasswordPolicy,
   getPasswordPolicyConfig,
@@ -49,7 +48,7 @@ export class SystemService {
    * Available IdP roles for form dropdowns, sorted by role code.
    */
   async listActiveRoles() {
-    const repo = new RoleMappingRepo(getPool());
+    const repo = new RoleMappingRepo();
     const roleMap = await repo.loadAllMappings();
     const roles = Array.from(roleMap.entries())
       .map(([idp_role, mapping]) => ({
@@ -91,7 +90,7 @@ export class SystemService {
    * Active password policy resolved for FE form rendering.
    */
   async getPasswordPolicy() {
-    const cfg = await loadAuthConfigFromDb(getPool());
+    const cfg = await loadAuthConfigFromDb();
     const policy = parsePasswordPolicy(cfg.password_policy!);
     const config = getPasswordPolicyConfig(policy);
     return {
@@ -106,8 +105,7 @@ export class SystemService {
    * All registered microservices with health status.
    */
   async listServices() {
-    const repo = new ServiceRegistryRepo(getPool());
-    const services = await repo.findAll();
+    const services = await new ServiceRegistryService().findAll();
     return { services };
   }
 
@@ -115,8 +113,7 @@ export class SystemService {
    * Single service by code. Throws NotFoundError when missing.
    */
   async getService(code: string) {
-    const repo = new ServiceRegistryRepo(getPool());
-    const service = await repo.findByCode(code);
+    const service = await new ServiceRegistryService().findByCode(code);
     if (!service) {
       throw new NotFoundError(`Service '${code}' not found`, {
         internal_code: "SERVICE_NOT_FOUND",
@@ -129,15 +126,15 @@ export class SystemService {
    * Toggle `is_enabled` for a service. Throws NotFoundError when missing.
    */
   async toggleService(code: string) {
-    const repo = new ServiceRegistryRepo(getPool());
-    const existing = await repo.findByCode(code);
+    const registry = new ServiceRegistryService();
+    const existing = await registry.findByCode(code);
     if (!existing) {
       throw new NotFoundError(`Service '${code}' not found`, {
         internal_code: "SERVICE_NOT_FOUND",
       });
     }
     const newEnabled = !existing.is_enabled;
-    await repo.toggleEnabled(code, newEnabled);
+    await registry.toggleEnabled(code, newEnabled);
     return { code, is_enabled: newEnabled };
   }
 
@@ -145,15 +142,31 @@ export class SystemService {
    * Hard delete a service from the registry. Throws NotFoundError when missing.
    */
   async deleteService(code: string) {
-    const repo = new ServiceRegistryRepo(getPool());
-    const existing = await repo.findByCode(code);
+    const registry = new ServiceRegistryService();
+    const existing = await registry.findByCode(code);
     if (!existing) {
       throw new NotFoundError(`Service '${code}' not found`, {
         internal_code: "SERVICE_NOT_FOUND",
       });
     }
-    await repo.hardDeleteByCode(code);
+    await registry.hardDeleteByCode(code);
     return { code, deleted: true };
+  }
+
+  /**
+   * Hard delete a single registry instance by uuid. Deleting the row also
+   * releases its schema claim (claims live on the row itself).
+   */
+  async deleteServiceInstance(uuid: string) {
+    const registry = new ServiceRegistryService();
+    const existing = await registry.findByUuid(uuid);
+    if (!existing) {
+      throw new NotFoundError(`Service instance '${uuid}' not found`, {
+        internal_code: "SERVICE_NOT_FOUND",
+      });
+    }
+    await registry.hardDeleteByUuid(uuid);
+    return { uuid, code: existing.code, deleted: true };
   }
 
   /**
@@ -171,9 +184,9 @@ export class SystemService {
       github_repo_url?: string;
     },
   ) {
-    const repo = new ServiceRegistryRepo(getPool());
-    await repo.updateByCodeAdmin(code, fields);
-    const service = await repo.findByCode(code);
+    const registry = new ServiceRegistryService();
+    await registry.updateByCodeAdmin(code, fields);
+    const service = await registry.findByCode(code);
     return { service };
   }
 }

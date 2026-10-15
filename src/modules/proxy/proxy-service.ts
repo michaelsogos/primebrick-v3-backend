@@ -25,15 +25,14 @@
  *     RFC 7807 502 Bad Gateway.
  */
 
-import { extJsonStringify, logger } from "@primebrick/sdk";
+import { extJsonStringify, extJsonParse, logger } from "@primebrick/sdk";
 import type { Request, Response } from "express";
-import { getPool } from "../../db/pool.js";
 import {
   getAuthConfig,
   serializeAuthUserToHeaders,
 } from "@primebrick/sdk";
 import { backendIdentityHeaders } from "./backend-identity.js";
-import { ServiceRegistryRepo, type ServiceRegistryEntry } from "./service-registry-repo.js";
+import { ServiceRegistryService, type ServiceRegistryEntry } from "../system/service-registry.service.js";
 
 // Round-robin counters (in-memory, per process, per service code)
 const rrCounters = new Map<string, number>();
@@ -114,9 +113,7 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const pool = getPool();
-  const repo = new ServiceRegistryRepo(pool);
-  const allInstances = await repo.findAllByCode(serviceCode);
+  const allInstances = await new ServiceRegistryService().findAllByCode(serviceCode);
 
   if (allInstances.length === 0) {
     res.status(404).json({
@@ -131,6 +128,18 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
   }
 
   const onlineInstances = allInstances.filter((i) => i.status === "online");
+
+  // Migration-failed exemption: a degraded service 503s domain traffic
+  // itself, but its db-migration admin surface must stay reachable through
+  // the gateway for remediation. Only the migration prefix is forwarded —
+  // everything else stays walled off.
+  if (onlineInstances.length === 0) {
+    const path = req.url.replace(/^\/ws\/[^/]+/, "");
+    if (path.startsWith("/api/v1/system/db-migration")) {
+      const degraded = allInstances.find((i) => i.status === "migration_failed");
+      if (degraded) onlineInstances.push(degraded);
+    }
+  }
 
   if (onlineInstances.length === 0) {
     const hasGoingLive = allInstances.some((i) => i.status === "going_live");
@@ -196,7 +205,7 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
     if (!response.ok) {
       let parsedBody: unknown = body;
       try {
-        parsedBody = JSON.parse(body);
+        parsedBody = extJsonParse(body);
       } catch {
         // Body is not JSON — log as-is
       }
@@ -253,10 +262,9 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
 async function resolveServiceInstance(
   serviceCode: string,
   res: Response,
+  requestPath?: string,
 ): Promise<ServiceRegistryEntry | null> {
-  const pool = getPool();
-  const repo = new ServiceRegistryRepo(pool);
-  const allInstances = await repo.findAllByCode(serviceCode);
+  const allInstances = await new ServiceRegistryService().findAllByCode(serviceCode);
 
   if (allInstances.length === 0) {
     res.status(404).json({
@@ -271,6 +279,15 @@ async function resolveServiceInstance(
   }
 
   const onlineInstances = allInstances.filter((i) => i.status === "online");
+
+  // Same migration-failed exemption as proxyRequest — remediation surface only.
+  if (onlineInstances.length === 0) {
+    const path = (requestPath ?? "").replace(/^\/ws\/[^/]+/, "");
+    if (path.startsWith("/api/v1/system/db-migration")) {
+      const degraded = allInstances.find((i) => i.status === "migration_failed");
+      if (degraded) onlineInstances.push(degraded);
+    }
+  }
 
   if (onlineInstances.length === 0) {
     const hasGoingLive = allInstances.some((i) => i.status === "going_live");
@@ -374,7 +391,7 @@ export async function proxyRequestSse(req: Request, res: Response): Promise<void
       const body = await response.text();
       let parsedBody: unknown = body;
       try {
-        parsedBody = JSON.parse(body);
+        parsedBody = extJsonParse(body);
       } catch {
         // Body is not JSON — log as-is
       }

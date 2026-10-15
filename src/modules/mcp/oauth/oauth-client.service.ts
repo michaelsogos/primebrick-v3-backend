@@ -1,23 +1,90 @@
 /**
  * OAuthClientService — client-registry access for the OAuth 2.1 endpoints.
  *
- * Thin delegation to `OAuthClientRegistryDal`; exists so the MCP controllers
- * never hold a direct reference to the DAL layer (controller-boundary rule).
+ * Domain service for the `mcp_oauth_clients` table (McpOauthClientEntity) —
+ * RFC 7591 Dynamic Client Registration storage. The ONLY place these rows
+ * are read/written; data access is `initDal()` proxies (entity ops,
+ * schema-domain guarded) — the MCP controllers never touch a DAL.
  */
 
-import { getPool } from "../../../db/pool.js";
-import { OAuthClientRegistryDal, type OAuthClient } from "./client-registry-dal.js";
+import { field, Filter, Project } from "@primebrick/dal-pg";
+
+import { initDal } from "../../../db/dal-gateway.js";
+import { McpOauthClientEntity } from "./mcp_oauth_client_entity.js";
+
+/** RFC 7591 client registration record. */
+export interface OAuthClient {
+  client_id: string;
+  client_secret: string | null;
+  client_name: string | null;
+  redirect_uris: string[];
+  grant_types: string[];
+  response_types: string[];
+  token_endpoint_auth_method: string;
+  scope: string;
+  client_id_issued_at: Date;
+  client_secret_expires_at: Date | null;
+}
+
+const CLIENT_FIELDS = (
+  ["client_id", "client_secret", "client_name", "redirect_uris", "grant_types",
+    "response_types", "token_endpoint_auth_method", "scope",
+    "client_id_issued_at", "client_secret_expires_at"] as const
+).map((k) => Project.field(field(McpOauthClientEntity, k)));
+
+function rowToClient(row: Partial<McpOauthClientEntity>): OAuthClient {
+  return {
+    client_id: row.client_id!,
+    client_secret: row.client_secret ?? null,
+    client_name: row.client_name ?? null,
+    redirect_uris: row.redirect_uris ?? [],
+    grant_types: row.grant_types ?? ["authorization_code", "refresh_token"],
+    response_types: row.response_types ?? ["code"],
+    token_endpoint_auth_method: row.token_endpoint_auth_method ?? "client_secret_post",
+    scope: row.scope ?? "mcp:tools",
+    client_id_issued_at: row.client_id_issued_at!,
+    client_secret_expires_at: row.client_secret_expires_at ?? null,
+  };
+}
 
 export class OAuthClientService {
+  /** Find a client by client_id. Returns null if not found. */
   async findByClientId(clientId: string): Promise<OAuthClient | null> {
-    return new OAuthClientRegistryDal(getPool()).findByClientId(clientId);
+    const row = await initDal().find<McpOauthClientEntity>(
+      McpOauthClientEntity,
+      CLIENT_FIELDS,
+      {
+        filters: [Filter.fieldValue(field(McpOauthClientEntity, "client_id"), "=", clientId)],
+        throwIfNotFound: false,
+      },
+    );
+    return row ? rowToClient(row) : null;
   }
 
+  /** Create a new client registration. */
   async register(client: OAuthClient): Promise<OAuthClient> {
-    return new OAuthClientRegistryDal(getPool()).create(client);
+    await initDal().add(McpOauthClientEntity, {
+      client_id: client.client_id,
+      client_secret: client.client_secret,
+      client_name: client.client_name,
+      redirect_uris: client.redirect_uris,
+      grant_types: client.grant_types,
+      response_types: client.response_types,
+      token_endpoint_auth_method: client.token_endpoint_auth_method,
+      scope: client.scope,
+      client_id_issued_at: client.client_id_issued_at,
+      client_secret_expires_at: client.client_secret_expires_at,
+    }, {});
+    return client;
   }
 
+  /** Delete a client by client_id. Returns true if deleted, false if not found. */
   async deleteByClientId(clientId: string): Promise<boolean> {
-    return new OAuthClientRegistryDal(getPool()).deleteByClientId(clientId);
+    const res = await initDal().hardDeleteMany(
+      McpOauthClientEntity,
+      [{ client_id: clientId }],
+      { matchBy: "client_id" },
+    );
+    return res.affected > 0;
   }
 }

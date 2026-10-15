@@ -16,13 +16,11 @@
 
 import { logger } from "@primebrick/sdk";
 import { randomUUID } from "node:crypto";
-import type { Pool } from "pg";
 import { field, Filter } from "@primebrick/dal-pg";
-import { getPool } from "../../db/pool.js";
+import { initDal } from "../../db/dal-gateway.js";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { UserProfileEntity } from "./user_profile_entity.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
-import { createRepository } from "../../db/repository-factory.js";
 
 const USER_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
 
@@ -50,7 +48,6 @@ export interface ResolveInput {
  */
 export async function resolveInternalUuid(
   input: ResolveInput,
-  pool: Pool = getPool()
 ): Promise<string> {
   // 1. Check Redis cache
   const port = getCachePort();
@@ -63,7 +60,7 @@ export async function resolveInternalUuid(
     }
   }
 
-  const repo = createRepository(pool);
+  const repo = initDal();
   const auditPort = new BeAuditPortAdapter(repo);
 
   // 2. Try a fast SELECT first — most requests hit existing users.

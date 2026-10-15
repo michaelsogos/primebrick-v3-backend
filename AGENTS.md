@@ -436,6 +436,6 @@ When testing RBAC changes, ensure the role mapping cache is reloaded by restarti
 ## Logging & Telemetry
 
 - Use `logger` from `@primebrick/sdk` — never `console.*` in new code.
-- Telemetry/logging settings are `config_entries` rows (`telemetry_enabled`, `otel_*`, `log_*`) — the single point of configuration. No env vars besides `DATABASE_URL`.
+- Telemetry/logging settings are `config_entries` rows (`telemetry_enabled`, `otel_*`, `log_*`) — the single point of configuration. No env vars besides `DATABASE_URL` + `DATABASE_SCHEMA` (the declared schema domain — `public,system,custom` for the BE; closed-set validated by `assertDbEnv()`).
 - `src/observability/logging-init.ts` installs the console bridge (first import in `src/index.ts`); `src/observability/telemetry.ts` loads config, inits/restarts OTel, and broadcasts `config.changed` on config writes (wired in `ConfigEntriesDal.reloadCache`).
 - See [.devin/rules/logging-telemetry.md](./.devin/rules/logging-telemetry.md).

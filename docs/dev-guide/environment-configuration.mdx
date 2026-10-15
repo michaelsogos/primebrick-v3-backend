@@ -30,8 +30,11 @@ infrastructure from `infra/docker-compose.postgres.yml`.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | **(none — required)** |
+| `DATABASE_SCHEMA` | Declared schema domain — CSV or JSON array (`public,system,custom`). `[0]` is the owned schema | **(none — required)** |
 
-The backend will throw on startup if `DATABASE_URL` is not set.
+The backend crashes on startup if either is missing or empty — the closed
+env contract (`assertDbEnv()`) also rejects unknown `DB_*`/`DATABASE_*`
+keys, so a misspelled bootstrap var fails loudly instead of silently.
 
 ## Server variables
 

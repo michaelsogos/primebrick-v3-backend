@@ -23,11 +23,11 @@
 import { logger } from "@primebrick/sdk";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { randomUUID } from "node:crypto";
-import { OAuthClientService } from "../../../modules/mcp/oauth/oauth-client.service.js";
-import type { OAuthClient } from "../../../modules/mcp/oauth/client-registry-dal.js";
+import { OAuthClientService, type OAuthClient } from "../../../modules/mcp/oauth/oauth-client.service.js";
 
 /** Send a JSON response bypassing extJsonMiddleware (which forces bigint serialization). */
 function sendJson(res: Response, status: number, data: unknown): void {
+  // standards-exempt: ext-json — RFC7591 DCR response is plain JSON by spec
   res.status(status).set("Content-Type", "application/json").send(JSON.stringify(data));
 }
 

@@ -26,7 +26,6 @@ import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
-import { getPool } from "../../../db/pool.js";
 import { makeUserService } from "./wiring.js";
 import { makeCreateUserSchema, UserUpdateBodySchema, makeChangePasswordSchema, type CreateUserBody, type ChangePasswordBody } from "../../../modules/auth/dto.js";
 import { ValidationError } from "../../../http/api-errors.js";
@@ -88,7 +87,6 @@ export function usersRouter() {
     const body = req.body as z.infer<typeof UserUpdateBodySchemaWrapped>;
     assertTranslationsPermission(req, body.translations);
     const updated = await runEntityWrite(
-      getPool(),
       body.translations,
       (tx) => service.updateUserProfile(uuid, body.entity, tx),
     );

@@ -1,4 +1,4 @@
-import type { IAuditableEntity } from "@primebrick/dal-pg";
+import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
 import { Entity, Key, Column, Unique, AuditableField, AuditableFieldType, SynchronizableField, SynchronizableFieldType, AuditTrail } from "@primebrick/dal-pg";
 
 /**
@@ -38,7 +38,7 @@ export class RoleMappingEntity implements IAuditableEntity {
   id!: bigint;
 
   @Unique()
-  uuid!: string; // Internal Primebrick UUID (used for all operations, audit fields, API endpoints)
+  uuid!: UUID; // Internal Primebrick UUID (used for all operations, audit fields, API endpoints)
 
   @Unique()
   @Column({ length: 255, nullable: false })
@@ -53,11 +53,11 @@ export class RoleMappingEntity implements IAuditableEntity {
   @Column({ pgType: "jsonb", nullable: false })
   permissions!: string[];
 
-  @Column({ pgType: "boolean", nullable: false })
+  @Column({ nullable: false })
   is_admin!: boolean;
 
   @SynchronizableField(SynchronizableFieldType.LAST_SYNCED_AT)
-  @Column({ pgType: "timestamp with time zone", nullable: true })
+  @Column({ nullable: true })
   last_synced_at?: Date;
 
   @AuditableField(AuditableFieldType.CREATED_AT)

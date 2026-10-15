@@ -1,8 +1,6 @@
-import type { Pool, PoolClient } from "pg";
-
 import {
   entityDateToApiIso,
-  Repository,
+  type Repository,
   field, Filter, Sort, Join,
   buildAuditableJoins,
   buildAuditTrailJoins,
@@ -13,11 +11,10 @@ import {
 } from "@primebrick/dal-pg";
 
 import { UserProfileEntity } from "./user_profile_entity.js";
-import type { AuditService } from "../../lib/audit/audit-service.js";
 import { requireActor } from "@primebrick/sdk";
 import { BeAuditPortAdapter } from "../../db/audit-port-adapter.js";
 import { findAuditPage } from "../../db/audit-query-helper.js";
-import { createRepository } from "../../db/repository-factory.js";
+import { initDal } from "../../db/dal-gateway.js";
 import { deriveSearchableKeys } from "../../lib/search-keys.js";
 import { userProfileMeta } from "./user-profiles.meta.js";
 
@@ -78,12 +75,21 @@ export type UserListResponse = {
   total: bigint;
 };
 
+/**
+ * Queryable seam — the governed gateway `Dal` (non-tx) or a tx-scoped
+ * `Repository` handed in by `dal.transaction` callers.
+ */
+type ProfileRepo = Pick<
+  Repository,
+  "find" | "findByPage" | "add" | "update" | "delete" | "restore"
+>;
+
 export class UserProfilesDal {
-  private repo: Repository;
+  private repo: ProfileRepo;
   private auditPort: BeAuditPortAdapter;
 
-  constructor(pool: Pool, _auditService?: AuditService) {
-    this.repo = createRepository(pool);
+  constructor() {
+    this.repo = initDal();
     this.auditPort = new BeAuditPortAdapter(this.repo);
   }
 
@@ -107,6 +113,74 @@ export class UserProfilesDal {
       }
     );
     return row ? this.toDto(row) : null;
+  }
+
+  /**
+   * Light internal-PK lookup — sibling services (MFA, sessions, invitations,
+   * webauthn) need the bigint `id` for child-table FK writes; the DTO never
+   * exposes it. Returns null when the profile does not exist.
+   */
+  async getIdByUuid(uuid: string): Promise<bigint | null> {
+    const row = await this.repo.find<any, { id: bigint }>(
+      UserProfileEntity,
+      [Project.field(field(UserProfileEntity, "id"))],
+      {
+        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
+        throwIfNotFound: false,
+      },
+    );
+    return row?.id ?? null;
+  }
+
+  /** Reverse lookup for invitations — internal bigint id → profile uuid. */
+  async getUuidById(id: bigint): Promise<string | null> {
+    const row = await this.repo.find<any, { uuid: string }>(
+      UserProfileEntity,
+      [Project.field(field(UserProfileEntity, "uuid" as any))],
+      {
+        filters: [Filter.fieldValue(field(UserProfileEntity, "id"), "=", id)] as any,
+        deletedRecords: "INCLUDED",
+        throwIfNotFound: false,
+      },
+    );
+    return row?.uuid ?? null;
+  }
+
+  /** Casdoor identity triplet — MFA owner/name resolution. */
+  async getIdpIdentityByUuid(
+    uuid: string,
+  ): Promise<{ idp_org?: string; idp_username?: string; idp_code?: string } | null> {
+    return (await this.repo.find<any, { idp_org?: string; idp_username?: string; idp_code?: string }>(
+      UserProfileEntity,
+      [
+        Project.field(field(UserProfileEntity, "idp_org" as any)),
+        Project.field(field(UserProfileEntity, "idp_username" as any)),
+        Project.field(field(UserProfileEntity, "idp_code" as any)),
+      ],
+      {
+        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
+        deletedRecords: "INCLUDED",
+        throwIfNotFound: false,
+      },
+    )) ?? null;
+  }
+
+  /** Session bootstrap pair — internal id + auth-method-enforcer flag. */
+  async getSessionStateByUuid(
+    uuid: string,
+  ): Promise<{ id: bigint; auth_method_enforcer_dismissed: boolean } | null> {
+    return (await this.repo.find<any, { id: bigint; auth_method_enforcer_dismissed: boolean }>(
+      UserProfileEntity,
+      [
+        Project.field(field(UserProfileEntity, "id")),
+        Project.field(field(UserProfileEntity, "auth_method_enforcer_dismissed" as any)),
+      ],
+      {
+        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
+        deletedRecords: "INCLUDED",
+        throwIfNotFound: false,
+      },
+    )) ?? null;
   }
 
   async createProfile(data: {
@@ -153,15 +227,15 @@ export class UserProfilesDal {
   async updateProfile(
     uuid: string,
     body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string; auth_method_enforcer_dismissed?: boolean; onboarding_completed?: boolean; version?: number },
-    tx?: PoolClient
+    tx?: Repository
   ): Promise<UserProfileDetailDto> {
-    const repo = tx ? new Repository(tx) : this.repo;
+    const repo = tx ?? this.repo;
     // API path: `body.version` is the caller-observed version. If absent the
     // Repository.update() version guard throws ERR02 — we NEVER manufacture a
     // version by re-reading the row (that would elide the concurrency check).
     const row = await repo.update<UserProfileEntity, UserProfileDetailRow>(
       UserProfileEntity, { ...body, uuid },
-      { actor: requireActor(), audit: this.auditPort }
+      { actor: requireActor(), audit: new BeAuditPortAdapter(repo) }
     );
     return this.toDto(row);
   }
@@ -174,13 +248,13 @@ export class UserProfilesDal {
   async updateProfileInternal(
     uuid: string,
     body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string; auth_method_enforcer_dismissed?: boolean; onboarding_completed?: boolean },
-    tx?: PoolClient
+    tx?: Repository
   ): Promise<UserProfileDetailDto> {
-    const repo = tx ? new Repository(tx) : this.repo;
+    const repo = tx ?? this.repo;
     const version = (await this.freshRowByUuid(uuid, repo))!.version;
     const row = await repo.update<UserProfileEntity, UserProfileDetailRow>(
       UserProfileEntity, { ...body, uuid, version },
-      { actor: requireActor(), audit: this.auditPort }
+      { actor: requireActor(), audit: new BeAuditPortAdapter(repo) }
     );
     return this.toDto(row);
   }
@@ -210,7 +284,7 @@ export class UserProfilesDal {
   // DB-first read — `findByUUID`/`findById` may serve a stale cached row
   // (@Cached entities) whose `version` would trip the optimistic-concurrency
   // guard (ERR01) on the write that follows.
-  private async freshRowByUuid(uuid: string, repo?: Repository): Promise<UserProfileEntity> {
+  private async freshRowByUuid(uuid: string, repo?: ProfileRepo): Promise<UserProfileEntity> {
     return (await (repo ?? this.repo).find<UserProfileEntity, UserProfileEntity>(UserProfileEntity, null, {
       filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
       deletedRecords: "INCLUDED",

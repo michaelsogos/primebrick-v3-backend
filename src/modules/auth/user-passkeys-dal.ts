@@ -5,19 +5,15 @@
  * (no raw SQL strings). The actor for audit fields comes from `requireActor()`.
  */
 
-import type { Pool } from "pg";
-import { Repository, field, Filter } from "@primebrick/dal-pg";
+import { initDal } from "../../db/dal-gateway.js";
+import { type Repository, field, Filter } from "@primebrick/dal-pg";
 import { requireActor } from "@primebrick/sdk";
 import { UserPasskeyEntity } from "./user_passkey_entity.js";
+import { UserProfilesDal } from "./user-profiles-dal.js";
 
 export class UserPasskeysDal {
-  private repo: Repository;
-  private pool: Pool;
-
-  constructor(pool: Pool) {
-    this.repo = new Repository(pool);
-    this.pool = pool;
-  }
+  private repo = initDal();
+  
 
   /**
    * Insert a new passkey row after successful WebAuthn enrollment.
@@ -106,18 +102,14 @@ export class UserPasskeysDal {
   }
 
   /**
-   * Find passkeys by user profile UUID.
-   * Uses a raw SQL query to join user_passkeys with user_profiles on
-   * user_profile_id = user_profiles.id WHERE user_profiles.uuid = $1.
+   * Find passkeys by user profile UUID — resolves uuid → internal id via
+   * UserProfilesDal (UserProfileEntity is @Cached, so the lookup is usually
+   * a cache hit), then filters `user_profile_id` on the entity.
    */
   async findByUserProfileUuid(userProfileUuid: string): Promise<UserPasskeyEntity[]> {
-    const result = await this.pool.query(
-      `SELECT up.* FROM user_passkeys up
-       INNER JOIN user_profiles upl ON up.user_profile_id = upl.id
-       WHERE upl.uuid = $1 AND upl.deleted_at IS NULL`,
-      [userProfileUuid],
-    );
-    return result.rows as UserPasskeyEntity[];
+    const profileId = await new UserProfilesDal().getIdByUuid(userProfileUuid);
+    if (!profileId) return [];
+    return this.findByUserProfileId(profileId);
   }
 
   /**
@@ -205,6 +197,31 @@ export class UserPasskeysDal {
         version: existing.version,
       },
       { actor, matchBy: "credential_id" as any },
+    );
+  }
+
+  /**
+   * Backfill passkey metadata that was missing at enrollment (aaguid,
+   * authenticator_attachment, os, device_model) — callers pass only the
+   * fields that need filling; `version` rides on the already-read entity.
+   */
+  async backfillMetadata(
+    existing: UserPasskeyEntity,
+    patch: {
+      aaguid?: string;
+      authenticator_attachment?: string;
+      os?: string;
+      device_model?: string;
+    },
+  ): Promise<void> {
+    await this.repo.update(
+      UserPasskeyEntity,
+      {
+        id: existing.id,
+        version: existing.version,
+        ...patch,
+      },
+      { actor: requireActor() },
     );
   }
 }

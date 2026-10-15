@@ -17,7 +17,6 @@
 
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { ForbiddenError, UnauthorizedError } from "../../http/api-errors.js";
-import { getPool } from "../../db/pool.js";
 import {
   verifyAuth,
   getAuthConfig,
@@ -39,9 +38,8 @@ let roleMappingPort: BeRoleMappingPort | null = null;
  * Initialize auth ports. Called once at application startup.
  */
 export function initAuthPorts(): void {
-  const pool = getPool();
-  userResolverPort = new BeUserResolverPort(pool);
-  roleMappingPort = new BeRoleMappingPort(pool);
+  userResolverPort = new BeUserResolverPort();
+  roleMappingPort = new BeRoleMappingPort();
 }
 
 /**

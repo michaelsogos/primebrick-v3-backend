@@ -14,9 +14,7 @@
  * in the config object, not in copied code.
  */
 
-import type { PoolClient } from "pg";
-
-import { Filter, field } from "@primebrick/dal-pg";
+import { Filter, field, type Repository } from "@primebrick/dal-pg";
 
 import { makeEntityService, type EntityService } from "../../http/entity-service.js";
 import { CustomerEntity } from "./customer_entity.js";
@@ -65,11 +63,11 @@ export class CustomersService {
 
   // --- Create / update / delete / restore ----------------------------------
 
-  async createCustomer(body: CustomerCreateBody, tx?: PoolClient) {
+  async createCustomer(body: CustomerCreateBody, tx?: Repository) {
     return this.svc.create(body as unknown as Record<string, unknown>, tx);
   }
 
-  async updateCustomer(uuid: string, body: CustomerUpdateBody, tx?: PoolClient) {
+  async updateCustomer(uuid: string, body: CustomerUpdateBody, tx?: Repository) {
     return this.svc.update(uuid, body as unknown as Record<string, unknown> & { version: number }, tx);
   }
 

@@ -94,6 +94,15 @@ export interface CasdoorMfaInitiateResult {
   recovery_codes: string[];
 }
 
+/**
+ * Casdoor REST wire format — plain JSON, not Primebrick ext-json.
+ * Single serialization point so the external-format choice is explicit.
+ */
+function wireBody(payload: unknown): string {
+  // standards-exempt: ext-json — external Casdoor REST API wire format (plain JSON)
+  return JSON.stringify(payload);
+}
+
 export class CasdoorApiClient {
   private endpoint: string;
   private orgName: string;
@@ -208,7 +217,7 @@ export class CasdoorApiClient {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(requestBody),
+      body: wireBody(requestBody),
     });
 
     if (!response.ok) {
@@ -261,7 +270,7 @@ export class CasdoorApiClient {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(user),
+      body: wireBody(user),
     });
 
     if (!response.ok) {
@@ -310,7 +319,7 @@ export class CasdoorApiClient {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
+      body: wireBody({
         id: userId,
         owner: finalOwner,
         name: finalName,
@@ -377,7 +386,7 @@ export class CasdoorApiClient {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(requestBody),
+      body: wireBody(requestBody),
     });
 
     if (!response.ok) {
@@ -402,7 +411,7 @@ export class CasdoorApiClient {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(org),
+      body: wireBody(org),
     });
 
     if (!response.ok) {
@@ -432,7 +441,7 @@ export class CasdoorApiClient {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
+      body: wireBody({
         name: name,
       }),
     });
@@ -468,7 +477,7 @@ export class CasdoorApiClient {
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: queryId, password }),
+      body: wireBody({ id: queryId, password }),
     });
 
     if (!response.ok) {
@@ -520,7 +529,7 @@ export class CasdoorApiClient {
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(application),
+      body: wireBody(application),
     });
 
     if (!response.ok) {
@@ -545,7 +554,7 @@ export class CasdoorApiClient {
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(application),
+      body: wireBody(application),
     });
 
     if (!response.ok) {
@@ -640,7 +649,7 @@ export class CasdoorApiClient {
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
+      body: wireBody(requestBody),
     });
 
     if (!response.ok) {
@@ -675,7 +684,7 @@ export class CasdoorApiClient {
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
+      body: wireBody(requestBody),
     });
 
     if (!response.ok) {
@@ -727,7 +736,7 @@ export class CasdoorApiClient {
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ owner, name }),
+      body: wireBody({ owner, name }),
     });
 
     if (!response.ok) {

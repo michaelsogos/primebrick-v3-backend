@@ -31,7 +31,7 @@ schema.
 GET /api/v1/translations/{module}/{lang}  →  flat I18nDict (ETag/304 cached)
 ```
 
-`TranslationsService` (BE) → `TranslationsDal` → SDK `TranslationsService`
+`TranslationsService` (BE service) → SDK `TranslationsCache`
 — Postgres builds the dict natively with `jsonb_object_agg`, Redis caches
 it per `{schema, lang}` (6h TTL + invalidation-on-write). The FE merges
 module dicts on top of the base `app.*` dict — flat merge, no nesting.

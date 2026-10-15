@@ -15,7 +15,6 @@
  */
 
 import { logger } from "@primebrick/sdk";
-import type { Pool } from "pg";
 import { createHash, randomBytes, randomInt, createHmac } from "crypto";
 import { runAsSystem, requireActor } from "@primebrick/sdk";
 
@@ -63,17 +62,15 @@ const OTP_DIGITS = 6;
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export class InvitationService {
-  private pool: Pool;
   private invitationsDal: UserInvitationsDal;
   private profilesDal: UserProfilesDal;
   private configDal: ConfigEntriesDal;
   private casdoor: CasdoorService;
 
-  constructor(pool: Pool, casdoor: CasdoorService) {
-    this.pool = pool;
-    this.invitationsDal = new UserInvitationsDal(pool);
-    this.profilesDal = new UserProfilesDal(pool);
-    this.configDal = new ConfigEntriesDal(pool);
+  constructor(casdoor: CasdoorService) {
+    this.invitationsDal = new UserInvitationsDal();
+    this.profilesDal = new UserProfilesDal();
+    this.configDal = new ConfigEntriesDal();
     this.casdoor = casdoor;
   }
 
@@ -258,16 +255,10 @@ export class InvitationService {
       return { valid: false, display_name: "", expires_at: "" };
     }
 
-    // Get user profile for display_name
+    // Get user profile for display_name — the invitation stores the
+    // internal bigint id, not the profile UUID.
     const profile = await this.profilesDal.getByUuid(
-      // We need the user_profile_id to look up — but getByUuid takes a UUID string.
-      // The invitation has user_profile_id (bigint), not the profile UUID.
-      // We need a helper to get profile by id.
-      // For now, we'll query the profile by its internal id.
-      // The profilesDal doesn't have a getById method, so we'll use a raw query.
-      // Actually, let's add a method or use the pool directly.
-      // Let's use the pool for a simple query.
-      (await this.getProfileUuidById(invitation.user_profile_id)),
+      await this.getProfileUuidById(invitation.user_profile_id),
     );
 
     return {
@@ -281,14 +272,11 @@ export class InvitationService {
    * Helper: get a user profile's UUID by its internal bigint ID.
    */
   private async getProfileUuidById(profileId: bigint): Promise<string> {
-    const result = await this.pool.query(
-      `SELECT uuid FROM user_profiles WHERE id = $1`,
-      [profileId],
-    );
-    if (result.rows.length === 0) {
+    const uuid = await this.profilesDal.getUuidById(profileId);
+    if (!uuid) {
       throw new NotFoundError("User profile not found for invitation");
     }
-    return result.rows[0].uuid;
+    return uuid;
   }
 
   /**
@@ -565,15 +553,9 @@ export class InvitationService {
     const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
 
     // Update the existing invitation with the new token hash + expiry
-    // (we don't create a new row — we refresh the existing one)
-    // Admin endpoint — auth middleware has set the session, requireActor() returns admin UUID
-    const actor = requireActor();
-
-    // Direct query to update token_hash + expires_at (the DAL doesn't have this method)
-    await this.pool.query(
-      `UPDATE user_invitations SET token_hash = $1, expires_at = $2, status = 'PENDING', otp_hash = NULL, otp_expires_at = NULL, otp_attempts = 0, otp_verified_at = NULL, updated_at = now(), updated_by = $3 WHERE uuid = $4`,
-      [tokenHash, expiresAt, actor, invitationUuid],
-    );
+    // (we don't create a new row — we refresh the existing one).
+    // Admin endpoint — requireActor() resolves the admin UUID for audit stamps.
+    await this.invitationsDal.resetForResend(invitationUuid, tokenHash, expiresAt);
 
     // Send new invitation email
     const frontendUrl = await this.getFrontendUrl();

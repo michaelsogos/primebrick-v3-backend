@@ -22,7 +22,6 @@
  *   writes them as httpOnly cookies. This keeps `res` out of the service.
  */
 
-import type { Pool } from "pg";
 
 import { getAuthConfig } from "../config.js";
 import { UserProfilesDal } from "../user-profiles-dal.js";
@@ -85,7 +84,6 @@ export interface MeProfileResponse {
 
 export class AuthSessionService {
   constructor(
-    private pool: Pool,
     private dal: UserProfilesDal,
     private casdoor: CasdoorService,
   ) {}
@@ -116,7 +114,6 @@ export class AuthSessionService {
       // No JWT → no resolvable user UUID → user_profile_uuid is null,
       // attempted_username captures the username that was tried.
       await insertAuthEvent({
-        pool: this.pool,
         event_type: "login_failed",
         success: false,
         attempted_username: input.username,
@@ -167,10 +164,10 @@ export class AuthSessionService {
           display_name: (claims.displayName as string) ?? (claims.name as string) ?? null,
           idp_org: (claims.owner as string) || undefined,
           idp_username: (claims.name as string) || undefined,
-        }, this.pool);
+        });
 
         const { MfaService } = await import("./mfa.service.js");
-        const mfaService = new MfaService(this.pool, this.casdoor);
+        const mfaService = new MfaService(this.casdoor);
         const hasMfa = await mfaService.hasMfa(userUuid);
         if (hasMfa) {
           const idpOrg = (claims.owner as string) || cfg.idp_organization || "";
@@ -209,7 +206,7 @@ export class AuthSessionService {
           display_name: (claims.displayName as string) ?? (claims.name as string) ?? null,
           idp_org: (claims.owner as string) || undefined,
           idp_username: (claims.name as string) || undefined,
-        }, this.pool);
+        });
       } catch {
         // resolveInternalUuid may throw if the user doesn't exist yet —
         // the auth middleware will JIT-provision on the next authed request.
@@ -219,7 +216,6 @@ export class AuthSessionService {
 
     // Insert SUCCESS login auth event (best-effort, non-blocking).
     await insertAuthEvent({
-      pool: this.pool,
       event_type: "login",
       success: true,
       user_profile_uuid: userUuid,
@@ -319,16 +315,13 @@ export class AuthSessionService {
     }
 
     // Include passkey info for the FE auth method enforcer dialog logic
-    const idResult = await this.pool.query(
-      `SELECT id, auth_method_enforcer_dismissed FROM user_profiles WHERE uuid = $1`,
-      [userUuid],
-    );
-    const profileId = idResult.rows[0]?.id;
-    const authMethodEnforcerDismissed = idResult.rows[0]?.auth_method_enforcer_dismissed ?? false;
+    const sessionState = await this.dal.getSessionStateByUuid(userUuid);
+    const profileId = sessionState?.id;
+    const authMethodEnforcerDismissed = sessionState?.auth_method_enforcer_dismissed ?? false;
 
     let hasPasskey = false;
     if (profileId) {
-      const passkeysDal = new UserPasskeysDal(this.pool);
+      const passkeysDal = new UserPasskeysDal();
       const count = await passkeysDal.countByUserProfileId(BigInt(profileId));
       hasPasskey = count > 0;
     }
@@ -336,7 +329,7 @@ export class AuthSessionService {
     // Include MFA info for the FE auth method enforcer dialog logic
     let hasMfa = false;
     if (profileId && getAuthConfig().enable_mfa) {
-      const mfaDal = new UserMfaFactorsDal(this.pool);
+      const mfaDal = new UserMfaFactorsDal();
       const mfaCount = await mfaDal.countEnabledByUserProfileId(BigInt(profileId));
       hasMfa = mfaCount > 0;
     }
@@ -467,6 +460,7 @@ export class AuthSessionService {
     const parts = token.split(".");
     const encodedPayload = parts[1];
     const rawPayload = Buffer.from(encodedPayload, "base64").toString("utf-8");
+    // standards-exempt: ext-json — JWT payload is RFC7519 plain JSON
     return JSON.parse(rawPayload);
   }
 
@@ -488,6 +482,7 @@ export class AuthSessionService {
     let errorDetail = "Authentication failed";
     let errorCode = "AUTH_FAILED";
     try {
+      // standards-exempt: ext-json — external IdP (Casdoor) error body
       const errorJson = JSON.parse(errorText);
       errorDetail = errorJson.error_description || errorJson.error || errorDetail;
       errorCode = errorJson.error || errorCode;

@@ -18,8 +18,15 @@ import { getPresenceStore } from "../modules/collaboration/presence-store-holder
  * not published. The audit log row itself is always written (that's the
  * primary responsibility of this adapter).
  */
+/**
+ * Structural writer seam — satisfied by `Repository` and by `Dal` (which
+ * proxies `add` through the governed internal repo). Lets the adapter be
+ * constructed from the gateway without extracting a repository handle.
+ */
+type AuditWriter = Pick<Repository, "add">;
+
 export class BeAuditPortAdapter implements AuditPort {
-  constructor(private repo: Repository) {}
+  constructor(private repo: AuditWriter) {}
 
   async writeAudit(params: AuditParams): Promise<void> {
     // AuditParams contains: entityClassName, tableName (e.g. "customers"),

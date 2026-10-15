@@ -15,7 +15,7 @@
  */
 
 import { logger } from "@primebrick/sdk";
-import type { PoolClient } from "pg";
+import type { Repository } from "@primebrick/dal-pg";
 
 import { makeEntityService, type EntityService } from "../../../http/entity-service.js";
 import { OrganizationEntity } from "../organization_entity.js";
@@ -25,7 +25,6 @@ import type { OrganizationDetailDto, OrganizationDetailRow } from "../dto.js";
 import type { OrganizationListQueryInput } from "../dto.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { getAuthConfig } from "../config.js";
-import { getPool } from "../../../db/pool.js";
 import { deriveSearchableKeys } from "../../../lib/search-keys.js";
 import {
   ApiError,
@@ -77,7 +76,7 @@ export class OrganizationsService {
 
   private getCasdoor(): CasdoorService {
     if (this.casdoor) return this.casdoor;
-    this.casdoor = new CasdoorService(getPool());
+    this.casdoor = new CasdoorService();
     return this.casdoor;
   }
 
@@ -123,7 +122,7 @@ export class OrganizationsService {
 
   // --- Create ---------------------------------------------------------------
 
-  async createOrganization(input: CreateOrganizationInput, tx?: PoolClient): Promise<OrganizationDetailDto> {
+  async createOrganization(input: CreateOrganizationInput, tx?: Repository): Promise<OrganizationDetailDto> {
     const { idp_owner, idp_name, display_name, website_url } = input;
     const idpCode = `${idp_owner}/${idp_name}`;
 
@@ -207,7 +206,7 @@ export class OrganizationsService {
 
   // --- Update ---------------------------------------------------------------
 
-  async updateOrganization(uuid: string, input: UpdateOrganizationInput, tx?: PoolClient) {
+  async updateOrganization(uuid: string, input: UpdateOrganizationInput, tx?: Repository) {
     const { display_name, website_url } = input;
     const org = await this.getOrganization(uuid);
 

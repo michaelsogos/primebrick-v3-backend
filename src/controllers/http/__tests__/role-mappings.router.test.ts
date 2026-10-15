@@ -42,7 +42,6 @@ vi.mock("../../../modules/auth/mfa-step-up.middleware.js", () => ({
   requireMfaStepUp: mocks.mfaStepUp,
 }));
 
-vi.mock("../../../db/pool.js", () => ({ getPool: vi.fn(() => ({})) }));
 
 vi.mock("../../../http/meta-assembler.js", () => ({ assembleMeta: () => ({ meta: true }) }));
 // entity-actions is REAL: meta.actions must reflect the registered routes.
@@ -53,7 +52,6 @@ vi.mock("../../../http/entity-write.js", async (importOriginal) => {
   return {
     ...orig,
     runEntityWrite: async (
-      _pool: unknown,
       _t: unknown,
       fn: (tx: unknown) => Promise<unknown>,
       afterWrite?: () => void | Promise<void>,

@@ -39,7 +39,6 @@ vi.mock("../../../modules/auth/rbac.middleware.js", () => ({
   },
 }));
 
-vi.mock("../../../db/pool.js", () => ({ getPool: vi.fn(() => ({})) }));
 
 import { collaborationRouter } from "../collaboration.router.js";
 import { mountRouter, type TestApp } from "./harness.js";

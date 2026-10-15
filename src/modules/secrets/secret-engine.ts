@@ -24,7 +24,6 @@ import {
   CLIENT_SHIELD_SECRET_REF,
   type RotatingSecretRef,
 } from "@primebrick/sdk";
-import { getPool } from "../../db/pool.js";
 import { createPublisherVerifier } from "../../controllers/nats-sub/publisher-identity.js";
 
 /** Secrets the engine owns and may serve — explicit, no wildcards. */
@@ -40,7 +39,7 @@ export async function initSecretEngine(): Promise<void> {
     return;
   }
   const engine = new RotatingSecretEngine(redis);
-  const verifier = createPublisherVerifier(getPool());
+  const verifier = createPublisherVerifier();
 
   await makeNatsRequestRoute(
     [

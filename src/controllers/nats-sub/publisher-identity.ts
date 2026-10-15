@@ -12,7 +12,7 @@
  */
 
 import type { Msg } from "nats";
-import type { Pool } from "pg";
+import { ClientRegistryService } from "../../modules/system/client-registry.service.js";
 import {
   CLIENT_SHIELD_KEY_HEADER,
   clientKeyHash,
@@ -48,16 +48,13 @@ export interface PublisherVerifier {
   readonly shieldRegistry: ShieldRegistryLike;
 }
 
-export function createPublisherVerifier(pool: Pool): PublisherVerifier {
+export function createPublisherVerifier(): PublisherVerifier {
   let rows: { ua_prefix: string; client_key_hash: string }[] | null = null;
   let rowsAt = 0;
+  const registrySvc = new ClientRegistryService();
 
   const loadRows = async () => {
-    rows = await pool
-      .query<{ ua_prefix: string; client_key_hash: string }>(
-        `SELECT ua_prefix, client_key_hash FROM system.client_registry WHERE is_enabled AND deleted_at IS NULL`,
-      )
-      .then((r) => r.rows);
+    rows = await registrySvc.findAllEnabled();
     rowsAt = Date.now();
   };
 
@@ -113,6 +110,11 @@ export function createPublisherVerifier(pool: Pool): PublisherVerifier {
     },
     shieldRegistry: {
       get allowedPrefixes() {
+        // TTL applies to the shield path too — a service enrolled after
+        // the last load must not be UNKNOWN_CLIENT until restart. The
+        // stale snapshot is still used for THIS check; verifyNatsPublisher
+        // force-refreshes + retries once on a 403.
+        if (!rows || Date.now() - rowsAt > 60_000) void loadRows();
         return (rows ?? []).map((x) => x.ua_prefix);
       },
       verifyKey: (prefix, key) =>

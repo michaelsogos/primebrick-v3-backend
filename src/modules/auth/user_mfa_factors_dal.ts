@@ -5,19 +5,14 @@
  * (no raw SQL strings). The actor for audit fields comes from `requireActor()`.
  */
 
-import type { Pool } from "pg";
-import { Repository, field, Filter } from "@primebrick/dal-pg";
+import { initDal } from "../../db/dal-gateway.js";
+import { type Repository, field, Filter } from "@primebrick/dal-pg";
 import { requireActor } from "@primebrick/sdk";
 import { UserMfaFactorEntity, MfaFactorType } from "./user_mfa_factor_entity.js";
 
 export class UserMfaFactorsDal {
-  private repo: Repository;
-  private pool: Pool;
-
-  constructor(pool: Pool) {
-    this.repo = new Repository(pool);
-    this.pool = pool;
-  }
+  private repo = initDal();
+  
 
   /**
    * Insert a new MFA factor row after successful enrollment.

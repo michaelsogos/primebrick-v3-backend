@@ -38,6 +38,7 @@ interface TokenRequest {
 
 /** Send a JSON response bypassing extJsonMiddleware (which forces bigint serialization). */
 function sendJson(res: Response, status: number, data: unknown): void {
+  // standards-exempt: ext-json — RFC6749 OAuth response is plain JSON by spec
   res.status(status).set("Content-Type", "application/json").send(JSON.stringify(data));
 }
 

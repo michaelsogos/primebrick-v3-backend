@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "key_id": "dev-micha",
+  "issued_at": "2026-10-15T14:39:57.928Z",
+  "patches": {
+    "00000000000000_init_database": "88eab627d2b16e5e554d91fb8a8b20b2a6a99659c040bef2e7676d0138869ca0",
+    "00000000000001_seed_translations_en_gb": "633e4ca7ee25f2430b29a27b5197014a1af722391bda18819d5ad5e8b7623cb5",
+    "00000000000002_seed_translations_it_it": "e5586457edbb148fa09d54edf1a71a32fe0c39ce02239341365c33eb255619ba",
+    "00000000000003_seed_translations_fr_fr": "1b8e68579a9a0e5f1c464550a9593a32c197e22ba03dc4d00fc9af7c27d554ec",
+    "00000000000004_seed_translations_es_es": "bd1346510baf0adc7d4f4a3fc0b67957ae1b63f3ab15f3a6c36d401dd3a24184",
+    "00000000000005_seed_translations_de_de": "c936e60cad4c8338ccdda3192e438da6070445f2680490b1c601723ee950dae9",
+    "00000000000006_seed_translations_pt_pt": "6a0852e9df9035c571aee0af205cb413ce97afeecdb0555fa3c0dd58288d9d38",
+    "00000000000007_consolidate_config_error_keys": "3f34a25eedac0d08d20f3aac6ef772e18ae7ccf41f545b8fcf5034201c8bd8c4",
+    "00000000000008_create_ai_models": "cdbcd24f454796b1683813fa8a70a6dd4c6a2ed6eb20dab201505af6f2498245",
+    "00000000000009_create_custom_schema": "dc42cabbeea3875f6a7a75e6b5704445c397b7f9d822b49f2b32090f59505ee2",
+    "00000000000010_seed_mfa_challenge_expired": "229b218363e73aa81ce251d780ecfa1a32bb1faeb3ff7cacc344ce10c74ec925",
+    "00000000000011_seed_test_role_label": "9a61a0740b21e408c8c1b5704cbc432a88e9eb6731b3423c36c9e34ff4657d22",
+    "00000000000012_seed_translations_en_us": "f2847e48c4d4e985dfad648bc2a4c482f8fa5245d2d1bd968c2c9073fd5db932",
+    "00000000000013_service_registry_pkg_name": "bd9ff98526e555a179474f49ff9b21d130e39e32b1c4f0301d5488f73198d201",
+    "00000000000014_service_registry_capabilities": "d2e297f850bf7c53a149382f380093fdea84bec199d2f1557a607bdfcf158f14",
+    "20261013134051_drift_public_user_profiles": "c5b0e04e3cfb488701f4a60f790d83eaa57720bcbc4c247187fefd02bbef5d74",
+    "20261013210200_audit_columns_not_null": "e8564b5bf5273c2369466b14ba86b8361e1e6b98c66b4f3acccdd5233eb7e61f",
+    "20261014003000_service_registry_schemas": "3e5d0a0a9b27be229ec4cbc0762269bbe0c1fe265f6c70ad42ac1553f0b1fa6d",
+    "20261014003756_modules_instance_translations": "af6368cd56b9a0569f0a6ae8c6f272e307fcd49af6a5cfdf9e6197e81d935eb0",
+    "20261015004600_migrations_page_translations": "540b1a91e9804b521256104cf49526431f108ad173465e9295282f416fcbf036",
+    "20261015004652_drift_public_config_entries_public_mfa_action_authorizations_public_orga": "13554333af410a70fd2b11bd6930aa9304ff46fc0d1a2661c57523b242b4f434"
+  },
+  "signature": ""
+}

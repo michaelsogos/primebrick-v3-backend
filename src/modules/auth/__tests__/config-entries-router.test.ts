@@ -13,9 +13,6 @@ const mockDal = {
   bulkUpdate: vi.fn(),
 };
 
-vi.mock("../../../db/pool.js", () => ({
-  getPool: vi.fn(() => ({})),
-}));
 
 vi.mock("../config_entries_dal.js", () => ({
   ConfigEntriesDal: vi.fn().mockImplementation(function () { return mockDal; }),

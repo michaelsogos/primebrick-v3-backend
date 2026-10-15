@@ -137,6 +137,7 @@ export async function verifyMfaChallengeTokenSignature(
   let payload: JWTPayload;
   try {
     const result = await compactVerify(token, key);
+    // standards-exempt: ext-json — JWS compact payload is RFC7515 plain JSON
     payload = JSON.parse(new TextDecoder().decode(result.payload)) as JWTPayload;
   } catch {
     throw new ApiError(

@@ -14,6 +14,8 @@ import { UserInvitationEntity } from "../../modules/auth/user_invitation_entity.
 import { UserMfaFactorEntity } from "../../modules/auth/user_mfa_factor_entity.js";
 import { UserPasskeyEntity } from "../../modules/auth/user_passkey_entity.js";
 import { UserProfileEntity } from "../../modules/auth/user_profile_entity.js";
+import { ApiKeyEntity } from "../../modules/auth/api_key_entity.js";
+import { McpOauthClientEntity } from "../../modules/mcp/oauth/mcp_oauth_client_entity.js";
 import { CustomerEntity } from "../../modules/customers/customer_entity.js";
 import { ServiceRegistryEntity } from "../../modules/system/service_registry_entity.js";
 
@@ -27,6 +29,8 @@ export const ENTITY_REGISTRY = [
   UserMfaFactorEntity,
   UserPasskeyEntity,
   UserProfileEntity,
+  ApiKeyEntity,
+  McpOauthClientEntity,
   CustomerEntity,
   ServiceRegistryEntity,
 ] as const;

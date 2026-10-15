@@ -383,14 +383,16 @@ plain parameters and reads the actor from `AsyncLocalStorage` (`requireActor()`
 via the DAL) — it never touches `req`/`res`. Errors are thrown as `ApiError`
 subclasses so the centralized `errorHandler` can convert them to RFC 7807.
 
-> **DAL rule**: the ONLY public DB API is `getDal()` from
-> `@primebrick/dal-pg`. `getPool()` in `src/db/pool.ts` is infra-internal —
-> it exists to construct dal-pg `Repository` instances, and must never be
-> imported by application code. (The example below shows the legacy
-> per-entity DAL wrapper; new services use `makeEntityService` instead.)
+> **DAL rule**: the ONLY public DB API is `initDal()` from
+> `src/db/dal-gateway.ts`, which returns the governed `Dal` from
+> `@primebrick/dal-pg` (schema-domain guard + `withCache` entity caching via
+> `repoDecorator`). `initDal().getPool()` is reserved for migration/patch
+> tooling only — application code must never touch it. (The example below
+> shows the legacy per-entity DAL wrapper; new services use `makeEntityService`
+> instead.)
 
 ```typescript
-import { getPool } from "../../db/pool.js"; // infra-internal — services use makeEntityService
+// infra-internal — services use makeEntityService; module DALs call initDal()
 import { CustomersDal } from "./customers_dal.js";
 import { NotFoundError } from "../../http/api-errors.js";
 
@@ -546,7 +548,9 @@ infra-internal — never import it outside `src/db/`.
 
 1. **Audit trail** — persistent `{table}_audit` rows written by dal-pg's
    `AuditPort` on every write/delete/restore. Same contract in the BE and in
-   every microservice schema.
+   every microservice schema. Audit is opt-in per write call (`{ actor, audit }`) —
+   omitting it silently skips the row; tx-bound writes must use an adapter
+   bound to the tx repo (`new BeAuditPortAdapter(repo)`), not the root repo.
 2. **Entity-changed event** — the event-sourcing signal emitted in parallel
    to the write (`entity.<entity>.<action>` on NATS + a Redis marker), so any
    service or subsystem can intercept lifecycle changes without polling.
