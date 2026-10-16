@@ -1,0 +1,3 @@
+# SQL patches are hashed by the migration engine — pin LF so disk bytes are
+# identical on every platform (manifest + registry hashes stay stable).
+db-meta/**/*.sql text eol=lf
