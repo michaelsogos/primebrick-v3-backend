@@ -5,15 +5,23 @@
 
 ## The rule
 
-There is exactly ONE public API for database access: **`initDal()`** from
-`src/db/dal-gateway.ts` (returns the governed `Dal` from
-`@primebrick/dal-pg`; US microservices use their own `db/dal.ts`).
+Worker services reach data through **`DomainService<TEntity>`**
+(`src/db/domain-service.ts`): `this.dal` (the governed `Dal` proxies —
+`findAll`, `find`, `findByPage`, `add`, `update`, `delete`, `restore`,
+`hardDelete`, `*Many`, `vectorSearch`, `truncate(entity)`, `count`) and
+`this.svc` (the composed generic CRUD service). Domain queries are METHODS
+on the owning service — the per-domain `*_dal.ts`/`*-repo.ts` wrapper layer
+was removed (2026-10-16, service-layer-oop-consolidation plan).
 
-Consumers (services, modules, controllers-via-services) MUST:
-- import `initDal` from `src/db/dal-gateway.ts` (BE) / `getDal` (US);
-- use `Dal` methods — `findAll`, `find`, `findByPage`, `add`, `update`,
-  `delete`, `restore`, `hardDelete`, `*Many`, `vectorSearch`,
-  `truncate(entity)`, `count`;
+`getDal()`/`initDal()` are NOT a consumer API: they are reachable only
+inside the declared allowlist (`.devin/check-standards.json` →
+`rules."dal-access".allowPaths` — gateway, entity-router plumbing,
+bootstrap, approved DB-backed SDK ports, plus a shrink-to-zero legacy
+list). `initDal()` itself is bootstrap-only (`index.ts`), once, before
+migrations; `getDal()` fails fast if called before boot.
+
+Consumers MUST:
+- extend `DomainService` and use `this.dal.*` / `this.svc.*`;
 - use `dal.entityService(cfg)` for the generic CRUD worker and
   `dal.tableAuditPort()` for the standard audit adapter — there is NO
   `dal.repository()`: the Repository never leaves the gateway;
@@ -22,43 +30,58 @@ Consumers (services, modules, controllers-via-services) MUST:
 - connectivity/version probe is `dal.serverVersion()` (a successful call IS
   the health probe — there is no `ping()`);
 - receive `Dal`/`Repository` (tx-scoped inside `transaction`) via parameters
-  or the singleton — never construct their own connection.
+  or the base class — never construct their own connection.
 
 Consumers MUST NOT — NO EXCEPTIONS, EVER:
+- call `getDal()`/`initDal()` outside the `dal-access` allowlist
+  (CI-enforced — see Standards gate below);
+- create new `*_dal.ts`/`*-repo.ts` per-domain wrapper files — domain
+  queries live as methods on the owning `DomainService` subclass;
 - import `pg`, `pg.Pool`, `PoolClient` directly outside `src/db/`;
 - call `getPool()` / `.query(` / `client.query` anywhere in application code
   — raw SQL is banned outright; there is no "legitimate infra SQL"
   (`SELECT 1`/`version()`/`TRUNCATE`/`BEGIN` are all covered by dedicated
-  `Dal`/`Repository` methods). Sole exemption: `run-be-migrations.ts` /
+  `Dal`/`Repository` methods). Sole exemption: `run-module-migrations.ts` /
   `db-migration.service.ts` (patch tooling, governed by the migration plan);
 - call `dal.withClient` — it is `private` to dal-pg internals;
 - create `new Pool()`, `new Client()`, `new Repository(...)`, or raw
   `pool.query` calls;
 - bypass dal-pg's `Repository` for entity reads/writes;
+- import `*(-|_)(dal|repo|repository)` modules inside `controllers/` or
+  `modules/mcp/` (CI rule `layer-repo-import`) — transport/dispatch layers
+  call services, never data wrappers;
 - write `upsert`/`INSERT … ON CONFLICT` — removed by design; the standard is
   read (`uuid`+`version`) then `add`/`update` (optimistic lock enforced).
 
 ## Library authoring (enforced by visibility)
 
-- `src/db/dal-gateway.ts` `initDal()` is the ONLY DB entry point. Its
+- `src/db/dal-gateway.ts` owns the entry points: `initDal()` (bootstrap-only,
+  `index.ts`) and the re-exported `getDal()` singleton accessor. Its
   `repoDecorator` (`withCache` over the lazy `CachePort`) already gives every
   `@Cached` entity Redis caching — never build your own repository to get
   caching. `getPool()` is exposed solely for migration/patch tooling
-  (`run-be-migrations.ts`, `db-migration.service.ts`); application code
+  (`run-module-migrations.ts`, `db-migration.service.ts`); application code
   importing it is a violation. There is no `src/db/pool.ts` anymore.
-- Module DALs (`*_dal.ts`, `*-repo.ts`) are parameterless — they call
-  `initDal()` internally and keep domain-named methods + business rules.
-  They are imported ONLY by services in the same domain.
-- TS visibility: infra internals stay `private`/module-local; consumers get
-  only `getDal`. New helpers that would leak `pg` types must NOT be exported
-  from public barrels.
+- `src/db/domain-service.ts` `DomainService<TEntity>` is THE worker-service
+  base: lazy `this.dal`/`this.svc`, `buildConfig()` injects
+  `EntityAuditPort`/`requireActor`/`UserProfileEntity`. Service singletons
+  are exposed via `getXxxService()` module-level lazy holders.
+- TS visibility: infra internals stay `private`/module-local; new helpers
+  that would leak `pg` types must NOT be exported from public barrels.
 
 ## Standards gate (CI-enforced)
 
 `pnpm check:standards` runs `primebrick-v3-sdk/tools/check-standards.ts`
 (wired into `prebuild` + `test`). It fails the build on any of the bans
 above in `src/**` — plus `JSON.stringify`/`JSON.parse` (use
-`extJsonStringify`/`extJsonParse`; BE↔US/FE wire is ext-json, bigint-safe).
+`extJsonStringify`/`extJsonParse`; BE↔US/FE wire is ext-json, bigint-safe),
+plus the config-gated rules enabled in `.devin/check-standards.json`:
+
+- `dal-access` — `getDal(`/`initDal(` outside the JSON `allowPaths`
+  (the LEGACY entries are tracked debt — shrink to zero, never grow);
+- `layer-repo-import` — `*(-|_)(dal|repo|repository)` imports inside
+  `controllers/` + `modules/mcp/`.
+
 Legitimate low-level sites (migration `getPool` seam, external wire formats
 like OAuth/JWT/RFC7807/Casdoor responses) MUST carry an explicit exemption:
 
@@ -81,7 +104,7 @@ row and fails no check. Module DALs for audited entities (`config_entries`,
 
 - non-tx site: `audit: this.auditPort` (the repo-root adapter);
 - tx-capable site (`const repo = tx ?? this.repo`): `audit: new
-  BeAuditPortAdapter(repo)` — the adapter MUST be bound to the effective
+  EntityAuditPort(repo)` — the adapter MUST be bound to the effective
   writer, never to the root repo. Binding it to `this.repo` while writing on
   `tx` leaks the audit row OUTSIDE the transaction (phantom audit on
   rollback).

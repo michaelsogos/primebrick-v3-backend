@@ -40,7 +40,7 @@ import { ListAuditQuerySchema } from "../../../http/list-query.js";
 import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
 import { Permission, isPermissionSentinel } from "@primebrick/sdk";
 import { requireMfaStepUp } from "../../../modules/auth/mfa-step-up.middleware.js";
-import { RoleService } from "../../../modules/auth/services/role.service.js";
+import { getRoleService } from "../../../modules/auth/services/role.service.js";
 import { RoleMappingListQuerySchema } from "../../../modules/auth/dto.js";
 import { roleMappingsMeta } from "../../../modules/auth/role-mappings.meta.js";
 import { RoleMappingEntity } from "../../../modules/auth/role_mapping_entity.js";
@@ -97,7 +97,7 @@ const UpdateBodySchema = entityWriteBody(z
   }));
 
 export function roleMappingsRouter() {
-  const service = new RoleService();
+  const service = getRoleService();
   const invalidateRolesCache = () => service.invalidateCache();
   const actor = (req: Parameters<RequestHandler>[0]) => req.user?.id ?? "system";
 

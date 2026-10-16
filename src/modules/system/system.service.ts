@@ -14,8 +14,8 @@ import { listNonSentinelPermissions } from "@primebrick/sdk";
 
 import { NotFoundError } from "../../http/api-errors.js";
 import { OrganizationsService } from "../auth/services/organizations.service.js";
-import { RoleMappingRepo } from "../auth/role-mapping-repo.js";
-import { loadAuthConfigFromDb } from "../auth/config-repo.js";
+import { getRoleService } from "../auth/services/role.service.js";
+import { getConfigEntriesService } from "../auth/services/config-entries.service.js";
 import { ServiceRegistryService } from "./service-registry.service.js";
 import {
   parsePasswordPolicy,
@@ -48,8 +48,7 @@ export class SystemService {
    * Available IdP roles for form dropdowns, sorted by role code.
    */
   async listActiveRoles() {
-    const repo = new RoleMappingRepo();
-    const roleMap = await repo.loadAllMappings();
+    const roleMap = await getRoleService().loadAllMappings();
     const roles = Array.from(roleMap.entries())
       .map(([idp_role, mapping]) => ({
         idp_role,
@@ -90,7 +89,7 @@ export class SystemService {
    * Active password policy resolved for FE form rendering.
    */
   async getPasswordPolicy() {
-    const cfg = await loadAuthConfigFromDb();
+    const cfg = await getConfigEntriesService().loadAuthConfigOnly();
     const policy = parsePasswordPolicy(cfg.password_policy!);
     const config = getPasswordPolicyConfig(policy);
     return {

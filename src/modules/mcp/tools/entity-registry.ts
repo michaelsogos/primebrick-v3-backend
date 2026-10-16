@@ -39,7 +39,7 @@ export type HandlerType = "in-process" | "proxy";
  * Static metadata for a BE entity service factory.
  * The factory returns a service instance that reads actor from ALS.
  */
-export interface BeEntityConfig {
+export interface LocalEntityConfig {
   /** Entity name (snake_case singular, e.g. "customer", "organization"). */
   entity: string;
   /** Human-readable label for the entity. */
@@ -98,7 +98,7 @@ class EntityRegistry {
   }
 
   /** Register a BE entity (in-process dispatch). */
-  registerBeEntity(module: string, config: BeEntityConfig): void {
+  registerLocalEntity(module: string, config: LocalEntityConfig): void {
     const pkg = detectPackageIdentity();
     const entry: EntityRegistryEntry = {
       module,
@@ -190,7 +190,7 @@ export const entityRegistry = new EntityRegistry();
  */
 export function registerBeEntities(): void {
   // Customer
-  entityRegistry.registerBeEntity("be", {
+  entityRegistry.registerLocalEntity("be", {
     entity: "customer",
     label: "Customer",
     impl: "CustomerEntity->customers",
@@ -209,7 +209,7 @@ export function registerBeEntities(): void {
   });
 
   // Organization
-  entityRegistry.registerBeEntity("be", {
+  entityRegistry.registerLocalEntity("be", {
     entity: "organization",
     label: "Organization",
     impl: "OrganizationEntity->organizations",
@@ -227,7 +227,7 @@ export function registerBeEntities(): void {
   });
 
   // User profiles
-  entityRegistry.registerBeEntity("be", {
+  entityRegistry.registerLocalEntity("be", {
     entity: "user_profile",
     label: "User Profile",
     impl: "UserProfileEntity->user_profiles",
@@ -243,7 +243,7 @@ export function registerBeEntities(): void {
   });
 
   // Auth events (audit log entity — read-only via MCP, no CRUD)
-  entityRegistry.registerBeEntity("be", {
+  entityRegistry.registerLocalEntity("be", {
     entity: "auth_event",
     label: "Auth Events",
     impl: "AuthEventEntity->auth_events",

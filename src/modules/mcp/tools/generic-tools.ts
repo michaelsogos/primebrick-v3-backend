@@ -33,16 +33,16 @@ import {
   RbacDeniedError,
   EntityNotFoundError,
   OperationNotSupportedError,
-  dispatchBeList,
-  dispatchBeGet,
-  dispatchBeCreate,
-  dispatchBeUpdate,
-  dispatchBeDelete,
-  dispatchBeRestore,
-  dispatchBeAudit,
-  dispatchBeMeta,
-  dispatchBeBulk,
-  dispatchBeAggregate,
+  dispatchLocalList,
+  dispatchLocalGet,
+  dispatchLocalCreate,
+  dispatchLocalUpdate,
+  dispatchLocalDelete,
+  dispatchLocalRestore,
+  dispatchLocalAudit,
+  dispatchLocalMeta,
+  dispatchLocalBulk,
+  dispatchLocalAggregate,
   dispatchProxyList,
   dispatchProxyGet,
   dispatchProxyCreate,
@@ -330,7 +330,7 @@ export function registerGenericTools(server: McpServer): void {
         const entry = entityRegistry.get(module, entity)!;
         let result: unknown;
         if (entry.handler_type === "in-process") {
-          result = await dispatchBeAggregate(entity, { aggregate, ...params });
+          result = await dispatchLocalAggregate(entity, { aggregate, ...params });
         } else {
           result = await dispatchProxyAggregate(authInfo, module, entity, { aggregate, ...params });
         }
@@ -344,7 +344,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeList(entity, params);
+        result = await dispatchLocalList(entity, params);
       } else {
         result = await dispatchProxyList(authInfo, module, entity, params);
       }
@@ -374,7 +374,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeGet(entity, uuid);
+        result = await dispatchLocalGet(entity, uuid);
       } else {
         result = await dispatchProxyGet(authInfo, module, entity, uuid);
       }
@@ -408,7 +408,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeCreate(entity, data);
+        result = await dispatchLocalCreate(entity, data);
       } else {
         result = await dispatchProxyCreate(authInfo, module, entity, data);
       }
@@ -441,7 +441,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeUpdate(entity, uuid, data);
+        result = await dispatchLocalUpdate(entity, uuid, data);
       } else {
         result = await dispatchProxyUpdate(authInfo, module, entity, uuid, data);
       }
@@ -472,7 +472,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeDelete(entity, uuid, version);
+        result = await dispatchLocalDelete(entity, uuid, version);
       } else {
         result = await dispatchProxyDelete(authInfo, module, entity, uuid, version);
       }
@@ -502,7 +502,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeRestore(entity, uuid, version);
+        result = await dispatchLocalRestore(entity, uuid, version);
       } else {
         result = await dispatchProxyRestore(authInfo, module, entity, uuid, version);
       }
@@ -539,7 +539,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeAudit(entity, uuid, page ?? 1, page_size ?? 25);
+        result = await dispatchLocalAudit(entity, uuid, page ?? 1, page_size ?? 25);
       } else {
         result = await dispatchProxyAudit(authInfo, module, entity, uuid, page ?? 1, page_size ?? 25);
       }
@@ -598,7 +598,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeMeta(entity);
+        result = await dispatchLocalMeta(entity);
       } else {
         result = await dispatchProxyMeta(authInfo, module, entity);
       }
@@ -649,7 +649,7 @@ export function registerGenericTools(server: McpServer): void {
 
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeBulk(entity, action, items);
+        result = await dispatchLocalBulk(entity, action, items);
       } else {
         // Microservice bulk: loop through proxy calls
         const results: Array<{ uuid: string; success: boolean; error?: string }> = [];

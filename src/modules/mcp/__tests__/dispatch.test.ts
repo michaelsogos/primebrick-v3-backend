@@ -40,9 +40,7 @@ vi.mock("../../auth/services/organizations.service.js", () => ({
 }));
 vi.mock("../../auth/services/user.service.js", () => ({
   UserService: vi.fn().mockImplementation(function () { return mockUserService; }),
-}));
-vi.mock("../../auth/user-profiles-dal.js", () => ({
-  UserProfilesDal: vi.fn().mockImplementation(function () { return ({}); }),
+  getUserService: vi.fn(() => mockUserService),
 }));
 vi.mock("../../auth/services/casdoor.service.js", () => ({
   CasdoorService: vi.fn().mockImplementation(function () { return ({}); }),
@@ -78,15 +76,15 @@ import {
   RbacDeniedError,
   EntityNotFoundError,
   OperationNotSupportedError,
-  dispatchBeList,
-  dispatchBeGet,
-  dispatchBeCreate,
-  dispatchBeUpdate,
-  dispatchBeDelete,
-  dispatchBeRestore,
-  dispatchBeAudit,
-  dispatchBeMeta,
-  dispatchBeBulk,
+  dispatchLocalList,
+  dispatchLocalGet,
+  dispatchLocalCreate,
+  dispatchLocalUpdate,
+  dispatchLocalDelete,
+  dispatchLocalRestore,
+  dispatchLocalAudit,
+  dispatchLocalMeta,
+  dispatchLocalBulk,
   listServices,
   getService,
   activateService,
@@ -239,92 +237,92 @@ describe("MCP Dispatch — BE in-process dispatch", () => {
     vi.clearAllMocks();
   });
 
-  it("dispatchBeList calls CustomersService.listCustomers for customer", async () => {
+  it("dispatchLocalList calls CustomersService.listCustomers for customer", async () => {
     mockCustomersService.listCustomers.mockResolvedValue({ rows: [], total: 0 });
-    const result = await dispatchBeList("customer", { page: 1, page_size: 10 });
+    const result = await dispatchLocalList("customer", { page: 1, page_size: 10 });
     expect(mockCustomersService.listCustomers).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, page_size: 10 }),
     );
     expect(result).toEqual({ rows: [], total: 0 });
   });
 
-  it("dispatchBeList calls OrganizationsService for organization", async () => {
+  it("dispatchLocalList calls OrganizationsService for organization", async () => {
     mockOrganizationsService.listOrganizations.mockResolvedValue({ rows: [], total: 0 });
-    await dispatchBeList("organization", { page: 2, page_size: 5 });
+    await dispatchLocalList("organization", { page: 2, page_size: 5 });
     expect(mockOrganizationsService.listOrganizations).toHaveBeenCalledWith(
       expect.objectContaining({ page: 2, page_size: 5 }),
     );
   });
 
-  it("dispatchBeList calls UserService for user_profile", async () => {
+  it("dispatchLocalList calls UserService for user_profile", async () => {
     mockUserService.listUsers.mockResolvedValue({ rows: [], total: 0 });
-    await dispatchBeList("user_profile", { page: 1 });
+    await dispatchLocalList("user_profile", { page: 1 });
     expect(mockUserService.listUsers).toHaveBeenCalled();
   });
 
-  it("dispatchBeList throws EntityNotFoundError for unknown entity", async () => {
-    await expect(dispatchBeList("nonexistent", {})).rejects.toThrow(EntityNotFoundError);
+  it("dispatchLocalList throws EntityNotFoundError for unknown entity", async () => {
+    await expect(dispatchLocalList("nonexistent", {})).rejects.toThrow(EntityNotFoundError);
   });
 
-  it("dispatchBeList applies default pagination", async () => {
+  it("dispatchLocalList applies default pagination", async () => {
     mockCustomersService.listCustomers.mockResolvedValue({ rows: [], total: 0 });
-    await dispatchBeList("customer", {});
+    await dispatchLocalList("customer", {});
     expect(mockCustomersService.listCustomers).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, page_size: 25, deleted_records: "EXCLUDED" }),
     );
   });
 
-  it("dispatchBeGet calls getCustomer with uuid", async () => {
+  it("dispatchLocalGet calls getCustomer with uuid", async () => {
     mockCustomersService.getCustomer.mockResolvedValue({ uuid: "abc" });
-    await dispatchBeGet("customer", "abc");
+    await dispatchLocalGet("customer", "abc");
     expect(mockCustomersService.getCustomer).toHaveBeenCalledWith("abc");
   });
 
-  it("dispatchBeCreate calls createCustomer with data", async () => {
+  it("dispatchLocalCreate calls createCustomer with data", async () => {
     mockCustomersService.createCustomer.mockResolvedValue({ uuid: "new" });
-    await dispatchBeCreate("customer", { first_name: "John" });
+    await dispatchLocalCreate("customer", { first_name: "John" });
     expect(mockCustomersService.createCustomer).toHaveBeenCalledWith({ first_name: "John" });
   });
 
-  it("dispatchBeUpdate calls updateCustomer and returns success", async () => {
+  it("dispatchLocalUpdate calls updateCustomer and returns success", async () => {
     mockCustomersService.updateCustomer.mockResolvedValue(undefined);
-    const result = await dispatchBeUpdate("customer", "abc", { first_name: "Jane" });
+    const result = await dispatchLocalUpdate("customer", "abc", { first_name: "Jane" });
     expect(mockCustomersService.updateCustomer).toHaveBeenCalledWith("abc", { first_name: "Jane" });
     expect(result).toEqual({ success: true });
   });
 
-  it("dispatchBeDelete calls deleteCustomer and returns success", async () => {
+  it("dispatchLocalDelete calls deleteCustomer and returns success", async () => {
     mockCustomersService.deleteCustomer.mockResolvedValue(undefined);
-    const result = await dispatchBeDelete("customer", "abc", 3);
+    const result = await dispatchLocalDelete("customer", "abc", 3);
     expect(mockCustomersService.deleteCustomer).toHaveBeenCalledWith("abc", 3);
     expect(result).toEqual({ success: true });
   });
 
-  it("dispatchBeRestore calls restoreCustomer and returns success", async () => {
+  it("dispatchLocalRestore calls restoreCustomer and returns success", async () => {
     mockCustomersService.restoreCustomer.mockResolvedValue(undefined);
-    const result = await dispatchBeRestore("customer", "abc", 3);
+    const result = await dispatchLocalRestore("customer", "abc", 3);
     expect(mockCustomersService.restoreCustomer).toHaveBeenCalledWith("abc", 3);
     expect(result).toEqual({ success: true });
   });
 
-  it("dispatchBeAudit calls getCustomerAudit with uuid, page, limit", async () => {
+  it("dispatchLocalAudit calls getCustomerAudit with uuid, page, limit", async () => {
     mockCustomersService.getCustomerAudit.mockResolvedValue({ rows: [], total: 0 });
-    await dispatchBeAudit("customer", "abc", 2, 50);
+    await dispatchLocalAudit("customer", "abc", 2, 50);
     expect(mockCustomersService.getCustomerAudit).toHaveBeenCalledWith("abc", 2, 50);
   });
 
-  it("dispatchBeMeta returns customerMeta for customer", async () => {
-    const result = await dispatchBeMeta("customer");
+  it("dispatchLocalMeta returns customerMeta for customer", async () => {
+    const result = await dispatchLocalMeta("customer");
     expect(result).toEqual({ entity: "customer", fields: [] });
   });
 
-  it("dispatchBeMeta returns organizationMeta for organization", async () => {
-    const result = await dispatchBeMeta("organization");
+  it("dispatchLocalMeta returns organizationMeta for organization", async () => {
+    const result = await dispatchLocalMeta("organization");
     expect(result).toEqual({ entity: "organization", fields: [] });
   });
 
-  it("dispatchBeMeta throws EntityNotFoundError for unknown entity", async () => {
-    await expect(dispatchBeMeta("nonexistent")).rejects.toThrow(EntityNotFoundError);
+  it("dispatchLocalMeta throws EntityNotFoundError for unknown entity", async () => {
+    await expect(dispatchLocalMeta("nonexistent")).rejects.toThrow(EntityNotFoundError);
   });
 });
 
@@ -335,9 +333,9 @@ describe("MCP Dispatch — BE bulk dispatch", () => {
     vi.clearAllMocks();
   });
 
-  it("dispatchBeBulk delete processes all UUIDs and returns per-UUID results", async () => {
+  it("dispatchLocalBulk delete processes all UUIDs and returns per-UUID results", async () => {
     mockCustomersService.deleteCustomer.mockResolvedValue(undefined);
-    const result = await dispatchBeBulk("customer", "delete", [{ uuid: "uuid-1", version: 1 }, { uuid: "uuid-2", version: 1 }, { uuid: "uuid-3", version: 1 }]);
+    const result = await dispatchLocalBulk("customer", "delete", [{ uuid: "uuid-1", version: 1 }, { uuid: "uuid-2", version: 1 }, { uuid: "uuid-3", version: 1 }]);
     expect(mockCustomersService.deleteCustomer).toHaveBeenCalledTimes(3);
     expect(result).toEqual({
       results: [
@@ -348,19 +346,19 @@ describe("MCP Dispatch — BE bulk dispatch", () => {
     });
   });
 
-  it("dispatchBeBulk restore processes all UUIDs", async () => {
+  it("dispatchLocalBulk restore processes all UUIDs", async () => {
     mockCustomersService.restoreCustomer.mockResolvedValue(undefined);
-    const result = await dispatchBeBulk("customer", "restore", [{ uuid: "uuid-1", version: 2 }]);
+    const result = await dispatchLocalBulk("customer", "restore", [{ uuid: "uuid-1", version: 2 }]);
     expect(mockCustomersService.restoreCustomer).toHaveBeenCalledWith("uuid-1", 2);
     expect(result).toEqual({ results: [{ uuid: "uuid-1", success: true }] });
   });
 
-  it("dispatchBeBulk records errors for failed operations", async () => {
+  it("dispatchLocalBulk records errors for failed operations", async () => {
     mockCustomersService.deleteCustomer
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("Not found"));
 
-    const result = await dispatchBeBulk("customer", "delete", [{ uuid: "ok-uuid", version: 1 }, { uuid: "bad-uuid", version: 1 }]);
+    const result = await dispatchLocalBulk("customer", "delete", [{ uuid: "ok-uuid", version: 1 }, { uuid: "bad-uuid", version: 1 }]);
     const results = result as { results: Array<{ uuid: string; success: boolean; error?: string }> };
     expect(results.results).toHaveLength(2);
     expect(results.results[0]).toEqual({ uuid: "ok-uuid", success: true });

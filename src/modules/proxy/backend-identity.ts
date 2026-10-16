@@ -4,11 +4,11 @@
  *
  * The client key is a module config (`config_entries` key `service_client_shield_key`),
  * NOT an env var — per the env policy, only the DB connection lives in env.
- * Each service holds its own key; `system.client_registry` stores only the
+ * Each service holds its own key; `system.client_shield_registry` stores only the
  * sha256 hash per UA prefix.
  *
  * Loaded once at startup by `initBackendIdentity()` (also self-enrolls the
- * BE into `system.client_registry` as a `source='registry'` row — the BE
+ * BE into `system.client_shield_registry` as a `source='registry'` row — the BE
  * never sends `service.register`); read synchronously on the hot path by
  * the proxy via `backendIdentityHeaders()`.
  */
@@ -17,14 +17,14 @@ import {
   logger,
   NatsClient,
   CLIENT_SHIELD_KEY_HEADER,
-  CLIENT_REGISTRY_SUBJECTS,
+  CLIENT_SHIELD_REGISTRY_SUBJECTS,
   buildUserAgent,
   clientKeyHash,
   detectPackageIdentity,
   configureInternalClient,
 } from "@primebrick/sdk";
-import { ConfigEntriesDal } from "../auth/config_entries_dal.js";
-import { ClientRegistryService } from "../system/client-registry.service.js";
+import { getConfigEntriesService } from "../auth/services/config-entries.service.js";
+import { ClientShieldRegistryService } from "../system/client-shield-registry.service.js";
 
 let currentUa: string | null = null;
 let currentKey: string | null = null;
@@ -47,21 +47,20 @@ export async function initBackendIdentity(): Promise<void> {
   configureInternalClient(backendIdentityHeaders);
   const uaPrefix = `${identity.name}/${identity.version ?? ""}`;
 
-  const dal = new ConfigEntriesDal();
-  const row = await dal.findByKey("service_client_shield_key");
+  const row = await getConfigEntriesService().findByKey("service_client_shield_key");
   currentKey = row?.value ?? null;
 
   if (!currentKey) {
     logger.error(
-      "config_entries 'service_client_shield_key' not set — BE cannot enroll in client_registry; every proxied call will fail the identity gate",
+      "config_entries 'service_client_shield_key' not set — BE cannot enroll in client_shield_registry; every proxied call will fail the identity gate",
       { tags: ["core"] },
     );
     return;
   }
 
-  const registry = new ClientRegistryService();
+  const registry = new ClientShieldRegistryService();
   await registry.enrollRegistryRow(uaPrefix, clientKeyHash(currentKey));
-  await NatsClient.publish(CLIENT_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
+  await NatsClient.publish(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
   logger.done(`The service ${uaPrefix} has been registered and its protection shield key enrolled`, { tags: ["core"] });
 
   // Same allowlist visibility the microservices log — the BE's view of the

@@ -7,7 +7,7 @@
  *   - distributed to microservices via SharedConfig.telemetry (NATS
  *     `config.get` reply) — see index.ts subscribeSharedConfig
  *   - pushed on change: writes to config_entries call
- *     `applyTelemetryConfigFromDb()` (from ConfigEntriesDal.reloadCache),
+ *     `applyTelemetryConfigFromDb()` (from ConfigEntriesService.reloadCache),
  *     which reloads, restarts the pipeline in-process, and broadcasts
  *     `config.changed` so all microservices re-apply without restarts.
  */
@@ -24,7 +24,7 @@ import {
   type TelemetryConfig,
 } from "@primebrick/sdk";
 import { field, Filter, Project } from "@primebrick/dal-pg";
-import { initDal } from "../db/dal-gateway.js";
+import {getDal} from "../db/dal-gateway.js";
 import { ConfigEntryEntity } from "../modules/auth/config_entry_entity.js";
 
 const TELEMETRY_KEYS = [
@@ -55,7 +55,7 @@ function parseJsonObject(raw: string | null): Record<string, string> | undefined
 }
 
 async function readTelemetryFromDb(): Promise<TelemetrySharedConfig> {
-  const rows = (await initDal().findAll(
+  const rows = (await getDal().findAll(
     ConfigEntryEntity,
     [
       Project.field(field(ConfigEntryEntity, "key")),
@@ -128,7 +128,7 @@ export async function initBackendTelemetry(name: string, version: string): Promi
 }
 
 /**
- * Called on every config_entries write (from ConfigEntriesDal.reloadCache).
+ * Called on every config_entries write (from ConfigEntriesService.reloadCache).
  * Reloads the telemetry rows, restarts the OTel pipeline in-process, applies
  * logger options, and broadcasts `config.changed` to all microservices.
  * Best-effort: never throws.

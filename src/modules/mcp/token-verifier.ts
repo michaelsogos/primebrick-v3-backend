@@ -66,7 +66,7 @@ export function authUserToAuthInfo(user: AuthUser, token: string): AuthInfo {
   try {
     const payloadB64 = token.split(".")[1];
     if (payloadB64) {
-      // standards-exempt: ext-json — JWT payload is RFC7519 plain JSON
+      // standards-exempt: ext-json — external wire payload (JWT RFC7519) — must not bigint-ify
       const payload = JSON.parse(
         Buffer.from(payloadB64, "base64url").toString("utf-8"),
       ) as { exp?: number };

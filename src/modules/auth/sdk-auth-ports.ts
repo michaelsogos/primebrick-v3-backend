@@ -5,10 +5,10 @@
  * or RoleMappingPort — they use GATEWAY-RESOLVED mode where the BE already
  * resolved the user and forwards the full AuthUser in headers.
  *
- * - BeAuthConfigPort: loads auth config from `config_entries` table
- * - BeUserResolverPort: resolves IDP sub to internal UUID via `user_profiles` (JIT provisioning)
- * - BeRoleMappingPort: loads role-to-permission mappings from `role_mappings` table
- * - BeApiKeyPort: looks up API keys by hash from `api_keys` table
+ * - DomainAuthConfigPort: loads auth config from `config_entries` table
+ * - DomainUserResolverPort: resolves IDP sub to internal UUID via `user_profiles` (JIT provisioning)
+ * - DomainRoleMappingPort: loads role-to-permission mappings from `role_mappings` table
+ * - DomainApiKeyPort: looks up API keys by hash from `api_keys` table
  */
 
 import { logger } from "@primebrick/sdk";
@@ -23,12 +23,14 @@ import {
   type ResolveInput,
   AuthMode,
 } from "@primebrick/sdk";
-import { loadAuthConfigFromDb } from "./config-repo.js";
-import { resolveInternalUuid } from "./user-profile-repo.js";
-import { RoleMappingRepo } from "./role-mapping-repo.js";
+import { getConfigEntriesService } from "./services/config-entries.service.js";
+// `getUserService` is imported dynamically inside `resolveInternalUuid` —
+// a static edge would close the cycle user.service → config.ts → sdk-auth-ports.
+// `getRoleService` is imported dynamically inside `loadAllMappings` —
+// a static edge would close the cycle role.service → casdoor.service → config.ts.
 import { getCachePort } from "../../cache/cache-port-holder.js";
 import { field, Filter, Project } from "@primebrick/dal-pg";
-import { initDal } from "../../db/dal-gateway.js";
+import {getDal} from "../../db/dal-gateway.js";
 import { ApiKeyEntity } from "./api_key_entity.js";
 
 // ─── Cache keys + TTLs (BE custom logic — not entity-level @Cached) ──────────
@@ -40,9 +42,9 @@ const ROLE_MAPPINGS_TTL_MS = 5 * 60 * 1000; // 5 min
 
 // ─── AuthConfigPort ───────────────────────────────────────────────────────────
 
-export class BeAuthConfigPort implements AuthConfigPort {
+export class DomainAuthConfigPort implements AuthConfigPort {
   async load(): Promise<AuthConfig> {
-    const db = await loadAuthConfigFromDb();
+    const db = await getConfigEntriesService().loadAuthConfigOnly();
     return {
       mode: db.auth_mode as AuthMode,
       roles_path: db.auth_roles_path!,
@@ -81,17 +83,16 @@ export class BeAuthConfigPort implements AuthConfigPort {
 
 // ─── UserResolverPort ─────────────────────────────────────────────────────────
 
-export class BeUserResolverPort implements UserResolverPort {
+export class DomainUserResolverPort implements UserResolverPort {
   async resolveInternalUuid(input: ResolveInput): Promise<string> {
-    return resolveInternalUuid(input);
+    const { getUserService } = await import("./services/user.service.js");
+    return getUserService().resolveInternalUuid(input);
   }
 }
 
 // ─── RoleMappingPort ──────────────────────────────────────────────────────────
 
-export class BeRoleMappingPort implements RoleMappingPort {
-  private repo = new RoleMappingRepo();
-
+export class DomainRoleMappingPort implements RoleMappingPort {
   async loadAllMappings(): Promise<Map<string, RoleMappingEntry>> {
     const port = getCachePort();
     if (port) {
@@ -106,8 +107,9 @@ export class BeRoleMappingPort implements RoleMappingPort {
         logger.warn(`role_mappings get failed: ${e}`, { tags: ["auth"] });
       }
     }
-    // Cache miss or disabled — load from DB
-    const raw = await this.repo.loadAllMappings();
+    // Cache miss or disabled — load from DB via the owning worker service.
+    const { getRoleService } = await import("./services/role.service.js");
+    const raw = await getRoleService().loadAllMappings();
     if (port) {
       try {
         const serialized = [...raw.entries()].map(([role, entry]) => ({ role, entry }));
@@ -130,12 +132,12 @@ export class BeRoleMappingPort implements RoleMappingPort {
 /**
  * DB resolver for `api_keys` — BE owns `public.api_keys`, so this is the
  * only implementation allowed to read the table. Caching is NOT inside this
- * class: callers compose `new CachingApiKeyPort(new BeApiKeyPort(), cache)`
+ * class: callers compose `new CachingApiKeyPort(new DomainApiKeyPort(), cache)`
  * from the SDK (single cached implementation, platform-shared key).
  */
-export class BeApiKeyPort implements ApiKeyPort {
+export class DomainApiKeyPort implements ApiKeyPort {
   async findByHash(hash: string): Promise<ApiKeyRecord | null> {
-    const row = await initDal().find<ApiKeyEntity, {
+    const row = await getDal().find<ApiKeyEntity, {
       uuid: string;
       name: string;
       permissions: string[] | null;

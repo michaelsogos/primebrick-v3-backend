@@ -13,7 +13,7 @@ The module provides:
   - `GATEWAY` mode: trusts user-identity headers injected by an upstream API gateway after verifying a shared `X-Gateway-Secret`
 - **RBAC middleware** (`rbac.middleware.ts`) — checks the authenticated user has the permissions required by the route
 - **IDP-agnostic token normalization** (`token-normalizer.ts`) — extracts roles from any JWT shape using a configurable dotted path (`AUTH_ROLES_PATH`)
-- **Internal user mapping** (`user_profile_entity.ts` + `user-profile-repo.ts`) — maps the IDP `sub` claim to a Primebrick-side UUID stored in `public.user_profiles` so that audit columns (`created_by`, `updated_by`, ...) never leak external IDs
+- **Internal user mapping** (`user_profile_entity.ts` + `UserService.resolveInternalUuid` in `services/user.service.ts`) — maps the IDP `sub` claim to a Primebrick-side UUID stored in `public.user_profiles` so that audit columns (`created_by`, `updated_by`, ...) never leak external IDs
 - **RFC 7807 errors** for 401 (`UnauthorizedError`) and 403 (`ForbiddenError`) with `extra.issues` carrying the missing permissions
 
 ## Required environment variables

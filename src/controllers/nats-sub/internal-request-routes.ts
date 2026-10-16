@@ -3,19 +3,19 @@
  * `makeNatsRequestRoute`, never req/res).
  *
  * Callers are *services*, not users: identity is proven by client-shield
- * headers (UA prefix + key hash vs system.client_registry) via
+ * headers (UA prefix + key hash vs system.client_shield_registry) via
  * `createPublisherVerifier` — the same contract as internal HTTP calls and
  * the lifecycle subjects. Transport only — rows/records are returned
  * verbatim, no business rules.
  */
 
-import { logger, makeNatsRequestRoute, setNatsShieldRegistry, CLIENT_REGISTRY_SUBJECTS, AUTH_MFA_CONSUME_SUBJECT, CachingApiKeyPort, type ClientRegistryRow, type MfaConsumeResult } from "@primebrick/sdk";
+import { logger, makeNatsRequestRoute, setNatsShieldRegistry, CLIENT_SHIELD_REGISTRY_SUBJECTS, AUTH_MFA_CONSUME_SUBJECT, CachingApiKeyPort, type ClientShieldRegistryRow, type MfaConsumeResult } from "@primebrick/sdk";
 import type { Msg } from "nats";
 import { ApiError } from "../../http/api-errors.js";
-import { BeApiKeyPort } from "../../modules/auth/sdk-auth-ports.js";
+import { DomainApiKeyPort } from "../../modules/auth/sdk-auth-ports.js";
 import { CasdoorService } from "../../modules/auth/services/casdoor.service.js";
 import { MfaService } from "../../modules/auth/services/mfa.service.js";
-import { ClientRegistryService } from "../../modules/system/client-registry.service.js";
+import { ClientShieldRegistryService } from "../../modules/system/client-shield-registry.service.js";
 import { ServiceRegistryService, type ServiceRegistryEntry } from "../../modules/system/service-registry.service.js";
 import { createPublisherVerifier } from "./publisher-identity.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
@@ -33,10 +33,10 @@ export async function startInternalRequestRoutes(): Promise<void> {
   // key) wrapping the DB resolver — same cache behavior as before the
   // unification, now through the single SDK implementation.
   const apiKeyPort = new CachingApiKeyPort(
-    new BeApiKeyPort(),
+    new DomainApiKeyPort(),
     () => getCachePort(),
   );
-  const clientSvc = new ClientRegistryService();
+  const clientSvc = new ClientShieldRegistryService();
   const serviceSvc = new ServiceRegistryService();
 
   await makeNatsRequestRoute<unknown, unknown>(
@@ -54,11 +54,11 @@ export async function startInternalRequestRoutes(): Promise<void> {
       },
       {
         // Cold-start client-registry snapshot (live updates via
-        // `client_registry.changed` broadcast).
-        subject: CLIENT_REGISTRY_SUBJECTS.GET,
+        // `client_shield_registry.changed` broadcast).
+        subject: CLIENT_SHIELD_REGISTRY_SUBJECTS.GET,
         permissions: [],
         verify,
-        handler: async (): Promise<ClientRegistryRow[]> => clientSvc.findAllEnabled(),
+        handler: async (): Promise<ClientShieldRegistryRow[]> => clientSvc.findAllEnabled(),
       },
       {
         // Registry row by service code — fallback for services that missed
@@ -124,7 +124,7 @@ export async function startInternalRequestRoutes(): Promise<void> {
     { serviceCode: "primebrick-api" },
   );
   logger.done(
-    `Subscribed to ${AUTH_APIKEY_BY_HASH_SUBJECT}, ${CLIENT_REGISTRY_SUBJECTS.GET}, ${SERVICE_REGISTRY_GET_SUBJECT} (governed correlation-reply)`,
+    `Subscribed to ${AUTH_APIKEY_BY_HASH_SUBJECT}, ${CLIENT_SHIELD_REGISTRY_SUBJECTS.GET}, ${SERVICE_REGISTRY_GET_SUBJECT} (governed correlation-reply)`,
     { tags: ["nats"] },
   );
 }

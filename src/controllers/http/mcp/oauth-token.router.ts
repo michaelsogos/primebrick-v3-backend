@@ -18,7 +18,7 @@
  * For refresh_token grant, the BE forwards the refresh_token to Casdoor.
  */
 
-import { logger } from "@primebrick/sdk";
+import { extJsonStringify, logger } from "@primebrick/sdk";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import express from "express";
 import { getAuthConfig } from "@primebrick/sdk";
@@ -36,10 +36,11 @@ interface TokenRequest {
   scope?: string;
 }
 
-/** Send a JSON response bypassing extJsonMiddleware (which forces bigint serialization). */
+/** Send a JSON response directly (raw write — bypasses the extJson middleware wrapper). */
 function sendJson(res: Response, status: number, data: unknown): void {
-  // standards-exempt: ext-json — RFC6749 OAuth response is plain JSON by spec
-  res.status(status).set("Content-Type", "application/json").send(JSON.stringify(data));
+  // extJsonStringify: byte-identical to JSON.stringify on plain types, and
+  // emits a bigint as a bare JSON number (still RFC6749-valid) instead of throwing.
+  res.status(status).set("Content-Type", "application/json").send(extJsonStringify(data));
 }
 
 /**

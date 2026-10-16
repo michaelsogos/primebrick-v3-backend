@@ -4,14 +4,14 @@
  * The ONLY place service-registry rows are read/written. Every caller —
  * HTTP controllers, NATS subscribers, bootstrap, other services — goes
  * through this class; nobody constructs a Repository for these tables.
- * Data access is `initDal()` proxies (entity ops, schema-domain guarded);
+ * Data access is `getDal()` proxies (entity ops, schema-domain guarded);
  * composite lookups (code+base_url) and versioned updates live here as
  * domain rules, not in per-caller wrappers.
  */
 
 import { Project, field, Filter } from "@primebrick/dal-pg";
 
-import { initDal } from "../../db/dal-gateway.js";
+import {getDal} from "../../db/dal-gateway.js";
 import { ServiceRegistryEntity } from "./service_registry_entity.js";
 
 export interface ServiceRegistryEntry {
@@ -64,7 +64,7 @@ const FULL_PROJECTION = [
 
 export class ServiceRegistryService {
   async findByCode(code: string): Promise<ServiceRegistryEntry | null> {
-    return initDal().find<ServiceRegistryEntity, ServiceRegistryEntry>(
+    return getDal().find<ServiceRegistryEntity, ServiceRegistryEntry>(
       ServiceRegistryEntity,
       FULL_PROJECTION,
       {
@@ -75,7 +75,7 @@ export class ServiceRegistryService {
   }
 
   async findAllByCode(code: string): Promise<ServiceRegistryEntry[]> {
-    const rows = await initDal().findAll<ServiceRegistryEntity, ServiceRegistryEntry>(
+    const rows = await getDal().findAll<ServiceRegistryEntity, ServiceRegistryEntry>(
       ServiceRegistryEntity,
       FULL_PROJECTION,
       {
@@ -86,7 +86,7 @@ export class ServiceRegistryService {
   }
 
   async findByCodeAndBaseUrl(code: string, baseUrl: string): Promise<ServiceRegistryEntry | null> {
-    return initDal().find<ServiceRegistryEntity, ServiceRegistryEntry>(
+    return getDal().find<ServiceRegistryEntity, ServiceRegistryEntry>(
       ServiceRegistryEntity,
       FULL_PROJECTION,
       {
@@ -100,7 +100,7 @@ export class ServiceRegistryService {
   }
 
   async findByUuid(uuid: string): Promise<ServiceRegistryEntry | null> {
-    return initDal().find<ServiceRegistryEntity, ServiceRegistryEntry>(
+    return getDal().find<ServiceRegistryEntity, ServiceRegistryEntry>(
       ServiceRegistryEntity,
       FULL_PROJECTION,
       {
@@ -111,7 +111,7 @@ export class ServiceRegistryService {
   }
 
   async findAll(): Promise<ServiceRegistryEntry[]> {
-    const rows = await initDal().findAll<ServiceRegistryEntity, ServiceRegistryEntry>(
+    const rows = await getDal().findAll<ServiceRegistryEntity, ServiceRegistryEntry>(
       ServiceRegistryEntity,
       FULL_PROJECTION,
     );
@@ -119,13 +119,13 @@ export class ServiceRegistryService {
   }
 
   async insert(row: Partial<ServiceRegistryEntry>): Promise<void> {
-    await initDal().add(ServiceRegistryEntity, row as any, { actor: "system" });
+    await getDal().add(ServiceRegistryEntity, row as any, { actor: "system" });
   }
 
   async updateByCode(code: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
     const existing = await this.findByCode(code);
     if (!existing) return;
-    await initDal().update(
+    await getDal().update(
       ServiceRegistryEntity,
       { code, ...row, version: existing.version } as any,
       { actor: "system", matchBy: "code" },
@@ -139,7 +139,7 @@ export class ServiceRegistryService {
     if (!existing || !existing.uuid) {
       throw new Error(`Service registry row not found for code=${code}, base_url=${baseUrl}`);
     }
-    await initDal().update(
+    await getDal().update(
       ServiceRegistryEntity,
       { uuid: existing.uuid, ...row, version: existing.version } as any,
       { actor: "system" },
@@ -149,7 +149,7 @@ export class ServiceRegistryService {
   async deleteByCodeAndBaseUrl(code: string, baseUrl: string): Promise<void> {
     const existing = await this.findByCodeAndBaseUrl(code, baseUrl);
     if (!existing || !existing.uuid) return;
-    await initDal().hardDelete(
+    await getDal().hardDelete(
       ServiceRegistryEntity,
       { uuid: existing.uuid, version: existing.version } as any,
       { actor: "system" },
@@ -159,7 +159,7 @@ export class ServiceRegistryService {
   async hardDeleteByUuid(uuid: string): Promise<void> {
     const existing = await this.findByUuid(uuid);
     if (!existing || !existing.uuid) return;
-    await initDal().hardDelete(
+    await getDal().hardDelete(
       ServiceRegistryEntity,
       { uuid: existing.uuid, version: existing.version } as any,
       { actor: "system" },
@@ -169,7 +169,7 @@ export class ServiceRegistryService {
   async hardDeleteByCode(code: string): Promise<void> {
     const existing = await this.findByCode(code);
     if (!existing) return;
-    await initDal().hardDelete(
+    await getDal().hardDelete(
       ServiceRegistryEntity,
       { code, version: existing.version } as any,
       { actor: "system", matchBy: "code" },
@@ -179,7 +179,7 @@ export class ServiceRegistryService {
   async toggleEnabled(code: string, isEnabled: boolean): Promise<void> {
     const existing = await this.findByCode(code);
     if (!existing) return;
-    await initDal().update(
+    await getDal().update(
       ServiceRegistryEntity,
       { code, is_enabled: isEnabled, version: existing.version } as any,
       { actor: "system", matchBy: "code" },
@@ -189,7 +189,7 @@ export class ServiceRegistryService {
   async updateByCodeAdmin(code: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
     const existing = await this.findByCode(code);
     if (!existing) return;
-    await initDal().update(
+    await getDal().update(
       ServiceRegistryEntity,
       { code, ...row, version: existing.version } as any,
       { actor: "system", matchBy: "code" },

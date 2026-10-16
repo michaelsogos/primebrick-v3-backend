@@ -24,7 +24,7 @@
   `init.headers` as usual and coexist with identity headers.
 - Raw `fetch` remains correct ONLY for external third-party calls
   (Casdoor, Brevo, LLM providers, …) — they are not governed by
-  `system.client_registry`.
+  `system.client_shield_registry`.
 
 ## Public surfaces
 

@@ -290,8 +290,8 @@ All endpoints are admin-only (`AUTHENTICATED_ADMIN`):
 ### Files
 
 - Entity: `src/modules/auth/config_entry_entity.ts`
-- DAL: `src/modules/auth/config_entries_dal.ts`
-- Router: `src/modules/auth/routers/config-entries.router.ts`
+- Service: `src/modules/auth/services/config-entries.service.ts` (`DomainService` subclass — no separate `*_dal.ts` layer)
+- Router: `src/controllers/http/auth/config-entries.router.ts`
 - Meta: `src/modules/auth/config-entries.meta.ts`
 - DB patch: `db-meta/patches/00000000000000_init_database.sql`
 - Migration: `db-meta/fire-and-forget/add_config_table_standard_columns.sql`
@@ -391,7 +391,7 @@ The system is integrated with Casdoor™ IDP. Role names must match Casdoor™ r
 - `@primebrick/sdk` → `src/auth/permissions.ts` - `Permission` registry (single source of truth)
 - `src/modules/auth/rbac.middleware.ts` - RBAC middleware with admin bypass
 - `src/modules/auth/auth.middleware.ts` - Auth middleware with permission expansion
-- `src/modules/auth/role-mapping-repo.ts` - Role mapping repository
+- `src/modules/auth/services/role.service.ts` - `RoleService` (role mappings absorbed — `DomainService` base)
 - `src/http/entity-actions.ts` - `deriveEntityActions` (route table → `meta.actions`)
 - `src/http/__tests__/rbac-convention.test.ts` - Convention audit test
 

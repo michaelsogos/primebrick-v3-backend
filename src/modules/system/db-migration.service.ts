@@ -16,7 +16,7 @@ import {
 } from "@primebrick/dal-pg";
 import { getPool } from "../../db/dal-gateway.js";
 import { ENTITY_REGISTRY } from "../../domain/entities/registry.js";
-import { getBeMigrationState } from "../../db/run-be-migrations.js";
+import { getModuleMigrationState } from "../../db/run-module-migrations.js";
 import { NotFoundError } from "../../http/api-errors.js";
 
 const SCHEMA = "public";
@@ -25,9 +25,9 @@ export class DbMigrationService {
   async status() {
     return {
       service_schema: SCHEMA,
-      degraded: getBeMigrationState().degraded,
-      last_error: getBeMigrationState().lastError,
-      boot_result: getBeMigrationState().result,
+      degraded: getModuleMigrationState().degraded,
+      last_error: getModuleMigrationState().lastError,
+      boot_result: getModuleMigrationState().result,
       patches: await registryStatus(
       // standards-exempt: getPool — migration control surface (patch registry tooling)
       getPool(), SCHEMA),
@@ -44,7 +44,7 @@ export class DbMigrationService {
         process.env.NODE_ENV === "production" ? ["release"] : ["dev", "release"],
       actor,
     });
-    const st = getBeMigrationState();
+    const st = getModuleMigrationState();
     st.result = result;
     st.degraded = result.degraded;
     st.lastError = result.failed[0]?.error ?? null;

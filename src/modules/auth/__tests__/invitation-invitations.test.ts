@@ -1,9 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock @primebrick/sdk — requireActor returns a fixed actor for audit fields
-vi.mock("@primebrick/sdk", () => ({
-  requireActor: () => "test-actor-uuid",
-}));
+// Mock @primebrick/sdk — requireActor returns a fixed actor for audit fields.
+// Spread actual: the service import chain pulls UserProfileEntity whose
+// @Cached decorator is re-exported through the sdk barrel.
+vi.mock("@primebrick/sdk", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@primebrick/sdk")>();
+  return {
+    ...actual,
+    requireActor: () => "test-actor-uuid",
+  };
+});
 
 // Mock @primebrick/dal-pg — preserve decorators via importOriginal, mock Repository
 const mockRepo = {
@@ -14,21 +20,11 @@ const mockRepo = {
   delete: vi.fn(),
 };
 
-vi.mock("@primebrick/dal-pg", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@primebrick/dal-pg")>();
-  return {
-    ...actual,
-    Repository: vi.fn().mockImplementation(function () { return mockRepo; }),
-  };
-});
-
-// The DAL goes through the governed gateway — mock initDal at the seam.
-vi.mock("../../../db/dal-gateway.js", () => ({
-  initDal: () => mockRepo,
-}));
+// The service reaches the DB through the inherited lazy `_dal` field
+// (DomainService.dal). Inject the seam directly in beforeEach.
 
 // Import after mocks
-import { UserInvitationsDal } from "../user-invitations-dal.js";
+import { InvitationService } from "../services/invitation.service.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -67,19 +63,20 @@ function makeInvitationRow(overrides: Partial<{
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe("UserInvitationsDal", () => {
-  let dal: UserInvitationsDal;
+describe("InvitationService — user_invitations ops", () => {
+  let svc: InvitationService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    dal = new UserInvitationsDal();
+    svc = new InvitationService({} as any);
+    (svc as any)._dal = mockRepo;
   });
 
   describe("create", () => {
     it("should insert a new invitation with PENDING status and return uuid", async () => {
       mockRepo.add.mockResolvedValue({ uuid: "new-inv-uuid" });
 
-      const result = await dal.create({
+      const result = await (svc as any).insertInvitation({
         user_profile_id: 10n,
         token_hash: "sha256hash",
         email: "user@example.com",
@@ -104,7 +101,7 @@ describe("UserInvitationsDal", () => {
       const row = makeInvitationRow({ token_hash: "myhash" });
       mockRepo.find.mockResolvedValue(row);
 
-      const result = await dal.findByTokenHash("myhash");
+      const result = await (svc as any).findInvitationByTokenHash("myhash");
 
       expect(result).not.toBeNull();
       expect(result!.token_hash).toBe("myhash");
@@ -114,7 +111,7 @@ describe("UserInvitationsDal", () => {
     it("should return null when token hash not found", async () => {
       mockRepo.find.mockResolvedValue(null);
 
-      const result = await dal.findByTokenHash("nonexistent");
+      const result = await (svc as any).findInvitationByTokenHash("nonexistent");
 
       expect(result).toBeNull();
     });
@@ -125,7 +122,7 @@ describe("UserInvitationsDal", () => {
       const row = makeInvitationRow({ uuid: "test-uuid" });
       mockRepo.find.mockResolvedValue(row);
 
-      const result = await dal.findByUuid("test-uuid");
+      const result = await (svc as any).findInvitationByUuid("test-uuid");
 
       expect(result).not.toBeNull();
       expect(result!.uuid).toBe("test-uuid");
@@ -134,7 +131,7 @@ describe("UserInvitationsDal", () => {
     it("should return null when uuid not found", async () => {
       mockRepo.find.mockResolvedValue(null);
 
-      const result = await dal.findByUuid("nonexistent");
+      const result = await (svc as any).findInvitationByUuid("nonexistent");
 
       expect(result).toBeNull();
     });
@@ -148,7 +145,7 @@ describe("UserInvitationsDal", () => {
       ];
       mockRepo.findAll.mockResolvedValue(rows);
 
-      const result = await dal.findByUserProfileId(10n);
+      const result = await (svc as any).findInvitationsByUserProfileId(10n);
 
       expect(result).toHaveLength(2);
       expect(result[0].uuid).toBe("inv-1");
@@ -158,7 +155,7 @@ describe("UserInvitationsDal", () => {
     it("should return empty array when no invitations exist", async () => {
       mockRepo.findAll.mockResolvedValue([]);
 
-      const result = await dal.findByUserProfileId(999n);
+      const result = await (svc as any).findInvitationsByUserProfileId(999n);
 
       expect(result).toHaveLength(0);
     });
@@ -168,7 +165,7 @@ describe("UserInvitationsDal", () => {
     it("should update status with completed_at", async () => {
       mockRepo.find.mockResolvedValue(makeInvitationRow());
       const completedAt = new Date("2026-07-18T00:00:00Z");
-      await dal.updateStatus("inv-uuid", "COMPLETED", { completed_at: completedAt });
+      await (svc as any).updateInvitationStatus("inv-uuid", "COMPLETED", { completed_at: completedAt });
 
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
       const [entity, data, options] = mockRepo.update.mock.calls[0];
@@ -183,7 +180,7 @@ describe("UserInvitationsDal", () => {
 
     it("should update status without extra fields", async () => {
       mockRepo.find.mockResolvedValue(makeInvitationRow());
-      await dal.updateStatus("inv-uuid", "REVOKED");
+      await (svc as any).updateInvitationStatus("inv-uuid", "REVOKED");
 
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
       const [, data] = mockRepo.update.mock.calls[0];
@@ -196,7 +193,7 @@ describe("UserInvitationsDal", () => {
     it("should increment otp_attempts by 1", async () => {
       mockRepo.find.mockResolvedValue(makeInvitationRow({ otp_attempts: 3 }));
 
-      await dal.incrementOtpAttempts("inv-uuid");
+      await (svc as any).incrementInvitationOtpAttempts("inv-uuid");
 
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
       const [, data] = mockRepo.update.mock.calls[0];
@@ -206,7 +203,7 @@ describe("UserInvitationsDal", () => {
     it("should do nothing if invitation not found", async () => {
       mockRepo.find.mockResolvedValue(null);
 
-      await dal.incrementOtpAttempts("nonexistent");
+      await (svc as any).incrementInvitationOtpAttempts("nonexistent");
 
       expect(mockRepo.update).not.toHaveBeenCalled();
     });
@@ -216,7 +213,7 @@ describe("UserInvitationsDal", () => {
     it("should set otp_hash, otp_expires_at, reset attempts, and set status to OTP_SENT", async () => {
       mockRepo.find.mockResolvedValue(makeInvitationRow());
       const expiresAt = new Date("2026-07-17T12:05:00Z");
-      await dal.setOtp("inv-uuid", "otphash", expiresAt);
+      await (svc as any).setInvitationOtp("inv-uuid", "otphash", expiresAt);
 
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
       const [, data] = mockRepo.update.mock.calls[0];
@@ -232,7 +229,7 @@ describe("UserInvitationsDal", () => {
     it("should set otp_verified_at to current time", async () => {
       mockRepo.find.mockResolvedValue(makeInvitationRow());
       const before = new Date();
-      await dal.markOtpVerified("inv-uuid");
+      await (svc as any).markInvitationOtpVerified("inv-uuid");
       const after = new Date();
 
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
@@ -248,7 +245,7 @@ describe("UserInvitationsDal", () => {
     it("should set status to COMPLETED and completed_at to current time", async () => {
       mockRepo.find.mockResolvedValue(makeInvitationRow());
       const before = new Date();
-      await dal.markCompleted("inv-uuid");
+      await (svc as any).markInvitationCompleted("inv-uuid");
       const after = new Date();
 
       expect(mockRepo.update).toHaveBeenCalledTimes(1);

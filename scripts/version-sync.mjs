@@ -14,8 +14,8 @@ function getBranchName() {
 }
 
 function parseTag(tag) {
-  // v0.1.2 or 0.1.2
-  const m = /^v?(0)\.(\d+)\.(\d+)$/.exec(tag);
+  // v0.1.2 or 0.1.2 or 3.0.0 — any numeric major
+  const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(tag);
   if (!m) return null;
   return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) };
 }
@@ -33,7 +33,7 @@ function format(v) {
 function latestTagVersion() {
   let tags = [];
   try {
-    const out = sh('git tag --list "0.*.*"');
+    const out = sh('git tag --list "*.*.*"');
     tags = out ? out.split(/\r?\n/).filter(Boolean) : [];
   } catch {
     tags = [];
@@ -46,9 +46,15 @@ function latestTagVersion() {
 }
 
 function nextVersion(kind, latest) {
-  if (kind === "release") return { major: 0, minor: latest.minor + 1, patch: 0 };
-  if (kind === "hotfix") return { major: 0, minor: latest.minor, patch: latest.patch + 1 };
+  if (kind === "release") return { major: latest.major, minor: latest.minor + 1, patch: 0 };
+  if (kind === "hotfix") return { major: latest.major, minor: latest.minor, patch: latest.patch + 1 };
   throw new Error(`Unknown kind: ${kind}`);
+}
+
+function parseBranchVersion(branch) {
+  const m = /^(?:release|hotfix)\/(\d+)\.(\d+)\.(\d+)$/.exec(branch);
+  if (!m) return null;
+  return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) };
 }
 
 function readJson(path) {
@@ -77,11 +83,22 @@ if (!kind) process.exit(0);
 const latest = latestTagVersion();
 const expected = nextVersion(kind, latest);
 const expectedBranch = `${kind}/${format(expected)}`;
+const branchVersion = parseBranchVersion(branch);
 
-if (branch !== expectedBranch) {
+// release branches may also declare a deliberate MAJOR bump:
+// release/<M>.0.0 with M > latest.major (e.g. 0.33.0 → release/3.0.0).
+// Hotfix branches stay strict — patch bump only.
+const isAllowedMajorBump =
+  kind === "release" &&
+  branchVersion !== null &&
+  branchVersion.major > latest.major &&
+  branchVersion.minor === 0 &&
+  branchVersion.patch === 0;
+
+if (branch !== expectedBranch && !isAllowedMajorBump) {
   console.error(
     [
-      `Branch name must match the next ${kind} version.`,
+      `Branch name must match the next ${kind} version (or a major bump release/<M>.0.0).`,
       `- Latest tag: v${format(latest)}`,
       `- Expected branch: ${expectedBranch}`,
       `- Current branch:  ${branch}`,
@@ -92,7 +109,7 @@ if (branch !== expectedBranch) {
 
 const pkgPath = "package.json";
 const pkg = readJson(pkgPath);
-const expectedVersion = format(expected);
+const expectedVersion = format(isAllowedMajorBump ? branchVersion : expected);
 
 if (pkg.version !== expectedVersion) {
   if (args.has("--check")) {

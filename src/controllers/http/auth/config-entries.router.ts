@@ -41,7 +41,7 @@ import {
 } from "../../../http/entity-write.js";
 import { ConfigEntryEntity } from "../../../modules/auth/config_entry_entity.js";
 import { configEntriesMeta } from "../../../modules/auth/config-entries.meta.js";
-import { ConfigEntriesService } from "../../../modules/auth/services/config-entries.service.js";
+import { getConfigEntriesService } from "../../../modules/auth/services/config-entries.service.js";
 import { assembleMeta } from "../../../http/meta-assembler.js";
 import { deriveEntityActions } from "../../../http/entity-actions.js";
 import { requireMfaStepUp } from "../../../modules/auth/mfa-step-up.middleware.js";
@@ -116,7 +116,7 @@ const UpdateBodySchemaWrapped = entityWriteBody(UpdateBodySchema);
 
 export function configEntriesRouter() {
   const router = makeProtectedRouter();
-  const service = new ConfigEntriesService();
+  const service = getConfigEntriesService();
 
   const getMeta: RequestHandler = asyncHandler(async (_req, res) => {
     res.json({
@@ -130,7 +130,7 @@ export function configEntriesRouter() {
   });
 
   const list: RequestHandler = asyncHandler(async (req, res) => {
-    const entry = await service.list();
+    const entry = await service.findAllWithCache();
     const ifNoneMatch = req.headers[CACHE_HEADERS.IF_NONE_MATCH.toLowerCase()] as string | undefined;
     if (ifNoneMatch && etagMatches(ifNoneMatch, entry.etag)) {
       res.setHeader(CACHE_HEADERS.ETAG, entry.etag);
@@ -163,7 +163,7 @@ export function configEntriesRouter() {
     // is handled by runEntityWrite.
     const row = await runEntityWrite(
       translations,
-      (tx) => service.create(params, userUuid, tx),
+      (tx) => service.createEntry(params, userUuid, tx),
       () => service.refreshCache(),
     );
 
@@ -182,7 +182,7 @@ export function configEntriesRouter() {
     await runEntityWrite(
       translations,
       (tx) =>
-        service.update(uuid, { ...patch, version: Number(body.entity.version) }, userUuid, tx),
+        service.updateEntry(uuid, { ...patch, version: Number(body.entity.version) }, userUuid, tx),
       () => service.refreshCache(),
     );
     res.json({ success: true });
@@ -212,7 +212,7 @@ export function configEntriesRouter() {
 
   const bulkDelete: RequestHandler = asyncHandler(async (req, res) => {
     const body = req.body as z.infer<typeof BulkDeleteBodySchema>;
-    const result = await service.bulkDelete(body.items, requireUserUuid(req));
+    const result = await service.bulkSoftDelete(body.items, requireUserUuid(req));
     res.status(200).json(result);
   });
 
@@ -220,7 +220,7 @@ export function configEntriesRouter() {
     const uuid = req.params.uuid as string;
     // Caller-observed version (ERR02 if absent — enforced by the DAL).
     const version = req.query.version !== undefined ? Number(req.query.version) : (undefined as unknown as number);
-    const row = await service.restore(uuid, version, requireUserUuid(req));
+    const row = await service.restoreEntry(uuid, version, requireUserUuid(req));
     res.json(service.maskSecretValue(row));
   });
 

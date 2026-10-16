@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   entityRegistry,
   registerBeEntities,
-  type BeEntityConfig,
+  type LocalEntityConfig,
   type ProxyEntityConfig,
 } from "../tools/entity-registry.js";
 
@@ -11,15 +11,15 @@ describe("EntityRegistry", () => {
     entityRegistry.clear();
   });
 
-  describe("registerBeEntity", () => {
+  describe("registerLocalEntity", () => {
     it("registers a BE entity with in-process handler type", () => {
-      const config: BeEntityConfig = {
+      const config: LocalEntityConfig = {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list", "get", "create"],
         permissions: {},
       };
-      entityRegistry.registerBeEntity("be", config);
+      entityRegistry.registerLocalEntity("be", config);
 
       const entry = entityRegistry.get("be", "customer");
       expect(entry).toBeDefined();
@@ -32,7 +32,7 @@ describe("EntityRegistry", () => {
     });
 
     it("registers bulk operations when provided", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list", "delete", "restore"],
@@ -45,7 +45,7 @@ describe("EntityRegistry", () => {
     });
 
     it("defaults supported_bulk_operations to empty array when omitted", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "organization",
         label: "Organization",
         supported_operations: ["list"],
@@ -83,7 +83,7 @@ describe("EntityRegistry", () => {
     });
 
     it("returns the entry for a registered (module, entity)", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
@@ -98,7 +98,7 @@ describe("EntityRegistry", () => {
 
   describe("supportsOperation", () => {
     it("returns true for supported operations", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list", "get", "create"],
@@ -111,7 +111,7 @@ describe("EntityRegistry", () => {
     });
 
     it("returns false for unsupported operations", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
@@ -129,13 +129,13 @@ describe("EntityRegistry", () => {
 
   describe("listByModule", () => {
     it("returns all entries for a given module", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
         permissions: {},
       });
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "organization",
         label: "Organization",
         supported_operations: ["list"],
@@ -163,7 +163,7 @@ describe("EntityRegistry", () => {
 
   describe("listModules", () => {
     it("groups entries by module", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
@@ -195,7 +195,7 @@ describe("EntityRegistry", () => {
 
   describe("unregisterModule", () => {
     it("removes all entries for a module", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
@@ -220,7 +220,7 @@ describe("EntityRegistry", () => {
     });
 
     it("does nothing for unknown module", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
@@ -234,7 +234,7 @@ describe("EntityRegistry", () => {
 
   describe("clear", () => {
     it("removes all entries", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],

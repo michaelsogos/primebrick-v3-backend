@@ -239,3 +239,21 @@ export type OrganizationDetailDto = Omit<
   deleted_at?: string;
   last_synced_at?: string;
 };
+
+// --- Auth event row / API DTO (auth_events — non-auditable audit log) ------
+
+export type AuthEventRow = {
+  id: bigint;
+  user_profile_uuid?: string;
+  attempted_username?: string;
+  event_type: string;
+  event_at: Date;
+  ip_address?: string;
+  user_agent?: string;
+  success: boolean;
+  failure_reason?: string;
+};
+
+export type AuthEventDto = Omit<AuthEventRow, "event_at"> & {
+  event_at: string;
+};

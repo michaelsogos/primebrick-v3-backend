@@ -50,11 +50,11 @@ export class CasdoorService {
       // directly when needed. For now, the cached config exposes idp_endpoint
       // and idp_organization; the admin credentials are read from DB on
       // first init.
-      const { ConfigEntriesDal } = await import("../config_entries_dal.js");
-      const dal = new ConfigEntriesDal();
+      const { getConfigEntriesService } = await import("./config-entries.service.js");
+      const svc = getConfigEntriesService();
       const [clientIdRow, clientSecretRow] = await Promise.all([
-        dal.findByKey("idp_client_id"),
-        dal.findByKey("idp_client_secret"),
+        svc.findByKey("idp_client_id"),
+        svc.findByKey("idp_client_secret"),
       ]);
       const adminClientId = clientIdRow?.value;
       const adminClientSecret = clientSecretRow?.value;

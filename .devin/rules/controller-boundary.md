@@ -18,7 +18,7 @@ src/
     nats-sub/             # includes governed correlation-reply request routes
     nats-sub/             # NATS pub/sub + JetStream subscribers, cron/poll jobs
     #                    # EVERY inbound NATS route/subscriber runs TWO layers:
-    #                    # 1) client shield (UA+key vs client_registry) — governs
+    #                    # 1) client shield (UA+key vs client_shield_registry) — governs
     #                    #    WHO may publish; 2) user shield (gateway secret +
     #                    #    AuthUser + RBAC) — governs WHICH actor accesses the
     #                    #    resource. Use makeNatsRoutes/makeNatsRequestRoute

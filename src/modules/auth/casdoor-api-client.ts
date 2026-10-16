@@ -99,7 +99,7 @@ export interface CasdoorMfaInitiateResult {
  * Single serialization point so the external-format choice is explicit.
  */
 function wireBody(payload: unknown): string {
-  // standards-exempt: ext-json — external Casdoor REST API wire format (plain JSON)
+  // standards-exempt: ext-json — external wire payload (Casdoor REST) — strict plain JSON, bigint must throw loudly
   return JSON.stringify(payload);
 }
 

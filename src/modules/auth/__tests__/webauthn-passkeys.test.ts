@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock @primebrick/sdk — requireActor returns a fixed actor for audit fields.
-// Spread actual: user-profiles-dal pulls UserProfileEntity whose @Cached
+// Spread actual: UserPasskeyEntity pulls entity decorators whose @Cached
 // decorator is re-exported through the sdk barrel.
 vi.mock("@primebrick/sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@primebrick/sdk")>();
@@ -20,21 +20,13 @@ const mockRepo = {
   delete: vi.fn(),
 };
 
-vi.mock("@primebrick/dal-pg", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@primebrick/dal-pg")>();
-  return {
-    ...actual,
-    Repository: vi.fn().mockImplementation(function () { return mockRepo; }),
-  };
-});
-
-// The DAL goes through the governed gateway — mock initDal at the seam.
-vi.mock("../../../db/dal-gateway.js", () => ({
-  initDal: () => mockRepo,
-}));
+// The service reaches the DB through the inherited lazy `_dal` field
+// (DomainService.dal → dal-pg's process-singleton getDal()). Node-modules
+// internals can't be vi.mock'ed, so tests inject the seam directly:
+// `(svc as any)._dal = mockRepo` in beforeEach below.
 
 // Import after mocks
-import { UserPasskeysDal } from "../user-passkeys-dal.js";
+import { WebauthnService } from "../services/webauthn.service.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -63,19 +55,20 @@ function makePasskeyRow(overrides: Partial<{
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe("UserPasskeysDal", () => {
-  let dal: UserPasskeysDal;
+describe("WebauthnService — user_passkeys ops", () => {
+  let svc: WebauthnService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    dal = new UserPasskeysDal();
+    svc = new WebauthnService({} as any);
+    (svc as any)._dal = mockRepo;
   });
 
   describe("create", () => {
     it("should insert a new passkey and return uuid", async () => {
       mockRepo.add.mockResolvedValue({ uuid: "new-passkey-uuid" });
 
-      const result = await dal.create({
+      const result = await (svc as any).createPasskey({
         user_profile_id: 10n,
         credential_id: "cred-123",
         aaguid: "aaguid-456",
@@ -98,7 +91,7 @@ describe("UserPasskeysDal", () => {
     it("should insert a passkey without optional fields", async () => {
       mockRepo.add.mockResolvedValue({ uuid: "new-passkey-uuid" });
 
-      await dal.create({
+      await (svc as any).createPasskey({
         user_profile_id: 10n,
         credential_id: "cred-123",
       });
@@ -113,7 +106,7 @@ describe("UserPasskeysDal", () => {
       mockRepo.add.mockResolvedValue({ uuid: "new-passkey-uuid" });
       const when = new Date("2026-07-25T10:00:00Z");
 
-      await dal.create({
+      await (svc as any).createPasskey({
         user_profile_id: 10n,
         credential_id: "cred-123",
         authenticator_attachment: "platform",
@@ -137,7 +130,7 @@ describe("UserPasskeysDal", () => {
       const row = makePasskeyRow({ credential_id: "my-cred" });
       mockRepo.find.mockResolvedValue(row);
 
-      const result = await dal.findByCredentialId("my-cred");
+      const result = await (svc as any).findPasskeyByCredentialId("my-cred");
 
       expect(result).not.toBeNull();
       expect(result!.credential_id).toBe("my-cred");
@@ -146,7 +139,7 @@ describe("UserPasskeysDal", () => {
     it("should return null when credential ID not found", async () => {
       mockRepo.find.mockResolvedValue(null);
 
-      const result = await dal.findByCredentialId("nonexistent");
+      const result = await (svc as any).findPasskeyByCredentialId("nonexistent");
 
       expect(result).toBeNull();
     });
@@ -160,7 +153,7 @@ describe("UserPasskeysDal", () => {
       ];
       mockRepo.findAll.mockResolvedValue(rows);
 
-      const result = await dal.findByUserProfileId(10n);
+      const result = await (svc as any).findPasskeysByUserProfileId(10n);
 
       expect(result).toHaveLength(2);
       expect(result[0].uuid).toBe("pk-1");
@@ -170,7 +163,7 @@ describe("UserPasskeysDal", () => {
     it("should return empty array when user has no passkeys", async () => {
       mockRepo.findAll.mockResolvedValue([]);
 
-      const result = await dal.findByUserProfileId(999n);
+      const result = await (svc as any).findPasskeysByUserProfileId(999n);
 
       expect(result).toHaveLength(0);
     });
@@ -185,7 +178,7 @@ describe("UserPasskeysDal", () => {
       ];
       mockRepo.findAll.mockResolvedValue(rows);
 
-      const result = await dal.countByUserProfileId(10n);
+      const result = await svc.countPasskeysByUserProfileId(10n);
 
       expect(result).toBe(3);
     });
@@ -193,7 +186,7 @@ describe("UserPasskeysDal", () => {
     it("should return 0 when user has no passkeys", async () => {
       mockRepo.findAll.mockResolvedValue([]);
 
-      const result = await dal.countByUserProfileId(999n);
+      const result = await svc.countPasskeysByUserProfileId(999n);
 
       expect(result).toBe(0);
     });
@@ -204,7 +197,7 @@ describe("UserPasskeysDal", () => {
       const row = makePasskeyRow({ uuid: "pk-to-delete", id: 42n });
       mockRepo.find.mockResolvedValue(row);
 
-      await dal.deleteByUuid("pk-to-delete");
+      await (svc as any).deletePasskeyByUuid("pk-to-delete");
 
       expect(mockRepo.find).toHaveBeenCalledTimes(1);
       expect(mockRepo.delete).toHaveBeenCalledTimes(1);
@@ -216,7 +209,7 @@ describe("UserPasskeysDal", () => {
     it("should do nothing if passkey not found", async () => {
       mockRepo.find.mockResolvedValue(null);
 
-      await dal.deleteByUuid("nonexistent");
+      await (svc as any).deletePasskeyByUuid("nonexistent");
 
       expect(mockRepo.delete).not.toHaveBeenCalled();
     });
@@ -227,7 +220,7 @@ describe("UserPasskeysDal", () => {
       const row = makePasskeyRow({ credential_id: "cred-to-delete", id: 55n });
       mockRepo.find.mockResolvedValue(row);
 
-      await dal.deleteByCredentialId("cred-to-delete");
+      await (svc as any).deletePasskeyByCredentialId("cred-to-delete");
 
       expect(mockRepo.delete).toHaveBeenCalledTimes(1);
       const [, match] = mockRepo.delete.mock.calls[0];
@@ -237,7 +230,7 @@ describe("UserPasskeysDal", () => {
     it("should do nothing if credential ID not found", async () => {
       mockRepo.find.mockResolvedValue(null);
 
-      await dal.deleteByCredentialId("nonexistent");
+      await (svc as any).deletePasskeyByCredentialId("nonexistent");
 
       expect(mockRepo.delete).not.toHaveBeenCalled();
     });
@@ -246,7 +239,7 @@ describe("UserPasskeysDal", () => {
   describe("updateLabel", () => {
     it("should update the label of a passkey", async () => {
       mockRepo.find.mockResolvedValue(makePasskeyRow({ uuid: "pk-uuid" }));
-      await dal.updateLabel("pk-uuid", "My New Label");
+      await (svc as any).updatePasskeyLabel("pk-uuid", "My New Label");
 
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
       const [, data, options] = mockRepo.update.mock.calls[0];
@@ -266,7 +259,7 @@ describe("UserPasskeysDal", () => {
       mockRepo.find.mockResolvedValue(row);
       const when = new Date("2026-07-25T12:00:00Z");
 
-      await dal.updateLastUsed("cred-abc", when);
+      await (svc as any).updatePasskeyLastUsed("cred-abc", when);
 
       expect(mockRepo.find).toHaveBeenCalledTimes(1);
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
@@ -285,7 +278,7 @@ describe("UserPasskeysDal", () => {
     it("should do nothing if credential ID not found", async () => {
       mockRepo.find.mockResolvedValue(null);
 
-      await dal.updateLastUsed("nonexistent", new Date());
+      await (svc as any).updatePasskeyLastUsed("nonexistent", new Date());
 
       expect(mockRepo.update).not.toHaveBeenCalled();
     });

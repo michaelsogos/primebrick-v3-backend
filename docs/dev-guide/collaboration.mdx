@@ -70,7 +70,7 @@ Any entity decorated with `@AuditTrail()` gets collaboration automatically.
 There is no separate registration, no per-entity wiring, and no feature flag to
 flip.
 
-The audit hook (`BeAuditPortAdapter`) fires after every `UPDATE`, `SOFT_DELETE`,
+The audit hook (`EntityAuditPort`) fires after every `UPDATE`, `SOFT_DELETE`,
 `RESTORE`, and `HARD_DELETE` on an auditable entity. It publishes the
 `EntityChangedMarker` that drives the `entity-changed` SSE event. Because the
 hook is part of the audit port — which only runs for `@AuditTrail()` entities —
@@ -216,7 +216,7 @@ requested entity UUID.
 
 ## The audit hook
 
-`BeAuditPortAdapter` implements the `AuditPort` interface from the DAL. After
+`EntityAuditPort` implements the `AuditPort` interface from the DAL. After
 writing the audit log row to the per-entity audit table (`{tableName}_audit`),
 it publishes an `EntityChangedMarker` for every `UPDATE`, `SOFT_DELETE`,
 `RESTORE`, and `HARD_DELETE` action.

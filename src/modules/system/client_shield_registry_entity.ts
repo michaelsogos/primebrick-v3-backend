@@ -1,8 +1,8 @@
 import type { IAuditableEntity } from "@primebrick/dal-pg";
 import { Column, Entity, Key, Unique } from "@primebrick/dal-pg";
 
-@Entity("client_registry", "system")
-export class ClientRegistryEntity implements IAuditableEntity {
+@Entity("client_shield_registry", "system")
+export class ClientShieldRegistryEntity implements IAuditableEntity {
   @Key()
   id: bigint;
 

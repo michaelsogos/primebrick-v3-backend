@@ -84,8 +84,8 @@ wrapper that calls the SDK's `checkRbac()`.
 |------|---------|
 | `src/modules/auth/rbac.middleware.ts` | `rbacHandler(...)` / `rbacHandler.all(...)` factory + client-shield secret + auth delegation |
 | `src/modules/auth/auth.middleware.ts` | `authMiddleware()` — populates `req.user` via SDK `verifyAuth()` |
-| `src/modules/auth/sdk-auth-ports.ts` | `BeUserResolverPort` / `BeRoleMappingPort` — DB-backed ports for the SDK |
-| `src/modules/auth/role-mapping-repo.ts` | Role mapping repository (reads `role_mappings` table) |
+| `src/modules/auth/sdk-auth-ports.ts` | `DomainUserResolverPort` / `DomainRoleMappingPort` — DB-backed ports for the SDK |
+| `src/modules/auth/services/role.service.ts` | `RoleService` — role mapping logic + Casdoor sync (reads `role_mappings` table; `DomainService` base) |
 | `src/http/protected-router.ts` | `makeProtectedRouter()` — secure-first factory, default-deny on missing declaration |
 
 **Key functions:**

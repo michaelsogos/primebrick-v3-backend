@@ -2,7 +2,7 @@ import type { Repository } from "@primebrick/dal-pg";
 import { AuditLogEntity, Project, Filter, Sort, field, buildAuditTrailJoins } from "@primebrick/dal-pg";
 
 /** Structural minimum the audit queries need — satisfied by both the
- *  gateway `Dal` and a tx-scoped `Repository`. Callers pass `initDal()`;
+ *  gateway `Dal` and a tx-scoped `Repository`. Callers pass `getDal()`;
  *  the Repository is never exposed to services. */
 type AuditQueryable = Pick<Repository, "find" | "findByPage">;
 import { UserProfileEntity } from "../modules/auth/user_profile_entity.js";

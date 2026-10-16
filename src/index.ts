@@ -7,11 +7,11 @@ import cookieParser from "cookie-parser";
 import { extJsonMiddleware, extJsonBodyParser, extJsonParse, Permission, NatsClient, subscribeSharedConfig, logModuleStartup, logServiceStartup, type HealthResponse } from "@primebrick/sdk";
 import { mountModules } from "./modules/index.js";
 import CasdoorSDK from "casdoor-nodejs-sdk";
-import { loadAuthConfigFromDb, type AuthConfigDb } from "./modules/auth/config-repo.js";
+import { getConfigEntriesService, type AuthConfigDb } from "./modules/auth/services/config-entries.service.js";
 import { openApiRouter } from "./openapi/router.js";
 import { aggregatedOpenApiRouter } from "./openapi/aggregated-router.js";
 import { errorHandler } from "./http/error-handler.js";
-import { initDal } from "./db/dal-gateway.js";
+import { initDal, getDal } from "./db/dal-gateway.js";
 import { isDatabaseUnavailableError } from "./http/api-errors.js";
 import { makeProtectedRouter } from "./http/protected-router.js";
 import { rbacHandler } from "./modules/auth/rbac.middleware.js";
@@ -72,7 +72,7 @@ const BACKEND_VERSION = readBackendVersion();
 
 async function checkDb(): Promise<HealthCheckResult> {
   try {
-    const dal = initDal();
+    const dal = getDal();
     const { version } = await dal.serverVersion();
     // version() returns e.g. "PostgreSQL 18.0, compiled by Visual C++ ..."
     const versionMatch = version.match(/PostgreSQL\s+([\d.]+)/);
@@ -92,7 +92,7 @@ async function checkIdp(): Promise<HealthCheckResult> {
     let orgName = "admin";
 
     try {
-      const dbConfig = await loadAuthConfigFromDb();
+      const dbConfig = await getConfigEntriesService().loadAuthConfigOnly();
       casdoorEndpoint = dbConfig.idp_endpoint || casdoorEndpoint;
       clientId = dbConfig.idp_client_id || clientId;
       clientSecret = dbConfig.idp_client_secret || clientSecret;
@@ -307,11 +307,15 @@ void runStartupTasks().catch((err) => {
 });
 
 async function runStartupTasks(): Promise<void> {
+  // Step -1 — DAL bootstrap BEFORE anything DB-touching (banner probe,
+  // migrations, config loads). initDal() is once-only; getDal() fails fast
+  // everywhere else.
+  initDal();
   await logPostgresBanner();
   // Step 0 — own-schema migrations BEFORE role mappings / auth config /
   // any other table read. Mode lives in public.config_entries.
-  const { runBeMigrations } = await import("./db/run-be-migrations.js");
-  await runBeMigrations();
+  const { runModuleMigrations } = await import("./db/run-module-migrations.js");
+  await runModuleMigrations();
   initAuthPorts();
   await refreshRoleMappings();
   await refreshAuthConfig();
@@ -377,7 +381,7 @@ async function initPresenceStoreFromConfig(): Promise<void> {
 
 async function logPostgresBanner(): Promise<void> {
   try {
-    const { version } = await initDal().serverVersion();
+    const { version } = await getDal().serverVersion();
     const versionMatch = version.match(/PostgreSQL\s+([\d.]+)/);
     const dbUrl = (process.env.DATABASE_URL ?? "localhost:5432").replace(/(:\/\/[^:/]+):[^@]+@/, "$1@");
     logModuleStartup("PostgreSQL", versionMatch?.[1], dbUrl);
@@ -449,7 +453,7 @@ async function startServiceLifecycle(): Promise<void> {
 }
 
 /**
- * Self-enroll the BE into system.client_registry (B11): the BE never sends
+ * Self-enroll the BE into system.client_shield_registry (B11): the BE never sends
  * `service.register`, so it upserts its own `source='registry'` row keyed
  * by `{pkg_name}/{version}` — the UA prefix it sends on proxied calls.
  * The client key comes from the `service_client_shield_key` config entry (module config,

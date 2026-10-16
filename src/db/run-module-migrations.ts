@@ -17,18 +17,18 @@ import type { EntityClass } from "@primebrick/dal-pg";
 import { checkDrift, isDriftClean } from "@primebrick/dal-pg";
 import { logger } from "@primebrick/sdk";
 
-export interface BeMigrationState {
+export interface ModuleMigrationState {
   result: MigrationRunResult | null;
   degraded: boolean;
   lastError: string | null;
 }
 
-const state: BeMigrationState = { result: null, degraded: false, lastError: null };
-export function getBeMigrationState(): BeMigrationState {
+const state: ModuleMigrationState = { result: null, degraded: false, lastError: null };
+export function getModuleMigrationState(): ModuleMigrationState {
   return state;
 }
 
-export async function runBeMigrations(): Promise<BeMigrationState> {
+export async function runModuleMigrations(): Promise<ModuleMigrationState> {
   try {
     const result = await runMigrations({
       // standards-exempt: getPool — migration engine needs the raw pool (advisory locks, DDL)

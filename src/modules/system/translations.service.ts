@@ -8,7 +8,7 @@
  *   - emailsender.translations   (EmailsenderTranslationEntity)
  *   - custom.translations        (CustomTranslationEntity — user-created keys)
  *
- * Data access is `initDal()` proxies (entity ops, schema-domain guarded —
+ * Data access is `getDal()` proxies (entity ops, schema-domain guarded —
  * `translations` is the governed shared table). Caching uses the SDK's
  * `TranslationsCache` for Redis-backed flat i18n dicts + ETags.
  * The service is request-context-free: it never touches `req`/`res`.
@@ -34,7 +34,7 @@ import {
   wrapCacheEntry,
 } from "@primebrick/sdk";
 
-import { initDal } from "../../db/dal-gateway.js";
+import {getDal} from "../../db/dal-gateway.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
 import { ValidationError } from "../../http/api-errors.js";
 import {
@@ -154,7 +154,7 @@ export class TranslationsService {
     const cached = await cache.getI18nDict(language);
     if (cached) return cached;
 
-    const rows = (await initDal().findAll(
+    const rows = (await getDal().findAll(
       entity,
       [Project.expr("jsonb_object_agg(key, value)", "dict")],
       {
@@ -175,7 +175,7 @@ export class TranslationsService {
       filters.push(Filter.fieldValue(field(entity, "language"), "=", query.language));
     }
 
-    return initDal().findByPage(
+    return getDal().findByPage(
       entity,
       query.page ?? 1,
       query.page_size ?? 25,
@@ -207,7 +207,7 @@ export class TranslationsService {
     assertKeyModuleBoundary(moduleCode, data.key);
     const entity = this.resolveEntity(moduleCode);
     const actor = requireActor();
-    const repo = options?.tx ?? initDal();
+    const repo = options?.tx ?? getDal();
     const row = await repo.add(entity, data, {
       actor,
       onConflict: options?.onConflict,
@@ -232,7 +232,7 @@ export class TranslationsService {
     assertKeyModuleBoundary(moduleCode, data.key);
     const entity = this.resolveEntity(moduleCode);
     const actor = requireActor();
-    const row = await initDal().update(
+    const row = await getDal().update(
       entity,
       { ...data, uuid },
       { actor },
@@ -245,8 +245,8 @@ export class TranslationsService {
   async softDelete(moduleCode: string, uuid: string) {
     const entity = this.resolveEntity(moduleCode);
     const actor = requireActor();
-    const row = (await initDal().findByUUID<any, any>(entity, uuid, { deletedRecords: "INCLUDED" }))!;
-    await initDal().delete(entity, { uuid, version: row.version }, { actor });
+    const row = (await getDal().findByUUID<any, any>(entity, uuid, { deletedRecords: "INCLUDED" }))!;
+    await getDal().delete(entity, { uuid, version: row.version }, { actor });
     await this.getCache(schemaOf(entity)).invalidate();
   }
 
@@ -254,8 +254,8 @@ export class TranslationsService {
   async restore(moduleCode: string, uuid: string) {
     const entity = this.resolveEntity(moduleCode);
     const actor = requireActor();
-    const row = (await initDal().findByUUID<any, any>(entity, uuid, { deletedRecords: "INCLUDED" }))!;
-    await initDal().restore(entity, { uuid, version: row.version }, { actor });
+    const row = (await getDal().findByUUID<any, any>(entity, uuid, { deletedRecords: "INCLUDED" }))!;
+    await getDal().restore(entity, { uuid, version: row.version }, { actor });
     await this.getCache(schemaOf(entity)).invalidate();
   }
 }

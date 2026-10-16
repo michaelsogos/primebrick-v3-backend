@@ -2,17 +2,17 @@
  * Publisher identity verification for service-to-BE NATS subjects.
  *
  * Shared between ServiceLifecycleSubscriber (register/heartbeat/unregister)
- * and the governed request routes (config.get, client_registry.get,
+ * and the governed request routes (config.get, client_shield_registry.get,
  * service.registry.get, auth.apikey.byHash): the caller is a *service*,
  * not a user — identity is proven by User-Agent prefix + client shield key
- * against `system.client_registry` (same contract as internal HTTP calls).
+ * against `system.client_shield_registry` (same contract as internal HTTP calls).
  *
- * Rows are cached 60s; callers subscribe to `client_registry.changed` and
+ * Rows are cached 60s; callers subscribe to `client_shield_registry.changed` and
  * call `invalidate()` to refresh immediately on rotation.
  */
 
 import type { Msg } from "nats";
-import { ClientRegistryService } from "../../modules/system/client-registry.service.js";
+import { ClientShieldRegistryService } from "../../modules/system/client-shield-registry.service.js";
 import {
   CLIENT_SHIELD_KEY_HEADER,
   clientKeyHash,
@@ -37,7 +37,7 @@ export interface PublisherVerifier {
   ): Promise<boolean>;
   /** NatsRouteVerify adapter: verify + decode claimed payload from msg.data. */
   asRouteVerify(claimed?: Parameters<PublisherVerifier["verify"]>[1], opts?: { allowNewPrefix?: boolean }): NatsRouteVerify;
-  /** Drop the client_registry row cache (call on `client_registry.changed`). */
+  /** Drop the client_shield_registry row cache (call on `client_shield_registry.changed`). */
   invalidate(): void;
   /**
    * ShieldRegistryLike view over the same cached rows — pass to the SDK's
@@ -51,7 +51,7 @@ export interface PublisherVerifier {
 export function createPublisherVerifier(): PublisherVerifier {
   let rows: { ua_prefix: string; client_key_hash: string }[] | null = null;
   let rowsAt = 0;
-  const registrySvc = new ClientRegistryService();
+  const registrySvc = new ClientShieldRegistryService();
 
   const loadRows = async () => {
     rows = await registrySvc.findAllEnabled();

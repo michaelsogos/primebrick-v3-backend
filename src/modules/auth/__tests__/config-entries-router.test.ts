@@ -1,40 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ─── Hoisted mocks ──────────────────────────────────────────────────────────
-const mockDal = {
+const mockConfigEntriesService = {
+  getByUuid: vi.fn(),
   findByUuid: vi.fn(),
   findByKey: vi.fn(),
-  add: vi.fn(),
-  update: vi.fn(),
+  createEntry: vi.fn(),
+  updateEntry: vi.fn(),
   softDelete: vi.fn(),
   bulkSoftDelete: vi.fn(),
-  restore: vi.fn(),
+  restoreEntry: vi.fn(),
   findAll: vi.fn(),
   bulkUpdate: vi.fn(),
 };
 
 
-vi.mock("../config_entries_dal.js", () => ({
-  ConfigEntriesDal: vi.fn().mockImplementation(function () { return mockDal; }),
-  ReservedConfigError: class ReservedConfigError extends Error {
-    readonly key: string;
-    readonly internal_code = "reserved_config_cannot_be_deleted";
-    constructor(key: string) {
-      super(`Config key "${key}" is reserved and cannot be deleted`);
-      this.name = "ReservedConfigError";
-      this.key = key;
-    }
-  },
-  ReservedConfigTypeError: class ReservedConfigTypeError extends Error {
-    readonly key: string;
-    readonly internal_code = "reserved_config_type_cannot_be_changed";
-    constructor(key: string) {
-      super(`Config key "${key}" is reserved: type and type_config cannot be changed`);
-      this.name = "ReservedConfigTypeError";
-      this.key = key;
-    }
-  },
-}));
+vi.mock("../services/config-entries.service.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/config-entries.service.js")>();
+  return {
+    ...actual,
+    getConfigEntriesService: vi.fn(() => mockConfigEntriesService),
+  };
+});
 
 vi.mock("../rbac.middleware.js", () => ({
   rbacHandler: () => (_req: any, _res: any, next: any) => next(),
@@ -57,7 +44,7 @@ vi.mock("../../../db/audit-query-helper.js", () => ({
 }));
 
 // ─── Import after mocks ─────────────────────────────────────────────────────
-import { ReservedConfigTypeError } from "../config_entries_dal.js";
+import { ReservedConfigTypeError } from "../services/config-entries.service.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function makeRow(overrides: Partial<Record<string, unknown>> = {}) {
@@ -83,10 +70,10 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("ConfigEntriesDal.update — reserved-row rule", () => {
+describe("ConfigEntriesService.updateEntry — reserved-row rule", () => {
   // These tests verify the DAL's reserved-row enforcement directly.
-  // We re-import the real DAL here (not the mock) by using a separate test file
-  // pattern. However, since we mocked the DAL above, we test the router's
+  // We re-import the real service here (not the mock) by using a separate test file
+  // pattern. However, since we mocked the service above, we test the router's
   // handling of ReservedConfigTypeError instead.
 
   it("ReservedConfigTypeError has correct internal_code", () => {
@@ -104,20 +91,20 @@ describe("config-entries router — reserved-row type change rejection", () => {
   // internal_code when a reserved row's type or type_config is changed.
   // The DAL enforces this, but the router must translate the error to an ApiError.
 
-  it("DAL throws ReservedConfigTypeError for reserved type change", async () => {
-    // Simulate the DAL throwing ReservedConfigTypeError
-    mockDal.findByUuid.mockResolvedValue(
+  it("service throws ReservedConfigTypeError for reserved type change", async () => {
+    // Simulate the service throwing ReservedConfigTypeError
+    mockConfigEntriesService.findByUuid.mockResolvedValue(
       makeRow({ reserved: true, type: "bigint", type_config: null })
     );
-    mockDal.update.mockRejectedValue(new ReservedConfigTypeError("invitation_expiry_days"));
+    mockConfigEntriesService.updateEntry.mockRejectedValue(new ReservedConfigTypeError("invitation_expiry_days"));
 
     // Import the router handler indirectly — we test the error mapping logic
     // by simulating what the router does:
-    const existing = await mockDal.findByUuid("cfg-uuid-123");
+    const existing = await mockConfigEntriesService.findByUuid("cfg-uuid-123");
     expect(existing.reserved).toBe(true);
 
     try {
-      await mockDal.update("cfg-uuid-123", { type: "number" }, "user-1");
+      await mockConfigEntriesService.updateEntry("cfg-uuid-123", { type: "number" }, "user-1");
       expect.fail("Should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(ReservedConfigTypeError);
@@ -129,18 +116,18 @@ describe("config-entries router — reserved-row type change rejection", () => {
 });
 
 describe("config-entries router — value-only update on reserved row", () => {
-  it("DAL allows value update on reserved row", async () => {
-    mockDal.findByUuid.mockResolvedValue(
+  it("service allows value update on reserved row", async () => {
+    mockConfigEntriesService.findByUuid.mockResolvedValue(
       makeRow({ reserved: true, type: "bigint", value: "7" })
     );
-    mockDal.update.mockResolvedValue(undefined);
+    mockConfigEntriesService.updateEntry.mockResolvedValue(undefined);
 
-    const existing = await mockDal.findByUuid("cfg-uuid-123");
+    const existing = await mockConfigEntriesService.findByUuid("cfg-uuid-123");
     expect(existing.reserved).toBe(true);
 
     // Value-only update should succeed
-    await mockDal.update("cfg-uuid-123", { value: "14" }, "user-1");
-    expect(mockDal.update).toHaveBeenCalledWith(
+    await mockConfigEntriesService.updateEntry("cfg-uuid-123", { value: "14" }, "user-1");
+    expect(mockConfigEntriesService.updateEntry).toHaveBeenCalledWith(
       "cfg-uuid-123",
       { value: "14" },
       "user-1"
@@ -149,22 +136,22 @@ describe("config-entries router — value-only update on reserved row", () => {
 });
 
 describe("config-entries router — non-reserved row type change", () => {
-  it("DAL allows type change on non-reserved row", async () => {
-    mockDal.findByUuid.mockResolvedValue(
+  it("service allows type change on non-reserved row", async () => {
+    mockConfigEntriesService.findByUuid.mockResolvedValue(
       makeRow({ reserved: false, type: "bigint", type_config: null })
     );
-    mockDal.update.mockResolvedValue(undefined);
+    mockConfigEntriesService.updateEntry.mockResolvedValue(undefined);
 
-    const existing = await mockDal.findByUuid("cfg-uuid-123");
+    const existing = await mockConfigEntriesService.findByUuid("cfg-uuid-123");
     expect(existing.reserved).toBe(false);
 
     // Type + value update should succeed
-    await mockDal.update(
+    await mockConfigEntriesService.updateEntry(
       "cfg-uuid-123",
       { type: "number", value: "3.14" },
       "user-1"
     );
-    expect(mockDal.update).toHaveBeenCalledWith(
+    expect(mockConfigEntriesService.updateEntry).toHaveBeenCalledWith(
       "cfg-uuid-123",
       { type: "number", value: "3.14" },
       "user-1"

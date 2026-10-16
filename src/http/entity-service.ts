@@ -6,11 +6,11 @@
  * microservice — this module exists only to inject the BE-specific
  * dependencies that the library cannot own:
  *
- *   - `dal`        — the BE gateway (`initDal()`), lazily initialized; its
+ *   - `dal`        — the BE gateway (`getDal()`), lazily initialized; its
  *                    internal repo is already `withCache`-decorated
  *                    (`repoDecorator` in `dal-gateway`), so `@Cached`
  *                    entities are cached uniformly with no extra wiring
- *   - `auditPort`  — `BeAuditPortAdapter`: `{table}_audit` writer PLUS the
+ *   - `auditPort`  — `EntityAuditPort`: `{table}_audit` writer PLUS the
  *                    entity-changed markers (Redis presence + NATS publish)
  *                    that drive SSE invalidation on other BE instances
  *   - `actor`      — ALS `requireActor`
@@ -41,8 +41,8 @@ import {
 import { requireActor } from "@primebrick/sdk";
 
 import { UserProfileEntity } from "../modules/auth/user_profile_entity.js";
-import { BeAuditPortAdapter } from "../db/audit-port-adapter.js";
-import { initDal } from "../db/dal-gateway.js";
+import { EntityAuditPort } from "../db/entity-audit-port.js";
+import {getDal} from "../db/dal-gateway.js";
 import { NotFoundError } from "./api-errors.js";
 
 export type {
@@ -75,29 +75,49 @@ export type EntityServiceConfig<TEntity> = Omit<
 export function makeEntityService<TEntity extends Record<string, unknown>>(
   cfg: EntityServiceConfig<TEntity>,
 ): EntityService<TEntity> {
-  const dal = initDal();
-  const inner = dal.entityService<TEntity>({
-    ...cfg,
-    auditPort: new BeAuditPortAdapter(dal),
-    actor: requireActor,
-    userEntity: UserProfileEntity,
-  });
-  if (!cfg.debugCode) return inner;
+  // Lazy resolution: routers instantiate services at mount time, BEFORE
+  // runStartupTasks() calls initDal() — the port binds first so /health stays
+  // answerable when Postgres is down. Calling getDal() here would throw at
+  // mount; defer to the first method call (same deferred fail-fast semantics
+  // as DomainService).
+  let inner: EntityService<TEntity> | undefined;
+  const resolve = (): EntityService<TEntity> => {
+    if (!inner) {
+      const dal = getDal();
+      inner = dal.entityService<TEntity>({
+        ...cfg,
+        auditPort: new EntityAuditPort(dal),
+        actor: requireActor,
+        userEntity: UserProfileEntity,
+      });
+    }
+    return inner;
+  };
   const code = cfg.debugCode;
   return {
-    ...inner,
     async list(q) {
-      if (process.env[`PB_${code}_FORCE_EMPTY`] === "1") {
+      if (code && process.env[`PB_${code}_FORCE_EMPTY`] === "1") {
         const p = Math.max(1, Number(q.page) || 1);
         const ps = Math.min(100, Math.max(1, Number(q.page_size) || 25));
         return { rows: [], page: p, page_size: ps, total: 0n };
       }
-      if (process.env[`PB_${code}_FORCE_ERROR`] === "1") {
+      if (code && process.env[`PB_${code}_FORCE_ERROR`] === "1") {
         throw new NotFoundError(`[${code}] forced list error`, {
           internal_code: "FORCED_ERROR",
         });
       }
-      return inner.list(q);
+      return resolve().list(q);
     },
+    get: (uuid) => resolve().get(uuid),
+    create: (body, tx) => resolve().create(body, tx),
+    update: (uuid, body, tx) => resolve().update(uuid, body, tx),
+    delete: (uuid, version) => resolve().delete(uuid, version),
+    restore: (uuid, version) => resolve().restore(uuid, version),
+    purge: (uuid, version) => resolve().purge(uuid, version),
+    duplicate: (uuids) => resolve().duplicate(uuids),
+    bulkDelete: (items) => resolve().bulkDelete(items),
+    bulkRestore: (items) => resolve().bulkRestore(items),
+    audit: (uuid, page, limit) => resolve().audit(uuid, page, limit),
+    stream: (query) => resolve().stream(query),
   };
 }

@@ -25,7 +25,7 @@ import { getPresenceStore } from "../modules/collaboration/presence-store-holder
  */
 type AuditWriter = Pick<Repository, "add">;
 
-export class BeAuditPortAdapter implements AuditPort {
+export class EntityAuditPort implements AuditPort {
   constructor(private repo: AuditWriter) {}
 
   async writeAudit(params: AuditParams): Promise<void> {

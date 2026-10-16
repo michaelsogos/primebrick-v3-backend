@@ -4,7 +4,7 @@
  * Every OIDC, Casdoor, gateway, and auth-mode setting is stored here as a
  * single row keyed by `key` (e.g. "oidc_issuer_url", "auth_mode"). The value
  * is always TEXT; type conversion (string → boolean / enum) happens in
- * `config-repo.ts` at read time.
+ * `config-entries.service.ts` at read time.
  *
  * Config Table standard columns:
  * - `type` — drives SDK coercion and FE widget selection (see ConfigType in SDK).

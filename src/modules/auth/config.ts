@@ -27,7 +27,7 @@ import {
   type OidcConfig,
   type GatewayConfig,
 } from "@primebrick/sdk";
-import { BeAuthConfigPort } from "./sdk-auth-ports.js";
+import { DomainAuthConfigPort } from "./sdk-auth-ports.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
 
 // Re-export types from SDK
@@ -44,7 +44,7 @@ export const getAuthConfig = sdkGetAuthConfig;
  * Called once at startup and on invalidation.
  */
 export async function loadAuthConfig(): Promise<AuthConfig> {
-  initAuthConfig(new BeAuthConfigPort());
+  initAuthConfig(new DomainAuthConfigPort());
   const config = await sdkLoadAuthConfig();
 
   // Also store in Redis for cross-pod sharing

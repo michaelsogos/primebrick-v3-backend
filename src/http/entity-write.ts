@@ -25,7 +25,7 @@ import { z } from "zod";
 
 import { Permission, checkRbac } from "@primebrick/sdk";
 import type { Repository } from "@primebrick/dal-pg";
-import { initDal } from "../db/dal-gateway.js";
+import {getDal} from "../db/dal-gateway.js";
 
 import { ForbiddenError, ValidationError } from "./api-errors.js";
 
@@ -151,7 +151,7 @@ export async function runEntityWrite<T>(
     return write();
   }
   const translationsSvc = new TranslationsService();
-  const result = await initDal().transaction(async (tx) => {
+  const result = await getDal().transaction(async (tx) => {
     const out = await write(tx);
     await persistPendingTranslations(translationsSvc, translations, tx);
     return out;

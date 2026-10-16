@@ -144,7 +144,7 @@ export async function discoverEntitiesFromService(baseUrl: string, serviceRef?: 
   const specUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/openapi.json`;
   const target = serviceRef ?? specUrl;
   // Two attempts: the target's allowlist cache can lag the
-  // `client_registry.changed` broadcast by a few ms right after enrollment —
+  // `client_shield_registry.changed` broadcast by a few ms right after enrollment —
   // a single short retry absorbs the race without masking real rejections.
   for (let attempt = 0; attempt < 2; attempt++) {
     try {

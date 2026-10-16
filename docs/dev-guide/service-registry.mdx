@@ -1,6 +1,6 @@
 ---
 title: Service Registry
-description: "How the BE tracks which microservices exist and whether they're healthy — the lifecycle subscriber, heartbeat + stale detection, the status state machine, client_registry, and who consumes the registry."
+description: "How the BE tracks which microservices exist and whether they're healthy — the lifecycle subscriber, heartbeat + stale detection, the status state machine, client_shield_registry, and who consumes the registry."
 ---
 
 # Service registry
@@ -40,12 +40,12 @@ modes:
 - **ALL stale simultaneously** → a single CRITICAL alarm (once per
   outage): likely a NATS outage rather than N independent crashes.
 
-## `client_registry`
+## `client_shield_registry`
 
 A parallel table: the known **client identities** (services + FE/BE
 themselves) used by the client-identity gate — inbound internal calls
 must present a `User-Agent` matching a registered client plus the
-client-shield secret. `client_registry.get` is the governed NATS lookup
+client-shield secret. `client_shield_registry.get` is the governed NATS lookup
 US services use for the same gate.
 
 ## Consumers

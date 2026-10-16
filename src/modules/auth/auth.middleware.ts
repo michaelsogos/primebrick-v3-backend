@@ -28,18 +28,18 @@ import {
   AuthError,
 } from "@primebrick/sdk";
 import { HttpHeaderProvider } from "@primebrick/sdk";
-import { BeUserResolverPort, BeRoleMappingPort } from "./sdk-auth-ports.js";
+import { DomainUserResolverPort, DomainRoleMappingPort } from "./sdk-auth-ports.js";
 
 // Cached port instances — created once at startup
-let userResolverPort: BeUserResolverPort | null = null;
-let roleMappingPort: BeRoleMappingPort | null = null;
+let userResolverPort: DomainUserResolverPort | null = null;
+let roleMappingPort: DomainRoleMappingPort | null = null;
 
 /**
  * Initialize auth ports. Called once at application startup.
  */
 export function initAuthPorts(): void {
-  userResolverPort = new BeUserResolverPort();
-  roleMappingPort = new BeRoleMappingPort();
+  userResolverPort = new DomainUserResolverPort();
+  roleMappingPort = new DomainRoleMappingPort();
 }
 
 /**

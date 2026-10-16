@@ -12,10 +12,10 @@
  */
 
 import { assertDbEnv, logger } from "@primebrick/sdk";
-import { NatsClient, SERVICE_SUBJECTS, CLIENT_REGISTRY_SUBJECTS, makeNatsRequestRoute, setNatsShieldRegistry, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
+import { NatsClient, SERVICE_SUBJECTS, CLIENT_SHIELD_REGISTRY_SUBJECTS, makeNatsRequestRoute, setNatsShieldRegistry, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
 import { createPublisherVerifier } from "./publisher-identity.js";
 import { ServiceRegistryService } from "../../modules/system/service-registry.service.js";
-import { ClientRegistryService } from "../../modules/system/client-registry.service.js";
+import { ClientShieldRegistryService } from "../../modules/system/client-shield-registry.service.js";
 import { entityRegistry } from "../../modules/mcp/tools/entity-registry.js";
 import { discoverEntitiesFromService } from "../../modules/mcp/tools/openapi-discovery.js";
 import { serviceEventsBus } from "../../modules/proxy/service-events-bus.js";
@@ -111,7 +111,7 @@ export class ServiceLifecycleSubscriber {
     // Keep the publisher-identity cache fresh when clients enroll/rotate.
     // Shield-verified too: a rogue publisher must not be able to force
     // allowlist refetches.
-    await NatsClient.subscribe(CLIENT_REGISTRY_SUBJECTS.CHANGED, async (_payload, msg) => {
+    await NatsClient.subscribe(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, async (_payload, msg) => {
       if (!(await this.verifier.verify(msg))) return;
       this.verifier.invalidate();
     });
@@ -159,7 +159,7 @@ export class ServiceLifecycleSubscriber {
 
   /**
    * Canonical service identity for logs: `{pkg_name}/{version}` — the same
-   * value as `system.client_registry.ua_prefix`. Falls back to the service
+   * value as `system.client_shield_registry.ua_prefix`. Falls back to the service
    * code when the package name isn't known (pre-identity rows).
    */
   private serviceRef(svc: { pkg_name?: string; service_version?: string }, code: string): string {
@@ -238,7 +238,7 @@ export class ServiceLifecycleSubscriber {
     // `{pkg_name}/{service_version}` — the UA prefix it will send.
     // Raw keys never travel; only the sha256 hash is stored.
     if (payload.pkg_name && payload.client_key_hash) {
-      await this.upsertClientRegistry(
+      await this.upsertClientShieldRegistry(
         `${payload.pkg_name}/${payload.service_version ?? ""}`,
         payload.client_key_hash,
       );
@@ -354,15 +354,15 @@ export class ServiceLifecycleSubscriber {
   }
 
   /**
-   * Enroll/refresh a `source='registry'` row in system.client_registry.
+   * Enroll/refresh a `source='registry'` row in system.client_shield_registry.
    * Registry rows are system-owned — find→add|update keeps them fresh on
    * re-registration; admins can only touch `source='manual'` rows.
    */
-  private async upsertClientRegistry(uaPrefix: string, clientKeyHash: string): Promise<void> {
-    await new ClientRegistryService().enrollRegistryRow(uaPrefix, clientKeyHash, "service-registry");
+  private async upsertClientShieldRegistry(uaPrefix: string, clientKeyHash: string): Promise<void> {
+    await new ClientShieldRegistryService().enrollRegistryRow(uaPrefix, clientKeyHash, "service-registry");
     logger.done(`The service ${uaPrefix} has been enrolled and its protection shield key registered`, { tags: ["nats"] });
     // Invalidate consumer-side allowlist caches.
-    await NatsClient.publish(CLIENT_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
+    await NatsClient.publish(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
   }
 
   private async handleHeartbeat(payload: ServiceHeartbeatPayload): Promise<void> {

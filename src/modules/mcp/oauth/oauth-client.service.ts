@@ -3,13 +3,13 @@
  *
  * Domain service for the `mcp_oauth_clients` table (McpOauthClientEntity) —
  * RFC 7591 Dynamic Client Registration storage. The ONLY place these rows
- * are read/written; data access is `initDal()` proxies (entity ops,
+ * are read/written; data access is `getDal()` proxies (entity ops,
  * schema-domain guarded) — the MCP controllers never touch a DAL.
  */
 
 import { field, Filter, Project } from "@primebrick/dal-pg";
 
-import { initDal } from "../../../db/dal-gateway.js";
+import {getDal} from "../../../db/dal-gateway.js";
 import { McpOauthClientEntity } from "./mcp_oauth_client_entity.js";
 
 /** RFC 7591 client registration record. */
@@ -50,7 +50,7 @@ function rowToClient(row: Partial<McpOauthClientEntity>): OAuthClient {
 export class OAuthClientService {
   /** Find a client by client_id. Returns null if not found. */
   async findByClientId(clientId: string): Promise<OAuthClient | null> {
-    const row = await initDal().find<McpOauthClientEntity>(
+    const row = await getDal().find<McpOauthClientEntity>(
       McpOauthClientEntity,
       CLIENT_FIELDS,
       {
@@ -63,7 +63,7 @@ export class OAuthClientService {
 
   /** Create a new client registration. */
   async register(client: OAuthClient): Promise<OAuthClient> {
-    await initDal().add(McpOauthClientEntity, {
+    await getDal().add(McpOauthClientEntity, {
       client_id: client.client_id,
       client_secret: client.client_secret,
       client_name: client.client_name,
@@ -80,7 +80,7 @@ export class OAuthClientService {
 
   /** Delete a client by client_id. Returns true if deleted, false if not found. */
   async deleteByClientId(clientId: string): Promise<boolean> {
-    const res = await initDal().hardDeleteMany(
+    const res = await getDal().hardDeleteMany(
       McpOauthClientEntity,
       [{ client_id: clientId }],
       { matchBy: "client_id" },

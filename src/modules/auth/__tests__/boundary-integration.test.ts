@@ -1,16 +1,16 @@
 /**
  * Boundary integration tests — HTTP-level tests against the running BE dev
- * server. Exercises every data-access seam converged onto `initDal()` by the
+ * server. Exercises every data-access seam converged onto `getDal()` by the
  * DAL-boundary refactor:
  *
- *   - login              → AuthSessionService → UserProfilesDal, loadAuthConfigFromDb
- *   - config_entry/list  → ConfigEntriesService → ConfigEntriesDal (mask + etag)
+ *   - login              → AuthSessionService → UserService, ConfigEntriesService.loadAuthConfigOnly
+ *   - config_entry/list  → ConfigEntriesService (mask + etag)
  *   - organization/list  → makeEntityService → dal.entityService (+ withCache seam)
- *   - user_profile/list  → UserProfilesDal
- *   - role_mapping/list  → RoleService → RoleMappingRepo
+ *   - user_profile/list  → UserService
+ *   - role_mapping/list  → RoleService (extends DomainService)
  *   - system/services    → SystemService → ServiceRegistryService
  *   - translations dict  → TranslationsService (merged DAL)
- *   - POST config_entry  → runEntityWrite tx → BeAuditPortAdapter audit row
+ *   - POST config_entry  → runEntityWrite tx → EntityAuditPort audit row
  *   - DELETE             → MFA step-up gate (403 MFA_STEP_UP_REQUIRED)
  *
  * Prerequisites:
@@ -233,7 +233,7 @@ afterAll(async () => {
 });
 
 describe("DAL boundary — live HTTP surface", () => {
-  it("POST /auth/login sets a working session (AuthSessionService → initDal)", () => {
+  it("POST /auth/login sets a working session (AuthSessionService → getDal)", () => {
     if (!serverReachable || !actorReady) return expect(true).toBe(true); // skip
     expect(cookies).toContain("access_token=");
   });
@@ -260,13 +260,13 @@ describe("DAL boundary — live HTTP surface", () => {
     expect(res.body).toHaveProperty("total");
   });
 
-  it("GET user_profile/list works (UserProfilesDal → initDal)", async () => {
+  it("GET user_profile/list works (UserService → getDal)", async () => {
     if (!serverReachable || !actorReady) return;
     const res = await api("/api/v1/entities/user_profile/list");
     expect(res.status).toBe(200);
   });
 
-  it("GET role_mapping/list works (RoleMappingRepo → initDal)", async () => {
+  it("GET role_mapping/list works (RoleService → this.dal)", async () => {
     if (!serverReachable || !actorReady) return;
     const res = await api("/api/v1/entities/role_mapping/list");
     expect(res.status).toBe(200);
@@ -298,7 +298,7 @@ describe("DAL boundary — live HTTP surface", () => {
     cfgVersion = create.body.version;
     expect(cfgUuid).toBeTruthy();
 
-    // The write must produce an audit row via BeAuditPortAdapter — this is
+    // The write must produce an audit row via EntityAuditPort — this is
     // the regression guard for the silent-skip gap (audit only happens when
     // the `audit:` option is passed on the write call).
     const audit = await api(`/api/v1/entities/config_entry/${cfgUuid}/audit?page=1&limit=10`);

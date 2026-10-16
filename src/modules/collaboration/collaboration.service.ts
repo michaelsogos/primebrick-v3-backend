@@ -11,7 +11,7 @@ import { NatsClient } from "@primebrick/sdk";
 import type { PresencePort, PresenceEntry, PresenceSignal, PresenceSnapshot } from "@primebrick/sdk";
 import { publishPresence } from "@primebrick/sdk";
 import { getPresenceStore } from "./presence-store-holder.js";
-import { initDal } from "../../db/dal-gateway.js";
+import {getDal} from "../../db/dal-gateway.js";
 import { findAuditById } from "../../db/audit-query-helper.js";
 import { NotFoundError } from "../../http/api-errors.js";
 import type { AuditDiffResponse } from "./dto.js";
@@ -142,7 +142,7 @@ export const collaborationService = {
     entityUuid: string,
     auditLogId: bigint,
   ): Promise<AuditDiffResponse> {
-    const row = await findAuditById(initDal(), `${entityType}_audit`, auditLogId);
+    const row = await findAuditById(getDal(), `${entityType}_audit`, auditLogId);
     if (!row) {
       throw new NotFoundError(
         `Audit log entry ${auditLogId} not found in ${entityType}_audit`,

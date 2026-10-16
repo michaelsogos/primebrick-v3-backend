@@ -550,7 +550,7 @@ infra-internal — never import it outside `src/db/`.
    `AuditPort` on every write/delete/restore. Same contract in the BE and in
    every microservice schema. Audit is opt-in per write call (`{ actor, audit }`) —
    omitting it silently skips the row; tx-bound writes must use an adapter
-   bound to the tx repo (`new BeAuditPortAdapter(repo)`), not the root repo.
+   bound to the tx repo (`new EntityAuditPort(repo)`), not the root repo.
 2. **Entity-changed event** — the event-sourcing signal emitted in parallel
    to the write (`entity.<entity>.<action>` on NATS + a Redis marker), so any
    service or subsystem can intercept lifecycle changes without polling.

@@ -1,4 +1,4 @@
-import { Dal, getDal } from "@primebrick/dal-pg";
+import { getDal, resetDal } from "@primebrick/dal-pg";
 import {
   assertDbEnv,
   logger,
@@ -10,7 +10,18 @@ import {
 import type { Pool } from "pg";
 import { getCachePort } from "../cache/cache-port-holder.js";
 
-let dalInstance: Dal | null = null;
+/**
+ * Dal gateway bootstrap for the BE.
+ *
+ * `initDal()` is called ONCE from `index.ts` startup — before any
+ * DB-dependent work (migrations, config loads). It returns void: the
+ * accessor is `getDal()` (re-exported from dal-pg — same convention as
+ * every microservice's `db/dal.ts`). `getDal()` FAILS FAST if bootstrap
+ * hasn't run — there is no lazy get-or-init seam.
+ *
+ * The env contract (DATABASE_URL + DATABASE_SCHEMA, nothing else) is
+ * enforced by assertDbEnv.
+ */
 
 /**
  * CachePort that resolves to the singleton port lazily on every call.
@@ -29,10 +40,9 @@ const lazyCachePort: CachePort = {
   ping: () => getCachePort()?.ping() ?? Promise.resolve(false),
 };
 
-export function initDal(): Dal {
-  if (dalInstance) return dalInstance;
+export function initDal(): void {
   const { url, schemas } = assertDbEnv();
-  dalInstance = getDal({
+  getDal({
     connectionString: url,
     schemas,
     // The BE is the i18n gateway — it manages `<module>.translations` in
@@ -49,18 +59,16 @@ export function initDal(): Dal {
     statementTimeoutMs: 30000,
     applicationName: "primebrick-api",
   });
-  return dalInstance;
 }
 
-// standards-exempt: getPool — governed seam for migration/patch tooling ONLY (run-be-migrations, db-migration.service)
+export { getDal };
+
+// standards-exempt: getPool — governed seam for migration/patch tooling ONLY (run-module-migrations, db-migration.service)
 export function getPool(): Pool {
   // standards-exempt: getPool — passthrough to the Dal-owned pool; callers are migration tooling
-  return initDal().getPool();
+  return getDal().getPool();
 }
 
 export async function closeDal(): Promise<void> {
-  if (dalInstance) {
-    await dalInstance.close();
-    dalInstance = null;
-  }
+  await resetDal();
 }

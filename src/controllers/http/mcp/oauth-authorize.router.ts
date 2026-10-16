@@ -21,10 +21,11 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { getAuthConfig, extJsonStringify, extJsonParse } from "@primebrick/sdk";
 import { OAuthClientService } from "../../../modules/mcp/oauth/oauth-client.service.js";
 
-/** Send a JSON response bypassing extJsonMiddleware (which forces bigint serialization). */
+/** Send a JSON response directly (raw write — bypasses the extJson middleware wrapper). */
 function sendJson(res: Response, status: number, data: unknown): void {
-  // standards-exempt: ext-json — RFC6749 OAuth response is plain JSON by spec
-  res.status(status).set("Content-Type", "application/json").send(JSON.stringify(data));
+  // extJsonStringify: byte-identical to JSON.stringify on plain types, and
+  // emits a bigint as a bare JSON number (still RFC6749-valid) instead of throwing.
+  res.status(status).set("Content-Type", "application/json").send(extJsonStringify(data));
 }
 
 /** RFC 6749 §4.1.1 — Authorization Request parameters. */

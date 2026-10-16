@@ -20,15 +20,16 @@
  *   - ...all registered metadata echoed back
  */
 
-import { logger } from "@primebrick/sdk";
+import { extJsonStringify, logger } from "@primebrick/sdk";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { randomUUID } from "node:crypto";
 import { OAuthClientService, type OAuthClient } from "../../../modules/mcp/oauth/oauth-client.service.js";
 
-/** Send a JSON response bypassing extJsonMiddleware (which forces bigint serialization). */
+/** Send a JSON response directly (raw write — bypasses the extJson middleware wrapper). */
 function sendJson(res: Response, status: number, data: unknown): void {
-  // standards-exempt: ext-json — RFC7591 DCR response is plain JSON by spec
-  res.status(status).set("Content-Type", "application/json").send(JSON.stringify(data));
+  // extJsonStringify: byte-identical to JSON.stringify on plain types, and
+  // emits a bigint as a bare JSON number (still RFC7591-valid) instead of throwing.
+  res.status(status).set("Content-Type", "application/json").send(extJsonStringify(data));
 }
 
 /** RFC 7591 §2 — Client Metadata (request body). */

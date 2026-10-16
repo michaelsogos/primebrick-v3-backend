@@ -24,6 +24,8 @@ vi.mock("../../../modules/auth/services/role.service.js", () => ({
   RoleService: vi.fn().mockImplementation(function () {
     return mocks.service;
   }),
+  // The router resolves the worker through the lazy singleton accessor.
+  getRoleService: () => mocks.service,
 }));
 
 vi.mock("../../../modules/auth/rbac.middleware.js", () => ({

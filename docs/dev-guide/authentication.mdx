@@ -120,8 +120,8 @@ const user: AuthUser = {
 
 ### Initializing auth ports at startup
 
-The auth middleware depends on two ports (`BeUserResolverPort` and
-`BeRoleMappingPort`) that hit the database. They are created once at startup by
+The auth middleware depends on two ports (`DomainUserResolverPort` and
+`DomainRoleMappingPort`) that hit the database. They are created once at startup by
 `initAuthPorts()`, and role mappings are preloaded into memory by
 `loadRoleMappings()`. The middleware fails closed (503) while mappings are not
 yet loaded.
@@ -131,7 +131,7 @@ yet loaded.
 import { initAuthPorts, loadRoleMappings } from "./modules/auth/auth.middleware.js";
 
 async function runStartupTasks() {
-  initAuthPorts();                       // creates BeUserResolverPort + BeRoleMappingPort
+  initAuthPorts();                       // creates DomainUserResolverPort + DomainRoleMappingPort
   await loadRoleMappings();              // preloads role_mappings into memory
   // ...NATS subscriber, stale-detection job, etc.
 }

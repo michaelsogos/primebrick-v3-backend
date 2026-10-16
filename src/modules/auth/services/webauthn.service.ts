@@ -33,7 +33,7 @@
  *   deployments, replace it with a shared store (Redis). Flagged in the plan.
  */
 
-import { logger } from "@primebrick/sdk";
+import { extJsonStringify, logger } from "@primebrick/sdk";
 import type { Response } from "express";
 import { randomUUID } from "crypto";
 import { request as httpRequest } from "http";
@@ -42,8 +42,10 @@ import { request as httpsRequest } from "https";
 import { getAuthConfig } from "../config.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { InvitationService } from "./invitation.service.js";
-import { UserPasskeysDal } from "../user-passkeys-dal.js";
-import { UserProfilesDal } from "../user-profiles-dal.js";
+import { getUserService } from "./user.service.js";
+import { DomainService } from "../../../db/domain-service.js";
+import { UserPasskeyEntity } from "../user_passkey_entity.js";
+import { field, Filter } from "@primebrick/dal-pg";
 import { sendEmail } from "./email-sender.js";
 import { requireActor, runAsSystem } from "@primebrick/sdk";
 import { parseUserAgent, truncateUserAgent } from "../utils/ua-parser.js";
@@ -53,7 +55,7 @@ import {
   buildUserFromClaims,
   type TokenSet,
 } from "./auth-session.service.js";
-import { insertAuthEvent, type AuthRequestContext } from "../auth-event-logger.js";
+import { getAuthEventsService, type AuthRequestContext } from "./auth-events.service.js";
 import {
   ApiError,
   UnauthorizedError,
@@ -103,7 +105,7 @@ function fetchWithHost(
           ok: res.statusCode! >= 200 && res.statusCode! < 300,
           status: res.statusCode!,
           text: async () => body,
-          // standards-exempt: ext-json — external IdP response body (fetch shim)
+          // standards-exempt: ext-json — external wire payload (IdP response, fetch shim) — must not bigint-ify
           json: async () => JSON.parse(body),
           headers: {
             get(name: string): string | null {
@@ -210,10 +212,225 @@ async function popCasdoorSession(nonce: string): Promise<string | null> {
 
 // --- Service --------------------------------------------------------------
 
-export class WebauthnService {
+export class WebauthnService extends DomainService<Record<string, unknown>> {
   constructor(
     private casdoor: CasdoorService,
-  ) {}
+  ) {
+    // The service owns `user_passkeys` (absorbed user-passkeys-dal.ts) —
+    // `svc` is bound to the passkey entity; custom queries use `this.dal`.
+    super({
+      entity: UserPasskeyEntity,
+      list: {
+        searchableKeys: ["label", "credential_id"],
+        filterableKeys: new Set(["user_profile_id", "credential_id", "aaguid"]),
+        defaultSort: { key: "created_at", dir: "desc" },
+      },
+    });
+  }
+
+  // --- user_passkeys (absorbed from user-passkeys-dal.ts) --------------------
+
+  /** Insert a new passkey row after successful WebAuthn enrollment. */
+  private async createPasskey(data: {
+    user_profile_id: bigint;
+    credential_id: string;
+    aaguid?: string;
+    transports?: string[];
+    label?: string;
+    last_used_at?: Date;
+    authenticator_attachment?: string;
+    user_agent?: string;
+    os?: string;
+    device_model?: string;
+  }): Promise<string> {
+    const actor = requireActor();
+    const row = await this.dal.add<UserPasskeyEntity>(
+      UserPasskeyEntity,
+      {
+        user_profile_id: data.user_profile_id,
+        credential_id: data.credential_id,
+        aaguid: data.aaguid,
+        transports: data.transports,
+        label: data.label,
+        last_used_at: data.last_used_at,
+        authenticator_attachment: data.authenticator_attachment,
+        user_agent: data.user_agent,
+        os: data.os,
+        device_model: data.device_model,
+        created_by: actor,
+        updated_by: actor,
+      },
+      { actor },
+    );
+    return row.uuid;
+  }
+
+  /**
+   * Find a passkey by its credential ID.
+   * Returns null if not found.
+   */
+  private async findPasskeyByCredentialId(credentialId: string): Promise<UserPasskeyEntity | null> {
+    return this.dal.find<UserPasskeyEntity, UserPasskeyEntity>(
+      UserPasskeyEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(field(UserPasskeyEntity, "credential_id" as any), "=", credentialId),
+        ],
+        throwIfNotFound: false,
+      },
+    );
+  }
+
+  /** Find a passkey by UUID. */
+  private async findPasskeyByUuid(uuid: string): Promise<UserPasskeyEntity | null> {
+    return this.dal.find<UserPasskeyEntity, UserPasskeyEntity>(
+      UserPasskeyEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(field(UserPasskeyEntity, "uuid" as any), "=", uuid),
+        ],
+        throwIfNotFound: false,
+      },
+    );
+  }
+
+  /** Find all passkeys for a user profile (by user_profile_id). */
+  private async findPasskeysByUserProfileId(userProfileId: bigint): Promise<UserPasskeyEntity[]> {
+    const rows = await this.dal.findAll<UserPasskeyEntity, UserPasskeyEntity>(
+      UserPasskeyEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(field(UserPasskeyEntity, "user_profile_id" as any), "=", userProfileId),
+        ],
+      },
+    );
+    return rows as UserPasskeyEntity[];
+  }
+
+  /**
+   * Find passkeys by user profile UUID — resolves uuid → internal id via
+   * UserService (UserProfileEntity is @Cached, so the lookup is usually
+   * a cache hit), then filters `user_profile_id` on the entity.
+   */
+  private async findPasskeysByUserProfileUuid(userProfileUuid: string): Promise<UserPasskeyEntity[]> {
+    const profileId = await getUserService().getIdByUuid(userProfileUuid);
+    if (!profileId) return [];
+    return this.findPasskeysByUserProfileId(profileId);
+  }
+
+  /**
+   * Count passkeys for a user profile.
+   * Used by the passkey prompt logic (has_passkey = count > 0).
+   */
+  async countPasskeysByUserProfileId(userProfileId: bigint): Promise<number> {
+    const rows = await this.findPasskeysByUserProfileId(userProfileId);
+    return rows.length;
+  }
+
+  /**
+   * Delete a passkey by UUID.
+   * The user_passkeys table has no soft-delete columns, so this physically
+   * removes the row.
+   */
+  private async deletePasskeyByUuid(uuid: string): Promise<void> {
+    const existing = await this.dal.find<UserPasskeyEntity, UserPasskeyEntity>(
+      UserPasskeyEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(field(UserPasskeyEntity, "uuid" as any), "=", uuid),
+        ],
+        throwIfNotFound: false,
+      },
+    );
+    if (existing) {
+      await this.dal.delete(UserPasskeyEntity, { id: existing.id, version: existing.version }, { actor: requireActor() });
+    }
+  }
+
+  /**
+   * Delete a passkey by credential ID.
+   * Used when the WebAuthn credential is deleted from Casdoor.
+   */
+  private async deletePasskeyByCredentialId(credentialId: string): Promise<void> {
+    const existing = await this.findPasskeyByCredentialId(credentialId);
+    if (existing) {
+      await this.dal.delete(UserPasskeyEntity, { id: existing.id, version: existing.version }, { actor: requireActor() });
+    }
+  }
+
+  /** Update the label of a passkey. */
+  private async updatePasskeyLabel(uuid: string, label: string): Promise<void> {
+    const actor = requireActor();
+    const existing = await this.findPasskeyByUuid(uuid);
+    if (!existing) return;
+    await this.dal.update(
+      UserPasskeyEntity,
+      {
+        uuid,
+        label,
+        version: existing.version,
+      },
+      { actor },
+    );
+  }
+
+  /**
+   * Bump the last_used_at timestamp for a passkey by credential ID.
+   * Called after a successful WebAuthn signin to track when each
+   * credential was last used. Best-effort: callers should catch errors
+   * and log them without failing the signin.
+   */
+  private async updatePasskeyLastUsed(credentialId: string, when: Date): Promise<void> {
+    const existing = await this.findPasskeyByCredentialId(credentialId);
+    if (!existing) return;
+    const actor = requireActor();
+    await this.dal.update(
+      UserPasskeyEntity,
+      {
+        credential_id: credentialId,
+        last_used_at: when,
+        // Required for optimistic locking — UserPasskeyEntity is auditable so
+        // the DAL rejects updates without a `version` field (MissingVersionError,
+        // code ERR02). We pass the version we just read; if another write
+        // happened in between, the guard will reject with a 409 — acceptable
+        // for a best-effort last_used_at bump.
+        // NOTE: do NOT set `updated_by` here — the `{ actor }` option below
+        // already writes it, and setting it in both places yields
+        // "multiple assignments to same column" (PG error 42601).
+        version: existing.version,
+      },
+      { actor, matchBy: "credential_id" as any },
+    );
+  }
+
+  /**
+   * Backfill passkey metadata that was missing at enrollment (aaguid,
+   * authenticator_attachment, os, device_model) — callers pass only the
+   * fields that need filling; `version` rides on the already-read entity.
+   */
+  private async backfillPasskeyMetadata(
+    existing: UserPasskeyEntity,
+    patch: {
+      aaguid?: string;
+      authenticator_attachment?: string;
+      os?: string;
+      device_model?: string;
+    },
+  ): Promise<void> {
+    await this.dal.update(
+      UserPasskeyEntity,
+      {
+        id: existing.id,
+        version: existing.version,
+        ...patch,
+      },
+      { actor: requireActor() },
+    );
+  }
 
   // --- Signin --------------------------------------------------------------
 
@@ -296,7 +513,7 @@ export class WebauthnService {
         Origin: origin,
         Accept: "application/json",
       },
-      // standards-exempt: ext-json — external IdP (Casdoor webauthn) wire format
+      // standards-exempt: ext-json — external wire payload (Casdoor webauthn) — strict plain JSON, bigint must throw loudly
       body: JSON.stringify(credential),
       hostOverride: browserHost,
     });
@@ -440,27 +657,24 @@ export class WebauthnService {
         const line = `[${new Date().toISOString()}] ${msg}\n`;
         fs.appendFileSync("D:\\git\\primebrick\\temp\\webauthn-debug.log", line);
       };
-      // standards-exempt: ext-json — dev debug output only (not a wire payload)
-      debugLog(`signinFinish called | credentialId=${JSON.stringify(credentialId)} | credential keys=${Object.keys(credential || {})}`);
+      debugLog(`signinFinish called | credentialId=${extJsonStringify(credentialId)} | credential keys=${Object.keys(credential || {})}`);
       if (credentialId) {
-        const passkeysDal = new UserPasskeysDal();
-        const existing = await passkeysDal.findByCredentialId(credentialId);
+        const existing = await this.findPasskeyByCredentialId(credentialId);
         debugLog(`findByCredentialId(credentialId) => ${existing ? `FOUND id=${existing.id} stored_cred=${existing.credential_id}` : "NOT FOUND"}`);
         // Also try with all PG passkeys to find a match
         const profile = await (async () => {
           try {
-            const profilesDal = new (await import("../user-profiles-dal.js")).UserProfilesDal();
+            const profilesDal = getUserService();
             const idpOrg2 = (claims as any).organization as string | undefined;
             const idpUsername2 = (claims as any).name as string | undefined;
             return idpOrg2 && idpUsername2 ? await profilesDal.getByIdpCode(`${idpOrg2}/${idpUsername2}`) : null;
           } catch (e) { debugLog(`profile lookup error: ${e}`); return null; }
         })();
         if (profile) {
-          const allPks = await passkeysDal.findByUserProfileUuid(profile.uuid);
-          // standards-exempt: ext-json — dev debug output only (not a wire payload)
-          debugLog(`all PG passkeys for profile ${profile.uuid}: ${JSON.stringify(allPks.map(p => ({ id: p.id, cred: p.credential_id, last_used: p.last_used_at })))}`);
+          const allPks = await this.findPasskeysByUserProfileUuid(profile.uuid);
+          debugLog(`all PG passkeys for profile ${profile.uuid}: ${extJsonStringify(allPks.map(p => ({ id: p.id, cred: p.credential_id, last_used: p.last_used_at })))}`);
         }
-        await runAsSystem(() => passkeysDal.updateLastUsed(credentialId, new Date()));
+        await runAsSystem(() => this.updatePasskeyLastUsed(credentialId, new Date()));
         debugLog(`updateLastUsed DONE`);
       }
     } catch (lastUsedErr) {
@@ -476,8 +690,8 @@ export class WebauthnService {
     let userUuid: string | undefined;
     if (idpCode) {
       try {
-        const { resolveInternalUuid } = await import("../user-profile-repo.js");
-        userUuid = await resolveInternalUuid({
+        const { getUserService: getUserSvc } = await import("./user.service.js");
+        userUuid = await getUserSvc().resolveInternalUuid({
           idp_code: idpCode,
           email: (claims as any).email ?? null,
           display_name: (claims as any).displayName ?? (claims as any).name ?? null,
@@ -491,7 +705,7 @@ export class WebauthnService {
     }
 
     // Insert passkey signin auth event (best-effort, non-blocking).
-    await insertAuthEvent({
+    await getAuthEventsService().insertEvent({
       event_type: "passkey_signin",
       success: true,
       user_profile_uuid: userUuid,
@@ -589,7 +803,7 @@ export class WebauthnService {
         Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      // standards-exempt: ext-json — external IdP (Casdoor webauthn) wire format
+      // standards-exempt: ext-json — external wire payload (Casdoor webauthn) — strict plain JSON, bigint must throw loudly
       body: JSON.stringify(credential),
       hostOverride: browserHost,
     });
@@ -626,7 +840,7 @@ export class WebauthnService {
       const credentialId = cred?.id;
       if (credentialId) {
         // Get the user profile from the access token to find user_profile_id
-        const profilesDal = new UserProfilesDal();
+        const profilesDal = getUserService();
         // We need the user's idp_code to look up the profile — extract from the
         // access token claims. For now, we use the Casdoor session to get the user.
         // The signupFinish is called with an accessToken, so we can decode it.
@@ -637,15 +851,14 @@ export class WebauthnService {
         if (profile) {
           const profileId = await profilesDal.getIdByUuid(actor);
           if (profileId) {
-            const passkeysDal = new UserPasskeysDal();
             // Check if this credential is already tracked (idempotent)
-            const existing = await passkeysDal.findByCredentialId(credentialId);
+            const existing = await this.findPasskeyByCredentialId(credentialId);
             if (!existing) {
               // Parse OS / device model from the User-Agent for rich display.
               // platformVersion (User-Agent Client Hints) lets us distinguish
               // Windows 10 from Windows 11 on Chromium-based browsers.
               const uaInfo = userAgent ? parseUserAgent(userAgent, platformVersion) : {};
-              await passkeysDal.create({
+              await this.createPasskey({
                 user_profile_id: BigInt(profileId),
                 credential_id: credentialId,
                 // aaguid and transports are inside the attestationObject which is
@@ -754,13 +967,12 @@ export class WebauthnService {
       device_model?: string;
     }> = new Map();
     try {
-      const passkeysDal = new UserPasskeysDal();
-      const profilesDal = new UserProfilesDal();
+      const profilesDal = getUserService();
       const profile = idpCode
         ? await profilesDal.getByIdpCode(idpCode)
         : await profilesDal.getByIdpCode(`${idpOrg}/${idpUsername}`);
       if (profile) {
-        const pgPasskeys = await passkeysDal.findByUserProfileUuid(profile.uuid);
+        const pgPasskeys = await this.findPasskeysByUserProfileUuid(profile.uuid);
         for (const pk of pgPasskeys) {
           pgMeta.set(normalizeCredId(pk.credential_id), {
             label: pk.label ?? null,
@@ -850,7 +1062,7 @@ export class WebauthnService {
     const casdoorCredIds = new Set(casdoorCreds.map((c) => normalizeCredId(c.id)));
 
     // Look up the user profile in PG
-    const profilesDal = new UserProfilesDal();
+    const profilesDal = getUserService();
     const profile = idpCode
       ? await profilesDal.getByIdpCode(idpCode)
       : await profilesDal.getByIdpCode(`${idpOrg}/${idpUsername}`);
@@ -860,8 +1072,7 @@ export class WebauthnService {
       });
     }
 
-    const passkeysDal = new UserPasskeysDal();
-    const pgPasskeys = await passkeysDal.findByUserProfileUuid(profile.uuid);
+    const pgPasskeys = await this.findPasskeysByUserProfileUuid(profile.uuid);
 
     // Get the numeric profile ID for insertion
     const profileId = await profilesDal.getIdByUuid(profile.uuid);
@@ -886,7 +1097,7 @@ export class WebauthnService {
       if (!existing) {
         // New credential — insert with all available metadata
         const osInfo = inferOsFromAaguid(aaguid);
-        await passkeysDal.create({
+        await this.createPasskey({
           user_profile_id: BigInt(profileId),
           credential_id: cred.id,
           aaguid,
@@ -904,7 +1115,7 @@ export class WebauthnService {
         const needsOs = !existing.os && osInfo.os;
         const needsDeviceModel = !existing.device_model && osInfo.device_model;
         if (needsAaguid || needsAttachment || needsOs || needsDeviceModel) {
-          await passkeysDal.backfillMetadata(existing, {
+          await this.backfillPasskeyMetadata(existing, {
             ...(needsAaguid ? { aaguid: aaguid! } : {}),
             ...(needsAttachment ? { authenticator_attachment: attachment! } : {}),
             ...(needsOs ? { os: osInfo.os! } : {}),
@@ -917,7 +1128,7 @@ export class WebauthnService {
     // Delete PG rows no longer in Casdoor (stale)
     for (const pgPasskey of pgPasskeys) {
       if (!casdoorCredIds.has(normalizeCredId(pgPasskey.credential_id))) {
-        await passkeysDal.deleteByUuid(pgPasskey.uuid);
+        await this.deletePasskeyByUuid(pgPasskey.uuid);
         deleted++;
       }
     }
@@ -995,12 +1206,11 @@ export class WebauthnService {
     // Remove the passkey from PG + send notification email.
     // Best-effort: if PG deletion fails, the passkey is still deleted from Casdoor.
     try {
-      const passkeysDal = new UserPasskeysDal();
-      await passkeysDal.deleteByCredentialId(credentialId);
+      await this.deletePasskeyByCredentialId(credentialId);
 
       // Send passkey removed notification email
       const actor = requireActor();
-      const profilesDal = new UserProfilesDal();
+      const profilesDal = getUserService();
       const profile = await profilesDal.getByUuid(actor);
       if (profile && profile.email) {
         const invitationService = new InvitationService(this.casdoor);
@@ -1198,7 +1408,7 @@ export class WebauthnService {
     const parts = token.split(".");
     const encodedPayload = parts[1];
     const rawPayload = Buffer.from(encodedPayload, "base64").toString("utf-8");
-    // standards-exempt: ext-json — JWT payload is RFC7519 plain JSON
+    // standards-exempt: ext-json — external wire payload (JWT RFC7519) — must not bigint-ify
     return JSON.parse(rawPayload);
   }
 
@@ -1222,7 +1432,7 @@ export class WebauthnService {
     let code = "webauthn_ceremony_failed";
 
     try {
-      // standards-exempt: ext-json — external IdP error response body
+      // standards-exempt: ext-json — external wire payload (IdP error body) — must not bigint-ify
       const json = JSON.parse(errorText);
       detail = json.msg || json.error || json.error_description || detail;
       // Detect "no credentials" case (signin begin for a user with no passkey)
