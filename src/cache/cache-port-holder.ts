@@ -1,7 +1,7 @@
 /**
  * Singleton holder for the `CachePort` instance.
  *
- * The BE initializes this once at startup from `redis_url` in `auth_configurations`.
+ * The BE initializes this once at startup from `redis_url` in `config_entries`.
  * If `redis_url` is empty or Redis is unreachable, `cachePort` stays `null` and all
  * cache calls are no-ops (best-effort — the system is fully valid without Redis).
  *
@@ -9,7 +9,7 @@
  */
 
 import type { CachePort, CacheLogger } from "@primebrick/sdk";
-import { RedisCachePort, createRedisClient, closeRedisClient, getRedisInfo, type RedisInfo } from "@primebrick/sdk";
+import { RedisCachePort, createRedisClient, closeRedisClient, getRedisInfo, logModuleStartup, type RedisInfo } from "@primebrick/sdk";
 
 let cachePort: CachePort | null = null;
 let redisInfo: RedisInfo | null = null;
@@ -30,20 +30,16 @@ export async function initCache(
   logger: CacheLogger,
 ): Promise<void> {
   if (!redisUrl) {
-    logger.warn("[cache] redis_url not set — cache disabled (best-effort, system valid without it)");
+    logger.warn("redis_url not set — cache disabled (best-effort, system valid without it)", { tags: ["core"] });
     return;
   }
   try {
     const redis = await createRedisClient(redisUrl);
     cachePort = new RedisCachePort(redis);
     redisInfo = await getRedisInfo(redis);
-    if (redisInfo) {
-      logger.info(`[cache] Redis connected (v${redisInfo.version})`);
-    } else {
-      logger.info("[cache] Redis connected (version unknown)");
-    }
+    logModuleStartup("Redis", redisInfo?.version ?? null, redisUrl.replace(/(:\/\/[^:/]+):[^@]+@/, "$1@"));
   } catch (err) {
-    logger.warn(`[cache] Redis connection failed — cache disabled: ${err}`);
+    logger.warn(`Redis connection failed — cache disabled: ${err}`, { tags: ["core"] });
     // cachePort stays null — all cache calls are no-ops
   }
 }

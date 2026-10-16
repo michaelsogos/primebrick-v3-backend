@@ -16,7 +16,7 @@
 import {
   Column,
   Entity,
-  Key,
+  Key, type UUID,
 } from "@primebrick/dal-pg";
 
 @Entity("auth_events")
@@ -26,7 +26,7 @@ export class AuthEventEntity {
 
   /** FK to user_profiles.uuid. NULL for failed login (no resolvable user). */
   @Column({ nullable: true })
-  user_profile_uuid?: string;
+  user_profile_uuid?: UUID;
 
   /** Username that was attempted (mainly for failed login). */
   @Column({ nullable: true })
@@ -41,7 +41,7 @@ export class AuthEventEntity {
   event_at: Date;
 
   /** Client IP address. */
-  @Column({ nullable: true })
+  @Column({ pgType: "inet", nullable: true })
   ip_address?: string;
 
   /** User-Agent header from the client. */

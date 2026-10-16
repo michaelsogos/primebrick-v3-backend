@@ -17,6 +17,7 @@
  *   9. get_entity_meta        — discovery: field schema for create/update
  *  10. bulk_entity_action     — delete/restore array of UUIDs
  *  11. manage_service         — service management (list/get/activate/update/delete)
+ *  12. search_docs            — docs KB vector+keyword search (pre-computed embedding)
  */
 
 import { z } from "zod";
@@ -32,16 +33,16 @@ import {
   RbacDeniedError,
   EntityNotFoundError,
   OperationNotSupportedError,
-  dispatchBeList,
-  dispatchBeGet,
-  dispatchBeCreate,
-  dispatchBeUpdate,
-  dispatchBeDelete,
-  dispatchBeRestore,
-  dispatchBeAudit,
-  dispatchBeMeta,
-  dispatchBeBulk,
-  dispatchBeAggregate,
+  dispatchLocalList,
+  dispatchLocalGet,
+  dispatchLocalCreate,
+  dispatchLocalUpdate,
+  dispatchLocalDelete,
+  dispatchLocalRestore,
+  dispatchLocalAudit,
+  dispatchLocalMeta,
+  dispatchLocalBulk,
+  dispatchLocalAggregate,
   dispatchProxyList,
   dispatchProxyGet,
   dispatchProxyCreate,
@@ -58,6 +59,7 @@ import {
   deleteService,
 } from "./dispatch.js";
 import type { AuthInfo } from "@modelcontextprotocol/server";
+import { proxyToMicroservice } from "./dispatch.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -153,11 +155,102 @@ const moduleEntitySchema = {
 // ─── Tool Registration ───────────────────────────────────────────────────────
 
 /**
- * Register all 11 generic tools on the given McpServer instance.
+ * Generic tool handler signature — the same handlers serve the MCP server
+ * and the REST shim (POST /api/v1/system/mcp/call). Every handler already
+ * validates (module, entity), enforces RBAC via `checkRbac(authInfo, …)` and
+ * dispatches through `dispatch.ts`, so exposing them over REST adds ZERO
+ * duplicate logic and no AI-specific backdoor.
+ */
+type GenericToolHandler = (
+  args: unknown,
+  ctx: ServerContext,
+) => Promise<CallToolResult>;
+
+/** name → wrapped handler (withErrorHandling already applied). */
+const toolHandlers = new Map<string, GenericToolHandler>();
+
+/** name → public tool definition (for REST discovery by loop drivers). */
+interface GenericToolDef {
+  name: string;
+  title: string;
+  description: string;
+  input_schema: unknown;
+  read_only: boolean;
+}
+const toolDefs = new Map<string, GenericToolDef>();
+
+/** Tools that never mutate state — loop drivers may auto-execute them;
+ *  write tools must be confirmed by the user client-side (RBAC is still
+ *  the final protection, enforced per-call in the handlers). */
+const READ_ONLY_TOOLS = new Set([
+  "list_entities",
+  "get_entity",
+  "get_entity_audit",
+  "list_available_entities",
+  "get_entity_meta",
+  "search_docs",
+]);
+
+/**
+ * Public tool catalog for REST consumers (GET /api/v1/system/mcp/tools) —
+ * the same names/schemas the MCP server exposes via tools/list, plus a
+ * read_only hint so loop drivers can auto-execute safe calls.
+ */
+export function listGenericToolDefs(): GenericToolDef[] {
+  return [...toolDefs.values()];
+}
+
+/**
+ * Invoke a registered generic tool outside the MCP transport.
+ * `authInfo` is built from the HTTP session — same shape the MCP bearer
+ * middleware produces (see token-verifier.ts `authUserToAuthInfo`).
+ * Returns the raw CallToolResult; `isError` flags RBAC/validation failures.
+ */
+export async function invokeGenericTool(
+  name: string,
+  args: unknown,
+  authInfo: AuthInfo,
+): Promise<CallToolResult> {
+  const handler = toolHandlers.get(name);
+  if (!handler) {
+    return {
+      content: [{ type: "text", text: `Unknown tool '${name}'` }],
+      isError: true,
+    };
+  }
+  return handler(args, { http: { authInfo } } as ServerContext);
+}
+
+/**
+ * Register all 12 generic tools on the given McpServer instance.
  */
 export function registerGenericTools(server: McpServer): void {
+  /** Registers on the MCP server AND in the shared handler map.
+   *  Typed as `McpServer["registerTool"]` so the call sites keep full
+   *  overload + zod inputSchema inference for the handler `args`. */
+  const register: McpServer["registerTool"] = ((
+    name: string,
+    meta: unknown,
+    handler: unknown,
+  ) => {
+    toolHandlers.set(name, handler as GenericToolHandler);
+    const m = meta as { title?: string; description?: string; inputSchema?: unknown };
+    toolDefs.set(name, {
+      name,
+      title: m.title ?? name,
+      description: m.description ?? "",
+      input_schema:
+        m.inputSchema instanceof z.ZodType
+          ? z.toJSONSchema(m.inputSchema)
+          : { type: "object" },
+      read_only: READ_ONLY_TOOLS.has(name),
+    });
+    return (
+      server.registerTool as (n: string, m: unknown, h: unknown) => unknown
+    )(name, meta, handler);
+  }) as McpServer["registerTool"];
   // 1. list_entities
-  server.registerTool(
+  register(
     "list_entities",
     {
       title: "List Entities",
@@ -237,7 +330,7 @@ export function registerGenericTools(server: McpServer): void {
         const entry = entityRegistry.get(module, entity)!;
         let result: unknown;
         if (entry.handler_type === "in-process") {
-          result = await dispatchBeAggregate(entity, { aggregate, ...params });
+          result = await dispatchLocalAggregate(entity, { aggregate, ...params });
         } else {
           result = await dispatchProxyAggregate(authInfo, module, entity, { aggregate, ...params });
         }
@@ -251,7 +344,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeList(entity, params);
+        result = await dispatchLocalList(entity, params);
       } else {
         result = await dispatchProxyList(authInfo, module, entity, params);
       }
@@ -260,7 +353,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 2. get_entity
-  server.registerTool(
+  register(
     "get_entity",
     {
       title: "Get Entity",
@@ -281,7 +374,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeGet(entity, uuid);
+        result = await dispatchLocalGet(entity, uuid);
       } else {
         result = await dispatchProxyGet(authInfo, module, entity, uuid);
       }
@@ -290,7 +383,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 3. create_entity
-  server.registerTool(
+  register(
     "create_entity",
     {
       title: "Create Entity",
@@ -315,7 +408,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeCreate(entity, data);
+        result = await dispatchLocalCreate(entity, data);
       } else {
         result = await dispatchProxyCreate(authInfo, module, entity, data);
       }
@@ -324,7 +417,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 4. update_entity
-  server.registerTool(
+  register(
     "update_entity",
     {
       title: "Update Entity",
@@ -348,7 +441,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeUpdate(entity, uuid, data);
+        result = await dispatchLocalUpdate(entity, uuid, data);
       } else {
         result = await dispatchProxyUpdate(authInfo, module, entity, uuid, data);
       }
@@ -357,7 +450,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 5. delete_entity
-  server.registerTool(
+  register(
     "delete_entity",
     {
       title: "Delete Entity",
@@ -367,27 +460,28 @@ export function registerGenericTools(server: McpServer): void {
       inputSchema: z.object({
         ...moduleEntitySchema,
         uuid: z.string().describe("The UUID of the record to soft-delete."),
+        version: z.number().int().describe("The record's current version (from a prior read) — optimistic concurrency guard."),
       }),
     },
     withErrorHandling(async (args, ctx) => {
       const authInfo = getAuthInfo(ctx);
-      const { module, entity, uuid } = args;
+      const { module, entity, uuid, version } = args;
       validateEntity(module, entity, "delete");
       checkRbac(authInfo, module, entity, "delete");
 
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeDelete(entity, uuid);
+        result = await dispatchLocalDelete(entity, uuid, version);
       } else {
-        result = await dispatchProxyDelete(authInfo, module, entity, uuid);
+        result = await dispatchProxyDelete(authInfo, module, entity, uuid, version);
       }
       return textResult(result);
     }),
   );
 
   // 6. restore_entity
-  server.registerTool(
+  register(
     "restore_entity",
     {
       title: "Restore Entity",
@@ -396,27 +490,28 @@ export function registerGenericTools(server: McpServer): void {
       inputSchema: z.object({
         ...moduleEntitySchema,
         uuid: z.string().describe("The UUID of the soft-deleted record to restore."),
+        version: z.number().int().describe("The record's current version (from a prior read) — optimistic concurrency guard."),
       }),
     },
     withErrorHandling(async (args, ctx) => {
       const authInfo = getAuthInfo(ctx);
-      const { module, entity, uuid } = args;
+      const { module, entity, uuid, version } = args;
       validateEntity(module, entity, "restore");
       checkRbac(authInfo, module, entity, "restore");
 
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeRestore(entity, uuid);
+        result = await dispatchLocalRestore(entity, uuid, version);
       } else {
-        result = await dispatchProxyRestore(authInfo, module, entity, uuid);
+        result = await dispatchProxyRestore(authInfo, module, entity, uuid, version);
       }
       return textResult(result);
     }),
   );
 
   // 7. get_entity_audit
-  server.registerTool(
+  register(
     "get_entity_audit",
     {
       title: "Get Entity Audit",
@@ -444,7 +539,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeAudit(entity, uuid, page ?? 1, page_size ?? 25);
+        result = await dispatchLocalAudit(entity, uuid, page ?? 1, page_size ?? 25);
       } else {
         result = await dispatchProxyAudit(authInfo, module, entity, uuid, page ?? 1, page_size ?? 25);
       }
@@ -453,7 +548,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 8. list_available_entities
-  server.registerTool(
+  register(
     "list_available_entities",
     {
       title: "List Available Entities",
@@ -482,7 +577,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 9. get_entity_meta
-  server.registerTool(
+  register(
     "get_entity_meta",
     {
       title: "Get Entity Metadata",
@@ -503,7 +598,7 @@ export function registerGenericTools(server: McpServer): void {
       const entry = entityRegistry.get(module, entity)!;
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeMeta(entity);
+        result = await dispatchLocalMeta(entity);
       } else {
         result = await dispatchProxyMeta(authInfo, module, entity);
       }
@@ -512,29 +607,32 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 10. bulk_entity_action
-  server.registerTool(
+  register(
     "bulk_entity_action",
     {
       title: "Bulk Entity Action",
       description:
         "Perform a bulk action (delete or restore) on multiple entity records by UUID. " +
-        "Processes each UUID individually and returns a per-UUID result array. " +
+        "Processes each item individually and returns a per-UUID result array. " +
         "Only entities that support bulk operations can be used with this tool.",
       inputSchema: z.object({
         ...moduleEntitySchema,
         action: z
           .enum(["delete", "restore"])
           .describe("The bulk action to perform: 'delete' (soft-delete) or 'restore'."),
-        uuids: z
-          .array(z.string())
+        items: z
+          .array(z.object({
+            uuid: z.string().describe("The UUID of the record."),
+            version: z.number().int().describe("The record's current version (from a prior read) — optimistic concurrency guard."),
+          }))
           .min(1)
           .max(100)
-          .describe("Array of UUIDs to apply the action to (1-100 items)."),
+          .describe("Array of {uuid, version} pairs to apply the action to (1-100 items)."),
       }),
     },
     withErrorHandling(async (args, ctx) => {
       const authInfo = getAuthInfo(ctx);
-      const { module, entity, action, uuids } = args;
+      const { module, entity, action, items } = args;
 
       const entry = entityRegistry.get(module, entity);
       if (!entry) {
@@ -551,16 +649,16 @@ export function registerGenericTools(server: McpServer): void {
 
       let result: unknown;
       if (entry.handler_type === "in-process") {
-        result = await dispatchBeBulk(entity, action, uuids);
+        result = await dispatchLocalBulk(entity, action, items);
       } else {
         // Microservice bulk: loop through proxy calls
         const results: Array<{ uuid: string; success: boolean; error?: string }> = [];
-        for (const uuid of uuids) {
+        for (const { uuid, version } of items) {
           try {
             if (action === "delete") {
-              await dispatchProxyDelete(authInfo, module, entity, uuid);
+              await dispatchProxyDelete(authInfo, module, entity, uuid, version);
             } else {
-              await dispatchProxyRestore(authInfo, module, entity, uuid);
+              await dispatchProxyRestore(authInfo, module, entity, uuid, version);
             }
             results.push({ uuid, success: true });
           } catch (err) {
@@ -578,7 +676,7 @@ export function registerGenericTools(server: McpServer): void {
   );
 
   // 11. manage_service
-  server.registerTool(
+  register(
     "manage_service",
     {
       title: "Manage Service",
@@ -627,6 +725,57 @@ export function registerGenericTools(server: McpServer): void {
         default:
           throw new Error(`Unknown action: ${action}`);
       }
+    }),
+  );
+
+  // 12. search_docs
+  register(
+    "search_docs",
+    {
+      title: "Search Documentation",
+      description:
+        "Semantic search over the documentation knowledge base (user guides, API docs). " +
+        "The caller MUST provide a pre-computed 384-dim `embedding` vector — the server never " +
+        "embeds text. Pass literal technical terms in `keywords` (identifiers, config keys, " +
+        "error codes) to boost exact matches alongside vector similarity. " +
+        "Returns the top-k chunks with title, path, content and similarity score.",
+      inputSchema: z.object({
+        embedding: z
+          .array(z.number())
+          .nonempty()
+          .describe("Pre-computed 384-dim query embedding (cosine space)."),
+        keywords: z
+          .array(z.string())
+          .optional()
+          .describe("Literal terms to boost via exact match (e.g. 'IDP Code', 'x-user-is-admin')."),
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("Max results (default 6, max 20)."),
+        repo: z
+          .string()
+          .optional()
+          .describe("Optional repository filter (e.g. 'primebrick-v3-docs')."),
+      }),
+    },
+    withErrorHandling(async (args, _ctx) => {
+      const authInfo = getAuthInfo(_ctx); // authenticated users only — docs KB is not public
+      // The docs knowledge base is owned by the AI microservice — dispatch
+      // through the BE→US HTTP proxy; the BE never touches ai.* tables.
+      const results = await proxyToMicroservice(
+        authInfo,
+        "POST",
+        "/ws/ai/api/v1/system/docs/search",
+        {
+          embedding: args.embedding,
+          keywords: args.keywords,
+          limit: args.limit,
+          repo: args.repo,
+        },
+      );
+      return textResult(results);
     }),
   );
 }

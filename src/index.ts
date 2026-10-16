@@ -1,15 +1,17 @@
+import "dotenv/config"; // must stay first — loads .env before any module reads it
+import { logger, assertDbEnv } from "@primebrick/sdk";
+import "./observability/logging-init.js"; // must stay first import — async console bridge
 import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
-import { extJsonMiddleware, Permission, NatsClient, subscribeSharedConfig, logModuleStartup, logServiceStartup, type HealthResponse } from "@primebrick/sdk";
+import { extJsonMiddleware, extJsonBodyParser, extJsonParse, Permission, NatsClient, subscribeSharedConfig, logModuleStartup, logServiceStartup, type HealthResponse } from "@primebrick/sdk";
 import { mountModules } from "./modules/index.js";
-import { Pool } from "pg";
 import CasdoorSDK from "casdoor-nodejs-sdk";
-import { loadAuthConfigFromDb, type AuthConfigDb } from "./modules/auth/config-repo.js";
+import { getConfigEntriesService, type AuthConfigDb } from "./modules/auth/services/config-entries.service.js";
 import { openApiRouter } from "./openapi/router.js";
 import { aggregatedOpenApiRouter } from "./openapi/aggregated-router.js";
 import { errorHandler } from "./http/error-handler.js";
-import { getPool } from "./db/pool.js";
+import { initDal, getDal } from "./db/dal-gateway.js";
 import { isDatabaseUnavailableError } from "./http/api-errors.js";
 import { makeProtectedRouter } from "./http/protected-router.js";
 import { rbacHandler } from "./modules/auth/rbac.middleware.js";
@@ -19,17 +21,28 @@ import { initCache, closeCache, getRedisHealth, getCachePort } from "./cache/cac
 import { initPresenceStore, closePresenceStore } from "./modules/collaboration/presence-store-holder.js";
 import { collaborationBusRegistry } from "./modules/collaboration/collaboration-bus-registry.js";
 import { startKeyspaceListener } from "./modules/collaboration/keyspace-listener.js";
-import { mountMcp, initMcpModule } from "./modules/mcp/index.js";
+import { initMcpModule } from "./modules/mcp/index.js";
+import { mountMcp } from "./controllers/http/mcp/index.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
 import "./modules/auth/express-augmentation.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { ServiceRegistryRepo } from "./modules/proxy/service-registry-repo.js";
-import { ServiceLifecycleSubscriber } from "./modules/proxy/service-lifecycle-subscriber.js";
-import { StaleDetectionJob } from "./modules/proxy/stale-detection-job.js";
+import { ServiceRegistryService } from "./modules/system/service-registry.service.js";
+import { ServiceLifecycleSubscriber } from "./controllers/nats-sub/service-lifecycle-subscriber.js";
+import { startInternalRequestRoutes } from "./controllers/nats-sub/internal-request-routes.js";
+import { createPublisherVerifier } from "./controllers/nats-sub/publisher-identity.js";
+import { initBackendIdentity } from "./modules/proxy/backend-identity.js";
+import { initSecretEngine } from "./modules/secrets/secret-engine.js";
+import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js";
 import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
+import { initBackendTelemetry, getTelemetryShared } from "./observability/telemetry.js";
+import { shutdownTelemetry, flushLogsSync } from "@primebrick/sdk";
+
+// Closed-set env contract: DATABASE_URL + DATABASE_SCHEMA are the ONLY
+// env vars this service may consume — any violation crashes before listen.
+assertDbEnv();
 
 // Keyspace listener cleanup function (set during startup, called during shutdown)
 let stopKeyspaceListener: (() => Promise<void>) | null = null;
@@ -38,7 +51,11 @@ const app = express();
 const port = Number(process.env.PORT) || 3001;
 
 app.use(cors({ origin: true }));
-app.use(express.json());
+// Use ext-json body parser instead of native express.json() to preserve
+// BigInt precision in request bodies (e.g. config values for bigint type).
+// ext-json is a superset of JSON: standard JSON is parsed correctly, and
+// all integers are returned as native `bigint` (not just large ones).
+app.use(extJsonBodyParser({ limit: "1mb" }));
 app.use(cookieParser());
 app.use(extJsonMiddleware());
 
@@ -47,7 +64,7 @@ type HealthCheckResult = { ok: boolean; version?: string; type?: string; model?:
 function readBackendVersion(): string {
   const here = dirname(fileURLToPath(import.meta.url)); // backend/src
   const pkgPath = resolve(here, "..", "package.json");
-  const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { version?: string };
+  const pkg = extJsonParse(readFileSync(pkgPath, "utf-8")) as { version?: string };
   return pkg.version ?? "0.0.0";
 }
 
@@ -55,12 +72,10 @@ const BACKEND_VERSION = readBackendVersion();
 
 async function checkDb(): Promise<HealthCheckResult> {
   try {
-    const pool = getPool();
-    // Keep it cheap; if DB is down this will throw quickly.
-    const result = await pool.query("select 1 as ok, version() as pg_version");
-    const pgVersion = result.rows[0]?.pg_version as string | undefined;
+    const dal = getDal();
+    const { version } = await dal.serverVersion();
     // version() returns e.g. "PostgreSQL 18.0, compiled by Visual C++ ..."
-    const versionMatch = pgVersion?.match(/PostgreSQL\s+([\d.]+)/);
+    const versionMatch = version.match(/PostgreSQL\s+([\d.]+)/);
     return { ok: true, version: versionMatch?.[1] };
   } catch (e) {
     if (isDatabaseUnavailableError(e)) return { ok: false };
@@ -68,7 +83,7 @@ async function checkDb(): Promise<HealthCheckResult> {
   }
 }
 
-async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
+async function checkIdp(): Promise<HealthCheckResult> {
   try {
     // Load configuration from database or fallback to environment variables
     let casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
@@ -76,16 +91,14 @@ async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
     let clientSecret = process.env.CASDOOR_BUILTIN_CLIENT_SECRET || "47b2e05673a5307ccf0552e32ba45a18f6627f21";
     let orgName = "admin";
 
-    if (pool) {
-      try {
-        const dbConfig = await loadAuthConfigFromDb(pool);
-        casdoorEndpoint = dbConfig.idp_endpoint || casdoorEndpoint;
-        clientId = dbConfig.idp_client_id || clientId;
-        clientSecret = dbConfig.idp_client_secret || clientSecret;
-        orgName = dbConfig.idp_organization || orgName;
-      } catch (error) {
-        console.warn("[IDP Health Check] Could not load configuration from database, using fallback:", error);
-      }
+    try {
+      const dbConfig = await getConfigEntriesService().loadAuthConfigOnly();
+      casdoorEndpoint = dbConfig.idp_endpoint || casdoorEndpoint;
+      clientId = dbConfig.idp_client_id || clientId;
+      clientSecret = dbConfig.idp_client_secret || clientSecret;
+      orgName = dbConfig.idp_organization || orgName;
+    } catch (error) {
+      logger.warn("Could not load configuration from database, using fallback:", { tags: ["core"], error: error });
     }
 
     // Call the correct version endpoint from Casdoor docs with authentication
@@ -101,7 +114,7 @@ async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
     });
 
     if (!versionResponse.ok) {
-      console.error(`[IDP Health Check] Version endpoint returned non-OK status: ${versionResponse.status}`);
+      logger.error("Version endpoint returned non-OK status", { tags: ["core", `${versionResponse.status}`] });
       return { ok: false };
     }
 
@@ -112,7 +125,7 @@ async function checkIdp(pool?: Pool): Promise<HealthCheckResult> {
       version: versionData.data?.version || "unknown",
     };
   } catch (e) {
-    console.error(`[IDP Health Check] Error:`, (e as Error).message);
+    logger.error(`Error:`, { tags: ["core"], error: (e as Error).message });
     return { ok: false };
   }
 }
@@ -149,14 +162,13 @@ function checkNats(): HealthCheckResult {
  * LLM health check — calls the AI microservice health endpoint to get
  * LLM connectivity + model + version info for the version panel.
  *
- * The AI microservice must be registered in service_registry with code='AI'.
+ * The AI microservice must be registered in service_registry with code='ai'.
  * If the AI microservice is not registered or not running, the LLM check
  * returns ok:false (the BE itself stays healthy — LLM is optional infra).
  */
 async function checkLlm(): Promise<HealthCheckResult> {
   try {
-    const repo = new ServiceRegistryRepo(getPool());
-    const service = await repo.findByCode("AI");
+    const service = await new ServiceRegistryService().findByCode("ai");
     if (!service || !service.base_url) {
       return { ok: false, error: "AI microservice not registered in service_registry" };
     }
@@ -188,10 +200,9 @@ async function checkLlm(): Promise<HealthCheckResult> {
 }
 
 async function healthPayload(): Promise<HealthResponse> {
-  const pool = getPool();
   const checks: Record<string, HealthCheckResult> = {
     db: await checkDb(),
-    idp: await checkIdp(pool),
+    idp: await checkIdp(),
     redis: await checkRedis(),
     nats: checkNats(),
     // LLM is optional infrastructure — included for the version panel but
@@ -230,8 +241,7 @@ app.use(aggregatedOpenApiRouter());
 // Use makeProtectedRouter for /modules endpoint
 const apiRouter = makeProtectedRouter();
 apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_req, res) => {
-  const repo = new ServiceRegistryRepo(getPool());
-  const services = await repo.findAll();
+  const services = await new ServiceRegistryService().findAll();
   res.json({
     modules: services.map((s) => {
       const navMeta = buildModuleNavMeta(s.code);
@@ -284,7 +294,7 @@ app.use(errorHandler);
 // hit it. It only fires on zombie connections (no data for 5 min), allowing the
 // server to reclaim resources. Never set to 0 (zombie accumulation).
 const server = app.listen(port, () => {
-  logServiceStartup("primebrick-api", BACKEND_VERSION, `http://localhost:${port}`);
+  logServiceStartup(`http://localhost:${port}`);
 });
 server.timeout = 300_000;
 
@@ -293,10 +303,19 @@ server.timeout = 300_000;
 // (503 from DB-unavailable errors, or 403 from empty role cache) until
 // the role mappings are successfully loaded.
 void runStartupTasks().catch((err) => {
-  console.error("[startup] background task failed:", err);
+  logger.error("background task failed", { tags: ["core"], error: err });
 });
 
 async function runStartupTasks(): Promise<void> {
+  // Step -1 — DAL bootstrap BEFORE anything DB-touching (banner probe,
+  // migrations, config loads). initDal() is once-only; getDal() fails fast
+  // everywhere else.
+  initDal();
+  await logPostgresBanner();
+  // Step 0 — own-schema migrations BEFORE role mappings / auth config /
+  // any other table read. Mode lives in public.config_entries.
+  const { runModuleMigrations } = await import("./db/run-module-migrations.js");
+  await runModuleMigrations();
   initAuthPorts();
   await refreshRoleMappings();
   await refreshAuthConfig();
@@ -308,13 +327,13 @@ async function runStartupTasks(): Promise<void> {
   if (ports) {
     initMcpModule(ports);
   } else {
-    console.warn("[startup] MCP module not initialized — auth ports unavailable");
+    logger.warn("MCP module not initialized — auth ports unavailable", { tags: ["core"] });
   }
   await startServiceLifecycle();
 }
 
 /**
- * Initialize the Redis cache from `redis_url` in auth_configurations.
+ * Initialize the Redis cache from `redis_url` in config_entries.
  * Runs after refreshAuthConfig() so the config is loaded.
  * Redis is mandatory — if redis_url is set but Redis is unreachable, retry
  * every 5s (same pattern as refreshRoleMappings and refreshAuthConfig).
@@ -323,18 +342,18 @@ async function runStartupTasks(): Promise<void> {
 async function initCacheFromConfig(): Promise<void> {
   try {
     const cfg = getAuthConfig();
-    await initCache(cfg.redis_url, console);
+    await initCache(cfg.redis_url, logger);
   } catch (err) {
-    console.warn(
-      "[startup] initCache failed (Redis unavailable?). Retrying in 5s.",
-      err
+    logger.warn(
+      "initCache failed (Redis unavailable?). Retrying in 5s.",
+      { tags: ["core"], error: err }
     );
     setTimeout(() => void initCacheFromConfig().catch(() => {}), 5000);
   }
 }
 
 /**
- * Initialize the Redis presence store from `redis_url` in auth_configurations.
+ * Initialize the Redis presence store from `redis_url` in config_entries.
  * Runs after refreshAuthConfig() so the config is loaded.
  * Redis is mandatory — if redis_url is set but Redis is unreachable, retry
  * every 5s (same pattern as refreshRoleMappings and refreshAuthConfig).
@@ -342,21 +361,36 @@ async function initCacheFromConfig(): Promise<void> {
 async function initPresenceStoreFromConfig(): Promise<void> {
   try {
     const cfg = getAuthConfig();
-    await initPresenceStore(cfg.redis_url, console);
+    await initPresenceStore(cfg.redis_url, logger);
     // Start keyspace listener for presence expiry events (best-effort)
     if (cfg.redis_url) {
       try {
-        stopKeyspaceListener = await startKeyspaceListener(cfg.redis_url, console);
+        stopKeyspaceListener = await startKeyspaceListener(cfg.redis_url, logger);
       } catch (err) {
-        console.warn("[startup] keyspace listener failed (best-effort):", err);
+        logger.warn("keyspace listener failed (best-effort):", { tags: ["core"], error: err });
       }
     }
   } catch (err) {
-    console.warn(
-      "[startup] initPresenceStore failed (Redis unavailable?). Retrying in 5s.",
-      err
+    logger.warn(
+      "initPresenceStore failed (Redis unavailable?). Retrying in 5s.",
+      { tags: ["core"], error: err }
     );
     setTimeout(() => void initPresenceStoreFromConfig().catch(() => {}), 5000);
+  }
+}
+
+async function logPostgresBanner(): Promise<void> {
+  try {
+    const { version } = await getDal().serverVersion();
+    const versionMatch = version.match(/PostgreSQL\s+([\d.]+)/);
+    const dbUrl = (process.env.DATABASE_URL ?? "localhost:5432").replace(/(:\/\/[^:/]+):[^@]+@/, "$1@");
+    logModuleStartup("PostgreSQL", versionMatch?.[1], dbUrl);
+  } catch (err) {
+    logger.warn(
+      "PostgreSQL connection failed. Retrying in 5s.",
+      { tags: ["core"], error: err }
+    );
+    setTimeout(() => void logPostgresBanner().catch(() => {}), 5000);
   }
 }
 
@@ -364,9 +398,9 @@ async function refreshRoleMappings(): Promise<void> {
   try {
     await loadRoleMappings();
   } catch (err) {
-    console.warn(
-      "[startup] loadRoleMappings failed (database unavailable?). Retrying in 5s.",
-      err
+    logger.warn(
+      "loadRoleMappings failed (database unavailable?). Retrying in 5s.",
+      { tags: ["core"], error: err }
     );
     setTimeout(() => void refreshRoleMappings().catch(() => {}), 5000);
   }
@@ -374,21 +408,15 @@ async function refreshRoleMappings(): Promise<void> {
 
 async function refreshAuthConfig(): Promise<void> {
   try {
-    await loadAuthConfig(getPool());
-    // Log PostgreSQL version after successful DB connection
-    try {
-      const result = await getPool().query("select version() as pg_version");
-      const pgVersion = result.rows[0]?.pg_version as string | undefined;
-      const versionMatch = pgVersion?.match(/PostgreSQL\s+([\d.]+)/);
-      const dbUrl = process.env.DATABASE_URL ?? "localhost:5432";
-      logModuleStartup("PostgreSQL", versionMatch?.[1], dbUrl);
-    } catch {
-      // version query failed — non-critical, DB is up (loadAuthConfig succeeded)
-    }
+    const authConfig = await loadAuthConfig();
+    logger.done(`Global configuration loaded — ${Object.keys(authConfig ?? {}).length} keys found (public.config_entries)`, { tags: ["core"] });
+    logger.done("Auth settings resolved", { tags: ["core"] });
+    // Telemetry/logging config lives in config_entries — init once DB is up.
+    await initBackendTelemetry("primebrick-api", BACKEND_VERSION);
   } catch (err) {
-    console.warn(
-      "[startup] loadAuthConfig failed (database unavailable?). Retrying in 5s.",
-      err
+    logger.warn(
+      "loadAuthConfig failed (database unavailable?). Retrying in 5s.",
+      { tags: ["core"], error: err }
     );
     setTimeout(() => void refreshAuthConfig().catch(() => {}), 5000);
   }
@@ -398,23 +426,42 @@ async function startServiceLifecycle(): Promise<void> {
   try {
     const natsUrl = process.env.NATS_URL ?? "nats://127.0.0.1:4222";
     await NatsClient.getConnection(natsUrl);
-    // Subscribe to config.get — respond with shared config (redis_url, etc.)
-    // Microservices discover redis_url from the BE via this NATS request/reply.
+    // config.get — governed correlation-reply serving the shared config
+    // (redis_url, telemetry) to microservices at boot and on config.changed.
+    const sharedConfigVerifier = createPublisherVerifier();
     await subscribeSharedConfig(NatsClient, () => {
       const cfg = getAuthConfig();
-      return { redis_url: cfg.redis_url };
-    });
+      return { redis_url: cfg.redis_url, telemetry: getTelemetryShared() };
+    }, sharedConfigVerifier.asRouteVerify());
+    // Identity FIRST: the lifecycle subscriber publishes service.gateway_online
+    // and internal routes serve shield-verified calls — every NATS publish
+    // must already carry the BE's client-shield identity.
+    await enrollBackendIdentity();
     const subscriber = new ServiceLifecycleSubscriber();
     await subscriber.start();
+    await startInternalRequestRoutes();
+    await initSecretEngine();
     const staleJob = new StaleDetectionJob();
     staleJob.start();
   } catch (err) {
-    console.warn(
-      "[startup] NATS connection failed (service lifecycle subscriber not started). Retrying in 5s.",
-      err
+    logger.warn(
+      "NATS connection failed (service lifecycle subscriber not started). Retrying in 5s.",
+      { tags: ["core"], error: err }
     );
     setTimeout(() => void startServiceLifecycle().catch(() => {}), 5000);
   }
+}
+
+/**
+ * Self-enroll the BE into system.client_shield_registry (B11): the BE never sends
+ * `service.register`, so it upserts its own `source='registry'` row keyed
+ * by `{pkg_name}/{version}` — the UA prefix it sends on proxied calls.
+ * The client key comes from the `service_client_shield_key` config entry (module config,
+ * not env). Delegates to `initBackendIdentity()` which also primes the
+ * cached identity headers used by the proxy hot path.
+ */
+async function enrollBackendIdentity(): Promise<void> {
+  await initBackendIdentity();
 }
 
 // --- Graceful shutdown --------------------------------------------------------
@@ -436,26 +483,32 @@ async function gracefulShutdown(): Promise<void> {
   try {
     await closeCache();
   } catch (err) {
-    console.warn("[shutdown] closeCache failed:", err);
+    logger.warn("closeCache failed:", { tags: ["core"], error: err });
   }
   try {
     await closePresenceStore();
   } catch (err) {
-    console.warn("[shutdown] closePresenceStore failed:", err);
+    logger.warn("closePresenceStore failed:", { tags: ["core"], error: err });
   }
   try {
     collaborationBusRegistry.closeAll();
   } catch (err) {
-    console.warn("[shutdown] collaborationBusRegistry.closeAll failed:", err);
+    logger.warn("collaborationBusRegistry.closeAll failed:", { tags: ["core"], error: err });
   }
   if (stopKeyspaceListener) {
     try {
       await stopKeyspaceListener();
     } catch (err) {
-      console.warn("[shutdown] keyspace listener stop failed:", err);
+      logger.warn("keyspace listener stop failed:", { tags: ["core"], error: err });
     }
     stopKeyspaceListener = null;
   }
+  try {
+    await shutdownTelemetry();
+  } catch (err) {
+    logger.warn("shutdownTelemetry failed:", { tags: ["core"], error: err });
+  }
+  flushLogsSync();
 }
 
 process.on("SIGTERM", () => void gracefulShutdown().finally(() => process.exit(0)));

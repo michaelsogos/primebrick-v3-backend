@@ -12,25 +12,33 @@
  */
 
 import { getEntityPersistenceMeta } from "@primebrick/dal-pg";
+import type { CollaborationMeta, EntityMeta } from "./entity-meta.types.js";
 
 /**
- * Inject `collaboration: { enabled, expose_editing_value }` into an entity
- * meta object. The `expose_editing_value` flag controls whether the FE shows
- * the value being edited by another user in the avatar tooltip.
+ * Inject the runtime fragments into an entity meta object:
+ *
+ * - `display_name`: materialized as `"${" + display_field + "}"` when the
+ *   static meta does not declare an explicit template — the response always
+ *   carries a display expression.
+ * - `collaboration: { enabled, expose_editing_value }`: `enabled` is derived
+ *   from `getEntityPersistenceMeta(ctor).isAuditable` — only auditable
+ *   entities get collaboration; `expose_editing_value` controls whether the
+ *   FE shows the value being edited by another user in the avatar tooltip.
  *
  * @param meta The static entity meta object (e.g. `customerMeta`)
  * @param entityClass The entity class (e.g. `CustomerEntity`)
- * @returns The meta object with `collaboration` fragment appended
+ * @returns The meta with `display_name` + `collaboration` appended
  */
-export function assembleMeta<T extends Record<string, unknown>>(
-  meta: T,
+export function assembleMeta(
+  meta: EntityMeta,
   entityClass: new () => unknown,
-): T & { collaboration: { enabled: boolean; expose_editing_value: boolean } } {
+): EntityMeta & { display_name: string; collaboration: CollaborationMeta } {
   const persistenceMeta = getEntityPersistenceMeta(entityClass as unknown as Parameters<typeof getEntityPersistenceMeta>[0]);
   const isAuditable = persistenceMeta.isAuditable === true;
 
   return {
     ...meta,
+    display_name: meta.display_name ?? `\${${meta.display_field}}`,
     collaboration: {
       enabled: isAuditable,
       expose_editing_value: true,

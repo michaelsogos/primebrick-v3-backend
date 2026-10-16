@@ -13,6 +13,9 @@
  */
 
 import { z } from "zod";
+import { zBoundedInt } from "../../http/validation.js";
+import { ListQueryBaseSchema } from "../../http/list-query.js";
+import type { WithAuditableDisplayNames } from "@primebrick/dal-pg";
 import { PasswordPolicy, passwordZodSchema } from "./password-policy.js";
 import { displayNameSchema, idpNameSchema } from "./validation.js";
 
@@ -77,20 +80,6 @@ export function makeCreateUserSchema(policy: PasswordPolicy) {
 }
 export type CreateUserBody = z.infer<ReturnType<typeof makeCreateUserSchema>>;
 
-export const UpdateUserSchema = z
-  .object({
-    display_name: displayNameSchema(z.string()).optional(),
-    email: z.string().email().optional(),
-    avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-    is_active: z.boolean().optional(),
-    is_admin: z.boolean().optional(),
-    is_verified: z.boolean().optional(),
-    email_verified: z.boolean().optional(),
-    roles: z.array(z.string()).optional(),
-  })
-  .strict();
-export type UpdateUserBody = z.infer<typeof UpdateUserSchema>;
-
 // --- User profiles entity CRUD --------------------------------------------
 
 export const UuidParamSchema = z.object({ uuid: z.string().uuid() });
@@ -109,6 +98,7 @@ export const UserUpdateBodySchema = z
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
     avatar_initials: z.string().min(1).max(10).optional(),
     roles: z.array(z.string()).optional(),
+    version: zBoundedInt(0, Number.MAX_SAFE_INTEGER),
   })
   .strict();
 export type UserUpdateBody = z.infer<typeof UserUpdateBodySchema>;
@@ -184,6 +174,12 @@ export const MfaLoginVerifySchema = z.object({
 });
 export type MfaLoginVerifyBody = z.infer<typeof MfaLoginVerifySchema>;
 
+export const MfaChallengeRefreshSchema = z.object({
+  /** Existing login challenge token (may be expired — signature is verified). */
+  mfa_challenge_token: z.string().min(1),
+});
+export type MfaChallengeRefreshBody = z.infer<typeof MfaChallengeRefreshSchema>;
+
 export const MfaStepUpInitiateSchema = z.object({
   /** The action being authorized (e.g. "delete", "change_password"). */
   action: z.string().min(1).max(50),
@@ -201,3 +197,63 @@ export const MfaStepUpVerifySchema = z.object({
   code: z.string().regex(/^\d{6}$/, "code must be 6 digits"),
 });
 export type MfaStepUpVerifyBody = z.infer<typeof MfaStepUpVerifySchema>;
+
+// --- Entity /list query schemas (canonical QS contract — src/http/list-query.ts) ---
+
+export const OrganizationListQuerySchema = ListQueryBaseSchema;
+export type OrganizationListQueryInput = z.infer<typeof OrganizationListQuerySchema>;
+
+export const RoleMappingListQuerySchema = ListQueryBaseSchema;
+export type RoleMappingListQueryInput = z.infer<typeof RoleMappingListQuerySchema>;
+
+export const UserProfileListQuerySchema = ListQueryBaseSchema;
+export type UserProfileListQueryInput = z.infer<typeof UserProfileListQuerySchema>;
+
+// --- Organization detail row / API DTO (previously in organizations_dal.ts) --
+
+export type OrganizationDetailRow = WithAuditableDisplayNames<{
+  uuid: string;
+  idp_code: string;
+  idp_owner?: string;
+  idp_name?: string;
+  display_name?: string;
+  website_url?: string;
+  avatar?: string;
+  last_synced_at?: Date;
+  user_count?: number;
+  created_at: Date;
+  created_by: string;
+  updated_at: Date;
+  updated_by: string;
+  version: number;
+  deleted_at?: Date;
+  deleted_by?: string;
+}>;
+
+export type OrganizationDetailDto = Omit<
+  OrganizationDetailRow,
+  "created_at" | "updated_at" | "deleted_at" | "last_synced_at"
+> & {
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  last_synced_at?: string;
+};
+
+// --- Auth event row / API DTO (auth_events — non-auditable audit log) ------
+
+export type AuthEventRow = {
+  id: bigint;
+  user_profile_uuid?: string;
+  attempted_username?: string;
+  event_type: string;
+  event_at: Date;
+  ip_address?: string;
+  user_agent?: string;
+  success: boolean;
+  failure_reason?: string;
+};
+
+export type AuthEventDto = Omit<AuthEventRow, "event_at"> & {
+  event_at: string;
+};

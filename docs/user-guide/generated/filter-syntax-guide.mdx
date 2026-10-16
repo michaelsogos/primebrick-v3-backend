@@ -1,0 +1,54 @@
+---
+title: "Filter Syntax Guide"
+description: "Examples of filter syntax for every operator and entity — auto-generated from BE metadata"
+source: guide
+repo: "backend"
+---
+
+# Filter Syntax Guide
+
+<!-- AUTO-GENERATED:filter-syntax — DO NOT EDIT MANUALLY. Run pnpm generate:docs to regenerate. -->
+
+This guide shows concrete examples of how to construct filter queries for
+Primebrick entity list endpoints. Each example is a JSON snippet for the
+`filters` query parameter.
+
+## Common patterns
+
+### Equality (`=`)
+```json
+[{ "field": "status", "op": "=", "value": "ACTIVE" }]
+```
+
+### Case-insensitive search (`ILIKE`)
+```json
+[{ "field": "email", "op": "ILIKE", "value": "%@example.com" }]
+```
+
+### Membership (`IN`)
+```json
+[{ "field": "status", "op": "IN", "value": ["ACTIVE", "INACTIVE"] }]
+```
+
+### Date range (`BETWEEN`)
+```json
+[{ "field": "created_at", "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }]
+```
+
+### Null check (`IS`)
+```json
+[{ "field": "deleted_at", "op": "IS", "value": null }]
+```
+
+### Combined filters with OR connector
+```json
+[
+  { "field": "status", "op": "=", "value": "ACTIVE" },
+  { "field": "email", "op": "ILIKE", "value": "%@gmail.com" }
+]
+```
+With `connector=OR` query parameter, matches rows where status is ACTIVE **or** email ends with @gmail.com.
+
+## Filterable fields per entity
+
+<!-- END -->

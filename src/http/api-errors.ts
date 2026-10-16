@@ -207,7 +207,7 @@ export class ForbiddenError extends ApiError {
  *     which would trigger a /health probe and show a misleading
  *     "DB OFFLINE" / "IDP OFFLINE" sidebar badge.
  *   - The DB and IDP are NOT down — the BE is misconfigured (missing
- *     mandatory rows in auth_configurations, or the startup load failed).
+ *     mandatory rows in config_entries, or the startup load failed).
  *
  * The `severity: "CRITICAL"` field in the RFC7807 body drives the FE
  * toast style (toast.critical) — the 500 status just ensures the FE's

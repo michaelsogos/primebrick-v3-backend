@@ -1,0 +1,19 @@
+{
+  "pages": [
+    "overview",
+    "architecture",
+    "api-conventions",
+    "entity-metadata",
+    "entity-crud-pipeline",
+    "module-navigation",
+    "service-registry",
+    "mcp",
+    "proxy",
+    "secrets-engine",
+    "translations",
+    "authentication",
+    "rbac",
+    "environment-configuration",
+    "collaboration"
+  ]
+}

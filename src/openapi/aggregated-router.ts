@@ -10,10 +10,11 @@
  * existing /api/v1/openapi.json endpoint.
  */
 
+import { logger, extJsonParse, extJsonStringify } from "@primebrick/sdk";
 import { Router } from "express";
-import { openapi } from "./openapi.js";
-import { getPool } from "../db/pool.js";
-import { ServiceRegistryRepo } from "../modules/proxy/service-registry-repo.js";
+import { mergedOpenApiSpec } from "./spec.js";
+import { ServiceRegistryService } from "../modules/system/service-registry.service.js";
+import { internalFetch } from "@primebrick/sdk";
 
 // In-memory cache to avoid hammering microservices on every request
 let cachedSpec: { spec: unknown; timestamp: number } | null = null;
@@ -29,17 +30,16 @@ export function aggregatedOpenApiRouter() {
       return;
     }
 
-    // Start with a deep copy of the BE's own spec
-    const aggregated = JSON.parse(JSON.stringify(openapi));
+    // Start with a deep copy of the BE's own (merged) spec
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- spec merge mutates dynamic paths/tags
+    const aggregated = extJsonParse<any>(extJsonStringify(mergedOpenApiSpec()));
 
     // Fetch all registered services
-    let services: Awaited<ReturnType<ServiceRegistryRepo["findAll"]>> = [];
+    let services: Awaited<ReturnType<ServiceRegistryService["findAll"]>> = [];
     try {
-      const pool = getPool();
-      const repo = new ServiceRegistryRepo(pool);
-      services = await repo.findAll();
+      services = await new ServiceRegistryService().findAll();
     } catch (err) {
-      console.error("[openapi-aggregated] Failed to fetch service registry:", err);
+      logger.error("Failed to fetch service registry:", { tags: ["openapi"], error: err });
       // Return BE-only spec if registry is unavailable
       aggregated.info = {
         ...aggregated.info,
@@ -56,9 +56,19 @@ export function aggregatedOpenApiRouter() {
 
       try {
         const specUrl = new URL("/api/v1/openapi.json", svc.base_url).toString();
-        const response = await fetch(specUrl, { signal: AbortSignal.timeout(5000) });
+        const svcRef = svc.pkg_name
+          ? `${svc.pkg_name}/${svc.service_version ?? "?"}`
+          : svc.code;
+        const response = await internalFetch(specUrl, {
+          signal: AbortSignal.timeout(5000),
+        });
         if (!response.ok) {
-          console.error(`[openapi-aggregated] ${svc.code} returned ${response.status}`);
+          let reason: string | undefined;
+          try {
+            const problem = (await response.json()) as { internal_code?: string };
+            reason = problem.internal_code;
+          } catch { /* body not json */ }
+          logger.error(`OpenAPI spec fetch rejected by ${svcRef}`, { tags: ["openapi", `${response.status}`], ...(reason ? { reason } : {}) });
           continue;
         }
 
@@ -100,7 +110,7 @@ export function aggregatedOpenApiRouter() {
           }
         }
       } catch (err) {
-        console.error(`[openapi-aggregated] Failed to fetch spec for ${svc.code}:`, err);
+        logger.error(`Failed to fetch spec for ${svc.code}:`, { tags: ["openapi"], error: err });
         // Skip unavailable services — partial spec is valid
       }
     }

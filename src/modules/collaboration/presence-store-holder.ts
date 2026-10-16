@@ -11,14 +11,14 @@
  */
 
 import type { PresencePort } from "@primebrick/sdk";
-import { RedisPresencePort, createRedisClient } from "@primebrick/sdk";
+import { RedisPresencePort, createRedisClient, getRedisInfo } from "@primebrick/sdk";
 
 let presencePort: PresencePort | null = null;
 
 /**
  * Initialize the presence store from `redis_url`.
  *
- * Reuses the same `redis_url` as the cache port (from `auth_configurations`).
+ * Reuses the same `redis_url` as the cache port (from `config_entries`).
  * If `redisUrl` is empty/undefined: logs a warn, presence disabled (best-effort).
  * If Redis is unreachable: logs a warn, presence disabled (best-effort).
  *
@@ -32,18 +32,22 @@ let presencePort: PresencePort | null = null;
  */
 export async function initPresenceStore(
   redisUrl: string | undefined,
-  logger: { warn: (msg: string) => void; info: (msg: string) => void },
+  logger: Pick<typeof import("@primebrick/sdk").logger, "warn" | "info" | "done">,
 ): Promise<void> {
   if (!redisUrl) {
-    logger.warn("[presence] redis_url not set — presence disabled (best-effort, system valid without it)");
+    logger.warn("redis_url not set — presence disabled (best-effort, system valid without it)", { tags: ["collaborativity-feature"] });
     return;
   }
   try {
     const redis = await createRedisClient(redisUrl);
     presencePort = new RedisPresencePort(redis);
-    logger.info("[presence] Redis presence store connected");
+    const redisInfo = await getRedisInfo(redis);
+    logger.done(
+      `Redis ${redisInfo?.version ?? ""} is ready for the collaborativity feature (${redisUrl.replace(/(:\/\/[^:/]+):[^@]+@/, "$1@")})`,
+      { tags: ["collaborativity-feature"] },
+    );
   } catch (err) {
-    logger.warn(`[presence] Redis connection failed — presence disabled: ${err}`);
+    logger.warn(`Redis connection failed — presence disabled: ${err}`, { tags: ["collaborativity-feature"] });
     // presencePort stays null — all presence calls are no-ops
   }
 }

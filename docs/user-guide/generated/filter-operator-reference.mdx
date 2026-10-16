@@ -1,0 +1,39 @@
+---
+title: "Filter Operator Reference"
+description: "All supported filter operators for entity list queries — auto-generated from BE source"
+source: guide
+repo: "backend"
+---
+
+# Filter Operator Reference
+
+<!-- AUTO-GENERATED:filter-operators — DO NOT EDIT MANUALLY. Run pnpm generate:docs to regenerate. -->
+
+Primebrick entity list endpoints (`GET /api/v1/entities/:entity/list`) accept a
+`filters` array. Each filter condition specifies a `field`, an `op` (operator),
+and a `value`. This document lists every supported operator.
+
+| Operator | Description | Value type |
+|----------|-------------|------------|
+| `=` | Equality. Matches rows where the field equals the value. | string / number |
+| `!=` | Inequality. Matches rows where the field does not equal the value. | string / number |
+| `<>` | Inequality (ANSI alternative to !=). Same behavior as !=. | string / number |
+| `<` | Less than. Matches rows where the field is strictly less than the value. | string / number |
+| `<=` | Less than or equal. Matches rows where the field is <= the value. | string / number |
+| `>` | Greater than. Matches rows where the field is strictly greater than the value. | string / number |
+| `>=` | Greater than or equal. Matches rows where the field is >= the value. | string / number |
+| `ILIKE` | Case-insensitive pattern match (PostgreSQL). Use % as wildcard for any sequence, _ for any single char. | string / number |
+| `LIKE` | Case-sensitive pattern match. Use % and _ wildcards. | string / number |
+| `IN` | Membership in a set. Value is an array; matches rows where the field equals any element. | array |
+| `NOT IN` | Exclusion from a set. Value is an array; matches rows where the field is not any element. | array |
+| `BETWEEN` | Range check. Value is an object { start, end }; matches rows where start <= field <= end. | `{ start, end }` |
+| `IS` | Null/boolean check. Use value: null for IS NULL, true/false for boolean. | null / boolean |
+| `IS NOT` | Negated null/boolean check. Use value: null for IS NOT NULL. | null / boolean |
+
+## Filter connectors
+
+When multiple filters are provided, they are combined with a connector:
+- `AND` (default) — all filters must match
+- `OR` — any filter must match
+
+<!-- END -->

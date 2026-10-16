@@ -5,13 +5,13 @@
  * or RoleMappingPort — they use GATEWAY-RESOLVED mode where the BE already
  * resolved the user and forwards the full AuthUser in headers.
  *
- * - BeAuthConfigPort: loads auth config from `auth_configurations` table
- * - BeUserResolverPort: resolves IDP sub to internal UUID via `user_profiles` (JIT provisioning)
- * - BeRoleMappingPort: loads role-to-permission mappings from `role_mappings` table
- * - BeApiKeyPort: looks up API keys by hash from `api_keys` table
+ * - DomainAuthConfigPort: loads auth config from `config_entries` table
+ * - DomainUserResolverPort: resolves IDP sub to internal UUID via `user_profiles` (JIT provisioning)
+ * - DomainRoleMappingPort: loads role-to-permission mappings from `role_mappings` table
+ * - DomainApiKeyPort: looks up API keys by hash from `api_keys` table
  */
 
-import type { Pool } from "pg";
+import { logger } from "@primebrick/sdk";
 import {
   type AuthConfig,
   type AuthConfigPort,
@@ -23,25 +23,28 @@ import {
   type ResolveInput,
   AuthMode,
 } from "@primebrick/sdk";
-import { loadAuthConfigFromDb } from "./config-repo.js";
-import { resolveInternalUuid } from "./user-profile-repo.js";
-import { RoleMappingRepo } from "./role-mapping-repo.js";
+import { getConfigEntriesService } from "./services/config-entries.service.js";
+// `getUserService` is imported dynamically inside `resolveInternalUuid` —
+// a static edge would close the cycle user.service → config.ts → sdk-auth-ports.
+// `getRoleService` is imported dynamically inside `loadAllMappings` —
+// a static edge would close the cycle role.service → casdoor.service → config.ts.
 import { getCachePort } from "../../cache/cache-port-holder.js";
+import { field, Filter, Project } from "@primebrick/dal-pg";
+import {getDal} from "../../db/dal-gateway.js";
+import { ApiKeyEntity } from "./api_key_entity.js";
 
 // ─── Cache keys + TTLs (BE custom logic — not entity-level @Cached) ──────────
 
 const ROLE_MAPPINGS_CACHE_KEY = "be:role_mappings:all";
 const ROLE_MAPPINGS_TTL_MS = 5 * 60 * 1000; // 5 min
 
-const API_KEY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
+
 
 // ─── AuthConfigPort ───────────────────────────────────────────────────────────
 
-export class BeAuthConfigPort implements AuthConfigPort {
-  constructor(private pool: Pool) {}
-
+export class DomainAuthConfigPort implements AuthConfigPort {
   async load(): Promise<AuthConfig> {
-    const db = await loadAuthConfigFromDb(this.pool);
+    const db = await getConfigEntriesService().loadAuthConfigOnly();
     return {
       mode: db.auth_mode as AuthMode,
       roles_path: db.auth_roles_path!,
@@ -53,8 +56,8 @@ export class BeAuthConfigPort implements AuthConfigPort {
         idp_type: db.idp_type,
       },
       gateway: {
-        secret: db.gateway_secret,
-        secret_header_name: db.gateway_secret_header,
+        secret: db.service_client_shield_secret,
+        secret_header_name: db.service_client_shield_secret_header,
         public_secret: db.gateway_public_secret,
         public_secret_header_name: db.gateway_public_secret_header,
         headers: {
@@ -80,23 +83,16 @@ export class BeAuthConfigPort implements AuthConfigPort {
 
 // ─── UserResolverPort ─────────────────────────────────────────────────────────
 
-export class BeUserResolverPort implements UserResolverPort {
-  constructor(private pool: Pool) {}
-
+export class DomainUserResolverPort implements UserResolverPort {
   async resolveInternalUuid(input: ResolveInput): Promise<string> {
-    return resolveInternalUuid(input, this.pool);
+    const { getUserService } = await import("./services/user.service.js");
+    return getUserService().resolveInternalUuid(input);
   }
 }
 
 // ─── RoleMappingPort ──────────────────────────────────────────────────────────
 
-export class BeRoleMappingPort implements RoleMappingPort {
-  private repo: RoleMappingRepo;
-
-  constructor(pool: Pool) {
-    this.repo = new RoleMappingRepo(pool);
-  }
-
+export class DomainRoleMappingPort implements RoleMappingPort {
   async loadAllMappings(): Promise<Map<string, RoleMappingEntry>> {
     const port = getCachePort();
     if (port) {
@@ -108,17 +104,18 @@ export class BeRoleMappingPort implements RoleMappingPort {
           return new Map(cached.map(({ role, entry }) => [role, entry]));
         }
       } catch (e) {
-        console.warn(`[cache] role_mappings get failed: ${e}`);
+        logger.warn(`role_mappings get failed: ${e}`, { tags: ["auth"] });
       }
     }
-    // Cache miss or disabled — load from DB
-    const raw = await this.repo.loadAllMappings();
+    // Cache miss or disabled — load from DB via the owning worker service.
+    const { getRoleService } = await import("./services/role.service.js");
+    const raw = await getRoleService().loadAllMappings();
     if (port) {
       try {
         const serialized = [...raw.entries()].map(([role, entry]) => ({ role, entry }));
         await port.set(ROLE_MAPPINGS_CACHE_KEY, serialized, ROLE_MAPPINGS_TTL_MS);
       } catch (e) {
-        console.warn(`[cache] role_mappings set failed: ${e}`);
+        logger.warn(`role_mappings set failed: ${e}`, { tags: ["auth"] });
       }
     }
     return raw;
@@ -132,28 +129,37 @@ export class BeRoleMappingPort implements RoleMappingPort {
 
 // ─── ApiKeyPort ───────────────────────────────────────────────────────────────
 
-export class BeApiKeyPort implements ApiKeyPort {
-  constructor(private pool: Pool) {}
-
+/**
+ * DB resolver for `api_keys` — BE owns `public.api_keys`, so this is the
+ * only implementation allowed to read the table. Caching is NOT inside this
+ * class: callers compose `new CachingApiKeyPort(new DomainApiKeyPort(), cache)`
+ * from the SDK (single cached implementation, platform-shared key).
+ */
+export class DomainApiKeyPort implements ApiKeyPort {
   async findByHash(hash: string): Promise<ApiKeyRecord | null> {
-    const cacheKey = `be:api_keys:hash:${hash}`;
-    const port = getCachePort();
-    if (port) {
-      try {
-        const cached = await port.get<ApiKeyRecord>(cacheKey);
-        if (cached) return cached;
-      } catch (e) {
-        console.warn(`[cache] api_keys get failed: ${e}`);
-      }
-    }
-    const result = await this.pool.query(
-      `SELECT uuid, name, permissions, is_system, is_active, expires_at
-       FROM public.api_keys
-       WHERE key_hash = $1`,
-      [hash],
+    const row = await getDal().find<ApiKeyEntity, {
+      uuid: string;
+      name: string;
+      permissions: string[] | null;
+      is_system: boolean | null;
+      is_active: boolean | null;
+      expires_at: Date | null;
+    }>(
+      ApiKeyEntity,
+      [
+        Project.field(field(ApiKeyEntity, "uuid")),
+        Project.field(field(ApiKeyEntity, "name")),
+        Project.field(field(ApiKeyEntity, "permissions")),
+        Project.field(field(ApiKeyEntity, "is_system")),
+        Project.field(field(ApiKeyEntity, "is_active")),
+        Project.field(field(ApiKeyEntity, "expires_at")),
+      ],
+      {
+        filters: [Filter.fieldValue(field(ApiKeyEntity, "key_hash"), "=", hash)],
+        throwIfNotFound: false,
+      },
     );
-    if (result.rows.length === 0) return null;
-    const row = result.rows[0];
+    if (!row) return null;
     const record: ApiKeyRecord = {
       uuid: row.uuid,
       name: row.name,
@@ -162,13 +168,6 @@ export class BeApiKeyPort implements ApiKeyPort {
       is_active: row.is_active !== false,
       expires_at: row.expires_at ? new Date(row.expires_at) : null,
     };
-    if (port) {
-      try {
-        await port.set(cacheKey, record, API_KEY_CACHE_TTL_MS);
-      } catch (e) {
-        console.warn(`[cache] api_keys set failed: ${e}`);
-      }
-    }
     return record;
   }
 }

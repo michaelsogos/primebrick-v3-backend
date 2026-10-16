@@ -1,0 +1,47 @@
+---
+title: Managing Modules
+description: What modules are, where to see which ones are installed, what their health states mean, and what changes for users when a module is added or removed.
+---
+
+# Managing modules
+
+Primebrick is not one monolith — it is a set of **modules** (services) that
+each own a piece of the product: the AI assistant, email sending, webhook
+ingestion, and more. Your administrators can see — and control — exactly
+which modules your installation runs from **Settings → Modules**.
+
+## What a module is
+
+Think of a module as an appliance plugged into your Primebrick: it brings
+its own data, its own screens (which appear automatically in the sidebar),
+and its own background jobs. The platform itself stays small; capabilities
+grow by installing modules, and shrink cleanly by removing them.
+
+## The health states
+
+Each module reports its own lifecycle state, so you always know whether a
+feature is actually working — no guessing:
+
+| State | What it means | What you see |
+|---|---|---|
+| **Live** | Running and healthy | All its screens and features work normally |
+| **Stale** | Registered but hasn't reported in recently | Features may respond slowly or inconsistently |
+| **Offline** | Not running | Its screens disappear or show unavailable |
+| **Unhealthy** | Running but failing its own checks | Features partially work; contact your admin |
+
+When Jane Doe opens **Settings → Modules** she sees every installed module
+with its current state — for example, if a colleague says *"the assistant
+isn't answering"*, she can check whether the AI module shows **Offline**
+before raising a ticket.
+
+## What changes when modules come and go
+
+- **Install** → the module registers itself, its sidebar entries appear,
+  and its features light up — no restart, no configuration hunting.
+- **Uninstall or offline** → its screens vanish and its data stops being
+  served; the rest of Primebrick is unaffected.
+- **Update** → a newer version re-registers and takes over transparently.
+
+The system detects all of this automatically — the sidebar, the available
+features and the assistant's knowledge of the product all track the live
+module set, so what you see is always what actually works.

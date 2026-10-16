@@ -68,7 +68,40 @@ If **you** started `pnpm run dev` only to verify, **stop it** when done. Do not 
 - No secrets in git (`.env`, credentials).
 - **Team-facing `*.md`:** English only.
 - **API errors:** Use stable error codes with `impact` field for the frontend.
-- **Translation keys:** MUST be snake_case singular — see [`.devin/rules/translation-key-convention.md`](./.devin/rules/translation-key-convention.md). Every meta file MUST include a `translationKey` field (snake_case singular) alongside `entity` (snake_case plural). All `labelKey`/`titleKey`/`tooltip` values MUST use the `translationKey` as the entity segment.
+- **Translation keys:** MUST be snake_case singular — see [`.devin/rules/translation-key-convention.md`](./.devin/rules/translation-key-convention.md). Every meta file MUST be typed `EntityMeta` (see [`.devin/rules/entity-meta-schema.md`](./.devin/rules/entity-meta-schema.md)) and include `translation_key` (snake_case singular) alongside `entity` (snake_case singular) and `display_field`. All `label_key`/`title_key`/`tooltip` values MUST use the `translation_key` as the entity segment.
+- **MVC transport layout:** transport adapters live under `src/controllers/` (`http/`, `nats-sub/`; `nats-req/` is DEPRECATED — NATS req/res is banned, use pub/sub or pub/sub correlation replies) — auth + payload validation + ONE service call + transport response only, NO business logic or DAL imports. Business logic lives in `services/` and must be transport-agnostic. See [`.devin/rules/controller-boundary.md`](./.devin/rules/controller-boundary.md).
+- **Casdoor™ integration:** before touching `casdoor-api-client.ts`, user creation/login, WebAuthn, or debugging auth grants, read [`.devin/rules/casdoor-integration.md`](./.devin/rules/casdoor-integration.md) — the two client credential pairs (`idp_*` machine API vs `oidc_*` token grants), `role.users` membership (JWT `roles` claim), `update-role` full-replace semantics, and the WebAuthn discoverable-login limitation on Postgres.
+
+## API Endpoint Conventions
+
+All HTTP endpoints follow a standardized path taxonomy. See
+[`.devin/rules/api-path-conventions.md`](./.devin/rules/api-path-conventions.md)
+for the full specification.
+
+### Categories
+
+| Category | Path prefix | Purpose |
+|---|---|---|
+| Entity CRUD | `/api/v1/entities/:entity/...` | RESTful CRUD on database-backed entities |
+| Auth RPC | `/api/v1/auth/...` | Authentication, session, MFA, WebAuthn |
+| System RPC | `/api/v1/system/...` | Infrastructure, config, runtime reads, health, OpenAPI |
+| MCP | `/mcp/...` | AI tool-calling protocol (OAuth + transport) |
+| Webhooks (US only) | `/webhook/...` | External callbacks |
+| Well-known | `/.well-known/...` | Protocol-mandated discovery (OAuth) |
+
+### Naming convention
+
+- Entity class = **singular** (one row schema). Example: `CustomerEntity`
+- PG table = **plural** (collection). Example: `customers`
+- URL entity segment = **singular**. Example: `/api/v1/entities/customer/...`
+- Translation key entity segment = **singular**. Example: `entities.customer.title`
+
+### Rules
+
+- AUTH and SYSTEM are RPC-style APIs. ENTITIES is RESTful CRUD. Do not mix them.
+- MCP is a distinct tool-calling protocol for AIs. Everything under `/mcp/...`
+  stays under `/mcp/...`. The `.well-known` discovery URLs are
+  protocol-mandated at the root.
 
 ### Schema diff safety
 
@@ -76,7 +109,7 @@ If `db-meta/diff-entities-vs-database.json` has `renameHeuristicUserReviewRequir
 
 ### Database patches vs migrations
 
-- **`pnpm run db:meta:compare`** — run when **entity / model code** changes. It refreshes JSON snapshots and may add a new file under `db-meta/patches/`. Do **not** wire this to **post-merge** (it is not a migration runner).
+- **`pnpm run db:meta:compare`** — run when **entity / model code** changes. It refreshes JSON snapshots and may add a new file under `db-meta/patches/`. Do **not** wire this to **post-merge** (it is not a migration runner). It scans `ENTITY_REGISTRY` (`src/domain/entities/registry.ts`) — **every new `@Entity` class MUST be registered there**, and decorator metadata comes from `@primebrick/dal-pg` (there is no local decorators module — `src/domain/entities/` only holds the registry).
 - **`pnpm run db:migrate`** — applies pending `.sql` files in order, using `public.primebrick_database_patches` (patch_id + `content_sha256`) so already-applied files are skipped and the first missing patch is applied next.
 
 ### Patch SHA256 management
@@ -112,9 +145,9 @@ rebuild gets the exact same dependency tree that was tested during UAT.
 See [.devin/rules/package-versioning.md](./.devin/rules/package-versioning.md)
 for the full rule and upgrade procedure.
 
-## Config Table Standard (`auth_configurations`)
+## Config Table Standard (`config_entries`)
 
-The `auth_configurations` table is the canonical Config Table standard for
+The `config_entries` table is the canonical Config Table standard for
 Primebrick. It stores key/value configuration rows with metadata that drives
 both BE validation and FE widget selection.
 
@@ -139,18 +172,35 @@ both BE validation and FE widget selection.
 | `string` | text input | none |
 | `text` | textarea | none |
 | `boolean` | switch | must be `"true"` or `"false"` |
-| `integer` | numeric input | must be an integer |
-| `number` | numeric input | must be a number |
+| `bigint` | numeric input | must be an integer (coerced to JS `BigInt`) |
+| `number` | numeric input | must be a number (regex `/^-?\d*\.?\d+$/`, coerced to JS `Number`) |
+| `money` | numeric input + currency symbol | must be a number (regex `/^-?\d*\.?\d+$/`, amount is JS `Number`, currency in `type_config`) |
 | `badge` | ComboSelect (inline values from `type_config.values`) | must be in `type_config.values` |
-| `list` | ComboSelect (options loaded from `type_config.api_url`) | none (validated by the BE catalog code) |
-| `url` | URL input | must be a valid URL |
+| `single_select` | ComboSelect (options from `type_config.api_url` or `type_config.values_source`) | none (validated by the BE catalog code) |
+| `multi_select` | ComboSelect (multi-mode, options from `type_config.api_url` or `type_config.values_source`) | none (value stored as comma-separated string) |
+| `url` | UrlInput (protocol selector + URL input) | must be a valid URL (`new URL()`), protocols checked against `type_config.allowed_protocols` |
 | `secret` | password input (masked) | none (empty string = "leave unchanged") |
 | `json` | textarea | must be valid JSON |
 | `date` | DateWheelPicker | none (format validated by FE) |
 | `datetime` | DateWheelPicker (includeTime) | none (format validated by FE) |
-| `time` | native time input | none (format validated by FE) |
+| `time` | DateWheelPicker (timeOnly) | none (format validated by FE) |
+| `email` | EmailInput (native email input) | must match email regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` |
+| `phone` | PhoneInput (country prefix selector + tel input) | validated via `libphonenumber-js` `parsePhoneNumber(value, country).isValid()`, country from `type_config.country` |
+
+The conceptual type `"integer"` was renamed to `"bigint"` to make the
+backing JS type explicit. Existing rows are migrated by a fire-and-forget
+SQL patch (`rename_integer_to_bigint_config_type.sql`).
+
+The `money` type is a primitive numeric display type — the amount is a
+JS `Number`, and currency metadata is stored in `type_config`. There is
+no `Money` composite wire type.
 
 ### `type_config` JSON shapes
+
+**money:**
+```json
+{ "currency": "EUR" }
+```
 
 **badge:**
 ```json
@@ -162,7 +212,7 @@ both BE validation and FE widget selection.
 }
 ```
 
-**list:**
+**list / single_select / multi_select:**
 ```json
 {
   "api_url": "/api/v1/system/roles/active",
@@ -172,34 +222,76 @@ both BE validation and FE widget selection.
 }
 ```
 
+Or using built-in values_source:
+```json
+{
+  "values_source": "currencies"
+}
+```
+
+**url:**
+```json
+{
+  "default_protocol": "https",
+  "allowed_protocols": ["http", "https", "redis", "rediss", "tcp"]
+}
+```
+
+**phone:**
+```json
+{
+  "country": "IT",
+  "allowed_countries": ["IT", "US", "GB", "FR", "DE", "ES", "PT"]
+}
+```
+
+**email:** no `type_config` required — validation is inherent to the type.```
+
 ### CRUD endpoints
 
 All endpoints are admin-only (`AUTHENTICATED_ADMIN`):
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/entities/config_entries/meta` | Entity metadata |
-| GET | `/api/v1/entities/config_entries/list` | All rows (secrets masked to `null`) |
-| GET | `/api/v1/entities/config_entries/:uuid` | Single row (secret masked) |
-| PUT | `/api/v1/entities/config_entries/:uuid` | Update value (validates type) |
-| DELETE | `/api/v1/entities/config_entries/:uuid` | Soft-delete (reserved rejected, step-up MFA) |
-| POST | `/api/v1/entities/config_entries/bulk-delete` | Bulk soft-delete (reserved rejected, step-up MFA) |
-| POST | `/api/v1/entities/config_entries/:uuid/restore` | Restore soft-deleted row |
+| GET | `/api/v1/entities/config_entry/meta` | Entity metadata |
+| GET | `/api/v1/entities/config_entry/list` | All rows (secrets masked to `null`) |
+| GET | `/api/v1/entities/config_entry/:uuid` | Single row (secret masked) |
+| POST | `/api/v1/entities/config_entry` | Create — `{entity, translations?}` envelope |
+| PUT | `/api/v1/entities/config_entry/:uuid` | Update value (validates type) — `{entity, translations?}` envelope |
+| DELETE | `/api/v1/entities/config_entry/:uuid` | Soft-delete (reserved rejected, step-up MFA) |
+| POST | `/api/v1/entities/config_entry/bulk-delete` | Bulk soft-delete (reserved rejected, step-up MFA) |
+| POST | `/api/v1/entities/config_entry/:uuid/restore` | Restore soft-deleted row |
 
 ### Security
 
 - **Reserved rows** are editable but cannot be deleted (returns 403 with
   `internal_code: "reserved_config_cannot_be_deleted"`).
+- **Reserved rows** cannot change `type` or `type_config` (returns 403 with
+  `internal_code: "reserved_config_type_cannot_change"`). Only `value` is
+  updatable for reserved rows.
+- **Non-reserved rows** allow `value`, `type`, and `type_config` updates.
 - **Delete and bulk-delete** require step-up MFA (X-MFA-Action-Authorization header).
 - **Secret values** are masked to `null` in API responses. An empty PUT body
   for a secret means "leave unchanged".
 - **Writes** invalidate and reload the in-memory auth configuration cache.
+- **Typed values** are coerced at the SDK/BE boundary: `bigint` values
+  become native `bigint`, `number`/`money` values become `number`. The BE
+  serializes typed input via `serializeConfigValue()` before storing it in
+  the text `value` column, and coerces values before returning them to the FE.
+- **Request bodies** are parsed with the SDK's BigInt-safe `extJsonBodyParser()`
+  (replaces `express.json()`): EVERY JSON integer decodes as `bigint` — body
+  schemas must use `zBoundedInt(min, max)` from `src/http/validation.ts`
+  instead of `z.number().int()`. `version` arrives as `bigint` too.
+- **Write payloads** follow the `{entity, translations?}` envelope standard —
+  see `.devin/rules/api-path-conventions.md` (Write-payload standard). Flat
+  entity bodies are rejected with `400`. `translations` piggyback rows
+  require `TRANSLATIONS_MANAGE` and are written in the same transaction.
 
 ### Files
 
-- Entity: `src/modules/auth/auth_configuration_entity.ts`
-- DAL: `src/modules/auth/auth_configurations_dal.ts`
-- Router: `src/modules/auth/routers/config-entries.router.ts`
+- Entity: `src/modules/auth/config_entry_entity.ts`
+- Service: `src/modules/auth/services/config-entries.service.ts` (`DomainService` subclass — no separate `*_dal.ts` layer)
+- Router: `src/controllers/http/auth/config-entries.router.ts`
 - Meta: `src/modules/auth/config-entries.meta.ts`
 - DB patch: `db-meta/patches/00000000000000_init_database.sql`
 - Migration: `db-meta/fire-and-forget/add_config_table_standard_columns.sql`
@@ -214,40 +306,75 @@ See `docs/ai/` for skills selection and suggested workflows.
 
 The backend uses a wildcard-based RBAC system with pattern matching:
 
-- **Source of truth**: `Permission` enum in `src/modules/auth/permissions.ts` defines all available permissions
+- **Source of truth**: `Permission` registry in `@primebrick/sdk` (`src/auth/permissions.ts`) defines all available permissions
 - **Role mappings**: Stored in `role_mappings` table (columns: `idp_role`, `permissions` array, `is_admin` boolean)
-- **Permission format**: Dot notation with wildcards (e.g., `customers.read.*`, `customers.read.single`)
+- **Permission format**: Lowercase dotted notation, **singular** entity scopes (e.g., `customer.read.all`, `customer.read.single`). Wildcards in role grants (`customer.*`, `customer.read.*`, `*`).
 - **Admin bypass**: Users with `is_admin=true` bypass all permission checks.
   For high-risk non-CRUD operations that must be **explicitly** admin-only
   (not just bypassed), use the `Permission.AUTHENTICATED_ADMIN` sentinel.
   This sentinel requires `req.user.isAdmin === true` and must appear alone
   in the permission array (same rule as `PUBLIC` and `AUTHENTICATED_USER`).
-  Example: `POST /api/v1/entities/user_profiles/:uuid/change-password`.
+  Example: `POST /api/v1/entities/user_profile/:uuid/change-password`.
 
-### Permission Structure
+### Permission Structure (closed grammar)
 
-Permissions follow the pattern: `module.action.granularity`
+Permissions follow the pattern: `{scope}.{action}.{qualifier}` — enforced by
+`src/http/__tests__/rbac-convention.test.ts`:
+
+- **Reads**: `{scope}.read.single|all|audit` + qualifier-free `{scope}.export`
+- **Writes**: `{scope}.{create|update|delete|restore|duplicate}.{single|bulk}`
+- **Service actions**: `{scope}.{verb}` where the verb is not a reserved entity
+  op (e.g. `emailsender.send`)
+- Scopes are **singular** snake_case and may be multi-segment
+  (`modules.config`, `emailsender.provider`)
+- `read.bulk`, `create.all`, `export.single`, `export.bulk` are invalid
 
 Examples:
-- `customers.read.all` - List all customers
-- `customers.read.single` - Read single customer
-- `customers.read.audit` - Read customer audit trail
-- `customers.create.single` - Create single customer
-- `customers.create.bulk` - Bulk create customers
-- `customers.update.single` - Update single customer
-- `customers.update.bulk` - Bulk update customers
-- `customers.delete.single` - Delete single customer
-- `customers.delete.bulk` - Bulk delete customers
-- `customers.restore.single` - Restore single customer
-- `customers.restore.bulk` - Bulk restore customers
-- `customers.duplicate.bulk` - Bulk duplicate customers
-- `customers.export` - Export customers
+- `customer.read.all` - List all customers
+- `customer.read.single` - Read single customer
+- `customer.read.audit` - Read customer audit trail
+- `customer.create.single` - Create single customer
+- `customer.create.bulk` - Bulk create customers
+- `customer.update.single` - Update single customer
+- `customer.update.bulk` - Bulk update customers
+- `customer.delete.single` - Delete single customer
+- `customer.delete.bulk` - Bulk delete customers
+- `customer.restore.single` - Restore single customer
+- `customer.restore.bulk` - Bulk restore customers
+- `customer.duplicate.bulk` - Bulk duplicate customers
+- `customer.export` - Export customers
 - `modules.read.all` - List all modules
+
+### Entity `/meta` actions contract
+
+Every entity `/meta` response includes an `actions` array **derived from the
+registered route table** (`src/http/entity-actions.ts` → `deriveEntityActions`).
+Each entry is `{ op, permissions[], sentinel?, enabled }`. The array ALWAYS
+contains the full standard op vocabulary — an op whose route is absent is
+emitted explicitly with `enabled: false`:
+
+- `enabled: false` → unavailable for everyone (route missing OR product-disabled
+  via `actions_overrides` in `*.meta.ts`) → FE never renders the CTA
+- `enabled: true` → FE renders subject to per-user permissions
+
+Standard ops: `list`, `meta`, `get`, `create.single`, `update.single`,
+`delete.single`, `restore.single`, `read.audit`, `export`, `delete.bulk`,
+`restore.bulk`, `duplicate.single`, `duplicate.bulk`. Ops are derived from
+`method + path suffix` (`POST /:uuid/restore` → `restore.single`,
+`POST /bulk-delete` → `delete.bulk`, etc.). Non-standard collection/single-record
+actions map to their last path segment (`check-availability`, `change-password`).
+`actions_overrides` may only toggle `enabled` on existing ops — it never
+invents operations.
+
+Entity ops that live **outside** `/api/v1/entities/:entity` (e.g. user
+management under `/api/v1/auth/users`) are included via the `extraScans`
+parameter of `deriveEntityActions` — pass the mounted router + its prefix
+(see `userProfilesRouter(users)` in `src/modules/auth/router.ts`).
 
 ### Wildcard Support
 
-- `customers.*` matches all customer permissions
-- `customers.read.*` matches all customer read permissions
+- `customer.*` matches all customer permissions
+- `customer.read.*` matches all customer read permissions
 - `*` matches everything (equivalent to admin)
 
 ### Role Mappings (Casdoor™ Integration)
@@ -255,17 +382,18 @@ Examples:
 The system is integrated with Casdoor™ IDP. Role names must match Casdoor™ roles (snake_case):
 
 - `administrators` - Admin role (`is_admin=true`, bypasses all checks)
-- `collaborator` - Full access to customers (`permissions: ["customers.*"]`)
-- `guest` - Read-only access (`permissions: ["customers.read.*"]`)
+- `collaborator` - Full access to customers (`permissions: ["customer.*"]`)
+- `guest` - Read-only access (`permissions: ["customer.read.*"]`)
 
 ### Implementation Details
 
 **Files:**
-- `src/modules/auth/permissions.ts` - Permission enum and pattern matching logic
+- `@primebrick/sdk` → `src/auth/permissions.ts` - `Permission` registry (single source of truth)
 - `src/modules/auth/rbac.middleware.ts` - RBAC middleware with admin bypass
 - `src/modules/auth/auth.middleware.ts` - Auth middleware with permission expansion
-- `src/modules/auth/role-mapping-repo.ts` - Role mapping repository
-- `src/modules/auth/types.ts` - AuthUser type with `isAdmin` field
+- `src/modules/auth/services/role.service.ts` - `RoleService` (role mappings absorbed — `DomainService` base)
+- `src/http/entity-actions.ts` - `deriveEntityActions` (route table → `meta.actions`)
+- `src/http/__tests__/rbac-convention.test.ts` - Convention audit test
 
 **Key functions:**
 - `expandPermissions(roles, getRoleMappingFn)` - Returns `{ patterns, isAdmin }`
@@ -288,15 +416,26 @@ The system is integrated with Casdoor™ IDP. Role names must match Casdoor™ r
 
 When testing RBAC changes, ensure the role mapping cache is reloaded by restarting the backend server after database updates.
 
-## User-facing documentation
+## Documentation (3 tiers — see `.devin/rules/docs-audience.md`)
 
-User-facing developer documentation lives in `docs/user-guide/` as MDX files.
-These are synced to `docs.primebrick.dev` by the docs repo's CI pipeline.
+- `docs/dev-guide/` — **developer documentation** (architecture, API
+  conventions, RBAC internals, entity-meta contract, env config). Synced to
+  `docs.primebrick.dev` under the dev section; never ingested into the
+  end-user AI KB.
+- `docs/user-guide/` — **end-user documentation**. `generated/` holds the
+  metadata-derived entity manual pages produced by the docs pipeline
+  (AUTO-GENERATED — never hand-edit); hand-authored end-user pages live at
+  the root. Ingested into the AI KB AND published.
+- `docs/ai/`, `docs/skills/` — agent/internal docs, never synced or ingested.
 
-- **Location**: `docs/user-guide/*.mdx` — one file per topic
-- **Ordering**: `docs/user-guide/_order.json` defines the sidebar page order
-- **Conventions**: see `.devin/rules/docs-user-guide.md` for editorial rules
+- **Ordering**: each dir has its own `_order.json` defining sidebar page order
+- **Conventions**: see `.devin/rules/docs-dev-guide.md` for editorial rules
 - **Mermaid**: use `<Mermaid chart={...} />`, never ` ```Code ` or ` ```mermaid `
 - **Do NOT hand-edit** files in `docs/ai/` or `docs/skills/` — those are internal
-- **Internal docs** (`docs/ai/`, `docs/skills/`, `docs/gitflow.md`) are NOT synced
-  to the docs site — they stay in this repo for AI agents only
+
+## Logging & Telemetry
+
+- Use `logger` from `@primebrick/sdk` — never `console.*` in new code.
+- Telemetry/logging settings are `config_entries` rows (`telemetry_enabled`, `otel_*`, `log_*`) — the single point of configuration. No env vars besides `DATABASE_URL` + `DATABASE_SCHEMA` (the declared schema domain — `public,system,custom` for the BE; closed-set validated by `assertDbEnv()`).
+- `src/observability/logging-init.ts` installs the console bridge (first import in `src/index.ts`); `src/observability/telemetry.ts` loads config, inits/restarts OTel, and broadcasts `config.changed` on config writes (wired in `ConfigEntriesDal.reloadCache`).
+- See [.devin/rules/logging-telemetry.md](./.devin/rules/logging-telemetry.md).

@@ -22,12 +22,9 @@
  *   writes them as httpOnly cookies. This keeps `res` out of the service.
  */
 
-import type { Pool } from "pg";
 
 import { getAuthConfig } from "../config.js";
-import { UserProfilesDal } from "../user-profiles-dal.js";
-import { UserPasskeysDal } from "../user-passkeys-dal.js";
-import { UserMfaFactorsDal } from "../user_mfa_factors_dal.js";
+import { UserService } from "./user.service.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { requireActor } from "@primebrick/sdk";
 import {
@@ -37,11 +34,11 @@ import {
   ValidationError,
 } from "../../../http/api-errors.js";
 import type { LoginBody, ProfileUpdate } from "../dto.js";
-import type { UserProfileDetailDto } from "../user-profiles-dal.js";
+import type { UserProfileDetailDto } from "./user.service.js";
 import {
-  insertAuthEvent,
+  getAuthEventsService,
   type AuthRequestContext,
-} from "../auth-event-logger.js";
+} from "./auth-events.service.js";
 
 // --- Result types ---------------------------------------------------------
 
@@ -85,8 +82,7 @@ export interface MeProfileResponse {
 
 export class AuthSessionService {
   constructor(
-    private pool: Pool,
-    private dal: UserProfilesDal,
+    private users: UserService,
     private casdoor: CasdoorService,
   ) {}
 
@@ -115,8 +111,7 @@ export class AuthSessionService {
       // Insert FAILED login auth event (best-effort, non-blocking).
       // No JWT → no resolvable user UUID → user_profile_uuid is null,
       // attempted_username captures the username that was tried.
-      await insertAuthEvent({
-        pool: this.pool,
+      await getAuthEventsService().insertEvent({
         event_type: "login_failed",
         success: false,
         attempted_username: input.username,
@@ -133,7 +128,7 @@ export class AuthSessionService {
     };
     const claims = this.decodeJwtPayload(data.access_token);
 
-    // Email-verified guard — gated by auth_configurations flag.
+    // Email-verified guard — gated by config_entries flag.
     if (cfg.enable_email_verification_check && claims.emailVerified === false) {
       throw new UnauthorizedError("The user email isn't verified yet", {
         internal_code: "email_not_verified",
@@ -160,17 +155,17 @@ export class AuthSessionService {
       // auth middleware does via resolveInternalUuid).
       const idpCode = claims.sub as string;
       if (idpCode) {
-        const { resolveInternalUuid } = await import("../user-profile-repo.js");
-        const userUuid = await resolveInternalUuid({
+        const { getUserService } = await import("./user.service.js");
+        const userUuid = await getUserService().resolveInternalUuid({
           idp_code: idpCode,
           email: (claims.email as string) ?? null,
           display_name: (claims.displayName as string) ?? (claims.name as string) ?? null,
           idp_org: (claims.owner as string) || undefined,
           idp_username: (claims.name as string) || undefined,
-        }, this.pool);
+        });
 
         const { MfaService } = await import("./mfa.service.js");
-        const mfaService = new MfaService(this.pool, this.casdoor);
+        const mfaService = new MfaService(this.casdoor);
         const hasMfa = await mfaService.hasMfa(userUuid);
         if (hasMfa) {
           const idpOrg = (claims.owner as string) || cfg.idp_organization || "";
@@ -202,14 +197,14 @@ export class AuthSessionService {
     let userUuid: string | undefined;
     if (idpCode) {
       try {
-        const { resolveInternalUuid } = await import("../user-profile-repo.js");
-        userUuid = await resolveInternalUuid({
+        const { getUserService } = await import("./user.service.js");
+        userUuid = await getUserService().resolveInternalUuid({
           idp_code: idpCode,
           email: (claims.email as string) ?? null,
           display_name: (claims.displayName as string) ?? (claims.name as string) ?? null,
           idp_org: (claims.owner as string) || undefined,
           idp_username: (claims.name as string) || undefined,
-        }, this.pool);
+        });
       } catch {
         // resolveInternalUuid may throw if the user doesn't exist yet —
         // the auth middleware will JIT-provision on the next authed request.
@@ -218,8 +213,7 @@ export class AuthSessionService {
     }
 
     // Insert SUCCESS login auth event (best-effort, non-blocking).
-    await insertAuthEvent({
-      pool: this.pool,
+    await getAuthEventsService().insertEvent({
       event_type: "login",
       success: true,
       user_profile_uuid: userUuid,
@@ -311,7 +305,7 @@ export class AuthSessionService {
   // --- Me (self-service profile) -------------------------------------------
 
   async getMe(userUuid: string): Promise<MeProfileResponse> {
-    const profile = await this.dal.getByUuid(userUuid);
+    const profile = await this.users.getByUuid(userUuid);
     if (!profile) {
       throw new NotFoundError("User profile not found in database", {
         internal_code: "USER_PROFILE_NOT_FOUND",
@@ -319,25 +313,22 @@ export class AuthSessionService {
     }
 
     // Include passkey info for the FE auth method enforcer dialog logic
-    const idResult = await this.pool.query(
-      `SELECT id, auth_method_enforcer_dismissed FROM user_profiles WHERE uuid = $1`,
-      [userUuid],
-    );
-    const profileId = idResult.rows[0]?.id;
-    const authMethodEnforcerDismissed = idResult.rows[0]?.auth_method_enforcer_dismissed ?? false;
+    const sessionState = await this.users.getSessionStateByUuid(userUuid);
+    const profileId = sessionState?.id;
+    const authMethodEnforcerDismissed = sessionState?.auth_method_enforcer_dismissed ?? false;
 
     let hasPasskey = false;
     if (profileId) {
-      const passkeysDal = new UserPasskeysDal(this.pool);
-      const count = await passkeysDal.countByUserProfileId(BigInt(profileId));
+      const { WebauthnService } = await import("./webauthn.service.js");
+      const count = await new WebauthnService(this.casdoor).countPasskeysByUserProfileId(BigInt(profileId));
       hasPasskey = count > 0;
     }
 
     // Include MFA info for the FE auth method enforcer dialog logic
     let hasMfa = false;
     if (profileId && getAuthConfig().enable_mfa) {
-      const mfaDal = new UserMfaFactorsDal(this.pool);
-      const mfaCount = await mfaDal.countEnabledByUserProfileId(BigInt(profileId));
+      const { MfaService } = await import("./mfa.service.js");
+      const mfaCount = await new MfaService(this.casdoor).countEnabledFactorsByUserProfileId(BigInt(profileId));
       hasMfa = mfaCount > 0;
     }
 
@@ -369,10 +360,7 @@ export class AuthSessionService {
     }
 
     const actor = requireActor();
-    await this.pool.query(
-      `UPDATE user_profiles SET auth_method_enforcer_dismissed = true, updated_at = now(), updated_by = $1 WHERE uuid = $2`,
-      [actor, userUuid],
-    );
+    await this.users.updateProfileInternal(userUuid, { auth_method_enforcer_dismissed: true });
     return { success: true };
   }
 
@@ -395,7 +383,7 @@ export class AuthSessionService {
       throw new ValidationError("No fields to update", { internal_code: "NO_FIELDS" });
     }
 
-    const profile = await this.dal.getByUuid(userUuid);
+    const profile = await this.users.getByUuid(userUuid);
     if (!profile) {
       throw new NotFoundError("User profile not found in database", {
         internal_code: "USER_PROFILE_NOT_FOUND",
@@ -449,9 +437,9 @@ export class AuthSessionService {
     }
 
     updateBody.last_synced_at = syncTimestamp;
-    await this.dal.updateProfile(userUuid, updateBody as any);
+    await this.users.updateProfileInternal(userUuid, updateBody as any);
 
-    const updated = await this.dal.getByUuid(userUuid);
+    const updated = await this.users.getByUuid(userUuid);
     if (!updated) {
       throw new ApiError(
         "/errors/internal-error",
@@ -470,6 +458,7 @@ export class AuthSessionService {
     const parts = token.split(".");
     const encodedPayload = parts[1];
     const rawPayload = Buffer.from(encodedPayload, "base64").toString("utf-8");
+    // standards-exempt: ext-json — external wire payload (JWT RFC7519) — must not bigint-ify
     return JSON.parse(rawPayload);
   }
 
@@ -491,6 +480,7 @@ export class AuthSessionService {
     let errorDetail = "Authentication failed";
     let errorCode = "AUTH_FAILED";
     try {
+      // standards-exempt: ext-json — external wire payload (Casdoor error body) — must not bigint-ify
       const errorJson = JSON.parse(errorText);
       errorDetail = errorJson.error_description || errorJson.error || errorDetail;
       errorCode = errorJson.error || errorCode;

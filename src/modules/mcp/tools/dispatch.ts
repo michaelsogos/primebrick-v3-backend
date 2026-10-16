@@ -13,20 +13,18 @@
  *     enforce their own RBAC)
  */
 
-import { isPermissionGranted, type Permission } from "@primebrick/sdk";
+import { isPermissionGranted, internalFetch, extJsonStringify, type Permission } from "@primebrick/sdk";
 import type { AuthInfo } from "@modelcontextprotocol/server";
 import { authInfoToUser } from "../token-verifier.js";
 import { entityRegistry, type Operation } from "./entity-registry.js";
-import { getPool } from "../../../db/pool.js";
+import { getAuthEventsService } from "../../auth/services/auth-events.service.js";
 import { CustomersService } from "../../customers/customers.service.js";
 import { OrganizationsService } from "../../auth/services/organizations.service.js";
-import { UserService } from "../../auth/services/user.service.js";
-import { ServiceRegistryRepo } from "../../proxy/service-registry-repo.js";
+import { SystemService } from "../../system/system.service.js";
 import { customerMeta } from "../../customers/customers.meta.js";
 import { organizationMeta } from "../../auth/organizations.meta.js";
 import { userProfileMeta } from "../../auth/user-profiles.meta.js";
-import { UserProfilesDal } from "../../auth/user-profiles-dal.js";
-import { CasdoorService } from "../../auth/services/casdoor.service.js";
+import { getUserService } from "../../auth/services/user.service.js";
 
 // ─── RBAC ────────────────────────────────────────────────────────────────────
 
@@ -101,17 +99,10 @@ function getOrganizationService(): OrganizationsService {
   return new OrganizationsService();
 }
 
-function getUserService(): UserService {
-  const pool = getPool();
-  const dal = new UserProfilesDal(pool);
-  const casdoor = new CasdoorService(pool);
-  return new UserService(pool, dal, casdoor);
-}
-
 /**
  * Dispatch a list operation to the BE service layer.
  */
-export async function dispatchBeList(
+export async function dispatchLocalList(
   entity: string,
   params: {
     search?: string;
@@ -140,8 +131,10 @@ export async function dispatchBeList(
       return getCustomerService().listCustomers(query as never);
     case "organization":
       return getOrganizationService().listOrganizations(query as never);
-    case "user_profiles":
+    case "user_profile":
       return getUserService().listUsers(query as never);
+    case "auth_event":
+      return getAuthEventsService().list(query as never);
     default:
       throw new EntityNotFoundError("be", entity);
   }
@@ -150,13 +143,13 @@ export async function dispatchBeList(
 /**
  * Dispatch a get operation to the BE service layer.
  */
-export async function dispatchBeGet(entity: string, uuid: string): Promise<unknown> {
+export async function dispatchLocalGet(entity: string, uuid: string): Promise<unknown> {
   switch (entity) {
     case "customer":
       return getCustomerService().getCustomer(uuid);
     case "organization":
       return getOrganizationService().getOrganization(uuid);
-    case "user_profiles":
+    case "user_profile":
       return getUserService().getUserByUuid(uuid);
     default:
       throw new EntityNotFoundError("be", entity);
@@ -166,7 +159,7 @@ export async function dispatchBeGet(entity: string, uuid: string): Promise<unkno
 /**
  * Dispatch a create operation to the BE service layer.
  */
-export async function dispatchBeCreate(
+export async function dispatchLocalCreate(
   entity: string,
   data: Record<string, unknown>,
 ): Promise<unknown> {
@@ -175,7 +168,7 @@ export async function dispatchBeCreate(
       return getCustomerService().createCustomer(data as never);
     case "organization":
       return getOrganizationService().createOrganization(data as never);
-    case "user_profiles":
+    case "user_profile":
       return (await getUserService().createUser(data as never)).profile;
     default:
       throw new EntityNotFoundError("be", entity);
@@ -185,7 +178,7 @@ export async function dispatchBeCreate(
 /**
  * Dispatch an update operation to the BE service layer.
  */
-export async function dispatchBeUpdate(
+export async function dispatchLocalUpdate(
   entity: string,
   uuid: string,
   data: Record<string, unknown>,
@@ -197,7 +190,7 @@ export async function dispatchBeUpdate(
     case "organization":
       await getOrganizationService().updateOrganization(uuid, data as never);
       return { success: true };
-    case "user_profiles":
+    case "user_profile":
       return getUserService().updateUserProfile(uuid, data as never);
     default:
       throw new EntityNotFoundError("be", entity);
@@ -207,16 +200,16 @@ export async function dispatchBeUpdate(
 /**
  * Dispatch a delete operation (soft-delete) to the BE service layer.
  */
-export async function dispatchBeDelete(entity: string, uuid: string): Promise<unknown> {
+export async function dispatchLocalDelete(entity: string, uuid: string, version: number): Promise<unknown> {
   switch (entity) {
     case "customer":
-      await getCustomerService().deleteCustomer(uuid);
+      await getCustomerService().deleteCustomer(uuid, version);
       return { success: true };
     case "organization":
-      await getOrganizationService().deleteOrganization(uuid);
+      await getOrganizationService().deleteOrganization(uuid, version);
       return { success: true };
-    case "user_profiles":
-      await getUserService().deleteUser(uuid);
+    case "user_profile":
+      await getUserService().deleteUser(uuid, version);
       return { success: true };
     default:
       throw new EntityNotFoundError("be", entity);
@@ -226,16 +219,16 @@ export async function dispatchBeDelete(entity: string, uuid: string): Promise<un
 /**
  * Dispatch a restore operation to the BE service layer.
  */
-export async function dispatchBeRestore(entity: string, uuid: string): Promise<unknown> {
+export async function dispatchLocalRestore(entity: string, uuid: string, version: number): Promise<unknown> {
   switch (entity) {
     case "customer":
-      await getCustomerService().restoreCustomer(uuid);
+      await getCustomerService().restoreCustomer(uuid, version);
       return { success: true };
     case "organization":
-      await getOrganizationService().restoreOrganization(uuid);
+      await getOrganizationService().restoreOrganization(uuid, version);
       return { success: true };
-    case "user_profiles":
-      await getUserService().restoreUser(uuid);
+    case "user_profile":
+      await getUserService().restoreUser(uuid, version);
       return { success: true };
     default:
       throw new EntityNotFoundError("be", entity);
@@ -245,7 +238,7 @@ export async function dispatchBeRestore(entity: string, uuid: string): Promise<u
 /**
  * Dispatch an audit operation to the BE service layer.
  */
-export async function dispatchBeAudit(
+export async function dispatchLocalAudit(
   entity: string,
   uuid: string,
   page: number,
@@ -256,7 +249,7 @@ export async function dispatchBeAudit(
       return getCustomerService().getCustomerAudit(uuid, page, limit);
     case "organization":
       return getOrganizationService().getOrganizationAudit(uuid, page, limit);
-    case "user_profiles":
+    case "user_profile":
       return getUserService().getUserProfileAudit(uuid, page, limit);
     default:
       throw new EntityNotFoundError("be", entity);
@@ -266,13 +259,13 @@ export async function dispatchBeAudit(
 /**
  * Dispatch a meta operation to the BE entity metadata.
  */
-export async function dispatchBeMeta(entity: string): Promise<unknown> {
+export async function dispatchLocalMeta(entity: string): Promise<unknown> {
   switch (entity) {
     case "customer":
       return customerMeta;
     case "organization":
       return organizationMeta;
-    case "user_profiles":
+    case "user_profile":
       return userProfileMeta;
     default:
       throw new EntityNotFoundError("be", entity);
@@ -282,18 +275,18 @@ export async function dispatchBeMeta(entity: string): Promise<unknown> {
 /**
  * Dispatch a bulk action to the BE service layer.
  */
-export async function dispatchBeBulk(
+export async function dispatchLocalBulk(
   entity: string,
   action: "delete" | "restore",
-  uuids: string[],
+  items: Array<{ uuid: string; version: number }>,
 ): Promise<unknown> {
   const results: Array<{ uuid: string; success: boolean; error?: string }> = [];
-  for (const uuid of uuids) {
+  for (const { uuid, version } of items) {
     try {
       if (action === "delete") {
-        await dispatchBeDelete(entity, uuid);
+        await dispatchLocalDelete(entity, uuid, version);
       } else {
-        await dispatchBeRestore(entity, uuid);
+        await dispatchLocalRestore(entity, uuid, version);
       }
       results.push({ uuid, success: true });
     } catch (err) {
@@ -342,7 +335,7 @@ function buildProxyPath(module: string, entity: string, operation: Operation, uu
  * reconstructing the Express proxy logic and ensures the proxy's RBAC and
  * token forwarding are reused.
  */
-async function proxyToMicroservice(
+export async function proxyToMicroservice(
   authInfo: AuthInfo,
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
@@ -359,13 +352,13 @@ async function proxyToMicroservice(
     }
   }
 
-  const response = await fetch(url.toString(), {
+  const response = await internalFetch(url.toString(), {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? extJsonStringify(body) : undefined,
   });
 
   if (!response.ok) {
@@ -405,7 +398,7 @@ export async function dispatchProxyList(
   if (params.sort_dir) query.sort_dir = params.sort_dir;
   if (params.page) query.page = String(params.page);
   if (params.page_size) query.page_size = String(params.page_size);
-  if (params.filters) query.filters = JSON.stringify(params.filters);
+  if (params.filters) query.filters = extJsonStringify(params.filters);
   if (params.deleted_records) query.deleted_records = params.deleted_records;
 
   const path = buildProxyPath(module, entity, "list");
@@ -435,7 +428,9 @@ export async function dispatchProxyCreate(
   data: Record<string, unknown>,
 ): Promise<unknown> {
   const path = buildProxyPath(module, entity, "create");
-  return proxyToMicroservice(authInfo, "POST", path, data);
+  // `{entity}` write-payload standard: the HTTP envelope is a transport
+  // concern — MCP tool callers send flat fields, dispatch wraps them.
+  return proxyToMicroservice(authInfo, "POST", path, { entity: data });
 }
 
 /**
@@ -449,7 +444,7 @@ export async function dispatchProxyUpdate(
   data: Record<string, unknown>,
 ): Promise<unknown> {
   const path = buildProxyPath(module, entity, "update", uuid);
-  return proxyToMicroservice(authInfo, "PUT", path, data);
+  return proxyToMicroservice(authInfo, "PUT", path, { entity: data });
 }
 
 /**
@@ -460,8 +455,9 @@ export async function dispatchProxyDelete(
   module: string,
   entity: string,
   uuid: string,
+  version: number,
 ): Promise<unknown> {
-  const path = buildProxyPath(module, entity, "delete", uuid);
+  const path = `${buildProxyPath(module, entity, "delete", uuid)}?version=${version}`;
   return proxyToMicroservice(authInfo, "DELETE", path);
 }
 
@@ -473,8 +469,9 @@ export async function dispatchProxyRestore(
   module: string,
   entity: string,
   uuid: string,
+  version: number,
 ): Promise<unknown> {
-  const path = buildProxyPath(module, entity, "restore", uuid);
+  const path = `${buildProxyPath(module, entity, "restore", uuid)}?version=${version}`;
   return proxyToMicroservice(authInfo, "POST", path);
 }
 
@@ -511,7 +508,7 @@ export async function dispatchProxyMeta(
 // ─── Aggregate ────────────────────────────────────────────────────────────────
 
 /**
- * Aggregate spec passed to dispatchBeAggregate / dispatchProxyAggregate.
+ * Aggregate spec passed to dispatchLocalAggregate / dispatchProxyAggregate.
  * Computes COUNT/SUM/AVG/MIN/MAX with optional GROUP BY.
  */
 export interface AggregateSpec {
@@ -525,13 +522,13 @@ export interface AggregateSpec {
 /**
  * Dispatch an aggregate operation to the BE service layer.
  *
- * For `auth_events` (the only BE entity supporting aggregate in v1), this
- * builds a raw SQL query against the auth_events table. Other entities could
- * be added here in the future.
+ * For `auth_events` (the only BE entity supporting aggregate in v1) the
+ * query lives in `AuthEventsService` — the dispatcher only routes, it
+ * never touches the Dal. Other entities could be added here in the future.
  *
- * Returns: { results: [{ group: {...}, value: number }], total: number }
+ * Returns: { results: [{ group: {...}, value: bigint }], total: bigint }
  */
-export async function dispatchBeAggregate(
+export async function dispatchLocalAggregate(
   entity: string,
   params: {
     aggregate: AggregateSpec;
@@ -542,98 +539,12 @@ export async function dispatchBeAggregate(
     page_size?: number;
   },
 ): Promise<unknown> {
-  if (entity !== "auth_events") {
-    throw new EntityNotFoundError("be", entity);
+  switch (entity) {
+    case "auth_event":
+      return getAuthEventsService().aggregateEvents(params);
+    default:
+      throw new EntityNotFoundError("be", entity);
   }
-
-  const pool = getPool();
-  const { aggregate, filters, sort_key, sort_dir, page, page_size } = params;
-
-  // Build SELECT clause
-  const aggExpr =
-    aggregate.type === "count"
-      ? "COUNT(*)"
-      : `${aggregate.type.toUpperCase()}(${quoteIdent(aggregate.field!)})`;
-
-  const groupBy = aggregate.group_by ?? [];
-  const selectClause =
-    groupBy.length > 0
-      ? `${groupBy.map((f) => quoteIdent(f)).join(", ")}, ${aggExpr} AS agg_value`
-      : `${aggExpr} AS agg_value`;
-
-  // Build WHERE clause from filters (simple equality for now — auth_events
-  // supports event_type, success, user_profile_uuid, event_at BETWEEN).
-  const whereParts: string[] = [];
-  const queryParams: unknown[] = [];
-  let paramIdx = 1;
-
-  if (filters) {
-    for (const [field, value] of Object.entries(filters)) {
-      if (value === null || value === undefined) continue;
-
-      // Handle BETWEEN: { op: "BETWEEN", value: [start, end] }
-      if (typeof value === "object" && !Array.isArray(value) && "op" in (value as Record<string, unknown>)) {
-        const v = value as { op: string; value: unknown[] };
-        if (v.op === "BETWEEN" && Array.isArray(v.value) && v.value.length === 2) {
-          whereParts.push(`${quoteIdent(field)} BETWEEN $${paramIdx} AND $${paramIdx + 1}`);
-          queryParams.push(v.value[0], v.value[1]);
-          paramIdx += 2;
-          continue;
-        }
-      }
-
-      // Handle IN: array of values
-      if (Array.isArray(value)) {
-        const placeholders = value.map((_, i) => `$${paramIdx + i}`).join(", ");
-        whereParts.push(`${quoteIdent(field)} IN (${placeholders})`);
-        queryParams.push(...value);
-        paramIdx += value.length;
-        continue;
-      }
-
-      // Simple equality
-      whereParts.push(`${quoteIdent(field)} = $${paramIdx}`);
-      queryParams.push(value);
-      paramIdx += 1;
-    }
-  }
-
-  const whereClause = whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
-
-  // Build GROUP BY clause
-  const groupByClause = groupBy.length > 0 ? `GROUP BY ${groupBy.map((f) => quoteIdent(f)).join(", ")}` : "";
-
-  // Build ORDER BY clause
-  // sort_key can be a group_by field or "agg_value" (the aggregate result)
-  const sortField = sort_key === "count" || sort_key === aggregate.type ? "agg_value" : quoteIdent(sort_key ?? "");
-  const sortDir = (sort_dir ?? "desc").toUpperCase() === "ASC" ? "ASC" : "DESC";
-  const orderBy = sortField ? `ORDER BY ${sortField} ${sortDir}` : "";
-
-  // Pagination
-  const limit = Math.min(page_size ?? 25, 100);
-  const offset = ((page ?? 1) - 1) * limit;
-
-  // Count total groups (for pagination metadata)
-  const countSql = `SELECT COUNT(*) AS total FROM (SELECT 1 FROM auth_events ${whereClause} ${groupByClause}) AS grouped`;
-  const countResult = await pool.query<{ total: string }>(countSql, queryParams);
-  const total = BigInt(countResult.rows[0]?.total ?? 0);
-
-  // Main query
-  const sql = `SELECT ${selectClause} FROM auth_events ${whereClause} ${groupByClause} ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
-  const result = await pool.query(sql, queryParams);
-
-  const results = result.rows.map((row) => {
-    const group: Record<string, unknown> = {};
-    for (const f of groupBy) {
-      group[f] = row[f];
-    }
-    return {
-      group,
-      value: typeof row.agg_value === "bigint" ? row.agg_value : BigInt(row.agg_value ?? 0),
-    };
-  });
-
-  return { results, total };
 }
 
 /**
@@ -657,52 +568,27 @@ export async function dispatchProxyAggregate(
   return proxyToMicroservice(authInfo, "POST", path, params);
 }
 
-/**
- * Quote a SQL identifier (column name) to prevent injection.
- * Double-quotes are escaped by doubling.
- */
-function quoteIdent(name: string): string {
-  if (!/^[a-z_][a-z0-9_]*$/.test(name)) {
-    throw new Error(`Invalid SQL identifier: ${name}`);
-  }
-  return `"${name}"`;
-}
-
 // ─── Service Registry (manage_service tool) ──────────────────────────────────
 
 /**
  * List all services from the service registry.
  */
 export async function listServices(): Promise<unknown> {
-  const repo = new ServiceRegistryRepo(getPool());
-  const services = await repo.findAll();
-  return { services };
+  return new SystemService().listServices();
 }
 
 /**
  * Get a single service by code.
  */
 export async function getService(code: string): Promise<unknown> {
-  const repo = new ServiceRegistryRepo(getPool());
-  const service = await repo.findByCode(code);
-  if (!service) {
-    throw new Error(`Service '${code}' not found`);
-  }
-  return { service };
+  return new SystemService().getService(code);
 }
 
 /**
  * Toggle a service's is_enabled flag.
  */
 export async function activateService(code: string): Promise<unknown> {
-  const repo = new ServiceRegistryRepo(getPool());
-  const existing = await repo.findByCode(code);
-  if (!existing) {
-    throw new Error(`Service '${code}' not found`);
-  }
-  const newEnabled = !existing.is_enabled;
-  await repo.toggleEnabled(code, newEnabled);
-  return { code, is_enabled: newEnabled };
+  return new SystemService().toggleService(code);
 }
 
 /**
@@ -712,12 +598,7 @@ export async function updateService(
   code: string,
   data: Record<string, unknown>,
 ): Promise<unknown> {
-  const repo = new ServiceRegistryRepo(getPool());
-  const existing = await repo.findByCode(code);
-  if (!existing) {
-    throw new Error(`Service '${code}' not found`);
-  }
-  await repo.updateByCodeAdmin(code, {
+  return new SystemService().updateService(code, {
     name: data.name as string | undefined,
     description: data.description as string | undefined,
     base_url: data.base_url as string | undefined,
@@ -726,8 +607,6 @@ export async function updateService(
     author: data.author as string | undefined,
     github_repo_url: data.github_repo_url as string | undefined,
   });
-  const updated = await repo.findByCode(code);
-  return { service: updated };
 }
 
 /**
@@ -735,11 +614,6 @@ export async function updateService(
  * This is a PERMANENT deletion — the record cannot be restored.
  */
 export async function deleteService(code: string): Promise<unknown> {
-  const repo = new ServiceRegistryRepo(getPool());
-  const existing = await repo.findByCode(code);
-  if (!existing) {
-    throw new Error(`Service '${code}' not found`);
-  }
-  await repo.hardDeleteByCode(code);
-  return { code, deleted: true, permanent: true };
+  const result = await new SystemService().deleteService(code);
+  return { ...result, permanent: true };
 }

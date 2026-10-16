@@ -1,17 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ─── Hoisted mocks ──────────────────────────────────────────────────────────
-const { mockPool, mockMfaService, mockCasdoor } = vi.hoisted(() => ({
-  mockPool: {},
+const { mockMfaService, mockCasdoor } = vi.hoisted(() => ({
   mockMfaService: {
     consumeActionAuthorization: vi.fn(),
   },
   mockCasdoor: {},
 }));
 
-vi.mock("../../db/pool.js", () => ({
-  getPool: vi.fn(() => mockPool),
-}));
 
 vi.mock("../services/casdoor.service.js", () => ({
   CasdoorService: vi.fn().mockImplementation(function () { return mockCasdoor; }),
@@ -38,17 +34,22 @@ beforeEach(() => {
 });
 
 describe("requireMfaStepUp middleware", () => {
-  it("throws 403 mfa_step_up_required when header is missing", async () => {
+  it("passes 403 mfa_step_up_required to next() when header is missing", async () => {
     const middleware = requireMfaStepUp("delete", "organizations");
     const req = makeReq(); // no header
     const res = makeRes();
     const next: NextFunction = vi.fn();
 
-    await expect(middleware(req, res, next)).rejects.toMatchObject({
-      status: 403,
-      extra: { mfa_step_up_required: true, action: "delete", target_resource: "organizations" },
+    middleware(req, res, next);
+    // asyncHandler forwards the thrown ApiError to next(err)
+    await vi.waitFor(() => {
+      expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 403,
+        extra: { mfa_step_up_required: true, action: "delete", target_resource: "organizations" },
+      }),
+    );
     });
-    expect(next).not.toHaveBeenCalled();
   });
 
   it("calls next() when token is valid", async () => {
@@ -67,7 +68,7 @@ describe("requireMfaStepUp middleware", () => {
     );
   });
 
-  it("throws 403 when token is invalid (consumption fails)", async () => {
+  it("passes 403 to next() when token is invalid (consumption fails)", async () => {
     // The service throws an ApiError when the token is invalid
     const { ApiError } = await import("../../../http/api-errors.js");
     mockMfaService.consumeActionAuthorization.mockRejectedValue(
@@ -84,10 +85,15 @@ describe("requireMfaStepUp middleware", () => {
     const res = makeRes();
     const next: NextFunction = vi.fn();
 
-    await expect(middleware(req, res, next)).rejects.toMatchObject({
-      status: 403,
-      extra: { mfa_step_up_required: true, action: "delete", target_resource: "organizations" },
+    middleware(req, res, next);
+    // asyncHandler forwards the error to next(err) on a later microtask
+    await vi.waitFor(() => {
+      expect(next).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 403,
+          extra: { mfa_step_up_required: true, action: "delete", target_resource: "organizations" },
+        }),
+      );
     });
-    expect(next).not.toHaveBeenCalled();
   });
 });

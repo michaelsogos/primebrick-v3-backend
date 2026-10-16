@@ -21,9 +21,33 @@ END $$;
 
 -- === Schemas ===
 CREATE SCHEMA IF NOT EXISTS emailsender;
+CREATE SCHEMA IF NOT EXISTS system;
+CREATE SCHEMA IF NOT EXISTS "custom";
 
 GRANT ALL ON SCHEMA emailsender TO primebrick;
 GRANT ALL ON SCHEMA emailsender TO public;
+GRANT ALL ON SCHEMA system TO primebrick;
+GRANT ALL ON SCHEMA system TO public;
+GRANT ALL ON SCHEMA "custom" TO primebrick;
+GRANT ALL ON SCHEMA "custom" TO public;
+
+-- === Functions ===
+-- pg_raise(code, message, detail): raises a PostgreSQL exception with a custom
+-- SQLSTATE from plain SQL contexts (e.g. DAL CTEs). Used by @primebrick/dal-pg
+-- add() conflict reporting to emit ERR04 (unique conflict on live row) /
+-- ERR05 (unique conflict on soft-deleted row) with the conflicting row's
+-- uuid + matched constraint in DETAIL (jsonb).
+CREATE OR REPLACE FUNCTION public.pg_raise(p_code text, p_message text, p_detail text DEFAULT NULL)
+RETURNS void
+LANGUAGE plpgsql
+AS $func$
+BEGIN
+  RAISE EXCEPTION '%', p_message USING ERRCODE = p_code, DETAIL = p_detail;
+END;
+$func$;
+
+GRANT EXECUTE ON FUNCTION public.pg_raise(text, text, text) TO primebrick;
+GRANT EXECUTE ON FUNCTION public.pg_raise(text, text, text) TO public;
 
 -- === Tables ===
 
@@ -293,10 +317,13 @@ COMMENT ON COLUMN public.mfa_action_authorizations.used_at IS 'When the token wa
 -- role_mappings table
 CREATE TABLE IF NOT EXISTS "public"."role_mappings" (
   "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
   "idp_role" varchar(255) NOT NULL,
   "label_key" varchar(255),
   "permissions" jsonb NOT NULL,
   "is_admin" boolean NOT NULL DEFAULT false,
+  "idp_org" varchar(255),
+  "last_synced_at" timestamptz,
   "created_at" timestamptz DEFAULT now(),
   "created_by" text,
   "updated_at" timestamptz DEFAULT now(),
@@ -306,6 +333,7 @@ CREATE TABLE IF NOT EXISTS "public"."role_mappings" (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "role_mappings_idp_role_uq" ON "public"."role_mappings" ("idp_role");
+CREATE UNIQUE INDEX IF NOT EXISTS "role_mappings_uuid_uq" ON "public"."role_mappings" ("uuid");
 
 -- role_mappings_audit table
 CREATE TABLE IF NOT EXISTS "public"."role_mappings_audit" (
@@ -341,8 +369,8 @@ END $$;
 CREATE INDEX IF NOT EXISTS "role_mappings_audit_entity_uuid_idx" ON "public"."role_mappings_audit" ("entity_uuid");
 CREATE INDEX IF NOT EXISTS "role_mappings_audit_action_idx" ON "public"."role_mappings_audit" ("action");
 
--- auth_configurations table (Config Table standard: type/type_config/label_key/description_key/reserved)
-CREATE TABLE IF NOT EXISTS "public"."auth_configurations" (
+-- config_entries table (Config Table standard: type/type_config/label_key/description_key/reserved)
+CREATE TABLE IF NOT EXISTS "public"."config_entries" (
   "id" bigint generated always as identity NOT NULL,
   "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
   "key" varchar(100) NOT NULL,
@@ -363,11 +391,11 @@ CREATE TABLE IF NOT EXISTS "public"."auth_configurations" (
   PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "auth_configurations_key_uq" ON "public"."auth_configurations" ("key");
-CREATE INDEX IF NOT EXISTS "auth_configurations_deleted_at_idx" ON "public"."auth_configurations" ("deleted_at");
+CREATE UNIQUE INDEX IF NOT EXISTS "config_entries_key_uq" ON "public"."config_entries" ("key");
+CREATE INDEX IF NOT EXISTS "config_entries_deleted_at_idx" ON "public"."config_entries" ("deleted_at");
 
--- auth_configurations_audit table
-CREATE TABLE IF NOT EXISTS "public"."auth_configurations_audit" (
+-- config_entries_audit table
+CREATE TABLE IF NOT EXISTS "public"."config_entries_audit" (
   "id" bigint generated always as identity NOT NULL,
   "entity_id" bigint NOT NULL,
   "entity_uuid" uuid NOT NULL,
@@ -379,13 +407,13 @@ CREATE TABLE IF NOT EXISTS "public"."auth_configurations_audit" (
   PRIMARY KEY ("id", "changed_at")
 ) PARTITION BY RANGE ("changed_at");
 
-COMMENT ON COLUMN public.auth_configurations_audit.changed_by IS 'Identifier of the principal that produced the audit entry (falls back to "system" when no authenticated context is available).';
+COMMENT ON COLUMN public.config_entries_audit.changed_by IS 'Identifier of the principal that produced the audit entry (falls back to "system" when no authenticated context is available).';
 
--- Indexes for auth_configurations_audit
-CREATE INDEX IF NOT EXISTS "auth_configurations_audit_entity_uuid_idx" ON "public"."auth_configurations_audit" ("entity_uuid");
-CREATE INDEX IF NOT EXISTS "auth_configurations_audit_action_idx" ON "public"."auth_configurations_audit" ("action");
+-- Indexes for config_entries_audit
+CREATE INDEX IF NOT EXISTS "config_entries_audit_entity_uuid_idx" ON "public"."config_entries_audit" ("entity_uuid");
+CREATE INDEX IF NOT EXISTS "config_entries_audit_action_idx" ON "public"."config_entries_audit" ("action");
 
--- pg_partman setup for auth_configurations_audit (idempotent)
+-- pg_partman setup for config_entries_audit (idempotent)
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -394,9 +422,9 @@ BEGIN
     AND table_name = 'part_config'
   ) OR NOT EXISTS (
     SELECT 1 FROM partman.part_config 
-    WHERE parent_table = 'public.auth_configurations_audit'
+    WHERE parent_table = 'public.config_entries_audit'
   ) THEN
-    PERFORM partman.create_parent('public.auth_configurations_audit', 'changed_at', '1 month');
+    PERFORM partman.create_parent('public.config_entries_audit', 'changed_at', '1 month');
   END IF;
 EXCEPTION WHEN others THEN
   -- If pg_partman is not properly configured, skip silently
@@ -473,9 +501,14 @@ CREATE TABLE IF NOT EXISTS "public"."service_registry" (
   "author" text,
   "github_repo_url" text,
   "service_version" text,
+  "pkg_name" text,
   "is_behind_scaler" boolean NOT NULL DEFAULT false,
+  "is_reserved" boolean NOT NULL DEFAULT false,
   "status" text NOT NULL DEFAULT 'unknown',
   "last_health_check_at" timestamptz,
+  "is_enabled" boolean NOT NULL DEFAULT true,
+  "icon" text,
+  "icon_type" text NOT NULL DEFAULT 'icon',
   "created_at" timestamptz DEFAULT now(),
   "created_by" text,
   "updated_at" timestamptz DEFAULT now(),
@@ -493,6 +526,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_uq_scaler"
 -- One row per (code, base_url) when not behind scaler
 CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_base_url_uq"
   ON "public"."service_registry" ("code", "base_url") WHERE is_behind_scaler = false;
+
+-- Seed reserved SETTINGS module (cannot be disabled/deleted, always present).
+-- SETTINGS is the system configuration module — 7 sub-pages, no microservice backend.
+INSERT INTO public.service_registry (
+  code, base_url, endpoints, name, description, is_behind_scaler,
+  status, is_enabled, icon, icon_type, is_reserved,
+  created_at, created_by, updated_at, updated_by, version
+)
+SELECT
+  'settings', '', '{}'::jsonb, 'Settings', 'Primebrick system settings — reserved shell module', true,
+  'active', true, 'settings', 'icon', true,
+  now(), 'system', now(), 'system', 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.service_registry WHERE code = 'settings' AND is_behind_scaler = true
+);
 
 -- === AI Chat tables ===
 -- NOTE: The AI chat tables (docs_kb, ai_conversations, ai_messages,
@@ -524,6 +572,158 @@ CREATE INDEX IF NOT EXISTS "auth_events_event_type_event_at_idx"
 CREATE INDEX IF NOT EXISTS "auth_events_attempted_username_event_at_idx"
   ON "public"."auth_events" ("attempted_username", "event_at" DESC);
 
+-- api_keys table (machine-to-machine authentication with RBAC).
+-- API keys are first-class auth credentials mapped to permissions.
+-- The is_system flag allows system API keys that bypass RBAC (actor = "system").
+CREATE TABLE IF NOT EXISTS "public"."api_keys" (
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "key_hash" text NOT NULL,
+  "key_prefix" varchar(20) NOT NULL,
+  "name" varchar(100) NOT NULL,
+  "description" text,
+  "permissions" jsonb DEFAULT '[]',
+  "is_system" boolean DEFAULT FALSE,
+  "is_active" boolean DEFAULT TRUE,
+  "expires_at" timestamptz,
+  "created_at" timestamptz DEFAULT now(),
+  "created_by" text,
+  "updated_at" timestamptz DEFAULT now(),
+  "updated_by" text,
+  "version" integer DEFAULT 1,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "api_keys_uuid_uq" ON "public"."api_keys" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "api_keys_key_hash_uq" ON "public"."api_keys" ("key_hash");
+
+-- mcp_oauth_clients table (MCP OAuth 2.1 Dynamic Client Registration, RFC 7591).
+-- Stores OAuth clients registered by AI clients (Claude Desktop, Cursor, VS Code)
+-- via the MCP server's DCR endpoint. These clients are used for the authorization
+-- code flow that issues Casdoor JWTs scoped to the MCP server.
+CREATE TABLE IF NOT EXISTS "public"."mcp_oauth_clients" (
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "client_id" varchar(255) NOT NULL,
+  "client_secret" text,
+  "client_name" varchar(255),
+  "redirect_uris" jsonb DEFAULT '[]',
+  "grant_types" jsonb DEFAULT '["authorization_code","refresh_token"]',
+  "response_types" jsonb DEFAULT '["code"]',
+  "token_endpoint_auth_method" varchar(50) DEFAULT 'client_secret_post',
+  "scope" text DEFAULT 'mcp:tools',
+  "client_id_issued_at" timestamptz DEFAULT now(),
+  "client_secret_expires_at" timestamptz,
+  "created_at" timestamptz DEFAULT now(),
+  "updated_at" timestamptz DEFAULT now(),
+  "version" integer DEFAULT 1,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "mcp_oauth_clients_uuid_uq" ON "public"."mcp_oauth_clients" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "mcp_oauth_clients_client_id_uq" ON "public"."mcp_oauth_clients" ("client_id");
+
+-- === Translations tables (DB is the sole source of truth for i18n) ===
+-- Schema = module boundary: public.translations (app module), system.translations (system module).
+-- One row per (key, language) pair. The key is the full dot-path
+-- (e.g. 'app.auth.login.title'). The API returns a flat i18n dict
+-- built by PostgreSQL's jsonb_object_agg(key, value).
+
+-- public.translations (app module: app.* — all app-scope UI keys)
+CREATE TABLE IF NOT EXISTS "public"."translations" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "uuid" UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  "key" VARCHAR(255) NOT NULL,
+  "language" VARCHAR(10) NOT NULL,
+  "value" TEXT NOT NULL,
+  "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "created_by" VARCHAR(255) NOT NULL,
+  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "updated_by" VARCHAR(255) NOT NULL,
+  "version" INTEGER NOT NULL DEFAULT 1,
+  "deleted_at" TIMESTAMPTZ,
+  "deleted_by" VARCHAR(255)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "translations_key_language_uidx"
+  ON "public"."translations" ("key", "language");
+
+CREATE INDEX IF NOT EXISTS "translations_language_idx"
+  ON "public"."translations" ("language")
+  WHERE "deleted_at" IS NULL;
+
+-- system.translations (system module: system.* — settings + entity labels)
+CREATE TABLE IF NOT EXISTS "system"."translations" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "uuid" UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  "key" VARCHAR(255) NOT NULL,
+  "language" VARCHAR(10) NOT NULL,
+  "value" TEXT NOT NULL,
+  "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "created_by" VARCHAR(255) NOT NULL,
+  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "updated_by" VARCHAR(255) NOT NULL,
+  "version" INTEGER NOT NULL DEFAULT 1,
+  "deleted_at" TIMESTAMPTZ,
+  "deleted_by" VARCHAR(255)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "system_translations_key_language_uidx"
+  ON "system"."translations" ("key", "language");
+
+CREATE INDEX IF NOT EXISTS "system_translations_language_idx"
+  ON "system"."translations" ("language")
+  WHERE "deleted_at" IS NULL;
+
+-- system.client_registry — allowlist of recognized internal callers.
+-- Rows with source='registry' are auto-maintained by the BE from
+-- service.register payloads (admin cannot edit them); source='manual' rows
+-- are admin-managed (e.g. a Postman UA with its own client key).
+CREATE TABLE IF NOT EXISTS "system"."client_registry" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "uuid" UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  "ua_prefix" VARCHAR(255) NOT NULL,
+  "client_key_hash" VARCHAR(255) NOT NULL,
+  "source" VARCHAR(20) NOT NULL DEFAULT 'manual',
+  "is_enabled" BOOLEAN NOT NULL DEFAULT true,
+  "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "created_by" VARCHAR(255) NOT NULL,
+  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "updated_by" VARCHAR(255) NOT NULL,
+  "version" INTEGER NOT NULL DEFAULT 1,
+  "deleted_at" TIMESTAMPTZ,
+  "deleted_by" VARCHAR(255),
+  CONSTRAINT "client_registry_source_ck" CHECK ("source" IN ('registry', 'manual'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "system_client_registry_ua_prefix_uidx"
+  ON "system"."client_registry" ("ua_prefix");
+
+-- custom.translations (user-created keys: custom.* — global, shared, cross-org.
+-- The `custom` schema is the boundary for user-owned data: never project seed
+-- data, never service-module data.)
+CREATE TABLE IF NOT EXISTS "custom"."translations" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "uuid" UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  "key" VARCHAR(255) NOT NULL,
+  "language" VARCHAR(10) NOT NULL,
+  "value" TEXT NOT NULL,
+  "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "created_by" VARCHAR(255) NOT NULL,
+  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "updated_by" VARCHAR(255) NOT NULL,
+  "version" INTEGER NOT NULL DEFAULT 1,
+  "deleted_at" TIMESTAMPTZ,
+  "deleted_by" VARCHAR(255)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "custom_translations_key_language_uidx"
+  ON "custom"."translations" ("key", "language");
+
+CREATE INDEX IF NOT EXISTS "custom_translations_language_idx"
+  ON "custom"."translations" ("language")
+  WHERE "deleted_at" IS NULL;
+
 -- === Seed Data ===
 
 -- Seed the only auto-created role mapping: 'administrators' (is_admin=true).
@@ -553,41 +753,48 @@ AND NOT EXISTS (
 -- Seed the 'auth_auditor' role mapping (read-only auth events audit).
 -- Dedicated role for security/compliance team to inspect login logs.
 -- Admin (is_admin=true) bypasses all checks; this role is for non-admin users.
--- Note: no audit trail seed for role_mappings because the table has no uuid column
--- (pre-existing schema limitation — administrators seed has the same gap).
 INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('auth_auditor', '["auth_events.read.all"]'::jsonb, false, '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1)
+VALUES ('auth_auditor', '["auth_event.read.all"]'::jsonb, false, '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1)
 ON CONFLICT (idp_role) DO NOTHING;
 
 -- Seed initial auth configuration values
-INSERT INTO "public"."auth_configurations" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "group_key", "created_by") VALUES
-('idp_endpoint', 'http://localhost:8000', 'url', '{"validation":{"required":true,"required_error_label_key":"config.auth.idp_endpoint.errors.required","rules":{"url":{"protocols":["http","https"],"error_label_key":"config.auth.idp_endpoint.errors.invalidUrl"}}}}', 'config.auth.idp_endpoint.label', 'config.auth.idp_endpoint.description', true, 'idp_parameters', 'system'),
-('idp_organization', 'ACME', 'string', '{"validation":{"required":true,"required_error_label_key":"config.auth.idp_organization.errors.required","rules":{"min":{"value":1,"error_label_key":"config.auth.idp_organization.errors.min"},"max":{"value":100,"error_label_key":"config.auth.idp_organization.errors.max"}}}}', 'config.auth.idp_organization.label', 'config.auth.idp_organization.description', true, 'idp_parameters', 'system'),
-('oidc_issuer_url', 'http://localhost:8000', 'url', '{"validation":{"required":true,"required_error_label_key":"config.auth.oidc_issuer_url.errors.required","rules":{"url":{"protocols":["http","https"],"error_label_key":"config.auth.oidc_issuer_url.errors.invalidUrl"}}}}', 'config.auth.oidc_issuer_url.label', 'config.auth.oidc_issuer_url.description', true, 'oidc_parameters', 'system'),
-('idp_type', 'casdoor', 'badge', '{"values":{"casdoor":{"label_key":"config.auth.idp_type.casdoor"},"keycloak":{"label_key":"config.auth.idp_type.keycloak"},"entra":{"label_key":"config.auth.idp_type.entra"},"okta":{"label_key":"config.auth.idp_type.okta"}},"validation":{"required":true,"required_error_label_key":"config.auth.idp_type.errors.required","rules":{}}}', 'config.auth.idp_type.label', 'config.auth.idp_type.description', true, 'idp_parameters', 'system'),
-('oidc_client_id', '', 'string', '{"validation":{"required":true,"required_error_label_key":"config.auth.oidc_client_id.errors.required","rules":{"min":{"value":6,"error_label_key":"config.auth.oidc_client_id.errors.min"},"max":{"value":100,"error_label_key":"config.auth.oidc_client_id.errors.max"},"regex":{"pattern":"^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$","error_label_key":"config.auth.oidc_client_id.errors.invalidFormat"}}}}', 'config.auth.oidc_client_id.label', 'config.auth.oidc_client_id.description', true, 'oidc_parameters', 'system'),
-('oidc_client_secret', '', 'secret', '{"validation":{"required":true,"required_error_label_key":"config.auth.oidc_client_secret.errors.required","rules":{"min":{"value":32,"error_label_key":"config.auth.oidc_client_secret.errors.min"},"max":{"value":256,"error_label_key":"config.auth.oidc_client_secret.errors.max"}}}}', 'config.auth.oidc_client_secret.label', 'config.auth.oidc_client_secret.description', true, 'oidc_parameters', 'system'),
-('enable_email_verification_check', 'false', 'boolean', '{"validation":{"required":true,"required_error_label_key":"config.auth.enable_email_verification_check.errors.required","rules":{}}}', 'config.auth.enable_email_verification_check.label', 'config.auth.enable_email_verification_check.description', true, 'security_parameters', 'system'),
-('enable_webauthn', 'true', 'boolean', '{"validation":{"required":true,"required_error_label_key":"config.auth.enable_webauthn.errors.required","rules":{}}}', 'config.auth.enable_webauthn.label', 'config.auth.enable_webauthn.description', true, 'security_parameters', 'system'),
-('passkey_required', 'true', 'boolean', '{"validation":{"required":true,"required_error_label_key":"config.auth.passkey_required.errors.required","rules":{}}}', 'config.auth.passkey_required.label', 'config.auth.passkey_required.description', true, 'security_parameters', 'system'),
-('enable_mfa', 'false', 'boolean', '{"validation":{"required":true,"required_error_label_key":"config.auth.enable_mfa.errors.required","rules":{}}}', 'config.auth.enable_mfa.label', 'config.auth.enable_mfa.description', true, 'security_parameters', 'system'),
-('password_policy', 'letter_number_special', 'badge', '{"values":{"alpha_numeric":{"label_key":"config.auth.password_policy.alpha_numeric"},"letter_and_number":{"label_key":"config.auth.password_policy.letter_and_number"},"letter_number_special":{"label_key":"config.auth.password_policy.letter_number_special"},"mixed_case_special":{"label_key":"config.auth.password_policy.mixed_case_special"}},"validation":{"required":true,"required_error_label_key":"config.auth.password_policy.errors.required","rules":{}}}', 'config.auth.password_policy.label', 'config.auth.password_policy.description', true, 'security_parameters', 'system'),
-('auth_mode', 'STANDALONE', 'badge', '{"values":{"STANDALONE":{"label_key":"config.auth.auth_mode.standalone","color":"sky-300"},"GATEWAY":{"label_key":"config.auth.auth_mode.gateway","color":"amber-300"}},"validation":{"required":true,"required_error_label_key":"config.auth.auth_mode.errors.required","rules":{}}}', 'config.auth.auth_mode.label', 'config.auth.auth_mode.description', true, 'idp_parameters', 'system'),
-('auth_roles_path', 'roles', 'string', '{"validation":{"required":true,"required_error_label_key":"config.auth.auth_roles_path.errors.required","rules":{"min":{"value":3,"error_label_key":"config.auth.auth_roles_path.errors.min"},"max":{"value":255,"error_label_key":"config.auth.auth_roles_path.errors.max"},"regex":{"pattern":"^([_a-zA-Z0-9-]*[a-zA-Z0-9])(\\.([_a-zA-Z0-9-]*[a-zA-Z0-9]))*$","error_label_key":"config.auth.auth_roles_path.errors.invalidFormat"}}}}', 'config.auth.auth_roles_path.label', 'config.auth.auth_roles_path.description', true, 'oidc_parameters', 'system'),
-('invitation_expiry_days', '7', 'integer', '{"validation":{"required":true,"required_error_label_key":"config.auth.invitation_expiry_days.errors.required","rules":{"min":{"value":1,"error_label_key":"config.auth.invitation_expiry_days.errors.min"},"max":{"value":90,"error_label_key":"config.auth.invitation_expiry_days.errors.max"}}}}', 'config.auth.invitation_expiry_days.label', 'config.auth.invitation_expiry_days.description', true, 'advanced_features', 'system'),
-('admin_contact_email', '', 'string', '{"validation":{"required":true,"required_error_label_key":"config.auth.admin_contact_email.errors.required","rules":{"email":{"error_label_key":"config.auth.admin_contact_email.errors.invalidEmail"}}}}', 'config.auth.admin_contact_email.label', 'config.auth.admin_contact_email.description', true, 'system_settings', 'system'),
-('notification_alert_secret', '', 'secret', '{"validation":{"required":true,"required_error_label_key":"config.auth.notification_alert_secret.errors.required","rules":{"min":{"value":32,"error_label_key":"config.auth.notification_alert_secret.errors.min"},"max":{"value":256,"error_label_key":"config.auth.notification_alert_secret.errors.max"}}}}', 'config.auth.notification_alert_secret.label', 'config.auth.notification_alert_secret.description', true, 'system_settings', 'system'),
-('frontend_url', 'http://localhost:5173', 'url', '{"validation":{"required":true,"required_error_label_key":"config.auth.frontend_url.errors.required","rules":{"url":{"protocols":["http","https"],"error_label_key":"config.auth.frontend_url.errors.invalidUrl"}}}}', 'config.auth.frontend_url.label', 'config.auth.frontend_url.description', true, 'system_settings', 'system'),
-('redis_url', 'redis://redis:6379', 'url', '{"validation":{"required":true,"required_error_label_key":"config.auth.redis_url.errors.required","rules":{"url":{"protocols":["redis","rediss","tcp","http","https"],"error_label_key":"config.auth.redis_url.errors.invalidUrl"}}}}', 'config.auth.redis_url.label', 'config.auth.redis_url.description', true, 'advanced_features', 'system'),
-('mfa_challenge_token_ttl_seconds', '300', 'integer', '{"validation":{"required":true,"required_error_label_key":"config.auth.mfa_challenge_token_ttl_seconds.errors.required","rules":{"min":{"value":30,"error_label_key":"config.auth.mfa_challenge_token_ttl_seconds.errors.min"},"max":{"value":600,"error_label_key":"config.auth.mfa_challenge_token_ttl_seconds.errors.max"}}}}', 'config.auth.mfa_challenge_token_ttl_seconds.label', 'config.auth.mfa_challenge_token_ttl_seconds.description', true, 'security_parameters', 'system'),
-('mfa_challenge_signing_secret', '', 'secret', '{"validation":{"required":true,"required_error_label_key":"config.auth.mfa_challenge_signing_secret.errors.required","rules":{"min":{"value":32,"error_label_key":"config.auth.mfa_challenge_signing_secret.errors.min"},"max":{"value":256,"error_label_key":"config.auth.mfa_challenge_signing_secret.errors.max"}}}}', 'config.auth.mfa_challenge_signing_secret.label', 'config.auth.mfa_challenge_signing_secret.description', true, 'security_parameters', 'system')
+INSERT INTO "public"."config_entries" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "group_key", "created_by") VALUES
+('idp_endpoint', 'http://localhost:8000', 'url', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"url":{"protocols":["http","https"],"error_label_key":"app.common.validation.invalidUrl"}}}}', 'system.settings.config.auth.idp_endpoint.label', 'system.settings.config.auth.idp_endpoint.description', true, 'idp_parameters', 'system'),
+('idp_organization', 'ACME', 'string', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":1,"error_label_key":"app.common.validation.tooShort"},"max":{"value":100,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.idp_organization.label', 'system.settings.config.auth.idp_organization.description', true, 'idp_parameters', 'system'),
+('oidc_issuer_url', 'http://localhost:8000', 'url', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"url":{"protocols":["http","https"],"error_label_key":"app.common.validation.invalidUrl"}}}}', 'system.settings.config.auth.oidc_issuer_url.label', 'system.settings.config.auth.oidc_issuer_url.description', true, 'oidc_parameters', 'system'),
+('idp_type', 'casdoor', 'badge', '{"values":{"casdoor":{"label_key":"system.settings.config.auth.idp_type.casdoor"},"keycloak":{"label_key":"system.settings.config.auth.idp_type.keycloak"},"entra":{"label_key":"system.settings.config.auth.idp_type.entra"},"okta":{"label_key":"system.settings.config.auth.idp_type.okta"}},"validation":{"required":true,"required_error_label_key":"system.settings.config.auth.idp_type.errors.required","rules":{}}}', 'system.settings.config.auth.idp_type.label', 'system.settings.config.auth.idp_type.description', true, 'idp_parameters', 'system'),
+('oidc_client_id', '', 'string', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":6,"error_label_key":"app.common.validation.tooShort"},"max":{"value":100,"error_label_key":"app.common.validation.tooLong"},"regex":{"pattern":"^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$","error_label_key":"system.settings.config.auth.oidc_client_id.errors.invalidFormat"}}}}', 'system.settings.config.auth.oidc_client_id.label', 'system.settings.config.auth.oidc_client_id.description', true, 'oidc_parameters', 'system'),
+('oidc_client_secret', '', 'secret', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":32,"error_label_key":"app.common.validation.tooShort"},"max":{"value":256,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.oidc_client_secret.label', 'system.settings.config.auth.oidc_client_secret.description', true, 'oidc_parameters', 'system'),
+('enable_email_verification_check', 'false', 'boolean', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.enable_email_verification_check.label', 'system.settings.config.auth.enable_email_verification_check.description', true, 'security_parameters', 'system'),
+('enable_webauthn', 'true', 'boolean', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.enable_webauthn.label', 'system.settings.config.auth.enable_webauthn.description', true, 'security_parameters', 'system'),
+('passkey_required', 'true', 'boolean', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.passkey_required.label', 'system.settings.config.auth.passkey_required.description', true, 'security_parameters', 'system'),
+('enable_mfa', 'false', 'boolean', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.enable_mfa.label', 'system.settings.config.auth.enable_mfa.description', true, 'security_parameters', 'system'),
+('password_policy', 'letter_number_special', 'badge', '{"values":{"alpha_numeric":{"label_key":"system.settings.config.auth.password_policy.alpha_numeric"},"letter_and_number":{"label_key":"system.settings.config.auth.password_policy.letter_and_number"},"letter_number_special":{"label_key":"system.settings.config.auth.password_policy.letter_number_special"},"mixed_case_special":{"label_key":"system.settings.config.auth.password_policy.mixed_case_special"}},"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.password_policy.label', 'system.settings.config.auth.password_policy.description', true, 'security_parameters', 'system'),
+('auth_mode', 'STANDALONE', 'badge', '{"values":{"STANDALONE":{"label_key":"system.settings.config.auth.auth_mode.standalone","color":"sky-300"},"GATEWAY":{"label_key":"system.settings.config.auth.auth_mode.gateway","color":"amber-300"}},"validation":{"required":true,"required_error_label_key":"system.settings.config.auth.auth_mode.errors.required","rules":{}}}', 'system.settings.config.auth.auth_mode.label', 'system.settings.config.auth.auth_mode.description', true, 'idp_parameters', 'system'),
+('auth_roles_path', 'roles', 'string', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":3,"error_label_key":"app.common.validation.tooShort"},"max":{"value":255,"error_label_key":"app.common.validation.tooLong"},"regex":{"pattern":"^([_a-zA-Z0-9-]*[a-zA-Z0-9])(\\.([_a-zA-Z0-9-]*[a-zA-Z0-9]))*$","error_label_key":"system.settings.config.auth.auth_roles_path.errors.invalidFormat"}}}}', 'system.settings.config.auth.auth_roles_path.label', 'system.settings.config.auth.auth_roles_path.description', true, 'oidc_parameters', 'system'),
+('invitation_expiry_days', '7', 'bigint', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":1,"error_label_key":"app.common.validation.tooShort"},"max":{"value":90,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.invitation_expiry_days.label', 'system.settings.config.auth.invitation_expiry_days.description', true, 'advanced_features', 'system'),
+('admin_contact_email', '', 'string', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"email":{"error_label_key":"app.common.validation.invalidEmail"}}}}', 'system.settings.config.auth.admin_contact_email.label', 'system.settings.config.auth.admin_contact_email.description', true, 'system_settings', 'system'),
+('notification_alert_secret', '', 'secret', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":32,"error_label_key":"app.common.validation.tooShort"},"max":{"value":256,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.notification_alert_secret.label', 'system.settings.config.auth.notification_alert_secret.description', true, 'system_settings', 'system'),
+('frontend_url', 'http://localhost:5173', 'url', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"url":{"protocols":["http","https"],"error_label_key":"app.common.validation.invalidUrl"}}}}', 'system.settings.config.auth.frontend_url.label', 'system.settings.config.auth.frontend_url.description', true, 'system_settings', 'system'),
+('redis_url', 'redis://redis:6379', 'url', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"url":{"protocols":["redis","rediss","tcp","http","https"],"error_label_key":"app.common.validation.invalidUrl"}}}}', 'system.settings.config.auth.redis_url.label', 'system.settings.config.auth.redis_url.description', true, 'advanced_features', 'system'),
+('mfa_challenge_token_ttl_seconds', '300', 'bigint', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":30,"error_label_key":"app.common.validation.tooShort"},"max":{"value":600,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.mfa_challenge_token_ttl_seconds.label', 'system.settings.config.auth.mfa_challenge_token_ttl_seconds.description', true, 'security_parameters', 'system'),
+('mfa_challenge_signing_secret', '', 'secret', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":32,"error_label_key":"app.common.validation.tooShort"},"max":{"value":256,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.mfa_challenge_signing_secret.label', 'system.settings.config.auth.mfa_challenge_signing_secret.description', true, 'security_parameters', 'system'),
+('currency_favorites', 'EUR,USD,GBP,CHF,CNY,JPY', 'multi_select', '{"values_source":"currencies","value_field":"code","label_field":"name","validation":{"required":false,"rules":{}}}', 'system.settings.config.auth.currency_favorites.label', 'system.settings.config.auth.currency_favorites.description', true, 'system_settings', 'system'),
+('ai_assistant_model', 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC', 'single_select', '{"values_source":"ai_models","value_field":"id","label_field":"label_key","model_levels":{"Qwen3-1.7B-q4f16_1-MLC":2,"Qwen2.5-1.5B-Instruct-q4f16_1-MLC":3,"Qwen3-4B-q4f16_1-MLC":4},"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.ai_assistant_model.label', 'system.settings.config.auth.ai_assistant_model.description', true, 'ai_features', 'system'),
+('telemetry_enabled', 'false', 'boolean', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.telemetry.telemetry_enabled.label', 'system.settings.config.telemetry.telemetry_enabled.description', true, 'observability', 'system'),
+('otel_exporter_otlp_endpoint', '', 'url', '{"default_protocol":"http","allowed_protocols":["http","https"],"validation":{"required":false,"rules":{}}}', 'system.settings.config.telemetry.otel_exporter_otlp_endpoint.label', 'system.settings.config.telemetry.otel_exporter_otlp_endpoint.description', true, 'observability', 'system'),
+('otel_exporter_otlp_headers', '', 'json', '{"validation":{"required":false,"rules":{}}}', 'system.settings.config.telemetry.otel_exporter_otlp_headers.label', 'system.settings.config.telemetry.otel_exporter_otlp_headers.description', true, 'observability', 'system'),
+('otel_traces_sampler', 'always_on', 'badge', '{"values":{"always_on":{"label_key":"system.settings.config.telemetry.otel_traces_sampler.always_on","color":"primary"},"always_off":{"label_key":"system.settings.config.telemetry.otel_traces_sampler.always_off","color":"secondary"},"traceidratio":{"label_key":"system.settings.config.telemetry.otel_traces_sampler.traceidratio","color":"secondary"}},"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.telemetry.otel_traces_sampler.label', 'system.settings.config.telemetry.otel_traces_sampler.description', true, 'observability', 'system'),
+('otel_traces_sampler_arg', '1', 'number', '{"validation":{"required":false,"rules":{"min":{"value":0,"error_label_key":"app.common.validation.tooShort"},"max":{"value":1,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.telemetry.otel_traces_sampler_arg.label', 'system.settings.config.telemetry.otel_traces_sampler_arg.description', true, 'observability', 'system'),
+('log_format', 'pretty', 'badge', '{"values":{"pretty":{"label_key":"system.settings.config.telemetry.log_format.pretty","color":"primary"},"json":{"label_key":"system.settings.config.telemetry.log_format.json","color":"secondary"}},"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.telemetry.log_format.label', 'system.settings.config.telemetry.log_format.description', true, 'observability', 'system'),
+('log_level', 'info', 'badge', '{"values":{"debug":{"label_key":"system.settings.config.telemetry.log_level.debug","color":"secondary"},"info":{"label_key":"system.settings.config.telemetry.log_level.info","color":"primary"},"warn":{"label_key":"system.settings.config.telemetry.log_level.warn","color":"secondary"},"error":{"label_key":"system.settings.config.telemetry.log_level.error","color":"destructive"}},"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.telemetry.log_level.label', 'system.settings.config.telemetry.log_level.description', true, 'observability', 'system')
 ON CONFLICT ("key") DO NOTHING;
 
--- Audit trail for the auth_configurations seed (INSERT record, version 1).
+-- Audit trail for the config_entries seed (INSERT record, version 1).
 -- Uses 'initial-setup' as changed_by to distinguish seed/system inserts from user actions.
 -- changed_at uses the actual created_at of each row (not a hardcoded timestamp).
 -- Delta includes ALL columns to match the DAL's INSERT audit behavior (Phase 2).
-INSERT INTO public.auth_configurations_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+INSERT INTO public.config_entries_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
 SELECT id, uuid, 'INSERT', created_at, 'initial-setup', 1,
   jsonb_strip_nulls(jsonb_build_object(
     'id', jsonb_build_object('old', null, 'new', id),
@@ -608,10 +815,10 @@ SELECT id, uuid, 'INSERT', created_at, 'initial-setup', 1,
     'deleted_at', jsonb_build_object('old', null, 'new', deleted_at),
     'deleted_by', jsonb_build_object('old', null, 'new', deleted_by)
   ))
-FROM public.auth_configurations
+FROM public.config_entries
 WHERE NOT EXISTS (
-  SELECT 1 FROM public.auth_configurations_audit a
-  WHERE a.entity_uuid = auth_configurations.uuid
+  SELECT 1 FROM public.config_entries_audit a
+  WHERE a.entity_uuid = config_entries.uuid
     AND a.action = 'INSERT'
 );
 

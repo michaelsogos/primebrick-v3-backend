@@ -14,13 +14,14 @@
  * must be called within an HTTP request context or `runAsSystem()`.
  */
 
-import type { Pool } from "pg";
+import { logger } from "@primebrick/sdk";
 import { createHash, randomBytes, randomInt, createHmac } from "crypto";
 import { runAsSystem, requireActor } from "@primebrick/sdk";
 
-import { UserInvitationsDal } from "../user-invitations-dal.js";
-import { UserProfilesDal } from "../user-profiles-dal.js";
-import { AuthConfigurationsDal } from "../auth_configurations_dal.js";
+import { DomainService } from "../../../db/domain-service.js";
+import { field, Filter } from "@primebrick/dal-pg";
+import { UserInvitationEntity, type InvitationStatus } from "../user_invitation_entity.js";
+import { getConfigEntriesService } from "./config-entries.service.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { sendEmail } from "./email-sender.js";
 import {
@@ -61,33 +62,259 @@ const OTP_DIGITS = 6;
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
-export class InvitationService {
-  private pool: Pool;
-  private invitationsDal: UserInvitationsDal;
-  private profilesDal: UserProfilesDal;
-  private configDal: AuthConfigurationsDal;
+export class InvitationService extends DomainService<Record<string, unknown>> {
   private casdoor: CasdoorService;
 
-  constructor(pool: Pool, casdoor: CasdoorService) {
-    this.pool = pool;
-    this.invitationsDal = new UserInvitationsDal(pool);
-    this.profilesDal = new UserProfilesDal(pool);
-    this.configDal = new AuthConfigurationsDal(pool);
+  constructor(casdoor: CasdoorService) {
+    // The service owns `user_invitations` (absorbed user-invitations-dal.ts).
+    super({
+      entity: UserInvitationEntity,
+      list: {
+        searchableKeys: ["email", "status"],
+        filterableKeys: new Set(["user_profile_id", "status"]),
+        defaultSort: { key: "created_at", dir: "desc" },
+      },
+    });
     this.casdoor = casdoor;
+  }
+
+  // --- user_invitations (absorbed from user-invitations-dal.ts) --------------
+
+  /**
+   * Insert a new invitation row.
+   * The token_hash is already SHA-256 hashed by the caller — the raw token
+   * is NEVER stored in the DB.
+   */
+  private async insertInvitation(data: {
+    user_profile_id: bigint;
+    token_hash: string;
+    email: string;
+    expires_at: Date;
+  }): Promise<string> {
+    const actor = requireActor();
+    const row = await this.dal.add<UserInvitationEntity>(
+      UserInvitationEntity,
+      {
+        user_profile_id: data.user_profile_id,
+        token_hash: data.token_hash,
+        status: "PENDING" as InvitationStatus,
+        email: data.email,
+        expires_at: data.expires_at,
+        otp_attempts: 0,
+        created_by: actor,
+        updated_by: actor,
+      },
+      { actor },
+    );
+    return row.uuid;
+  }
+
+  /**
+   * Find an invitation by its token hash.
+   * Returns null if not found.
+   */
+  private async findInvitationByTokenHash(tokenHash: string): Promise<UserInvitationEntity | null> {
+    return this.dal.find<UserInvitationEntity, UserInvitationEntity>(
+      UserInvitationEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(field(UserInvitationEntity, "token_hash" as any), "=", tokenHash),
+        ],
+        throwIfNotFound: false,
+      },
+    );
+  }
+
+  /**
+   * Find an invitation by UUID.
+   * Returns null if not found.
+   */
+  private async findInvitationByUuid(uuid: string): Promise<UserInvitationEntity | null> {
+    return this.dal.find<UserInvitationEntity, UserInvitationEntity>(
+      UserInvitationEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(field(UserInvitationEntity, "uuid" as any), "=", uuid),
+        ],
+        throwIfNotFound: false,
+      },
+    );
+  }
+
+  /**
+   * Find all invitations for a user profile (by user_profile_id).
+   * Ordered by created_at descending (most recent first).
+   */
+  private async findInvitationsByUserProfileId(userProfileId: bigint): Promise<UserInvitationEntity[]> {
+    const rows = await this.dal.findAll<UserInvitationEntity, UserInvitationEntity>(
+      UserInvitationEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(field(UserInvitationEntity, "user_profile_id" as any), "=", userProfileId),
+        ],
+      },
+    );
+    return rows as UserInvitationEntity[];
+  }
+
+  /**
+   * Update the status of an invitation.
+   * Also updates the updated_at/updated_by audit fields.
+   */
+  private async updateInvitationStatus(uuid: string, status: InvitationStatus, extra?: {
+    completed_at?: Date;
+    otp_hash?: string;
+    otp_expires_at?: Date;
+    otp_attempts?: number;
+    otp_verified_at?: Date;
+  }): Promise<void> {
+    const actor = requireActor();
+    const existing = await this.findInvitationByUuid(uuid);
+    if (!existing) return;
+    await this.dal.update(
+      UserInvitationEntity,
+      {
+        uuid,
+        status,
+        ...extra,
+        version: existing.version,
+      },
+      { actor },
+    );
+  }
+
+  /**
+   * Resend — refresh the existing row with a new token hash + expiry and
+   * reset status/OTP state to PENDING (no new row: invitations are
+   * immutable identity records).
+   */
+  private async resetInvitationForResend(uuid: string, tokenHash: string, expiresAt: Date): Promise<void> {
+    const actor = requireActor();
+    const existing = await this.findInvitationByUuid(uuid);
+    if (!existing) return;
+    await this.dal.update(
+      UserInvitationEntity,
+      {
+        uuid,
+        token_hash: tokenHash,
+        expires_at: expiresAt,
+        status: "PENDING",
+        otp_hash: null,
+        otp_expires_at: null,
+        otp_attempts: 0,
+        otp_verified_at: null,
+        version: existing.version,
+      } as unknown as Partial<UserInvitationEntity>,
+      { actor },
+    );
+  }
+
+  /**
+   * Increment the OTP attempt counter.
+   * Used when an OTP verification fails — the caller checks the count
+   * to decide if max attempts has been reached.
+   */
+  private async incrementInvitationOtpAttempts(uuid: string): Promise<void> {
+    const actor = requireActor();
+    const existing = await this.findInvitationByUuid(uuid);
+    if (!existing) return;
+    await this.dal.update(
+      UserInvitationEntity,
+      {
+        uuid,
+        otp_attempts: existing.otp_attempts + 1,
+        version: existing.version,
+      },
+      { actor },
+    );
+  }
+
+  /**
+   * Set the OTP hash and expiry (when sending a new OTP).
+   * Resets the attempt counter to 0.
+   */
+  private async setInvitationOtp(uuid: string, otpHash: string, otpExpiresAt: Date): Promise<void> {
+    const actor = requireActor();
+    const existing = await this.findInvitationByUuid(uuid);
+    if (!existing) return;
+    await this.dal.update(
+      UserInvitationEntity,
+      {
+        uuid,
+        otp_hash: otpHash,
+        otp_expires_at: otpExpiresAt,
+        otp_attempts: 0,
+        status: "OTP_SENT" as InvitationStatus,
+        version: existing.version,
+      },
+      { actor },
+    );
+  }
+
+  /**
+   * Mark the OTP as verified (sets otp_verified_at).
+   */
+  private async markInvitationOtpVerified(uuid: string): Promise<void> {
+    const actor = requireActor();
+    const existing = await this.findInvitationByUuid(uuid);
+    if (!existing) return;
+    await this.dal.update(
+      UserInvitationEntity,
+      {
+        uuid,
+        otp_verified_at: new Date(),
+        version: existing.version,
+      },
+      { actor },
+    );
+  }
+
+  /**
+   * Mark the invitation as completed (sets completed_at + status).
+   */
+  private async markInvitationCompleted(uuid: string): Promise<void> {
+    const actor = requireActor();
+    const existing = await this.findInvitationByUuid(uuid);
+    if (!existing) return;
+    await this.dal.update(
+      UserInvitationEntity,
+      {
+        uuid,
+        status: "COMPLETED" as InvitationStatus,
+        completed_at: new Date(),
+        version: existing.version,
+      },
+      { actor },
+    );
+  }
+
+  private get configService() {
+    return getConfigEntriesService();
+  }
+
+  /**
+   * `user_profiles` belongs to `UserService` — resolved dynamically to keep
+   * the import graph acyclic (`user.service` statically imports this class).
+   */
+  private async profiles() {
+    return (await import("./user.service.js")).getUserService();
   }
 
   // ─── Config helpers ────────────────────────────────────────────────────────
 
   private async getFrontendUrl(): Promise<string> {
-    const row = await this.configDal.findByKey("frontend_url");
+    const row = await this.configService.findByKey("frontend_url");
     if (!row || !row.value) {
-      throw new Error("[auth] frontend_url is missing in auth_configurations table");
+      throw new Error("[auth] frontend_url is missing in config_entries table");
     }
     return row.value;
   }
 
   private async getInvitationExpiryDays(): Promise<number> {
-    const row = await this.configDal.findByKey("invitation_expiry_days");
+    const row = await this.configService.findByKey("invitation_expiry_days");
     if (!row || !row.value) {
       return 7; // default
     }
@@ -96,7 +323,7 @@ export class InvitationService {
   }
 
   private async getAdminContactEmail(): Promise<string | null> {
-    const row = await this.configDal.findByKey("admin_contact_email");
+    const row = await this.configService.findByKey("admin_contact_email");
     if (!row || !row.value || row.value.trim() === "") {
       // Fallback: find first admin user's email
       // For now, return null — the email template will omit the mailto: link
@@ -106,14 +333,23 @@ export class InvitationService {
   }
 
   private async getNotificationAlertSecret(): Promise<string> {
-    let row = await this.configDal.findByKey("notification_alert_secret");
-    if (!row || !row.value || row.value.trim() === "") {
-      // Auto-generate a 32-byte hex secret
-      const secret = randomBytes(32).toString("hex");
-      await this.configDal.upsert("notification_alert_secret", secret, "system");
-      return secret;
+    const row = await this.configService.findByKey("notification_alert_secret");
+    if (row && row.value && row.value.trim() !== "") {
+      return row.value;
     }
-    return row.value;
+    // Auto-generate a 32-byte hex secret. The key row may already exist with
+    // an empty value (seeded placeholder) — update it instead of inserting a
+    // duplicate, which would violate the unique constraint on `key`.
+    const secret = randomBytes(32).toString("hex");
+    if (row) {
+      await this.configService.updateEntry(row.uuid, { value: secret, version: row.version }, "system");
+    } else {
+      await this.configService.createEntry(
+        { key: "notification_alert_secret", value: secret, type: "secret" },
+        "system",
+      );
+    }
+    return secret;
   }
 
   // ─── Token + OTP generation ────────────────────────────────────────────────
@@ -200,7 +436,7 @@ export class InvitationService {
     const tokenHash = this.hashToken(token);
 
     // Store invitation in DB — admin context is set by auth middleware
-    const invitationUuid = await this.invitationsDal.create({
+    const invitationUuid = await this.insertInvitation({
       user_profile_id: userProfileId,
       token_hash: tokenHash,
       email,
@@ -230,7 +466,7 @@ export class InvitationService {
    */
   async verifyToken(token: string): Promise<VerifyResult> {
     const tokenHash = this.hashToken(token);
-    const invitation = await this.invitationsDal.findByTokenHash(tokenHash);
+    const invitation = await this.findInvitationByTokenHash(tokenHash);
 
     if (!invitation) {
       return { valid: false, display_name: "", expires_at: "" };
@@ -248,16 +484,10 @@ export class InvitationService {
       return { valid: false, display_name: "", expires_at: "" };
     }
 
-    // Get user profile for display_name
-    const profile = await this.profilesDal.getByUuid(
-      // We need the user_profile_id to look up — but getByUuid takes a UUID string.
-      // The invitation has user_profile_id (bigint), not the profile UUID.
-      // We need a helper to get profile by id.
-      // For now, we'll query the profile by its internal id.
-      // The profilesDal doesn't have a getById method, so we'll use a raw query.
-      // Actually, let's add a method or use the pool directly.
-      // Let's use the pool for a simple query.
-      (await this.getProfileUuidById(invitation.user_profile_id)),
+    // Get user profile for display_name — the invitation stores the
+    // internal bigint id, not the profile UUID.
+    const profile = await (await this.profiles()).getByUuid(
+      await this.getProfileUuidById(invitation.user_profile_id),
     );
 
     return {
@@ -271,14 +501,11 @@ export class InvitationService {
    * Helper: get a user profile's UUID by its internal bigint ID.
    */
   private async getProfileUuidById(profileId: bigint): Promise<string> {
-    const result = await this.pool.query(
-      `SELECT uuid FROM user_profiles WHERE id = $1`,
-      [profileId],
-    );
-    if (result.rows.length === 0) {
+    const uuid = await (await this.profiles()).getUuidById(profileId);
+    if (!uuid) {
       throw new NotFoundError("User profile not found for invitation");
     }
-    return result.rows[0].uuid;
+    return uuid;
   }
 
   /**
@@ -286,7 +513,7 @@ export class InvitationService {
    */
   async sendOtp(token: string): Promise<OtpSendResult> {
     const tokenHash = this.hashToken(token);
-    const invitation = await this.invitationsDal.findByTokenHash(tokenHash);
+    const invitation = await this.findInvitationByTokenHash(tokenHash);
 
     if (!invitation) {
       return { sent: false };
@@ -307,12 +534,12 @@ export class InvitationService {
 
     // Store OTP hash in DB — public endpoint, use system actor
     await runAsSystem(() =>
-      this.invitationsDal.setOtp(invitation.uuid, otpHash, otpExpiresAt),
+      this.setInvitationOtp(invitation.uuid, otpHash, otpExpiresAt),
     );
 
     // Get display_name for the email
     const profileUuid = await this.getProfileUuidById(invitation.user_profile_id);
-    const profile = await this.profilesDal.getByUuid(profileUuid);
+    const profile = await (await this.profiles()).getByUuid(profileUuid);
 
     // Send OTP email via NATS → emailsender
     await sendEmail({
@@ -333,7 +560,7 @@ export class InvitationService {
    */
   async verifyOtp(token: string, otpCode: string): Promise<OtpVerifyResult> {
     const tokenHash = this.hashToken(token);
-    const invitation = await this.invitationsDal.findByTokenHash(tokenHash);
+    const invitation = await this.findInvitationByTokenHash(tokenHash);
 
     if (!invitation) {
       return { verified: false };
@@ -362,14 +589,14 @@ export class InvitationService {
     if (providedHash !== invitation.otp_hash) {
       // Increment failed attempts — public endpoint, use system actor
       await runAsSystem(() =>
-        this.invitationsDal.incrementOtpAttempts(invitation.uuid),
+        this.incrementInvitationOtpAttempts(invitation.uuid),
       );
       return { verified: false };
     }
 
     // OTP verified — mark it
     await runAsSystem(() =>
-      this.invitationsDal.markOtpVerified(invitation.uuid),
+      this.markInvitationOtpVerified(invitation.uuid),
     );
 
     return { verified: true };
@@ -385,7 +612,7 @@ export class InvitationService {
     newPassword: string,
   ): Promise<CompleteResult> {
     const tokenHash = this.hashToken(token);
-    const invitation = await this.invitationsDal.findByTokenHash(tokenHash);
+    const invitation = await this.findInvitationByTokenHash(tokenHash);
 
     if (!invitation) {
       throw new ValidationError("Invalid or expired invitation token");
@@ -437,7 +664,7 @@ export class InvitationService {
 
     // Get user profile
     const profileUuid = await this.getProfileUuidById(invitation.user_profile_id);
-    const profile = await this.profilesDal.getByUuid(profileUuid);
+    const profile = await (await this.profiles()).getByUuid(profileUuid);
     if (!profile) {
       throw new NotFoundError("User profile not found");
     }
@@ -478,13 +705,12 @@ export class InvitationService {
 
     // Mark invitation as completed — public endpoint, use system actor
     await runAsSystem(() =>
-      this.invitationsDal.markCompleted(invitation.uuid),
+      this.markInvitationCompleted(invitation.uuid),
     );
 
     // Mark onboarding_completed on user_profile
-    await this.pool.query(
-      `UPDATE user_profiles SET onboarding_completed = true, updated_at = now(), updated_by = $1 WHERE id = $2`,
-      ["system", invitation.user_profile_id],
+    await runAsSystem(async () =>
+      (await this.profiles()).updateProfileById(invitation.user_profile_id, { onboarding_completed: true }),
     );
 
     // Send notification email
@@ -512,7 +738,7 @@ export class InvitationService {
    * Revoke an invitation (admin endpoint).
    */
   async revokeInvitation(invitationUuid: string): Promise<void> {
-    const invitation = await this.invitationsDal.findByUuid(invitationUuid);
+    const invitation = await this.findInvitationByUuid(invitationUuid);
     if (!invitation) {
       throw new NotFoundError("Invitation not found");
     }
@@ -524,14 +750,14 @@ export class InvitationService {
     }
 
     // Admin endpoint — auth middleware has set the session
-    await this.invitationsDal.updateStatus(invitationUuid, "REVOKED");
+    await this.updateInvitationStatus(invitationUuid, "REVOKED");
   }
 
   /**
    * Resend an invitation — generates a new token and sends a new email.
    */
   async resendInvitation(invitationUuid: string): Promise<void> {
-    const invitation = await this.invitationsDal.findByUuid(invitationUuid);
+    const invitation = await this.findInvitationByUuid(invitationUuid);
     if (!invitation) {
       throw new NotFoundError("Invitation not found");
     }
@@ -544,7 +770,7 @@ export class InvitationService {
 
     // Get user profile for display_name
     const profileUuid = await this.getProfileUuidById(invitation.user_profile_id);
-    const profile = await this.profilesDal.getByUuid(profileUuid);
+    const profile = await (await this.profiles()).getByUuid(profileUuid);
     if (!profile) {
       throw new NotFoundError("User profile not found");
     }
@@ -556,15 +782,9 @@ export class InvitationService {
     const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
 
     // Update the existing invitation with the new token hash + expiry
-    // (we don't create a new row — we refresh the existing one)
-    // Admin endpoint — auth middleware has set the session, requireActor() returns admin UUID
-    const actor = requireActor();
-
-    // Direct query to update token_hash + expires_at (the DAL doesn't have this method)
-    await this.pool.query(
-      `UPDATE user_invitations SET token_hash = $1, expires_at = $2, status = 'PENDING', otp_hash = NULL, otp_expires_at = NULL, otp_attempts = 0, otp_verified_at = NULL, updated_at = now(), updated_by = $3 WHERE uuid = $4`,
-      [tokenHash, expiresAt, actor, invitationUuid],
-    );
+    // (we don't create a new row — we refresh the existing one).
+    // Admin endpoint — requireActor() resolves the admin UUID for audit stamps.
+    await this.resetInvitationForResend(invitationUuid, tokenHash, expiresAt);
 
     // Send new invitation email
     const frontendUrl = await this.getFrontendUrl();
@@ -613,7 +833,7 @@ export class InvitationService {
     }
 
     // Look up the user
-    const profile = await this.profilesDal.getByUuid(userUuid);
+    const profile = await (await this.profiles()).getByUuid(userUuid);
     if (!profile) {
       return;
     }
@@ -621,7 +841,7 @@ export class InvitationService {
     // Get admin email
     const adminEmail = await this.getAdminContactEmail();
     if (!adminEmail) {
-      console.warn("[auth] No admin contact email configured — cannot send alert");
+      logger.warn("No admin contact email configured — cannot send alert", { tags: ["auth"] });
       return;
     }
 

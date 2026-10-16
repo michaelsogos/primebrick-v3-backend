@@ -1,0 +1,53 @@
+---
+title: Edit Module
+description: View and edit an existing module.
+---
+
+View and edit an existing module.
+
+## Pages routes
+
+- `/system/settings/modules` — List, search and manage all modules.
+- `/system/settings/modules/{code}` — View and edit an existing module. *(this page)*
+
+## What you can do here
+
+### How to edit a module
+1. On the **Modules** list page, open the row actions menu on the module you want to edit and click **Edit**.
+2. Update the fields below — required: **service**, **config Entries**, **config Error**, **active Tab**.
+3. Click **Save** — the changes to the module are saved.
+
+
+## Fields
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **service** | required | text input |
+| **config Entries** | required | text input |
+| **config Loading** | optional | text input |
+| **config Error** | required | text input |
+| **config Loaded** | optional | text input |
+| **active Tab** | required | text input |
+| **is Saving Service Info** | optional | text input |
+
+- The **service** field is a required text input.
+- The **config Entries** field is a required text input.
+- The **config Loading** field is an optional text input.
+- The **config Error** field is a required text input.
+- The **config Loaded** field is an optional text input.
+- The **active Tab** field is a required text input.
+- The **is Saving Service Info** field is an optional text input.
+
+## Actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **Save** | ENABLED | — | Validates the form and saves changes to the module | no |
+
+- The **Save** action is available on this page — validates the form and saves changes to the module.
+
+## Doc references
+
+- [Modules](/docs/user-guide/generated/modules)
+- [Entities Crud](/docs/user-guide/manual/entities-crud)
+

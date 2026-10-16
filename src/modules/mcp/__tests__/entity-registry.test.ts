@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   entityRegistry,
   registerBeEntities,
-  type BeEntityConfig,
+  type LocalEntityConfig,
   type ProxyEntityConfig,
 } from "../tools/entity-registry.js";
 
@@ -11,15 +11,15 @@ describe("EntityRegistry", () => {
     entityRegistry.clear();
   });
 
-  describe("registerBeEntity", () => {
+  describe("registerLocalEntity", () => {
     it("registers a BE entity with in-process handler type", () => {
-      const config: BeEntityConfig = {
+      const config: LocalEntityConfig = {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list", "get", "create"],
         permissions: {},
       };
-      entityRegistry.registerBeEntity("be", config);
+      entityRegistry.registerLocalEntity("be", config);
 
       const entry = entityRegistry.get("be", "customer");
       expect(entry).toBeDefined();
@@ -32,7 +32,7 @@ describe("EntityRegistry", () => {
     });
 
     it("registers bulk operations when provided", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list", "delete", "restore"],
@@ -45,7 +45,7 @@ describe("EntityRegistry", () => {
     });
 
     it("defaults supported_bulk_operations to empty array when omitted", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "organization",
         label: "Organization",
         supported_operations: ["list"],
@@ -60,17 +60,17 @@ describe("EntityRegistry", () => {
   describe("registerProxyEntity", () => {
     it("registers a microservice entity with proxy handler type", () => {
       const config: ProxyEntityConfig = {
-        entity: "providers",
+        entity: "provider",
         label: "Email Providers",
         supported_operations: ["list", "get", "create", "update", "delete"],
       };
       entityRegistry.registerProxyEntity("emailsender", config);
 
-      const entry = entityRegistry.get("emailsender", "providers");
+      const entry = entityRegistry.get("emailsender", "provider");
       expect(entry).toBeDefined();
       expect(entry?.handler_type).toBe("proxy");
       expect(entry?.module).toBe("emailsender");
-      expect(entry?.entity).toBe("providers");
+      expect(entry?.entity).toBe("provider");
       expect(entry?.supported_bulk_operations).toEqual([]);
       expect(entry?.permissions).toBeUndefined();
     });
@@ -83,7 +83,7 @@ describe("EntityRegistry", () => {
     });
 
     it("returns the entry for a registered (module, entity)", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
@@ -98,7 +98,7 @@ describe("EntityRegistry", () => {
 
   describe("supportsOperation", () => {
     it("returns true for supported operations", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list", "get", "create"],
@@ -111,7 +111,7 @@ describe("EntityRegistry", () => {
     });
 
     it("returns false for unsupported operations", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
@@ -129,20 +129,20 @@ describe("EntityRegistry", () => {
 
   describe("listByModule", () => {
     it("returns all entries for a given module", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
         permissions: {},
       });
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "organization",
         label: "Organization",
         supported_operations: ["list"],
         permissions: {},
       });
       entityRegistry.registerProxyEntity("emailsender", {
-        entity: "providers",
+        entity: "provider",
         label: "Providers",
         supported_operations: ["list"],
       });
@@ -153,7 +153,7 @@ describe("EntityRegistry", () => {
 
       const msEntries = entityRegistry.listByModule("emailsender");
       expect(msEntries).toHaveLength(1);
-      expect(msEntries[0].entity).toBe("providers");
+      expect(msEntries[0].entity).toBe("provider");
     });
 
     it("returns empty array for unknown module", () => {
@@ -163,14 +163,14 @@ describe("EntityRegistry", () => {
 
   describe("listModules", () => {
     it("groups entries by module", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
         permissions: {},
       });
       entityRegistry.registerProxyEntity("emailsender", {
-        entity: "providers",
+        entity: "provider",
         label: "Providers",
         supported_operations: ["list"],
       });
@@ -189,20 +189,20 @@ describe("EntityRegistry", () => {
 
       const msModule = modules.find((m) => m.module === "emailsender");
       expect(msModule?.entities).toHaveLength(2);
-      expect(msModule?.entities.map((e) => e.entity).sort()).toEqual(["config", "providers"]);
+      expect(msModule?.entities.map((e) => e.entity).sort()).toEqual(["config", "provider"]);
     });
   });
 
   describe("unregisterModule", () => {
     it("removes all entries for a module", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
         permissions: {},
       });
       entityRegistry.registerProxyEntity("emailsender", {
-        entity: "providers",
+        entity: "provider",
         label: "Providers",
         supported_operations: ["list"],
       });
@@ -214,13 +214,13 @@ describe("EntityRegistry", () => {
 
       entityRegistry.unregisterModule("emailsender");
 
-      expect(entityRegistry.get("emailsender", "providers")).toBeUndefined();
+      expect(entityRegistry.get("emailsender", "provider")).toBeUndefined();
       expect(entityRegistry.get("emailsender", "config")).toBeUndefined();
       expect(entityRegistry.get("be", "customer")).toBeDefined();
     });
 
     it("does nothing for unknown module", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
@@ -234,7 +234,7 @@ describe("EntityRegistry", () => {
 
   describe("clear", () => {
     it("removes all entries", () => {
-      entityRegistry.registerBeEntity("be", {
+      entityRegistry.registerLocalEntity("be", {
         entity: "customer",
         label: "Customer",
         supported_operations: ["list"],
@@ -248,7 +248,7 @@ describe("EntityRegistry", () => {
   });
 
   describe("registerBeEntities (static registration)", () => {
-    it("registers customer, organization, and user_profiles", () => {
+    it("registers customer, organization, and user_profile", () => {
       registerBeEntities();
 
       const customer = entityRegistry.get("be", "customer");
@@ -267,10 +267,10 @@ describe("EntityRegistry", () => {
       expect(organization?.supported_operations).toContain("list");
       expect(organization?.supported_operations).toContain("create");
 
-      const userProfiles = entityRegistry.get("be", "user_profiles");
+      const userProfiles = entityRegistry.get("be", "user_profile");
       expect(userProfiles).toBeDefined();
       expect(userProfiles?.label).toBe("User Profile");
-      // user_profiles does NOT support create
+      // user_profile does NOT support create
       expect(userProfiles?.supported_operations).not.toContain("create");
       expect(userProfiles?.supported_operations).toContain("update");
     });
@@ -278,7 +278,7 @@ describe("EntityRegistry", () => {
     it("registers auth_events with list + aggregate (no CRUD)", () => {
       registerBeEntities();
 
-      const authEvents = entityRegistry.get("be", "auth_events");
+      const authEvents = entityRegistry.get("be", "auth_event");
       expect(authEvents).toBeDefined();
       expect(authEvents?.label).toBe("Auth Events");
       expect(authEvents?.supported_operations).toContain("list");

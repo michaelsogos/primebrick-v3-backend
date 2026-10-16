@@ -22,22 +22,28 @@
  *   This service is stateless (no in-memory maps). All state is in PG or Casdoor.
  */
 
-import type { Pool } from "pg";
 import { createHmac, createHash, randomBytes, randomUUID } from "crypto";
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 
 import { runAsSystem } from "@primebrick/sdk";
+import { getCachePort } from "../../../cache/cache-port-holder.js";
 import { getAuthConfig } from "../config.js";
-import { AuthConfigurationsDal } from "../auth_configurations_dal.js";
+import { getConfigEntriesService } from "./config-entries.service.js";
+import { getUserService } from "./user.service.js";
 import { CasdoorService } from "./casdoor.service.js";
-import { UserMfaFactorsDal } from "../user_mfa_factors_dal.js";
-import { MfaActionAuthorizationsDal } from "../mfa_action_authorizations_dal.js";
+import { DomainService } from "../../../db/domain-service.js";
+import { UserMfaFactorEntity, MfaFactorType } from "../user_mfa_factor_entity.js";
+import { MfaActionAuthorizationEntity } from "../mfa_action_authorization_entity.js";
+import { requireActor } from "@primebrick/sdk";
+import { field, Filter } from "@primebrick/dal-pg";
 import {
   signMfaChallengeToken,
   verifyMfaChallengeToken,
+  verifyMfaChallengeTokenSignature,
   type MfaChallengePayload,
 } from "../mfa-challenge-token.js";
 import { encrypt, decrypt } from "../crypto-helpers.js";
+import { getAuthEventsService, type AuthRequestContext } from "./auth-events.service.js";
 import {
   ApiError,
   UnauthorizedError,
@@ -173,14 +179,21 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000).unref();
 
-// --- Login challenge token stash (in-memory, single-instance) -------------
+// --- Login challenge token stash (Redis, in-memory fallback) ---------------
 //
 // When login() detects the user has MFA factors, the Casdoor tokens are stashed
-// here keyed by the challenge token's jti. On verifyAtLogin() success, the
-// tokens are popped and set as auth cookies.
+// keyed by the challenge token's jti. On verifyAtLogin() success, the tokens
+// are popped and set as auth cookies.
 //
-// NOTE: Single-instance only. For multi-instance BE deployments, replace with
-// a shared store (Redis). Same pattern as WebauthnService.sessionRelay.
+// Primary store is Redis (via CachePort, key `mfa:challenge:{jti}`, TTL 5 min)
+// so the stash survives BE restarts and is shared across instances. When Redis
+// is not configured/unreachable (cache disabled, best-effort), an in-memory
+// Map is used instead — the system stays valid without Redis, with the same
+// semantics as before (single-instance only).
+//
+// NOTE: pop/move are get+del, not atomic GETDEL/RENAME — a multi-instance race
+// could let two concurrent verifies both read the entry. Acceptable: the OTP
+// check is the gate and the window is milliseconds.
 
 interface TokenStashEntry {
   tokens: {
@@ -192,13 +205,28 @@ interface TokenStashEntry {
 }
 
 const TOKEN_STASH_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const TOKEN_STASH_KEY_PREFIX = "mfa:challenge:";
 const tokenStash = new Map<string, TokenStashEntry>();
 
-function stashTokens(jti: string, tokens: TokenStashEntry["tokens"]): void {
+async function stashTokens(jti: string, tokens: TokenStashEntry["tokens"]): Promise<void> {
+  const cache = getCachePort();
+  if (cache) {
+    await cache.set(TOKEN_STASH_KEY_PREFIX + jti, { tokens }, TOKEN_STASH_TTL_MS);
+    return;
+  }
   tokenStash.set(jti, { tokens, expires_at: Date.now() + TOKEN_STASH_TTL_MS });
 }
 
-function popTokens(jti: string): TokenStashEntry["tokens"] | null {
+async function popTokens(jti: string): Promise<TokenStashEntry["tokens"] | null> {
+  const cache = getCachePort();
+  if (cache) {
+    const entry = await cache.get<Pick<TokenStashEntry, "tokens">>(TOKEN_STASH_KEY_PREFIX + jti);
+    if (!entry) return null;
+    await cache.del(TOKEN_STASH_KEY_PREFIX + jti);
+    // extJson round-trip yields integers as bigint — expires_in must be a
+    // plain number for downstream math (e.g. cookie maxAge).
+    return { ...entry.tokens, expires_in: Number(entry.tokens.expires_in) };
+  }
   const entry = tokenStash.get(jti);
   if (!entry) return null;
   tokenStash.delete(jti);
@@ -206,13 +234,280 @@ function popTokens(jti: string): TokenStashEntry["tokens"] | null {
   return entry.tokens;
 }
 
+/**
+ * Move a stashed-token entry from an old challenge jti to a new one,
+ * refreshing its TTL. Returns false when the entry is missing or expired.
+ */
+async function moveTokens(oldJti: string, newJti: string): Promise<boolean> {
+  const cache = getCachePort();
+  if (cache) {
+    const entry = await cache.get<Pick<TokenStashEntry, "tokens">>(TOKEN_STASH_KEY_PREFIX + oldJti);
+    if (!entry) return false;
+    await cache.del(TOKEN_STASH_KEY_PREFIX + oldJti);
+    await cache.set(TOKEN_STASH_KEY_PREFIX + newJti, entry, TOKEN_STASH_TTL_MS);
+    return true;
+  }
+  const entry = tokenStash.get(oldJti);
+  if (!entry) return false;
+  tokenStash.delete(oldJti);
+  if (Date.now() > entry.expires_at) return false;
+  tokenStash.set(newJti, { tokens: entry.tokens, expires_at: Date.now() + TOKEN_STASH_TTL_MS });
+  return true;
+}
+
 // --- Service --------------------------------------------------------------
 
-export class MfaService {
+export class MfaService extends DomainService<Record<string, unknown>> {
   constructor(
-    private pool: Pool,
     private casdoor: CasdoorService,
-  ) {}
+  ) {
+    // The service owns `user_mfa_factors` + `mfa_action_authorizations` —
+    // `svc` is bound to the factors entity; action-authz queries use
+    // `this.dal` directly (one inherited svc per service).
+    super({
+      entity: UserMfaFactorEntity,
+      list: {
+        searchableKeys: ["label"],
+        filterableKeys: new Set(["user_profile_id", "factor_type", "is_enabled", "is_preferred"]),
+        defaultSort: { key: "created_at", dir: "desc" },
+      },
+    });
+  }
+
+  // --- user_mfa_factors (absorbed from user_mfa_factors_dal.ts) --------------
+
+  /** Insert a new MFA factor row after successful enrollment. */
+  private async createFactor(data: {
+    user_profile_id: bigint;
+    factor_type: MfaFactorType;
+    casdoor_mfa_type?: string;
+    totp_secret_encrypted: string;
+    label?: string;
+    is_enabled: boolean;
+    is_preferred: boolean;
+  }): Promise<string> {
+    const actor = requireActor();
+    const row = await this.dal.add<UserMfaFactorEntity>(
+      UserMfaFactorEntity,
+      {
+        user_profile_id: data.user_profile_id,
+        factor_type: data.factor_type,
+        casdoor_mfa_type: data.casdoor_mfa_type,
+        totp_secret_encrypted: data.totp_secret_encrypted,
+        label: data.label,
+        is_enabled: data.is_enabled,
+        is_preferred: data.is_preferred,
+        created_by: actor,
+        updated_by: actor,
+      },
+      { actor },
+    );
+    return row.uuid;
+  }
+
+  /** Find a factor by UUID. Returns null if not found. */
+  private async findFactorByUuid(uuid: string): Promise<UserMfaFactorEntity | null> {
+    return this.dal.find<UserMfaFactorEntity, UserMfaFactorEntity>(
+      UserMfaFactorEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(field(UserMfaFactorEntity, "uuid" as any), "=", uuid),
+        ],
+        throwIfNotFound: false,
+      },
+    );
+  }
+
+  /** Find all factors for a user profile (by user_profile_id). */
+  private async findFactorsByUserProfileId(userProfileId: bigint): Promise<UserMfaFactorEntity[]> {
+    const rows = await this.dal.findAll<UserMfaFactorEntity, UserMfaFactorEntity>(
+      UserMfaFactorEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(field(UserMfaFactorEntity, "user_profile_id" as any), "=", userProfileId),
+        ],
+      },
+    );
+    return rows as UserMfaFactorEntity[];
+  }
+
+  /**
+   * Find enabled factors for a user profile (by user_profile_id).
+   * Used by login MFA and step-up MFA to determine available challenges.
+   */
+  async findEnabledFactorsByUserProfileId(userProfileId: bigint): Promise<UserMfaFactorEntity[]> {
+    const rows = await this.dal.findAll<UserMfaFactorEntity, UserMfaFactorEntity>(
+      UserMfaFactorEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(field(UserMfaFactorEntity, "user_profile_id" as any), "=", userProfileId),
+          Filter.fieldValue(field(UserMfaFactorEntity, "is_enabled" as any), "=", true),
+        ],
+      },
+    );
+    return rows as UserMfaFactorEntity[];
+  }
+
+  /**
+   * Count enabled factors for a user profile.
+   * Used by the has_mfa flag in GET /api/v1/auth/me.
+   */
+  async countEnabledFactorsByUserProfileId(userProfileId: bigint): Promise<number> {
+    const rows = await this.findEnabledFactorsByUserProfileId(userProfileId);
+    return rows.length;
+  }
+
+  /**
+   * Update a factor (e.g. set last_used_at, is_preferred, is_enabled).
+   * `version` is required for optimistic concurrency (auditable entity).
+   */
+  private async updateFactor(uuid: string, data: Partial<Pick<UserMfaFactorEntity, "label" | "is_enabled" | "is_preferred" | "last_used_at" | "version">>): Promise<void> {
+    const actor = requireActor();
+    // Strict version contract: callers always carry the observed version
+    // (the factor is loaded earlier in the flow). A missing version lets
+    // Repository.update() throw MissingVersionError (ERR02) — we never
+    // manufacture one by re-reading the row.
+    await this.dal.update(
+      UserMfaFactorEntity,
+      {
+        uuid,
+        ...data,
+      },
+      { actor },
+    );
+  }
+
+  /**
+   * Clear the preferred flag for all factors of a user.
+   * Used before setting a new preferred factor.
+   */
+  private async clearPreferredFactorsForUser(userProfileId: bigint): Promise<void> {
+    const factors = await this.findFactorsByUserProfileId(userProfileId);
+    const actor = requireActor();
+    for (const f of factors) {
+      if (f.is_preferred) {
+        await this.dal.update(
+          UserMfaFactorEntity,
+          {
+            uuid: f.uuid,
+            is_preferred: false,
+            version: f.version,
+          },
+          { actor },
+        );
+      }
+    }
+  }
+
+  /**
+   * Delete a factor by UUID.
+   * Uses hardDelete (physical DELETE) because user_mfa_factors has no soft-delete
+   * column (no @DeletableField). MFA factors are removed completely when deleted.
+   */
+  private async deleteFactorByUuid(uuid: string): Promise<void> {
+    const existing = await this.findFactorByUuid(uuid);
+    if (existing) {
+      await this.dal.hardDelete(UserMfaFactorEntity, { id: existing.id, version: existing.version }, { actor: requireActor() });
+    }
+  }
+
+  // --- mfa_action_authorizations (absorbed from mfa_action_authorizations_dal.ts) ---
+
+  /**
+   * Create a new action authorization record — a single-use action
+   * authorization token minted when the user completes step-up MFA.
+   */
+  private async createActionAuthorization(data: {
+    jti: string;
+    user_profile_id: bigint;
+    action: string;
+    target_resource: string;
+    token_hash: string;
+    expires_at: Date;
+  }): Promise<void> {
+    const actor = requireActor();
+    await this.dal.add<MfaActionAuthorizationEntity>(
+      MfaActionAuthorizationEntity,
+      {
+        jti: data.jti,
+        user_profile_id: data.user_profile_id,
+        action: data.action,
+        target_resource: data.target_resource,
+        token_hash: data.token_hash,
+        expires_at: data.expires_at,
+        created_by: actor,
+        updated_by: actor,
+      },
+      { actor },
+    );
+  }
+
+  /**
+   * Find an action authorization by its JWT jti.
+   * Returns null if not found.
+   */
+  private async findActionAuthorizationByJti(jti: string): Promise<MfaActionAuthorizationEntity | null> {
+    return this.dal.find<MfaActionAuthorizationEntity, MfaActionAuthorizationEntity>(
+      MfaActionAuthorizationEntity,
+      null,
+      {
+        filters: [
+          Filter.fieldValue(field(MfaActionAuthorizationEntity, "jti" as any), "=", jti),
+        ],
+        throwIfNotFound: false,
+      },
+    );
+  }
+
+  /**
+   * Mark an action authorization as used (consumed by the middleware).
+   * Sets `used_at` to now(). This enforces single-use — replay attempts
+   * will find `used_at !== null` and be rejected.
+   */
+  private async markActionAuthorizationUsed(jti: string): Promise<void> {
+    const actor = requireActor();
+    const existing = await this.findActionAuthorizationByJti(jti);
+    if (!existing) return;
+    await this.dal.update(
+      MfaActionAuthorizationEntity,
+      {
+        jti,
+        used_at: new Date(),
+        version: existing.version,
+      },
+      { actor, matchBy: "jti" },
+    );
+  }
+
+  /**
+   * Delete expired action authorization records.
+   * Called periodically for cleanup (same pattern as sessionRelay cleanup).
+   */
+  async deleteExpiredActionAuthorizations(): Promise<number> {
+    const expired = (await this.dal.findAll<MfaActionAuthorizationEntity, MfaActionAuthorizationEntity>(
+      MfaActionAuthorizationEntity,
+      null,
+      {
+        filters: [
+          Filter.expr(
+            { sql: "expires_at" },
+            "<",
+            { sql: "now() - interval '1 hour'" },
+          ),
+        ],
+      },
+    )) as MfaActionAuthorizationEntity[];
+    if (expired.length === 0) return 0;
+    const res = await this.dal.hardDeleteMany(
+      MfaActionAuthorizationEntity,
+      expired.map((e) => ({ id: e.id, version: e.version })),
+      { actor: requireActor() },
+    );
+    return res.affected;
+  }
 
   /**
    * Require MFA to be enabled in config. Throws 503 if disabled.
@@ -224,7 +519,7 @@ export class MfaService {
         "/errors/mfa-disabled",
         "MFA is not enabled on this server",
         503,
-        "The MFA / 2FA system is disabled. Set enable_mfa=true in auth_configurations to enable it.",
+        "The MFA / 2FA system is disabled. Set enable_mfa=true in config_entries to enable it.",
         { internal_code: "MFA_DISABLED", severity: "MEDIUM" },
       );
     }
@@ -237,13 +532,16 @@ export class MfaService {
    * `notification_alert_secret` in invitation.service.ts).
    */
   private async getMfaChallengeSecret(): Promise<string> {
-    const dal = new AuthConfigurationsDal(this.pool);
-    let row = await dal.findByKey("mfa_challenge_signing_secret");
+    const svc = getConfigEntriesService();
+    let row = await svc.findByKey("mfa_challenge_signing_secret");
     if (!row || !row.value || row.value.trim() === "") {
       const secret = randomBytes(32).toString("hex");
       // The verify endpoint is PUBLIC (no session context) — wrap in runAsSystem
       // so the upsert's audit fields can be set.
-      await runAsSystem(() => dal.upsert("mfa_challenge_signing_secret", secret, "system"));
+      await runAsSystem(() => svc.createEntry(
+        { key: "mfa_challenge_signing_secret", value: secret, type: "secret" },
+        "system",
+      ));
       return secret;
     }
     return row.value;
@@ -254,8 +552,7 @@ export class MfaService {
    * Falls back to 300 seconds (5 minutes) if missing.
    */
   private async getMfaChallengeTtl(): Promise<number> {
-    const dal = new AuthConfigurationsDal(this.pool);
-    const row = await dal.findByKey("mfa_challenge_token_ttl_seconds");
+    const row = await getConfigEntriesService().findByKey("mfa_challenge_token_ttl_seconds");
     if (!row || !row.value) return 300;
     const ttl = parseInt(row.value, 10);
     return isNaN(ttl) ? 300 : ttl;
@@ -266,16 +563,13 @@ export class MfaService {
    * Throws 404 if the profile doesn't exist.
    */
   private async resolveProfileId(userUuid: string): Promise<bigint> {
-    const result = await this.pool.query(
-      `SELECT id FROM user_profiles WHERE uuid = $1 AND deleted_at IS NULL`,
-      [userUuid],
-    );
-    if (!result.rows[0]?.id) {
+    const id = await getUserService().getIdByUuid(userUuid);
+    if (!id) {
       throw new NotFoundError("User profile not found", {
         internal_code: "USER_PROFILE_NOT_FOUND",
       });
     }
-    return BigInt(result.rows[0].id);
+    return id;
   }
 
   /**
@@ -287,16 +581,12 @@ export class MfaService {
     owner: string;
     name: string;
   }> {
-    const result = await this.pool.query(
-      `SELECT idp_org, idp_username, idp_code FROM user_profiles WHERE uuid = $1`,
-      [userUuid],
-    );
-    if (!result.rows[0]) {
+    const row = await getUserService().getIdpIdentityByUuid(userUuid);
+    if (!row) {
       throw new NotFoundError("User profile not found", {
         internal_code: "USER_PROFILE_NOT_FOUND",
       });
     }
-    const row = result.rows[0];
     const cfg = getAuthConfig();
     const owner = row.idp_org || cfg.idp_organization || "";
     const name = row.idp_username || row.idp_code || "";
@@ -328,8 +618,7 @@ export class MfaService {
 
     // Refuse if the user already has an enabled TOTP factor (v1: one TOTP factor per user)
     const profileId = await this.resolveProfileId(userUuid);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
-    const existing = await factorsDal.findEnabledByUserProfileId(profileId);
+    const existing = await this.findEnabledFactorsByUserProfileId(profileId);
     if (existing.length > 0) {
       throw new ApiError(
         "/errors/mfa-already-enrolled",
@@ -449,8 +738,7 @@ export class MfaService {
     const profileId = await this.resolveProfileId(userUuid);
     const secret = await this.getMfaChallengeSecret();
     const encryptedSecret = encrypt(entry.secret, secret);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
-    const factorUuid = await factorsDal.create({
+    const factorUuid = await this.createFactor({
       user_profile_id: profileId,
       factor_type: "totp",
       casdoor_mfa_type: entry.casdoor_mfa_type,
@@ -474,8 +762,7 @@ export class MfaService {
   async listFactors(userUuid: string): Promise<MfaFactorInfo[]> {
     await this.requireMfaEnabled();
     const profileId = await this.resolveProfileId(userUuid);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
-    const factors = await factorsDal.findByUserProfileId(profileId);
+    const factors = await this.findFactorsByUserProfileId(profileId);
     return factors.map((f) => ({
       uuid: f.uuid,
       factor_type: f.factor_type,
@@ -496,8 +783,7 @@ export class MfaService {
   async deleteFactor(userUuid: string, factorUuid: string): Promise<{ success: true }> {
     await this.requireMfaEnabled();
 
-    const factorsDal = new UserMfaFactorsDal(this.pool);
-    const factor = await factorsDal.findByUuid(factorUuid);
+    const factor = await this.findFactorByUuid(factorUuid);
     if (!factor) {
       throw new NotFoundError("MFA factor not found", {
         internal_code: "MFA_FACTOR_NOT_FOUND",
@@ -536,7 +822,7 @@ export class MfaService {
       );
     }
 
-    await factorsDal.deleteByUuid(factorUuid);
+    await this.deleteFactorByUuid(factorUuid);
     return { success: true };
   }
 
@@ -549,8 +835,7 @@ export class MfaService {
   async hasMfa(userUuid: string): Promise<boolean> {
     if (!getAuthConfig().enable_mfa) return false;
     const profileId = await this.resolveProfileId(userUuid);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
-    const count = await factorsDal.countEnabledByUserProfileId(profileId);
+    const count = await this.countEnabledFactorsByUserProfileId(profileId);
     return count > 0;
   }
 
@@ -576,8 +861,7 @@ export class MfaService {
     await this.requireMfaEnabled();
 
     const profileId = await this.resolveProfileId(userUuid);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
-    const factors = await factorsDal.findEnabledByUserProfileId(profileId);
+    const factors = await this.findEnabledFactorsByUserProfileId(profileId);
     if (factors.length === 0) {
       throw new ApiError(
         "/errors/mfa-no-factors",
@@ -605,7 +889,69 @@ export class MfaService {
       ttl,
     );
 
-    stashTokens(jti, tokens);
+    await stashTokens(jti, tokens);
+
+    return {
+      mfa_challenge_token: token,
+      available_factors: factors.map((f) => ({
+        factor_id: f.uuid,
+        factor_type: f.factor_type,
+        label: f.label ?? null,
+      })),
+    };
+  }
+
+  /**
+   * Refresh a login MFA challenge.
+   * Called by POST /api/v1/auth/mfa/challenge/refresh each time the FE mounts
+   * the OTP form — the old token may be expired or consumed; the signature is
+   * still verified, then the stashed tokens are moved to a fresh jti and a new
+   * challenge token is minted. If the stash is gone (consumed or TTL'd), the
+   * caller must restart password login.
+   */
+  async refreshLoginChallenge(challengeToken: string): Promise<{
+    mfa_challenge_token: string;
+    available_factors: Array<{ factor_id: string; factor_type: string; label: string | null }>;
+  }> {
+    await this.requireMfaEnabled();
+
+    const secret = await this.getMfaChallengeSecret();
+    const payload = await verifyMfaChallengeTokenSignature(challengeToken, secret);
+
+    if (payload.purpose !== "login_challenge") {
+      throw new ApiError(
+        "/errors/mfa-wrong-purpose",
+        "Token is not a login challenge",
+        403,
+        "The MFA challenge token was not issued for login.",
+        { internal_code: "MFA_WRONG_PURPOSE", severity: "MEDIUM" },
+      );
+    }
+
+    const newJti = randomUUID();
+    if (!(await moveTokens(payload.jti, newJti))) {
+      throw new UnauthorizedError("MFA challenge expired or already used", {
+        internal_code: "MFA_CHALLENGE_EXPIRED",
+      });
+    }
+
+    const profileId = await this.resolveProfileId(payload.sub);
+    const factors = await this.findEnabledFactorsByUserProfileId(profileId);
+
+    const ttl = await this.getMfaChallengeTtl();
+    const token = await signMfaChallengeToken(
+      {
+        jti: newJti,
+        sub: payload.sub,
+        idp_code: payload.idp_code,
+        idp_org: payload.idp_org,
+        idp_username: payload.idp_username,
+        available_factor_ids: factors.map((f) => f.uuid),
+        purpose: "login_challenge",
+      },
+      secret,
+      ttl,
+    );
 
     return {
       mfa_challenge_token: token,
@@ -629,6 +975,7 @@ export class MfaService {
     challengeToken: string,
     factorId: string,
     code: string,
+    requestCtx?: AuthRequestContext,
   ): Promise<{
     tokens: { access_token: string; refresh_token?: string; expires_in: number };
     user_uuid: string;
@@ -660,8 +1007,7 @@ export class MfaService {
     }
 
     // Verify the factor exists and is enabled
-    const factorsDal = new UserMfaFactorsDal(this.pool);
-    const factor = await factorsDal.findByUuid(factorId);
+    const factor = await this.findFactorByUuid(factorId);
     if (!factor || !factor.is_enabled) {
       throw new NotFoundError("MFA factor not found", {
         internal_code: "MFA_FACTOR_NOT_FOUND",
@@ -698,7 +1044,7 @@ export class MfaService {
     }
 
     // Pop the stashed tokens (single-use)
-    const tokens = popTokens(payload.jti);
+    const tokens = await popTokens(payload.jti);
     if (!tokens) {
       throw new UnauthorizedError("MFA challenge expired or already used", {
         internal_code: "MFA_CHALLENGE_EXPIRED",
@@ -709,13 +1055,22 @@ export class MfaService {
     // The verify endpoint is PUBLIC (no auth middleware), so there's no session
     // context — wrap in runAsSystem to provide the system actor for audit fields.
     // Pass the current version for optimistic concurrency (auditable entity).
-    await runAsSystem(() => factorsDal.update(factor.uuid, {
+    await runAsSystem(() => this.updateFactor(factor.uuid, {
       last_used_at: new Date(),
       version: factor.version,
     }));
 
     // Decode the access token to get claims for building the user response
     const claims = decodeJwtPayload(tokens.access_token);
+
+    // Insert MFA verify auth event (best-effort, non-blocking).
+    // The user is authenticated at the first factor → we have their UUID.
+    await getAuthEventsService().insertEvent({
+      event_type: "mfa_verify",
+      success: true,
+      user_profile_uuid: payload.sub,
+      request_ctx: requestCtx,
+    });
 
     return {
       tokens,
@@ -751,8 +1106,7 @@ export class MfaService {
     await this.requireMfaEnabled();
 
     const profileId = await this.resolveProfileId(userUuid);
-    const factorsDal = new UserMfaFactorsDal(this.pool);
-    const factors = await factorsDal.findEnabledByUserProfileId(profileId);
+    const factors = await this.findEnabledFactorsByUserProfileId(profileId);
     if (factors.length === 0) {
       throw new ApiError(
         "/errors/mfa-no-factors",
@@ -830,8 +1184,7 @@ export class MfaService {
     }
 
     // Load the factor and verify the TOTP code locally
-    const factorsDal = new UserMfaFactorsDal(this.pool);
-    const factor = await factorsDal.findByUuid(factorId);
+    const factor = await this.findFactorByUuid(factorId);
     if (!factor || !factor.is_enabled) {
       throw new UnauthorizedError("MFA factor not found", {
         internal_code: "MFA_FACTOR_NOT_FOUND",
@@ -869,7 +1222,7 @@ export class MfaService {
     }
 
     // Update last_used_at (pass version for optimistic concurrency — auditable entity)
-    await runAsSystem(() => factorsDal.update(factor.uuid, {
+    await runAsSystem(() => this.updateFactor(factor.uuid, {
       last_used_at: new Date(),
       version: factor.version,
     }));
@@ -890,12 +1243,11 @@ export class MfaService {
       .sign(new Uint8Array(Buffer.from(secret, "hex")));
 
     // Store the action authorization in the DB (for single-use enforcement + audit)
-    const actionDal = new MfaActionAuthorizationsDal(this.pool);
     const tokenHash = createHash("sha256").update(actionToken).digest("hex");
     const expiresAt = new Date(Date.now() + actionTtl * 1000);
 
     await runAsSystem(() =>
-      actionDal.create({
+      this.createActionAuthorization({
         jti: actionJti,
         user_profile_id: profileId,
         action: payload.action!,
@@ -945,8 +1297,7 @@ export class MfaService {
     }
 
     // Check the DB for single-use enforcement
-    const actionDal = new MfaActionAuthorizationsDal(this.pool);
-    const record = await actionDal.findByJti(payload.jti!);
+    const record = await this.findActionAuthorizationByJti(payload.jti!);
     if (!record) {
       throw new UnauthorizedError("Action authorization token not found", {
         internal_code: "MFA_ACTION_TOKEN_NOT_FOUND",
@@ -972,7 +1323,7 @@ export class MfaService {
     }
 
     // Mark as used (single-use enforcement)
-    await runAsSystem(() => actionDal.markUsed(payload.jti!));
+    await runAsSystem(() => this.markActionAuthorizationUsed(payload.jti!));
 
     return { user_uuid: payload.sub! };
   }
@@ -989,5 +1340,6 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
   const parts = token.split(".");
   const encodedPayload = parts[1];
   const rawPayload = Buffer.from(encodedPayload, "base64").toString("utf-8");
+  // standards-exempt: ext-json — external wire payload (JWT RFC7519) — must not bigint-ify
   return JSON.parse(rawPayload);
 }

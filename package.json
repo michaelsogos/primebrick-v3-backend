@@ -1,6 +1,6 @@
 {
   "name": "primebrick-api",
-  "version": "0.33.0",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -10,9 +10,9 @@
     "dev": "tsx watch src/index.ts",
     "dev:kill": "node scripts/kill-port-3001.mjs",
     "version:auto": "node scripts/version-sync.mjs",
-    "prebuild": "node scripts/version-sync.mjs",
+    "prebuild": "node scripts/version-sync.mjs && pnpm check:standards && pnpm db:check",
     "build": "tsc",
-    "test": "vitest run",
+    "test": "pnpm check:standards && vitest run",
     "test:watch": "vitest",
     "prestart": "pnpm run build",
     "start": "node dist/index.js",
@@ -20,14 +20,17 @@
     "db:migrate": "tsx scripts/database-patch-apply.ts",
     "db:truncate:customers": "tsx scripts/truncate-customers.ts",
     "db:seed:customers": "tsx scripts/seed-customers.ts",
-    "setup:casdoor": "tsx scripts/setup-casdoor.ts"
+    "setup:casdoor": "tsx scripts/setup-casdoor.ts",
+    "generate:docs": "tsx scripts/generate-docs-pack.ts",
+    "check:standards": "bun ../primebrick-v3-sdk/tools/check-standards.ts src",
+    "db:check": "tsx node_modules/@primebrick/dal-pg/dist/cli/primebrick-db.js check --registry src/domain/entities/registry.ts --snapshot db-meta/snapshot-entities.json"
   },
   "dependencies": {
     "@modelcontextprotocol/express": "2.0.0-beta.4",
     "@modelcontextprotocol/node": "2.0.0-beta.4",
     "@modelcontextprotocol/server": "2.0.0-beta.4",
     "@primebrick/dal-pg": "file:../primebrick-dal-v3",
-    "@primebrick/sdk": "file:../primebrick-v3-sdk",
+    "@primebrick/sdk": "workspace:*",
     "casdoor-nodejs-sdk": "1.34.0",
     "cookie-parser": "1.4.7",
     "cors": "2.8.6",

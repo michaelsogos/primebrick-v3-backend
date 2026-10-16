@@ -15,7 +15,7 @@
  *   - determine which factors are available for login/step-up challenges
  */
 
-import type { IAuditableEntity } from "@primebrick/dal-pg";
+import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
@@ -36,9 +36,10 @@ export class UserMfaFactorEntity implements IAuditableEntity {
   id: bigint;
 
   @Unique()
-  uuid: string;
+  uuid: UUID;
 
   /** FK to user_profiles.id. */
+  @Column({ nullable: false })
   user_profile_id: bigint;
 
   /** Factor type: "totp" (v1 only). */

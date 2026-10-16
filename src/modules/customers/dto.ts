@@ -1,86 +1,24 @@
 import { z } from "zod";
+import { zBoundedInt, zPartialNoDefaults } from "../../http/validation.js";
 
 import type { CustomerStatus } from "./customer_entity.js";
-import { CUSTOMER_FILTERABLE_KEYS, CUSTOMER_SORT_KEYS } from "./list-config.js";
+import type { WithAuditableDisplayNames } from "@primebrick/dal-pg";
+import { CUSTOMER_SORT_KEYS } from "./list-config.js";
+import {
+  ListQueryBaseSchema,
+  ListFiltersQuerySchema,
+  type ListFilterCondition,
+} from "../../http/list-query.js";
 
 export const CustomerStatusSchema = z.enum(["ACTIVE", "INACTIVE"]) satisfies z.ZodType<CustomerStatus>;
 
-const csvToStringArray = z
-  .string()
-  .transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean))
-  .pipe(z.array(z.string()));
+export const FilterQueryArraySchema = ListFiltersQuerySchema;
+export type FilterCondition = ListFilterCondition;
+export type FilterConnector = "AND" | "OR";
 
-const allowedOperators = [
-  "=",
-  "!=",
-  "<>",
-  "<",
-  "<=",
-  ">",
-  ">=",
-  "ILIKE",
-  "LIKE",
-  "IN",
-  "NOT IN",
-  "BETWEEN",
-  "IS",
-  "IS NOT",
-  "@>",
-] as const;
-export type SqlOperator = (typeof allowedOperators)[number];
-
-const FilterConditionSchema = z.object({
-  field: z.enum(CUSTOMER_FILTERABLE_KEYS as [string, ...string[]]),
-  op: z.enum(allowedOperators),
-  value: z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(z.union([z.string(), z.number(), z.boolean()])),
-    z.object({
-      start: z.union([z.string(), z.number()]),
-      end: z.union([z.string(), z.number()]),
-    }),
-  ]),
-});
-
-const FilterConnectorSchema = z.enum(["AND", "OR"]);
-
-export const FilterQueryArraySchema = z
-  .array(
-    z.object({
-      field: z.string(),
-      op: z.string(),
-      value: z.union([
-        z.string(),
-        z.number(),
-        z.boolean(),
-        z.null(),
-        z.array(z.union([z.string(), z.number(), z.boolean()])),
-        z.object({
-          start: z.union([z.string(), z.number()]),
-          end: z.union([z.string(), z.number()]),
-        }),
-      ]),
-    })
-  )
-  .optional();
-
-export type FilterCondition = z.infer<typeof FilterConditionSchema>;
-export type FilterConnector = z.infer<typeof FilterConnectorSchema>;
-
-export const CustomerListQuerySchema = z.object({
-  search: z.string().optional(),
-  search_in: csvToStringArray.optional(),
+export const CustomerListQuerySchema = ListQueryBaseSchema.extend({
   status: CustomerStatusSchema.optional(),
   sort_key: z.enum(CUSTOMER_SORT_KEYS as [string, ...string[]]).optional(),
-  sort_dir: z.enum(["asc", "desc"]).optional(),
-  page: z.coerce.number().int().min(1).optional(),
-  page_size: z.coerce.number().int().min(1).max(100).optional(),
-  filters: FilterQueryArraySchema,
-  connector: FilterConnectorSchema.optional(),
-  deleted_records: z.enum(["EXCLUDED", "ONLY", "INCLUDED"]).optional(),
 });
 
 export type CustomerListQuery = z.infer<typeof CustomerListQuerySchema>;
@@ -143,7 +81,9 @@ export const CustomerCreateBodySchema = CustomerBaseSchema.superRefine((val, ctx
 export type CustomerCreateBody = z.infer<typeof CustomerCreateBodySchema>;
 
 // Update schema: partial version of base schema with separate refinement for update case
-export const CustomerUpdateBodySchema = CustomerBaseSchema.partial().superRefine((val, ctx) => {
+export const CustomerUpdateBodySchema = zPartialNoDefaults(
+  CustomerBaseSchema.extend({ version: zBoundedInt(0, Number.MAX_SAFE_INTEGER) }),
+).superRefine((val, ctx) => {
   // For updates, only validate the cross-field constraint if both fields are provided
   const hasAt = val.onboarding_at !== undefined;
   const hasTz = val.onboarding_time_zone !== undefined;
@@ -229,3 +169,41 @@ export const CustomerDuplicateBodySchema = z.object({
 
 export type CustomerDuplicateBody = z.infer<typeof CustomerDuplicateBodySchema>;
 
+
+// --- Detail row / API DTO (previously in customers_dal.ts) -------------------
+
+export type CustomerDetailRow = WithAuditableDisplayNames<{
+  uuid: string;
+  code: string;
+  first_name?: string;
+  last_name?: string;
+  company_name?: string;
+  email?: string;
+  phone?: string;
+  status: CustomerStatus;
+  status_reason?: string;
+  local_address?: string;
+  local_city?: string;
+  local_state?: string;
+  local_country?: string;
+  local_zip?: string;
+  onboarding_at?: Date;
+  onboarding_time_zone?: string;
+  created_at: Date;
+  created_by: string;
+  updated_at: Date;
+  updated_by: string;
+  version: number;
+  deleted_at?: Date;
+  deleted_by?: string;
+}>;
+
+export type CustomerDetailDto = Omit<
+  CustomerDetailRow,
+  "created_at" | "updated_at" | "deleted_at" | "onboarding_at"
+> & {
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  onboarding_at?: string;
+};
