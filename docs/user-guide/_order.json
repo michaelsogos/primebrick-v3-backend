@@ -1,3 +1,29 @@
 {
-  "pages": ["overview", "architecture", "authentication", "rbac", "environment-configuration", "collaboration"]
+  "pages": [
+    "rbac",
+    "collaboration",
+    "modules",
+    "security-and-mfa",
+    "generated/users",
+    "generated/users-create",
+    "generated/users-edit",
+    "generated/roles",
+    "generated/roles-create",
+    "generated/roles-edit",
+    "generated/organizations",
+    "generated/organizations-create",
+    "generated/organizations-edit",
+    "generated/customers",
+    "generated/configurations",
+    "generated/configurations-create",
+    "generated/modules",
+    "generated/modules-edit",
+    "generated/profile",
+    "manual/entities-crud",
+    "manual/migrations",
+    "generated/entity-field-reference",
+    "generated/filter-operator-reference",
+    "generated/filter-syntax-guide",
+    "generated/navigation-map"
+  ]
 }

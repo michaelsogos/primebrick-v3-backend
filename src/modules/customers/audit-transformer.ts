@@ -15,12 +15,12 @@ export type AuditEntryTransformed = {
 };
 
 const FIELD_LABELS = new Map(
-  CUSTOMER_LIST_COLUMNS.map((col) => [col.key, col.labelKey])
+  CUSTOMER_LIST_COLUMNS.map((col) => [col.key, col.label_key])
 );
 
 const STATUS_LABELS = new Map([
-  ["ACTIVE", "entities.customer.status.active"],
-  ["INACTIVE", "entities.customer.status.inactive"],
+  ["ACTIVE", "system.entities.customer.status.active"],
+  ["INACTIVE", "system.entities.customer.status.inactive"],
 ]);
 
 function formatDate(isoString: string): string {

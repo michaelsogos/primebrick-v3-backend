@@ -82,3 +82,8 @@ When you modify an existing patch file:
 - AI agent MUST create a fire-and-forget script to update the registry hash
 - AI agent MUST include the SHA256 calculation in the fire-and-forget script comments
 - AI agent MUST verify `pnpm run db:migrate` passes after applying the fire-and-forget script
+
+
+## Deep dive
+
+The normative rules live here; the full mechanics and rationale are in `SDK dev-guide migrations` — link, do not duplicate.

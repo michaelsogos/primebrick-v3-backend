@@ -1,0 +1,57 @@
+---
+title: Create Configuration Entry
+description: Create a new configuration entry.
+entity: config_entry
+---
+
+Create a new configuration entry.
+
+## Pages routes
+
+- `/system/settings/configurations` — List, search and manage all configuration entries.
+- `/system/settings/configurations/create` — Create a new config entry. *(this page)*
+
+## What you can do here
+
+### How to create a new configuration entry
+1. On the **Configurations** list page, click **New** in the toolbar.
+2. Fill in the fields below.
+3. Click **Save** — the new configuration entry is created.
+
+## Fields
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **Key** | optional | text input — custom format; max 100; min 1 |
+| **Type** | optional | select — min 1 |
+| **Value** | optional | select |
+| **Rules for this configuration** | optional | button |
+| **Name (translation key)** | optional | select — max 100 |
+| **Description (translation key)** | optional | select — max 100 |
+| **Group key** | optional | select — custom format; max 100 |
+| **Reserved** | optional | text input |
+
+- The **Key** field is an optional text input that must match a custom format and allows up to 100 characters and requires at least 1 character.
+- The **Type** field is an optional select that requires at least 1 selection.
+- The **Value** field is an optional select.
+- The **Rules for this configuration** field is an optional button.
+- The **Name (translation key)** field is an optional select that allows up to 100 characters.
+- The **Description (translation key)** field is an optional select that allows up to 100 characters.
+- The **Group key** field is an optional select that must match a custom format and allows up to 100 characters.
+- The **Reserved** field is an optional text input.
+
+## Actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **Save** | ENABLED | — | Validates the form and creates the configuration entry | no |
+| **Cancel** | ENABLED | — | Discards changes and returns to the previous page | no |
+
+- The **Save** action is available on this page — validates the form and creates the configuration entry.
+- The **Cancel** action is available on this page — discards changes and returns to the previous page.
+
+## Doc references
+
+- [Configurations](/docs/user-guide/generated/configurations)
+- [Entities Crud](/docs/user-guide/manual/entities-crud)
+

@@ -13,7 +13,7 @@ The module provides:
   - `GATEWAY` mode: trusts user-identity headers injected by an upstream API gateway after verifying a shared `X-Gateway-Secret`
 - **RBAC middleware** (`rbac.middleware.ts`) — checks the authenticated user has the permissions required by the route
 - **IDP-agnostic token normalization** (`token-normalizer.ts`) — extracts roles from any JWT shape using a configurable dotted path (`AUTH_ROLES_PATH`)
-- **Internal user mapping** (`user_profile_entity.ts` + `user-profile-repo.ts`) — maps the IDP `sub` claim to a Primebrick-side UUID stored in `public.user_profiles` so that audit columns (`created_by`, `updated_by`, ...) never leak external IDs
+- **Internal user mapping** (`user_profile_entity.ts` + `UserService.resolveInternalUuid` in `services/user.service.ts`) — maps the IDP `sub` claim to a Primebrick-side UUID stored in `public.user_profiles` so that audit columns (`created_by`, `updated_by`, ...) never leak external IDs
 - **RFC 7807 errors** for 401 (`UnauthorizedError`) and 403 (`ForbiddenError`) with `extra.issues` carrying the missing permissions
 
 ## Required environment variables
@@ -120,7 +120,7 @@ import { Permission } from "../auth/permissions.js";
 
 const router = makeProtectedRouter();
 
-// Public endpoint (no JWT required, but gateway-secret still verified in GATEWAY mode)
+// Public endpoint (no JWT required, but client-shield secret still verified in GATEWAY mode)
 router.get("/api/v1/health", rbacHandler([Permission.PUBLIC]), asyncHandler(async (_req, res) => {
   res.json({ ok: true });
 }));
@@ -133,7 +133,7 @@ router.get("/api/v1/user/profile", rbacHandler([Permission.AUTHENTICATED_USER]),
 // Admin-only endpoint (only callers with isAdmin === true pass)
 // Use for high-risk non-CRUD operations like admin change-password.
 router.post(
-  "/api/v1/entities/user_profiles/:uuid/change-password",
+  "/api/v1/entities/user_profile/:uuid/change-password",
   rbacHandler([Permission.AUTHENTICATED_ADMIN]),
   asyncHandler(async (req, res) => {
     // ... handler ...

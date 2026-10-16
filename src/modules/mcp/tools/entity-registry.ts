@@ -13,7 +13,7 @@
  *   - How to dispatch: in-process (BE) vs proxy (microservice)
  */
 
-import { Permission } from "@primebrick/sdk";
+import { Permission, detectPackageIdentity } from "@primebrick/sdk";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -39,11 +39,16 @@ export type HandlerType = "in-process" | "proxy";
  * Static metadata for a BE entity service factory.
  * The factory returns a service instance that reads actor from ALS.
  */
-export interface BeEntityConfig {
-  /** Entity name (snake_case plural, e.g. "customer", "organization"). */
+export interface LocalEntityConfig {
+  /** Entity name (snake_case singular, e.g. "customer", "organization"). */
   entity: string;
   /** Human-readable label for the entity. */
   label: string;
+  /**
+   * Implementation reference for observability — `"EntityClass→table"`,
+   * e.g. `"CustomerEntity→customers"`. Displayed in the MCP startup log.
+   */
+  impl?: string;
   /** Operations supported by this entity. */
   supported_operations: Operation[];
   /** Bulk operations supported (empty if none). */
@@ -57,7 +62,7 @@ export interface BeEntityConfig {
  * Paths are constructed from the standard template — no path storage needed.
  */
 export interface ProxyEntityConfig {
-  /** Entity name (snake_case plural). */
+  /** Entity name (snake_case singular). */
   entity: string;
   /** Human-readable label (from microservice OpenAPI tags or title). */
   label: string;
@@ -72,6 +77,10 @@ export interface EntityRegistryEntry {
   module: string;
   entity: string;
   label: string;
+  /** Implementation reference (`"EntityClass→table"`) when known — display only. */
+  impl?: string;
+  /** Owning package identity (`{pkg_name}/{version}`) — BE package for in-process entities, the microservice identity for proxy entities. */
+  source_ref?: string;
   handler_type: HandlerType;
   supported_operations: Operation[];
   supported_bulk_operations: BulkOperation[];
@@ -89,11 +98,14 @@ class EntityRegistry {
   }
 
   /** Register a BE entity (in-process dispatch). */
-  registerBeEntity(module: string, config: BeEntityConfig): void {
+  registerLocalEntity(module: string, config: LocalEntityConfig): void {
+    const pkg = detectPackageIdentity();
     const entry: EntityRegistryEntry = {
       module,
       entity: config.entity,
       label: config.label,
+      impl: config.impl,
+      source_ref: `${pkg.name}${pkg.version ? `/${pkg.version}` : ""}`,
       handler_type: "in-process",
       supported_operations: config.supported_operations,
       supported_bulk_operations: config.supported_bulk_operations ?? [],
@@ -103,11 +115,12 @@ class EntityRegistry {
   }
 
   /** Register a microservice entity (proxy dispatch). */
-  registerProxyEntity(module: string, config: ProxyEntityConfig): void {
+  registerProxyEntity(module: string, config: ProxyEntityConfig, sourceRef?: string): void {
     const entry: EntityRegistryEntry = {
       module,
       entity: config.entity,
       label: config.label,
+      source_ref: sourceRef,
       handler_type: "proxy",
       supported_operations: config.supported_operations,
       supported_bulk_operations: [],
@@ -177,64 +190,68 @@ export const entityRegistry = new EntityRegistry();
  */
 export function registerBeEntities(): void {
   // Customer
-  entityRegistry.registerBeEntity("be", {
+  entityRegistry.registerLocalEntity("be", {
     entity: "customer",
     label: "Customer",
+    impl: "CustomerEntity->customers",
     supported_operations: ["list", "get", "create", "update", "delete", "restore", "audit", "meta"],
     supported_bulk_operations: ["bulk_delete", "bulk_restore"],
     permissions: {
-      list: [Permission.CUSTOMERS_READ_ALL],
-      get: [Permission.CUSTOMERS_READ_SINGLE, Permission.CUSTOMERS_READ_ALL],
-      create: [Permission.CUSTOMERS_CREATE_SINGLE],
-      update: [Permission.CUSTOMERS_UPDATE_SINGLE],
-      delete: [Permission.CUSTOMERS_DELETE_SINGLE],
-      restore: [Permission.CUSTOMERS_RESTORE_SINGLE],
-      audit: [Permission.CUSTOMERS_READ_AUDIT],
-      meta: [Permission.CUSTOMERS_READ_ALL, Permission.CUSTOMERS_READ_SINGLE],
+      list: [Permission.CUSTOMER_READ_ALL],
+      get: [Permission.CUSTOMER_READ_SINGLE, Permission.CUSTOMER_READ_ALL],
+      create: [Permission.CUSTOMER_CREATE_SINGLE],
+      update: [Permission.CUSTOMER_UPDATE_SINGLE],
+      delete: [Permission.CUSTOMER_DELETE_SINGLE],
+      restore: [Permission.CUSTOMER_RESTORE_SINGLE],
+      audit: [Permission.CUSTOMER_READ_AUDIT],
+      meta: [Permission.CUSTOMER_READ_ALL, Permission.CUSTOMER_READ_SINGLE],
     },
   });
 
   // Organization
-  entityRegistry.registerBeEntity("be", {
+  entityRegistry.registerLocalEntity("be", {
     entity: "organization",
     label: "Organization",
+    impl: "OrganizationEntity->organizations",
     supported_operations: ["list", "get", "create", "update", "delete", "restore", "audit", "meta"],
     permissions: {
-      list: [Permission.ORGANIZATIONS_READ_ALL],
-      get: [Permission.ORGANIZATIONS_READ_SINGLE, Permission.ORGANIZATIONS_READ_ALL],
-      create: [Permission.ORGANIZATIONS_CREATE_SINGLE],
-      update: [Permission.ORGANIZATIONS_UPDATE_SINGLE],
-      delete: [Permission.ORGANIZATIONS_DELETE_SINGLE],
-      restore: [Permission.ORGANIZATIONS_RESTORE_SINGLE],
-      audit: [Permission.ORGANIZATIONS_READ_AUDIT],
-      meta: [Permission.ORGANIZATIONS_READ_ALL, Permission.ORGANIZATIONS_READ_SINGLE],
+      list: [Permission.ORGANIZATION_READ_ALL],
+      get: [Permission.ORGANIZATION_READ_SINGLE, Permission.ORGANIZATION_READ_ALL],
+      create: [Permission.ORGANIZATION_CREATE_SINGLE],
+      update: [Permission.ORGANIZATION_UPDATE_SINGLE],
+      delete: [Permission.ORGANIZATION_DELETE_SINGLE],
+      restore: [Permission.ORGANIZATION_RESTORE_SINGLE],
+      audit: [Permission.ORGANIZATION_READ_AUDIT],
+      meta: [Permission.ORGANIZATION_READ_ALL, Permission.ORGANIZATION_READ_SINGLE],
     },
   });
 
   // User profiles
-  entityRegistry.registerBeEntity("be", {
-    entity: "user_profiles",
+  entityRegistry.registerLocalEntity("be", {
+    entity: "user_profile",
     label: "User Profile",
+    impl: "UserProfileEntity->user_profiles",
     supported_operations: ["list", "get", "update", "restore", "audit", "meta"],
     permissions: {
-      list: [Permission.USERS_READ_ALL],
-      get: [Permission.USERS_READ_SINGLE, Permission.USERS_READ_ALL],
-      update: [Permission.USERS_UPDATE_SINGLE],
-      restore: [Permission.USERS_RESTORE_SINGLE],
+      list: [Permission.USER_PROFILE_READ_ALL],
+      get: [Permission.USER_PROFILE_READ_SINGLE, Permission.USER_PROFILE_READ_ALL],
+      update: [Permission.USER_PROFILE_UPDATE_SINGLE],
+      restore: [Permission.USER_PROFILE_RESTORE_SINGLE],
       audit: [Permission.USER_PROFILE_READ_AUDIT],
-      meta: [Permission.USERS_READ_ALL, Permission.USERS_READ_SINGLE],
+      meta: [Permission.USER_PROFILE_READ_ALL, Permission.USER_PROFILE_READ_SINGLE],
     },
   });
 
   // Auth events (audit log entity — read-only via MCP, no CRUD)
-  entityRegistry.registerBeEntity("be", {
-    entity: "auth_events",
+  entityRegistry.registerLocalEntity("be", {
+    entity: "auth_event",
     label: "Auth Events",
+    impl: "AuthEventEntity->auth_events",
     supported_operations: ["list", "aggregate", "meta"],
     permissions: {
-      list: [Permission.AUTH_EVENTS_READ_ALL],
-      aggregate: [Permission.AUTH_EVENTS_READ_ALL],
-      meta: [Permission.AUTH_EVENTS_READ_ALL],
+      list: [Permission.AUTH_EVENT_READ_ALL],
+      aggregate: [Permission.AUTH_EVENT_READ_ALL],
+      meta: [Permission.AUTH_EVENT_READ_ALL],
     },
   });
 }

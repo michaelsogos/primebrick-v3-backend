@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   signMfaChallengeToken,
   verifyMfaChallengeToken,
+  verifyMfaChallengeTokenSignature,
   type MfaChallengePayload,
 } from "../mfa-challenge-token.js";
 
@@ -13,7 +14,7 @@ function makePayload(overrides: Partial<MfaChallengePayload> = {}): MfaChallenge
     sub: "user-uuid-456",
     idp_code: "idp-code-789",
     idp_org: "acme",
-    idp_username: "admin",
+    idp_username: "test-admin",
     available_factor_ids: ["factor-uuid-1"],
     purpose: "login_challenge",
     ...overrides,
@@ -75,6 +76,26 @@ describe("mfa-challenge-token — sign/verify", () => {
       .setExpirationTime("300s")
       .sign(key);
     await expect(verifyMfaChallengeToken(badToken, SECRET)).rejects.toThrow();
+  });
+
+  it("signature-only verify accepts an expired token", async () => {
+    const payload = makePayload();
+    const token = await signMfaChallengeToken(payload, SECRET, 0);
+    await new Promise((r) => setTimeout(r, 1100));
+    // Expired for full verify, but the signature is still valid → refreshable.
+    await expect(verifyMfaChallengeToken(token, SECRET)).rejects.toThrow();
+    const verified = await verifyMfaChallengeTokenSignature(token, SECRET);
+    expect(verified.jti).toBe(payload.jti);
+    expect(verified.purpose).toBe("login_challenge");
+  });
+
+  it("signature-only verify rejects a forged token", async () => {
+    const payload = makePayload();
+    const token = await signMfaChallengeToken(payload, SECRET, 300);
+    await expect(
+      verifyMfaChallengeTokenSignature(token, "b".repeat(64)),
+    ).rejects.toThrow();
+    await expect(verifyMfaChallengeTokenSignature("not-a-jwt", SECRET)).rejects.toThrow();
   });
 
   it("accepts a non-hex secret (utf-8 fallback)", async () => {

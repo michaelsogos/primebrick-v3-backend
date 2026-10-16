@@ -1,0 +1,25 @@
+{
+  "rules": {
+    "dal-access": {
+      "allowPaths": [
+        "db/dal-gateway.ts",
+        "http/entity-service.ts",
+        "http/entity-write.ts",
+        "index.ts",
+        "modules/auth/sdk-auth-ports.ts",
+        "modules/collaboration/collaboration.service.ts",
+        "modules/mcp/oauth/oauth-client.service.ts",
+        "modules/system/client-shield-registry.service.ts",
+        "modules/system/service-registry.service.ts",
+        "modules/system/translations.service.ts",
+        "observability/telemetry.ts"
+      ]
+    },
+    "layer-repo-import": {
+      "appliesTo": [
+        "controllers/",
+        "modules/mcp/"
+      ]
+    }
+  }
+}

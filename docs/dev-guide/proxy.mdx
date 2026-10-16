@@ -1,0 +1,54 @@
+---
+title: The Service Proxy
+description: "How /ws/:serviceCode/* forwards requests to registered microservices — registry lookup, verbatim path forwarding, GATEWAY-RESOLVED auth headers, and the strict header allowlist."
+---
+
+# The service proxy
+
+The `proxy` module is the **only** HTTP path between the Frontend and the
+microservices. Microservices never expose public HTTP — they sit behind the
+BE, which forwards:
+
+```
+FE → GET /ws/ai/api/v1/conversations
+BE → GET {ai.base_url}/api/v1/conversations   (path forwarded verbatim)
+```
+
+`/ws/:serviceCode/...` → `{base_url}/...`: everything after the service
+code is passed through untouched — no path rewriting, no BE-side business
+logic added.
+
+## What the proxy does per request
+
+1. **Service lookup** (`service-registry-repo`) — the service must be
+   registered, enabled and online; otherwise the request fails fast.
+2. **Auth resolution** — the FE's session/JWT is validated once at the
+   gateway; the resolved `AuthUser` is serialized into outbound headers
+   (`GATEWAY-RESOLVED` mode — the US trusts the identity, it does not
+   re-authenticate the user).
+3. **Header allowlist** — a closed set of client headers is forwarded
+   FE→US. Arbitrary headers never cross the boundary; `x-forwarded-*`
+   carries client network context and `x-forwarded-user-agent` preserves
+   the original UA for US audit logs.
+4. **Forward** — method + path + body + resolved headers.
+5. **Return** — the US status, body and the response-header allowlist
+   are passed back verbatim.
+
+## Why this shape
+
+- **One auth boundary** — services never see cookies/JWT plumbing; they
+  receive a resolved identity + the client-shield secret on the outbound
+  leg (`service_client_shield_secret` header, see secrets-engine page).
+- **Registry-driven** — installing a module makes its routes reachable
+  the moment it registers; uninstalling/offlining closes them instantly.
+- **Observability** — every cross-service call traverses one logged,
+  traced pipe instead of N ad-hoc client integrations.
+
+## Related pieces
+
+- `client-registry-repo` — known client identities used by the
+  client-identity gate on inbound US routes.
+- `service-events-bus` — lifecycle events (`service.register`,
+  `service.unregister`, `gateway_online`) that keep the registry
+  (and dependent consumers like the AI docs-pack pull) current.
+- `backend-identity` — the BE's own identity when calling US routes.

@@ -1,0 +1,67 @@
+---
+title: MCP Gateway
+description: "The Model Context Protocol surface — the /mcp JSON-RPC endpoint, the generic entity tool catalog, OAuth 2.1 for MCP clients, and the system/mcp call-and-catalog contract used by the AI tool loop."
+---
+
+# MCP gateway
+
+The `mcp` module exposes Primebrick's domain operations to AI clients over
+the **Model Context Protocol**. It has two distinct surfaces:
+
+| Surface | Consumer | Purpose |
+|---|---|---|
+| `POST /mcp` | External AI clients (Claude, ChatGPT, Cursor, VS Code) | Full MCP server — JSON-RPC 2.0, OAuth 2.1 Bearer auth |
+| `GET /system/mcp/tools` + `POST /system/mcp/call` | The Primebrick Frontend | Lightweight tool catalog + single-call execution for the in-app assistant |
+
+Both surfaces expose the **same tool catalog** — one registry in
+`modules/mcp/tools/` — so an operation exists identically for external
+agents and for the internal chat loop.
+
+## The tool catalog
+
+Eleven generic tools work across every registered entity — they dispatch
+through `entity-registry`/`dispatch`, so a newly installed module's entities
+become tool-addressable with zero tool-code changes:
+
+`list_entities`, `get_entity_meta`, `list_records`, `get_record`,
+`create_record`, `update_record`, `delete_record`, `restore_record`,
+`get_audit`, `bulk_delete_records`, `list_services`.
+
+Each tool declaration carries a `read_only` flag — the caller uses it to
+decide whether a call needs user confirmation.
+
+## The caller-driven loop (internal assistant)
+
+The AI microservice is **inference-only** — it never calls application
+tools. The Frontend owns the agentic loop:
+
+1. `GET /system/mcp/tools` → OpenAI-style tool definitions (+ `read_only`).
+2. FE passes `tools[]` to `POST /api/v1/ai/chat`.
+3. LLM requests a tool → AI emits `client-tool-call` and stops.
+4. FE executes `POST /system/mcp/call` — read-only tools immediately,
+   write tools behind a user confirmation.
+5. FE resubmits `/api/v1/ai/chat` with `history` + `tool_results` — repeat
+   until `finish` (FE bounds the loop at 8 steps).
+
+`mcp-call.service` executes each call inside the same entity service
+machinery the HTTP routes use — permissions, validation and audit are
+identical to a UI action.
+
+## OAuth 2.1 for external MCP clients
+
+`/mcp` implements the 2025-06-18 MCP authorization profile:
+
+- **RFC 9728** — protected-resource metadata
+  (`/.well-known/oauth-protected-resource`)
+- **RFC 8414** — authorization-server metadata
+  (`/.well-known/oauth-authorization-server`)
+- **RFC 7591** — dynamic client registration (`/mcp/oauth/register`)
+- Authorization Code flow at `/mcp/oauth/authorize` → Bearer tokens verified
+  by `token-verifier` per request
+
+Registered OAuth clients are persisted in `oauth/client-registry-dal`.
+
+## Discovery
+
+`tools/openapi-discovery` lets MCP clients introspect available API
+surfaces, so an agent can learn the platform without a hardcoded map.

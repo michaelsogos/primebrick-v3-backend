@@ -8,23 +8,23 @@ describe("OpenAPI Entity Discovery", () => {
         openapi: "3.1.0",
         info: { title: "Test", version: "1.0.0" },
         tags: [
-          { name: "providers", description: "Email provider configuration entities" },
-          { name: "config_entries", description: "Module configuration key-value entries" },
+          { name: "provider", description: "Email provider configuration entities" },
+          { name: "config_entry", description: "Module configuration key-value entries" },
         ],
         paths: {
-          "/api/v1/entities/providers/meta": {
-            get: { operationId: "get_providers_meta", tags: ["providers"] },
+          "/api/v1/entities/provider/meta": {
+            get: { operationId: "get_provider_meta", tags: ["provider"] },
           },
-          "/api/v1/entities/providers/list": {
-            get: { operationId: "list_providers", tags: ["providers"] },
+          "/api/v1/entities/provider/list": {
+            get: { operationId: "list_provider", tags: ["provider"] },
           },
-          "/api/v1/entities/providers/{uuid}": {
-            get: { operationId: "get_provider", tags: ["providers"] },
-            put: { operationId: "update_provider", tags: ["providers"] },
-            delete: { operationId: "delete_provider", tags: ["providers"] },
+          "/api/v1/entities/provider/{uuid}": {
+            get: { operationId: "get_provider", tags: ["provider"] },
+            put: { operationId: "update_provider", tags: ["provider"] },
+            delete: { operationId: "delete_provider", tags: ["provider"] },
           },
-          "/api/v1/entities/providers": {
-            post: { operationId: "create_provider", tags: ["providers"] },
+          "/api/v1/entities/provider": {
+            post: { operationId: "create_provider", tags: ["provider"] },
           },
         },
       };
@@ -32,7 +32,7 @@ describe("OpenAPI Entity Discovery", () => {
       const entities = discoverEntitiesFromSpec(spec);
 
       expect(entities).toHaveLength(1);
-      expect(entities[0].entity).toBe("providers");
+      expect(entities[0].entity).toBe("provider");
       expect(entities[0].label).toBe("Email provider configuration entities");
       expect(entities[0].supported_operations).toContain("list");
       expect(entities[0].supported_operations).toContain("get");
@@ -45,39 +45,39 @@ describe("OpenAPI Entity Discovery", () => {
     it("discovers multiple entities", () => {
       const spec = {
         paths: {
-          "/api/v1/entities/providers/list": {
-            get: { tags: ["providers"] },
+          "/api/v1/entities/provider/list": {
+            get: { tags: ["provider"] },
           },
-          "/api/v1/entities/providers/{uuid}": {
-            get: { tags: ["providers"] },
-            put: { tags: ["providers"] },
-            delete: { tags: ["providers"] },
+          "/api/v1/entities/provider/{uuid}": {
+            get: { tags: ["provider"] },
+            put: { tags: ["provider"] },
+            delete: { tags: ["provider"] },
           },
-          "/api/v1/entities/providers": {
-            post: { tags: ["providers"] },
+          "/api/v1/entities/provider": {
+            post: { tags: ["provider"] },
           },
-          "/api/v1/entities/config_entries/list": {
-            get: { tags: ["config_entries"] },
+          "/api/v1/entities/config_entry/list": {
+            get: { tags: ["config_entry"] },
           },
-          "/api/v1/entities/config_entries/{uuid}": {
-            get: { tags: ["config_entries"] },
-            put: { tags: ["config_entries"] },
+          "/api/v1/entities/config_entry/{uuid}": {
+            get: { tags: ["config_entry"] },
+            put: { tags: ["config_entry"] },
           },
-          "/api/v1/entities/config_entries/meta": {
-            get: { tags: ["config_entries"] },
+          "/api/v1/entities/config_entry/meta": {
+            get: { tags: ["config_entry"] },
           },
         },
         tags: [
-          { name: "providers", description: "Email providers" },
-          { name: "config_entries", description: "Config entries" },
+          { name: "provider", description: "Email providers" },
+          { name: "config_entry", description: "Config entries" },
         ],
       };
 
       const entities = discoverEntitiesFromSpec(spec);
 
       expect(entities).toHaveLength(2);
-      const providers = entities.find((e) => e.entity === "providers");
-      const configEntries = entities.find((e) => e.entity === "config_entries");
+      const providers = entities.find((e) => e.entity === "provider");
+      const configEntries = entities.find((e) => e.entity === "config_entry");
 
       expect(providers).toBeDefined();
       expect(providers!.supported_operations).toContain("list");
@@ -119,34 +119,34 @@ describe("OpenAPI Entity Discovery", () => {
     it("discovers restore and audit operations", () => {
       const spec = {
         paths: {
-          "/api/v1/entities/customers/list": {
-            get: { tags: ["customers"] },
+          "/api/v1/entities/customer/list": {
+            get: { tags: ["customer"] },
           },
-          "/api/v1/entities/customers/{uuid}": {
-            get: { tags: ["customers"] },
-            put: { tags: ["customers"] },
-            delete: { tags: ["customers"] },
+          "/api/v1/entities/customer/{uuid}": {
+            get: { tags: ["customer"] },
+            put: { tags: ["customer"] },
+            delete: { tags: ["customer"] },
           },
-          "/api/v1/entities/customers": {
-            post: { tags: ["customers"] },
+          "/api/v1/entities/customer": {
+            post: { tags: ["customer"] },
           },
-          "/api/v1/entities/customers/{uuid}/restore": {
-            post: { tags: ["customers"] },
+          "/api/v1/entities/customer/{uuid}/restore": {
+            post: { tags: ["customer"] },
           },
-          "/api/v1/entities/customers/{uuid}/audit": {
-            get: { tags: ["customers"] },
+          "/api/v1/entities/customer/{uuid}/audit": {
+            get: { tags: ["customer"] },
           },
-          "/api/v1/entities/customers/meta": {
-            get: { tags: ["customers"] },
+          "/api/v1/entities/customer/meta": {
+            get: { tags: ["customer"] },
           },
         },
-        tags: [{ name: "customers", description: "Customer entities" }],
+        tags: [{ name: "customer", description: "Customer entities" }],
       };
 
       const entities = discoverEntitiesFromSpec(spec);
 
       expect(entities).toHaveLength(1);
-      expect(entities[0].entity).toBe("customers");
+      expect(entities[0].entity).toBe("customer");
       expect(entities[0].supported_operations).toContain("list");
       expect(entities[0].supported_operations).toContain("get");
       expect(entities[0].supported_operations).toContain("create");
@@ -176,22 +176,22 @@ describe("OpenAPI Entity Discovery", () => {
     it("uses tag name as label when description is missing", () => {
       const spec = {
         paths: {
-          "/api/v1/entities/items/list": {
-            get: { tags: ["items"] },
+          "/api/v1/entities/item/list": {
+            get: { tags: ["item"] },
           },
         },
-        tags: [{ name: "items" }], // no description
+        tags: [{ name: "item" }], // no description
       };
 
       const entities = discoverEntitiesFromSpec(spec);
       expect(entities).toHaveLength(1);
-      expect(entities[0].label).toBe("items");
+      expect(entities[0].label).toBe("item");
     });
 
     it("uses entity name as label when no tags are present", () => {
       const spec = {
         paths: {
-          "/api/v1/entities/items/list": {
+          "/api/v1/entities/item/list": {
             get: {}, // no tags
           },
         },
@@ -199,7 +199,7 @@ describe("OpenAPI Entity Discovery", () => {
 
       const entities = discoverEntitiesFromSpec(spec);
       expect(entities).toHaveLength(1);
-      expect(entities[0].label).toBe("items");
+      expect(entities[0].label).toBe("item");
     });
   });
 });

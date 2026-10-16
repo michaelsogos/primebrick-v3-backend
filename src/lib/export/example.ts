@@ -1,3 +1,4 @@
+import { logger } from "@primebrick/sdk";
 import { exportDataWithTemplate } from './index.js';
 import type { ExportConfig } from './types.js';
 
@@ -139,7 +140,6 @@ const configItIT: ExportConfig = {
 
 // Run the export
 async function run() {
-  console.time('Export time');
   
   try {
     await exportDataWithTemplate(
@@ -150,7 +150,7 @@ async function run() {
       },
       configEnGB
     );
-    console.log('✓ Export completed (en-GB)');
+    logger.info('✓ Export completed (en-GB)', { tags: ["export"] });
     
     await exportDataWithTemplate(
       './template.xlsx',
@@ -160,13 +160,12 @@ async function run() {
       },
       configItIT
     );
-    console.log('✓ Export completed (it-IT)');
+    logger.info('✓ Export completed (it-IT)', { tags: ["export"] });
     
   } catch (error) {
-    console.error('Export error:', error);
+    logger.error('Export error:', { tags: ["export"], error: error });
   }
   
-  console.timeEnd('Export time');
 }
 
 // Uncomment to run the example

@@ -16,7 +16,7 @@
  * every call site (middleware, routers, services).
  */
 
-import type { Pool } from "pg";
+import { logger } from "@primebrick/sdk";
 import {
   initAuthConfig,
   loadAuthConfig as sdkLoadAuthConfig,
@@ -27,7 +27,7 @@ import {
   type OidcConfig,
   type GatewayConfig,
 } from "@primebrick/sdk";
-import { BeAuthConfigPort } from "./sdk-auth-ports.js";
+import { DomainAuthConfigPort } from "./sdk-auth-ports.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
 
 // Re-export types from SDK
@@ -43,8 +43,8 @@ export const getAuthConfig = sdkGetAuthConfig;
  * Load auth config from DB into the SDK's in-memory cache AND Redis.
  * Called once at startup and on invalidation.
  */
-export async function loadAuthConfig(pool: Pool): Promise<AuthConfig> {
-  initAuthConfig(new BeAuthConfigPort(pool));
+export async function loadAuthConfig(): Promise<AuthConfig> {
+  initAuthConfig(new DomainAuthConfigPort());
   const config = await sdkLoadAuthConfig();
 
   // Also store in Redis for cross-pod sharing
@@ -53,7 +53,7 @@ export async function loadAuthConfig(pool: Pool): Promise<AuthConfig> {
     try {
       await port.set(AUTH_CONFIG_CACHE_KEY, config, AUTH_CONFIG_TTL_MS);
     } catch (e) {
-      console.warn(`[cache] auth_config set failed: ${e}`);
+      logger.warn(`auth_config set failed: ${e}`, { tags: ["auth"] });
     }
   }
   return config;
@@ -68,7 +68,7 @@ export function invalidateAuthConfig(): void {
   const port = getCachePort();
   if (port) {
     port.del(AUTH_CONFIG_CACHE_KEY).catch((e) =>
-      console.warn(`[cache] auth_config invalidate failed: ${e}`)
+      logger.warn(`auth_config invalidate failed: ${e}`, { tags: ["auth"] })
     );
   }
 }

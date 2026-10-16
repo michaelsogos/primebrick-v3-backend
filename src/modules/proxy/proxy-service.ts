@@ -2,7 +2,7 @@
  * Generic microservice proxy — forwards HTTP requests to any registered
  * microservice via the service registry.
  *
- * URL pattern: /ws/:serviceCode/v1/... → {base_url}/api/v1/...
+ * URL pattern: /ws/:serviceCode/api/v1/... → {base_url}/api/v1/... (path forwarded verbatim)
  *
  * The proxy:
  *   1. Authenticates the caller (via rbacHandler([AUTHENTICATED_USER]) on the route)
@@ -25,16 +25,75 @@
  *     RFC 7807 502 Bad Gateway.
  */
 
+import { extJsonStringify, extJsonParse, logger } from "@primebrick/sdk";
 import type { Request, Response } from "express";
-import { getPool } from "../../db/pool.js";
 import {
   getAuthConfig,
   serializeAuthUserToHeaders,
 } from "@primebrick/sdk";
-import { ServiceRegistryRepo, type ServiceRegistryEntry } from "./service-registry-repo.js";
+import { backendIdentityHeaders } from "./backend-identity.js";
+import { ServiceRegistryService, type ServiceRegistryEntry } from "../system/service-registry.service.js";
 
 // Round-robin counters (in-memory, per process, per service code)
 const rrCounters = new Map<string, number>();
+
+/**
+ * Header allowlist forwarded FE→US by the proxy (closed by default —
+ * anything not listed is dropped, so a client cannot smuggle arbitrary
+ * headers into a microservice).
+ *
+ * - x-mfa-action-authorization: MFA step-up token for US-side enforcement
+ * - if-none-match / if-match:   conditional requests (ETag caching)
+ * - x-request-id:               E2E correlation (generated here if absent)
+ * - accept-language:            client locale hint
+ * - x-forwarded-*:              client network context for US audit logs
+ * - x-forwarded-user-agent:     original client UA (the outbound User-Agent
+ *                               is the BE's own service identity, not the
+ *                               browser's — B11)
+ */
+const FORWARDED_REQUEST_HEADERS = [
+  "x-mfa-action-authorization",
+  "if-none-match",
+  "if-match",
+  "x-request-id",
+  "accept-language",
+] as const;
+
+/** Response headers forwarded US→FE (in addition to status + body). */
+const FORWARDED_RESPONSE_HEADERS = ["content-type", "etag"] as const;
+
+/**
+ * Build the outbound headers for a proxied request:
+ * allowlisted client headers + `x-forwarded-*` network context +
+ * a guaranteed `x-request-id`. Gateway auth headers are spread on top
+ * by the caller.
+ */
+export function buildProxyRequestHeaders(req: Request): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  for (const name of FORWARDED_REQUEST_HEADERS) {
+    const value = req.headers[name];
+    if (typeof value === "string" && value.length > 0) {
+      headers[name] = value;
+    }
+  }
+  headers["x-request-id"] ??= crypto.randomUUID();
+  if (req.ip) headers["x-forwarded-for"] = req.ip;
+  headers["x-forwarded-proto"] = req.protocol;
+  if (req.hostname) headers["x-forwarded-host"] = req.hostname;
+  // B11 service identity: the outbound User-Agent identifies the BE as the
+  // internal caller (registry-allowlisted); the original client UA is kept
+  // in x-forwarded-user-agent for US-side audit/observability. The client
+  // key is the BE's module config (`service_client_shield_key`), cached at startup by
+  // initBackendIdentity() — never an env var.
+  const clientUa = req.headers["user-agent"];
+  if (typeof clientUa === "string" && clientUa.length > 0) {
+    headers["x-forwarded-user-agent"] = clientUa;
+  }
+  Object.assign(headers, backendIdentityHeaders());
+  return headers;
+}
 
 /**
  * Forward a proxied request to the target microservice.
@@ -54,9 +113,7 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const pool = getPool();
-  const repo = new ServiceRegistryRepo(pool);
-  const allInstances = await repo.findAllByCode(serviceCode);
+  const allInstances = await new ServiceRegistryService().findAllByCode(serviceCode);
 
   if (allInstances.length === 0) {
     res.status(404).json({
@@ -71,6 +128,18 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
   }
 
   const onlineInstances = allInstances.filter((i) => i.status === "online");
+
+  // Migration-failed exemption: a degraded service 503s domain traffic
+  // itself, but its db-migration admin surface must stay reachable through
+  // the gateway for remediation. Only the migration prefix is forwarded —
+  // everything else stays walled off.
+  if (onlineInstances.length === 0) {
+    const path = req.url.replace(/^\/ws\/[^/]+/, "");
+    if (path.startsWith("/api/v1/system/db-migration")) {
+      const degraded = allInstances.find((i) => i.status === "migration_failed");
+      if (degraded) onlineInstances.push(degraded);
+    }
+  }
 
   if (onlineInstances.length === 0) {
     const hasGoingLive = allInstances.some((i) => i.status === "going_live");
@@ -101,9 +170,11 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
   const instance = onlineInstances[counter % onlineInstances.length];
   rrCounters.set(serviceCode, counter + 1);
 
-  // Build the target URL: {base_url}/api/{path_after_serviceCode}
+  // Build the target URL: {base_url}{path_after_serviceCode} — every US
+  // exposes its governed routes under /api/v1/*, so the path after
+  // /ws/:serviceCode is forwarded verbatim (no prefix rewriting).
   const pathAfterService = req.url.replace(/^\/ws\/[^/]+/, "");
-  const targetPath = `/api${pathAfterService}`;
+  const targetPath = pathAfterService;
   const targetUrl = new URL(targetPath, instance.base_url).toString();
 
   // Serialize the resolved AuthUser into headers for the microservice (GATEWAY-RESOLVED mode)
@@ -118,13 +189,13 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
     const fetchOptions: RequestInit = {
       method: req.method,
       headers: {
-        "Content-Type": "application/json",
+        ...buildProxyRequestHeaders(req),
         ...authHeaders,
       },
     };
 
     if (req.method !== "GET" && req.method !== "HEAD") {
-      fetchOptions.body = JSON.stringify(req.body);
+      fetchOptions.body = extJsonStringify(req.body);
     }
 
     const response = await fetch(targetUrl, fetchOptions);
@@ -134,15 +205,14 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
     if (!response.ok) {
       let parsedBody: unknown = body;
       try {
-        parsedBody = JSON.parse(body);
+        parsedBody = extJsonParse(body);
       } catch {
         // Body is not JSON — log as-is
       }
-      console.error(`[proxy] ${req.method} ${targetUrl} → ${response.status}`, {
+      logger.error(`${req.method} ${targetUrl} → non-OK response`, { tags: ["proxy", `${response.status}`],
         service_code: serviceCode,
         method: req.method,
         path: req.url,
-        status: response.status,
         us_response: parsedBody,
       });
     }
@@ -150,11 +220,16 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
     // Forward the response status code
     res.status(response.status);
 
-    // Forward content-type header
-    const contentType = response.headers.get("content-type");
-    if (contentType) {
-      res.setHeader("Content-Type", contentType);
-    } else {
+    // Forward allowlisted response headers (content-type, etag)
+    let hasContentType = false;
+    for (const name of FORWARDED_RESPONSE_HEADERS) {
+      const value = response.headers.get(name);
+      if (value) {
+        res.setHeader(name, value);
+        if (name === "content-type") hasContentType = true;
+      }
+    }
+    if (!hasContentType) {
       res.setHeader("Content-Type", "application/json");
     }
 
@@ -162,7 +237,7 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
     res.send(body);
   } catch (err) {
     // Network error — US is unreachable
-    console.error(`[proxy] Failed to reach ${targetUrl}:`, {
+    logger.error(`Failed to reach ${targetUrl}:`, { tags: ["proxy"],
       message: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack : undefined,
       service_code: serviceCode,
@@ -187,10 +262,9 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
 async function resolveServiceInstance(
   serviceCode: string,
   res: Response,
+  requestPath?: string,
 ): Promise<ServiceRegistryEntry | null> {
-  const pool = getPool();
-  const repo = new ServiceRegistryRepo(pool);
-  const allInstances = await repo.findAllByCode(serviceCode);
+  const allInstances = await new ServiceRegistryService().findAllByCode(serviceCode);
 
   if (allInstances.length === 0) {
     res.status(404).json({
@@ -205,6 +279,15 @@ async function resolveServiceInstance(
   }
 
   const onlineInstances = allInstances.filter((i) => i.status === "online");
+
+  // Same migration-failed exemption as proxyRequest — remediation surface only.
+  if (onlineInstances.length === 0) {
+    const path = (requestPath ?? "").replace(/^\/ws\/[^/]+/, "");
+    if (path.startsWith("/api/v1/system/db-migration")) {
+      const degraded = allInstances.find((i) => i.status === "migration_failed");
+      if (degraded) onlineInstances.push(degraded);
+    }
+  }
 
   if (onlineInstances.length === 0) {
     const hasGoingLive = allInstances.some((i) => i.status === "going_live");
@@ -258,10 +341,10 @@ export async function proxyRequestSse(req: Request, res: Response): Promise<void
   const instance = await resolveServiceInstance(serviceCode, res);
   if (!instance) return; // error already sent
 
-  // Build target URL: {ai_base_url}/api/{pathAfterAi}
-  // req.url here is the full path after the router mount point, e.g. "/api/v1/ai/chat".
-  const pathAfterAi = req.url.replace(/^\/api\/v1\/ai/, "");
-  const targetPath = `/api${pathAfterAi}`;
+  // Build target URL: {ai_base_url}{req.url} — the AI service exposes the
+  // same /api/v1/ai/* namespace the FE calls; the path is forwarded
+  // verbatim (no prefix rewriting).
+  const targetPath = req.url;
   const targetUrl = new URL(targetPath, instance.base_url).toString();
 
   // Serialize the resolved AuthUser into headers (GATEWAY-RESOLVED mode).
@@ -289,7 +372,7 @@ export async function proxyRequestSse(req: Request, res: Response): Promise<void
     const fetchOptions: RequestInit = {
       method: req.method,
       headers: {
-        "Content-Type": "application/json",
+        ...buildProxyRequestHeaders(req),
         Accept: "text/event-stream, application/json",
         ...authHeaders,
       },
@@ -297,7 +380,7 @@ export async function proxyRequestSse(req: Request, res: Response): Promise<void
     };
 
     if (req.method !== "GET" && req.method !== "HEAD") {
-      fetchOptions.body = JSON.stringify(req.body);
+      fetchOptions.body = extJsonStringify(req.body);
     }
 
     const response = await fetch(targetUrl, fetchOptions);
@@ -308,15 +391,14 @@ export async function proxyRequestSse(req: Request, res: Response): Promise<void
       const body = await response.text();
       let parsedBody: unknown = body;
       try {
-        parsedBody = JSON.parse(body);
+        parsedBody = extJsonParse(body);
       } catch {
         // Body is not JSON — log as-is
       }
-      console.error(`[proxy-sse] ${req.method} ${targetUrl} → ${response.status}`, {
+      logger.error(`${req.method} ${targetUrl} → non-OK response`, { tags: ["proxy", `${response.status}`],
         service_code: serviceCode,
         method: req.method,
         path: req.url,
-        status: response.status,
         ai_response: parsedBody,
       });
 
@@ -353,7 +435,7 @@ export async function proxyRequestSse(req: Request, res: Response): Promise<void
       // Client disconnected — not an error, just stop.
       return;
     }
-    console.error(`[proxy-sse] Failed to reach ${targetUrl}:`, {
+    logger.error(`Failed to reach ${targetUrl}:`, { tags: ["proxy"],
       message: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack : undefined,
       service_code: serviceCode,

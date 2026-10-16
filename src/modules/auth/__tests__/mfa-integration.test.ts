@@ -6,22 +6,32 @@
  *
  * Prerequisites:
  *   - BE dev server running on port 3001
- *   - Admin user with username "admin" / password "admin" (seeded by setup-casdoor)
- *   - Admin user has at least one enrolled MFA factor
+ *   - E2E test actor credentials via env: E2E_ADMIN_USERNAME (default
+ *     "test-admin") and E2E_ADMIN_PASSWORD. NEVER use the dev bootstrap
+ *     "admin" user in tests — its credentials/MFA state are not test data.
+ *   - The test actor has at least one enrolled MFA factor
  *
  * If the server is not reachable, all tests are skipped.
  *
- * NOTE: These tests depend on the admin user having MFA enrolled. The TOTP
- * secret is read from the database via the test helper. If the admin has no
+ * NOTE: These tests depend on the test actor having MFA enrolled. The TOTP
+ * secret is read from the database via the test helper. If the actor has no
  * MFA factor, the enrollment tests are skipped.
  */
 
+import { logger } from "@primebrick/sdk";
 import { describe, it, expect, beforeAll } from "vitest";
 import { createHmac } from "crypto";
 
 const BASE_URL = "http://localhost:3001";
-const ADMIN_USERNAME = process.env.CASDOOR_ADMIN_USERNAME ?? "admin";
-const ADMIN_PASSWORD = process.env.CASDOOR_ADMIN_PASSWORD ?? "admin";
+// E2E test actor — never the dev bootstrap "admin" user.
+const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? "test-admin";
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? "";
+if (ADMIN_USERNAME === "admin") {
+  throw new Error(
+    "[TEST] Refusing to authenticate as the dev bootstrap 'admin' user. " +
+      "Use the seeded E2E test actor (test-admin) via E2E_ADMIN_* env vars.",
+  );
+}
 
 // ─── TOTP generation (same as the BE implementation) ────────────────────────
 
@@ -102,6 +112,12 @@ beforeAll(async () => {
 
   if (!serverReachable) return;
 
+  if (!ADMIN_PASSWORD) {
+    // No E2E credentials configured — login-dependent tests skip cleanly.
+    logger.warn("Skipping MFA integration login tests: E2E_ADMIN_PASSWORD not set");
+    return;
+  }
+
   // Try to login — if MFA is required, we know the admin has MFA
   try {
     const loginResp = await apiCall("/api/v1/auth/login", {
@@ -131,7 +147,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
   describe("server reachability", () => {
     it("BE dev server is running on port 3001", () => {
       if (!serverReachable) {
-        console.warn("Skipping MFA integration tests: BE dev server not reachable on port 3001");
+        logger.warn("Skipping MFA integration tests: BE dev server not reachable on port 3001");
       }
       expect(serverReachable).toBe(true);
     });
@@ -139,7 +155,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
 
   describe("login flow with MFA", () => {
     it("returns mfa_required when admin has MFA factors", async () => {
-      if (!serverReachable) return;
+      if (!serverReachable || !ADMIN_PASSWORD) return;
       const resp = await apiCall("/api/v1/auth/login", {
         method: "POST",
         body: { username: ADMIN_USERNAME, password: ADMIN_PASSWORD },
@@ -155,7 +171,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
     });
 
     it("rejects wrong password", async () => {
-      if (!serverReachable) return;
+      if (!serverReachable || !ADMIN_PASSWORD) return;
       const resp = await apiCall("/api/v1/auth/login", {
         method: "POST",
         body: { username: ADMIN_USERNAME, password: "wrong-password" },
@@ -166,7 +182,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
 
   describe("MFA enrollment endpoints (session-gated)", () => {
     it("GET /api/v1/auth/mfa/factors returns 401 without session", async () => {
-      if (!serverReachable) return;
+      if (!serverReachable || !ADMIN_PASSWORD) return;
       const resp = await apiCall("/api/v1/auth/mfa/factors");
       expect(resp.status).toBe(401);
     });
@@ -183,7 +199,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
 
   describe("step-up MFA endpoints", () => {
     it("POST /api/v1/auth/mfa/step-up/initiate returns 401 without session", async () => {
-      if (!serverReachable) return;
+      if (!serverReachable || !ADMIN_PASSWORD) return;
       const resp = await apiCall("/api/v1/auth/mfa/step-up/initiate", {
         method: "POST",
         body: { action: "delete", target_resource: "organizations" },
@@ -218,7 +234,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
 
   describe("MFA verify endpoint (PUBLIC)", () => {
     it("POST /api/v1/auth/mfa/verify returns 400 with missing fields", async () => {
-      if (!serverReachable) return;
+      if (!serverReachable || !ADMIN_PASSWORD) return;
       const resp = await apiCall("/api/v1/auth/mfa/verify", {
         method: "POST",
         body: {},
@@ -227,7 +243,7 @@ describe("MFA integration tests", { timeout: 15000 }, () => {
     });
 
     it("POST /api/v1/auth/mfa/verify returns 401 with invalid challenge token", async () => {
-      if (!serverReachable) return;
+      if (!serverReachable || !ADMIN_PASSWORD) return;
       const resp = await apiCall("/api/v1/auth/mfa/verify", {
         method: "POST",
         body: {

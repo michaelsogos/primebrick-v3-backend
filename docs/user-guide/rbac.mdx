@@ -1,313 +1,202 @@
 ---
-title: RBAC
-description: "Wildcard-based RBAC permission system with role mappings and admin bypass."
+title: Roles and Permissions
+description: How access control works in Primebrick — what roles are, where they come from, how they reach a user, and how to shape them around your organisation.
 ---
 
-# RBAC Permission System
+# Roles and permissions — how access works
 
-The backend uses a wildcard-based RBAC (Role-Based Access Control) system
-with pattern matching. Permissions are defined in code and mapped to
-Casdoor roles via the `role_mappings` table.
+Every screen in Primebrick answers one silent question for you: *"is this
+person allowed to do this?"* You never see the question being asked — you
+simply notice that a colleague can open a page you cannot, or that a button
+is greyed out for some users and not for others. This page explains, in
+plain terms, how that decision is made and who controls it.
 
-## Permission format
+## The idea in one picture
 
-Permissions follow the pattern: `module.action.granularity`
+A user never holds a permission directly. Permissions are bundled into
+**roles**, and roles are assigned to users — the same way a job title in a
+company bundles a set of responsibilities:
 
-| Permission | Description |
-|-----------|-------------|
-| `customers.read.all` | List all customers |
-| `customers.read.single` | Read a single customer |
-| `customers.read.audit` | Read customer audit trail |
-| `customers.create.single` | Create a single customer |
-| `customers.create.bulk` | Bulk create customers |
-| `customers.update.single` | Update a single customer |
-| `customers.update.bulk` | Bulk update customers |
-| `customers.delete.single` | Delete a single customer |
-| `customers.delete.bulk` | Bulk delete customers |
-| `customers.restore.single` | Restore a soft-deleted customer |
-| `customers.restore.bulk` | Bulk restore customers |
-| `customers.duplicate.bulk` | Bulk duplicate customers |
-| `customers.export` | Export customers |
-| `modules.read.all` | List all registered modules |
+<Mermaid chart={`
+flowchart LR
+    U["👤 User<br/>(Jane Doe)"] --> R1["🎖️ Role<br/>Sales Manager"]
+    U --> R2["🎖️ Role<br/>Employee"]
+    R1 --> P1["✔️ view customers"]
+    R1 --> P2["✔️ edit customers"]
+    R1 --> P3["✔️ export lists"]
+    R2 --> P4["✔️ view profile"]
+    R2 --> P5["✔️ edit own profile"]
+`} />
 
-## Wildcard support
+Jane Doe holds two roles. Everything she can do is the **union** of what those
+two roles allow — nothing more, nothing less.
 
-Wildcards use `*` to match any segment:
+## The three building blocks
 
-| Pattern | Matches |
-|---------|---------|
-| `customers.*` | All customer permissions |
-| `customers.read.*` | All customer read permissions |
-| `*` | Everything (equivalent to admin) |
+| Building block | What it is | Who defines it |
+|---|---|---|
+| **Permission** | A single allowed action — e.g. *"edit a customer"*, *"view audit history"*. The catalogue is fixed by the product; you cannot invent new permissions. | Primebrick (the system) |
+| **Role** | A named bundle of permissions, meaningful in *your* organisation — e.g. *"Sales Manager"*, *"Payroll & HR"*. | Your administrators |
+| **Assignment** | The link between a user and a role. One user can hold several roles; one role can be given to many users. | Your administrators |
 
-The wildcard matching converts the pattern to a regex at runtime
-(`matchesWildcard(pattern, permission)` in `permissions.ts`).
+The key insight: **the system ships the permissions, but your organisation
+decides how to group them**. That is what makes the model flexible — it
+adapts to how your company is actually organised instead of forcing you
+into a fixed hierarchy.
 
-## Role mappings
+## How a permission is written
 
-Role mappings link Casdoor roles to Primebrick permissions. They are
-stored in the `role_mappings` table:
+Every permission in the catalogue follows one grammar:
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `idp_role` | `text` | Casdoor role name (snake_case) |
-| `permissions` | `text[]` | Array of permission patterns |
-| `is_admin` | `boolean` | If true, bypasses all permission checks |
-
-### Default roles
-
-| Role | Permissions | Admin |
-|------|------------|-------|
-| `administrators` | (bypass) | `true` |
-| `collaborator` | `["customers.*"]` | `false` |
-| `guest` | `["customers.read.*"]` | `false` |
-
-## Implementation
-
-The `Permission` registry, wildcard matching, role expansion, and RBAC
-evaluation all live in `@primebrick/sdk` (the single source of truth shared by
-the BE and microservices). The BE's `rbac.middleware.ts` is a thin Express
-wrapper that calls the SDK's `checkRbac()`.
-
-**Key files (SDK — source of truth):**
-
-| File | Purpose |
-|------|---------|
-| `@primebrick/sdk` → `auth/permissions.ts` | `Permission` registry, `matchesWildcard`, `isPermissionGranted`, `expandPermissions` |
-| `@primebrick/sdk` → `auth/rbac.ts` | `checkRbac(user, requiredPerms, mode)` — framework-agnostic evaluation |
-| `@primebrick/sdk` → `auth/types.ts` | `AuthUser` type with `isAdmin` / `isSystem` / `permissions` |
-
-**Key files (BE — Express integration):**
-
-| File | Purpose |
-|------|---------|
-| `src/modules/auth/rbac.middleware.ts` | `rbacHandler(...)` / `rbacHandler.all(...)` factory + gateway-secret + auth delegation |
-| `src/modules/auth/auth.middleware.ts` | `authMiddleware()` — populates `req.user` via SDK `verifyAuth()` |
-| `src/modules/auth/sdk-auth-ports.ts` | `BeUserResolverPort` / `BeRoleMappingPort` — DB-backed ports for the SDK |
-| `src/modules/auth/role-mapping-repo.ts` | Role mapping repository (reads `role_mappings` table) |
-| `src/http/protected-router.ts` | `makeProtectedRouter()` — secure-first factory, default-deny on missing declaration |
-
-**Key functions:**
-
-- `checkRbac(user, requiredPermissions, mode)` — returns `{ allowed: boolean, missing?: string[] }`
-- `expandPermissions(roles, getRoleMappingFn)` — returns `{ patterns, isAdmin }`
-- `isPermissionGranted(userPermissions, requiredPermission)` — exact match or wildcard
-- `matchesWildcard(pattern, permission)` — converts `*` to regex (`customers.read.*` → `/^customers\.read\..*$/`)
-- `isPermissionSentinel(p)` — `true` for `PUBLIC` / `AUTHENTICATED_USER` / `AUTHENTICATED_ADMIN`
-- `listNonSentinelPermissions()` — all real permissions (used by the FE role-management UI)
-
-## The `rbacHandler(...)` declaration
-
-Every protected route MUST attach a handler produced by `rbacHandler(...)` as
-the **first** handler in the chain. The handler:
-
-1. In GATEWAY mode, validates the gateway-secret header (PUBLIC routes use the
-   public secret; authenticated routes use the regular secret).
-2. For non-PUBLIC declarations, delegates to `authMiddleware()` to populate
-   `req.user` and the AsyncLocalStorage session.
-3. Evaluates `checkRbac(req.user, declaredPerms, mode)` — OR (any-of) by
-   default, AND (all-of) via `rbacHandler.all([...])`.
-
-The handler is tagged with a `PERMISSION_DECLARED` symbol so
-`makeProtectedRouter()` can detect routes that forgot the declaration and
-inject a 403 default-deny (see
-[Architecture: secure-first policy](./architecture#makeprotectedrouter--secure-first-router-factory)).
-
-### OR semantics (default) — any-of
-
-The user passes if they hold **at least one** of the declared permissions. This
-is the common case for read endpoints that accept either a list-all or a
-read-single permission.
-
-```typescript
-import { rbacHandler } from "../auth/rbac.middleware.js";
-import { Permission } from "@primebrick/sdk";
-
-// The user passes with EITHER customers.read.all OR customers.read.single.
-registerRoutes(router, [
-  {
-    method: "get",
-    path: "/api/v1/entities/customer/meta",
-    permission: rbacHandler([Permission.CUSTOMERS_READ_ALL, Permission.CUSTOMERS_READ_SINGLE]),
-    handler: getMeta,
-  },
-]);
+```
+{scope}.{action}.{cardinality}
 ```
 
-### AND semantics — all-of
+- **scope** — the entity the permission acts on, in *singular* snake_case:
+  `customer`, `organization`, `user_profile`, `role_mapping`,
+  `auth_event` (the audit log). Entities that live in a module carry the
+  module prefix: `modules.config.read.single`.
+- **action** — what is allowed: `read`, `create`, `update`, `delete`,
+  `restore`, `duplicate`, plus `audit` (history) and `export`.
+- **cardinality** — how much of the scope it covers:
+  - `.single` — one record at a time (open a customer, edit a user)
+  - `.all` — the whole list (the grid itself)
+  - `.bulk` — many records in one shot (bulk delete, bulk restore)
+  - read-audit and export have no cardinality: `customer.read.audit`,
+    `customer.export`
 
-Use `rbacHandler.all([...])` when the user must hold **every** declared
-permission. Useful for high-risk operations that combine two concerns (e.g.
-"can delete AND can export").
+Real examples from the catalogue:
 
-```typescript
-// The user must hold BOTH customers.delete.bulk AND customers.export.
-registerRoutes(router, [
-  {
-    method: "post",
-    path: "/api/v1/entities/customer/bulk-delete-and-export",
-    permission: rbacHandler.all([
-      Permission.CUSTOMERS_DELETE_BULK,
-      Permission.CUSTOMERS_EXPORT,
-    ]),
-    handler: bulkDeleteAndExport,
-  },
-]);
-```
+| Permission | Meaning |
+|---|---|
+| `customer.read.all` | see the customers list |
+| `customer.read.single` | open a single customer |
+| `customer.create.single` | create a customer |
+| `customer.delete.bulk` | bulk-delete customers |
+| `role_mapping.update.single` | edit a role mapping |
+| `auth_event.read.audit` | view the audit history |
+| `customer.export` | export the customers list |
 
-### Sentinels — `PUBLIC`, `AUTHENTICATED_USER`, `AUTHENTICATED_ADMIN`
+Every CRUD entity owns the same canonical set of fourteen permissions —
+the four read flavours, and the five write actions in both `.single` and
+`.bulk` cardinality. You will recognise the pattern everywhere.
 
-Three pseudo-permissions are handled directly by the middleware (they are NOT
-stored in `role_mappings`). They must appear **alone** in the permission array
-— combining a sentinel with CRUD perms throws at route-registration time.
+### Wildcards
 
-```typescript
-// Public — reachable without a JWT. STILL requires gateway-secret in GATEWAY mode.
-rbacHandler([Permission.PUBLIC])
+You do not have to list permissions one by one. In a role's permission
+list, `*` matches **any sequence of segments**:
 
-// Any authenticated caller passes, regardless of roles.
-rbacHandler([Permission.AUTHENTICATED_USER])
+| Pattern | Grants |
+|---|---|
+| `customer.*` | every customer permission — all actions, all cardinalities |
+| `customer.read.*` | all three read flavours (`single`, `all`, `audit`) |
+| `*.read.all` | list access to every entity |
+| `*` | everything — equivalent to an administrator role |
 
-// Only callers with isAdmin === true pass. Use for high-risk non-CRUD admin-only
-// operations (e.g. admin change-password). System API keys (isSystem === true)
-// also bypass.
-rbacHandler([Permission.AUTHENTICATED_ADMIN])
-```
+Start broad when a role genuinely owns a whole entity (`finance` gets
+`invoice.*`), narrow when it should only look (`auditor` gets
+`*.read.single`).
 
-### Bypass rules
+### Where roles come from
 
-The SDK's `checkRbac()` applies these bypasses in order, before pattern matching:
+A *role mapping* links a **role defined in your identity provider** to the
+permission patterns it grants inside Primebrick. When a user signs in,
+their identity token carries the IDP roles they hold; the platform looks
+each one up in the role mappings table and unfolds the union of the
+permission patterns. Nothing is stored on the user record itself —
+the mapping *is* the bridge between the outside identity world and the
+application's permission catalogue.
 
-1. `Permission.PUBLIC` → always allowed.
-2. `Permission.AUTHENTICATED_USER` → allowed if user is authenticated.
-3. `user.isAdmin === true` → bypasses all checks (admin role).
-4. `user.isSystem === true` → bypasses all checks (system API key; actor = `"system"`).
-5. `Permission.AUTHENTICATED_ADMIN` → allowed only for admins (after the bypasses above).
+## Shaping roles around your organisation
 
-## 403 response shape
+There is no single "right" way to carve up roles. Two common approaches —
+often combined:
 
-When `checkRbac()` returns `{ allowed: false }`, the middleware throws a
-`ForbiddenError` (or `UnauthorizedError` for the admin-only sentinel) with the
-missing permissions in `extra.issues`. The frontend reads `extra.issues` to
-show a precise "you need X" message.
+**By job title** — one role per position in the org chart:
 
-```json
-{
-  "type": "/errors/forbidden",
-  "title": "Forbidden",
-  "status": 403,
-  "detail": "Insufficient permissions to perform this action",
-  "instance": "/api/v1/entities/customer/list",
-  "internal_code": "RBAC_PERMISSION_DENIED",
-  "severity": "MEDIUM",
-  "extra": {
-    "issues": [{
-      "kind": "missing_any_of_permissions",
-      "required": ["customers.read.all"],
-      "missing": ["customers.read.all"],
-      "mode": "any",
-      "user_roles": ["guest"]
-    }]
-  }
-}
-```
+| Role | Typical permissions |
+|---|---|
+| Sales Manager | view + edit customers, export lists, view orders |
+| Sales Director | everything a Sales Manager can do, plus reports |
+| Payroll & HR Manager | view + edit users, manage organisations |
+| CFO | read-only access to nearly everything, financial entities in full |
 
-For `rbacHandler.all([...])`, `kind` is `"missing_permissions"` and `missing`
-lists the specific perms the user doesn't hold. For `AUTHENTICATED_ADMIN`, the
-middleware throws `UnauthorizedError` with `internal_code: "RBAC_ADMIN_ONLY"`
-and `extra.issues[0].kind === "missing_admin"`.
+**By company function** — roles mirror departments rather than titles, and
+several people share the same role regardless of seniority:
 
-## Adding a new permission
+| Role | Typical permissions |
+|---|---|
+| Sales | customers and orders |
+| Operations | configurations and modules |
+| Finance & Control | invoices, audit history, read access everywhere |
 
-### 1. Add the constant to the `Permission` registry
+You can go as fine-grained as you need — a single permission for a
+*power-user* role, or broad bundles for *department* roles. The
+granularity is a business decision, not a technical constraint.
 
-The `Permission` object in `@primebrick/sdk` → `src/auth/permissions.ts` is the
-single source of truth. Add a new entry following the `module.action.granularity`
-convention.
+## Who decides what
 
-```typescript
-// @primebrick/sdk → src/auth/permissions.ts
-export const Permission = {
-  // ...existing entries...
-  CUSTOMERS_IMPORT: "customers.import",          // new!
-  CUSTOMERS_IMPORT_BULK: "customers.import.bulk", // new!
-} as const;
-```
+<Mermaid chart={`
+flowchart TD
+    A["Your organisation decides<br/>which roles exist and what<br/>permissions each bundles"] --> B["An administrator creates<br/>the role in Settings"]
+    B --> C["The role is assigned<br/>to a user"]
+    C --> D["From then on, every screen<br/>and action checks the user's<br/>roles automatically"]
+`} />
 
-### 2. Declare it on the route
+- **Where roles are created:** in the *Roles* administration screen — see
+  [Roles](/docs/user-guide/generated/roles) for the step-by-step procedure.
+- **Where assignments happen:** on the user's profile — see
+  [Users](/docs/user-guide/generated/users).
+- **Where permissions come from:** they are part of the product itself.
+  Each area of the application declares what can be done there (view,
+  create, edit, delete, restore, audit…). Administrators compose them
+  into roles; they never edit the permission list itself.
 
-```typescript
-// src/modules/customers/router.ts
-import { Permission } from "@primebrick/sdk";
+## How to grant permissions to a user
 
-registerRoutes(router, [
-  {
-    method: "post",
-    path: "/api/v1/entities/customer/import",
-    permission: rbacHandler([Permission.CUSTOMERS_IMPORT]),
-    middlewares: [validateBody(CustomerImportBodySchema)],
-    handler: importCustomers,
-  },
-]);
-```
+1. Open the **Roles** page and create or edit a role mapping: pick the
+   **IDP Role**, the **Organization**, a **Label** and the **Permissions**
+   patterns to grant (e.g. `customer.*`, `customer.read.single`). See
+   [Create a role](/docs/user-guide/generated/roles-create) and
+   [Edit a role](/docs/user-guide/generated/roles-edit).
+2. Open the user from **Users** and, in the edit form, select the role in
+   **Application Roles** — administrator roles show a
+   **System Administrator** badge next to their name. See
+   [Edit a user](/docs/user-guide/generated/users-edit).
+3. Click **Save** — the user now holds the union of all permissions
+   granted by the assigned roles.
 
-### 3. Grant it via a role mapping (SQL)
+## A word on administrator roles
 
-Insert a row into `role_mappings` (or update an existing one) to grant the new
-permission to a role. Wildcards work — `customers.*` already covers
-`customers.import` and `customers.import.bulk`.
+Some roles are marked with the **Administrator** flag. This flag does not
+merely add permissions — it **bypasses every permission check entirely**:
+a user holding an administrator role can perform any action in the
+application, equivalent to granting `*`. That is why administrator roles
+show the *System Administrator* badge in the Application Roles picker.
 
-```sql
--- Grant the new permission to the "collaborator" role.
-UPDATE role_mappings
-SET permissions = array_append(permissions, 'customers.import')
-WHERE idp_role = 'collaborator';
+Assign them deliberately: an administrator role is not "a role with more
+permissions", it is the keys to the control room. Regular users should
+receive task-oriented roles instead.
 
--- Or grant both new permissions at once:
-UPDATE role_mappings
-SET permissions = permissions || ARRAY['customers.import', 'customers.import.bulk']
-WHERE idp_role = 'collaborator';
-```
+> **Do not confuse the two admin flags.** The *Administrator* flag lives
+> on the **role mapping** and grants application administration. The
+> separate *Admin / Identity Administrator* flag on the **user record**
+> grants administration of the identity-provider system itself — it does
+> not make the user an application administrator.
 
-### 4. Reload the role mapping cache
+## A worked example
 
-Role mappings are loaded into memory at startup. After a DB update, restart the
-backend so `loadRoleMappings()` re-reads the table:
+> *Jane Doe joins the finance team. The administrator creates her user,
+> then assigns two roles: **Finance & Control** (can view every entity,
+> read-only) and **Employee** (can manage her own profile). Three months
+> later she is promoted to team lead: the administrator adds **Payroll &
+> HR Manager**, and — without touching her account in any other way —
+> she can now manage users too. Nothing about Jane Doe changed; only the
+> bundle of permissions she carries did.*
 
-```bash
-# In dev: tsx watch picks up the change automatically on the next restart.
-# In prod: restart the primebrick-api process.
-pnpm run dev
-```
+## Where to go next
 
-There is no need to update `listNonSentinelPermissions()` — it iterates
-`Object.values(Permission)` at runtime, so the FE role-management UI picks up
-the new permission automatically on the next permissions-catalog fetch.
-
-## Testing RBAC changes
-
-After updating role mappings in the database, restart the backend server to
-reload the role mapping cache. In dev, `tsx watch` restarts on file changes but
-NOT on DB changes — restart it manually after a `UPDATE role_mappings`.
-
-A quick sanity check with curl:
-
-```bash
-# Login as the user whose role you updated
-curl -X POST http://localhost:3001/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"<user>","password":"<password>"}' -c cookies.txt
-
-# Call the endpoint that requires the new permission
-curl http://localhost:3001/api/v1/entities/customer/import \
-  -X POST -H "Content-Type: application/json" \
-  -d '{"rows":[]}' -b cookies.txt -i
-# 200 → permission granted. 403 RBAC_PERMISSION_DENIED → role mapping not applied.
-```
-
-## Next steps
-
-- [Authentication](./authentication) — the auth middleware that populates `req.user` before RBAC runs.
-- [Architecture](./architecture) — the secure-first `makeProtectedRouter()` and the request-flow diagram.
-- [Collaboration](./collaboration) — how the actor context feeds audit fields.
-- [SDK API reference](/sdk/guide/api-reference) — `checkRbac`, `expandPermissions`, `Permission` registry.
+- [Roles](/docs/user-guide/generated/roles) — create, edit and delete roles
+- [Users](/docs/user-guide/generated/users) — assign roles to a person
+- [Organizations](/docs/user-guide/generated/organizations) — roles can be
+  scoped per organisation

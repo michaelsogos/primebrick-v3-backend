@@ -1,0 +1,58 @@
+---
+title: Edit Role Mapping
+description: Update role permissions and display label.
+entity: role_mapping
+---
+
+Update role permissions and display label.
+
+## Pages routes
+
+- `/system/settings/roles` — List, search and manage all role mappings.
+- `/system/settings/roles/create` — Create a new role.
+- `/system/settings/roles/{uuid}` — View and edit an existing role. *(this page)*
+
+## What you can do here
+
+### How to edit a role mapping
+1. On the **Roles** list page, open the row actions menu on the role mapping you want to edit and click **Edit**.
+2. Update the fields below — required: **label key**, **selected permissions**.
+3. Click **Save** — the changes to the role mapping are saved.
+
+- The **is admin** flag on this role mapping marks it as an administrator role mapping — assign the role mapping to a profile via **Edit Profile** → **roles**.
+- The **is admin** flag on this role mapping marks it as an administrator role mapping — assign the role mapping to a user via **Edit User** → **Application Roles**.
+
+## Fields
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **Label Key** | required | text input |
+| **Admin** | optional | checkbox |
+| **Permissions** | required | button |
+
+- The **Label Key** field is a required text input.
+- The **Admin** field is an optional checkbox.
+- The **Permissions** field is a required button.
+
+## Related entities
+
+- A **Role Mapping** is linked to **Organizations** through the **Organization** field — see [Organizations](/docs/user-guide/generated/organizations).
+- A **Role Mapping** is linked to **Roles** through the **Permissions** field — see [Roles](/docs/user-guide/generated/roles).
+
+## Actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **Save** | ENABLED | `role_mapping.update.single` | Validates the form and saves changes to the role mapping | no |
+| **Cancel** | ENABLED | — | Discards changes and returns to the previous page | no |
+
+- The **Save** action is available on this page — validates the form and saves changes to the role mapping and it requires the `role_mapping.update.single` permission.
+- The **Cancel** action is available on this page — discards changes and returns to the previous page.
+
+## Doc references
+
+- [Roles](/docs/user-guide/generated/roles)
+- [Roles Create](/docs/user-guide/generated/roles-create)
+- [Organizations](/docs/user-guide/generated/organizations)
+- [Entities Crud](/docs/user-guide/manual/entities-crud)
+

@@ -1,32 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Use vi.hoisted for mocks that need to be referenced in vi.mock factories
-const { mockSendEmail, mockGenerateAlertLink, mockGenerateAdminMailto, mockRepo } = vi.hoisted(() => ({
+const { mockSendEmail, mockGenerateAlertLink, mockGenerateAdminMailto } = vi.hoisted(() => ({
   mockSendEmail: vi.fn(),
   mockGenerateAlertLink: vi.fn(),
   mockGenerateAdminMailto: vi.fn(),
-  mockRepo: {
-    add: vi.fn(),
-    find: vi.fn(),
-    findAll: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-  },
 }));
 
-// Mock @primebrick/sdk
-vi.mock("@primebrick/sdk", () => ({
+// Mock @primebrick/sdk — partial: keep the real module so decorators and
+// helpers pulled transitively (e.g. @Cached via config_entry_entity through
+// config-entries.service) still work; only requireActor is stubbed.
+vi.mock("@primebrick/sdk", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@primebrick/sdk")>()),
   requireActor: () => "test-actor-uuid",
 }));
-
-// Mock @primebrick/dal-pg
-vi.mock("@primebrick/dal-pg", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@primebrick/dal-pg")>();
-  return {
-    ...actual,
-    Repository: vi.fn().mockImplementation(function () { return mockRepo; }),
-  };
-});
 
 // Mock email-sender
 vi.mock("../services/email-sender.js", () => ({
@@ -56,11 +43,9 @@ vi.mock("../config.js", () => ({
 // Import after mocks
 import { UserService } from "../services/user.service.js";
 import { CasdoorService } from "../services/casdoor.service.js";
-import type { Pool } from "pg";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const mockPool = {} as Pool;
 
 function makeMockCasdoorService(checkResult: any, changeResult: any) {
   const mockClient = {
@@ -74,17 +59,17 @@ function makeMockCasdoorService(checkResult: any, changeResult: any) {
 }
 
 function makeUserService(mockCasdoor: any): UserService {
-  const dal = {
-    getByUuid: vi.fn().mockResolvedValue({
-      uuid: "user-uuid-1",
-      idp_code: "ACME/admin",
-      idp_org: "ACME",
-      idp_username: "admin",
-      display_name: "Admin User",
-      email: "admin@example.com",
-    }),
-  };
-  return new UserService(mockPool, dal as any, mockCasdoor as any);
+  const service = new UserService(mockCasdoor as any);
+  // Stub the profile read at the service seam — no DB access in unit tests.
+  service.getByUuid = vi.fn().mockResolvedValue({
+    uuid: "user-uuid-1",
+    idp_code: "ACME/test-admin",
+    idp_org: "ACME",
+    idp_username: "test-admin",
+    display_name: "Admin User",
+    email: "test-admin@example.com",
+  });
+  return service;
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -93,7 +78,7 @@ describe("UserService — changeOwnPassword", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGenerateAlertLink.mockResolvedValue("https://app/login?alert=xxx");
-    mockGenerateAdminMailto.mockResolvedValue("mailto:admin@example.com");
+    mockGenerateAdminMailto.mockResolvedValue("mailto:test-admin@example.com");
   });
 
   it("changes password when current password is correct", async () => {
@@ -107,11 +92,11 @@ describe("UserService — changeOwnPassword", () => {
 
     expect(result.status).toBe("ok");
     expect(mockClient.checkUserPassword).toHaveBeenCalledWith(
-      { id: "ACME/admin", owner: "ACME", name: "admin" },
+      { id: "ACME/test-admin", owner: "ACME", name: "test-admin" },
       "correct-pw",
     );
     expect(mockClient.changePassword).toHaveBeenCalledWith(
-      { id: "ACME/admin", owner: "ACME", name: "admin" },
+      { id: "ACME/test-admin", owner: "ACME", name: "test-admin" },
       "new-pw-123",
     );
   });
@@ -143,7 +128,7 @@ describe("UserService — changeOwnPassword", () => {
     expect(mockSendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         template_code: "password_changed",
-        to: ["admin@example.com"],
+        to: ["test-admin@example.com"],
       }),
     );
   });
@@ -166,7 +151,7 @@ describe("UserService — changeOwnPassword", () => {
     const { mockCasdoor } = makeMockCasdoorService({ status: "ok" }, { status: "ok" });
     const service = makeUserService(mockCasdoor);
     // Override getByUuid to return null
-    (service as any).dal.getByUuid = vi.fn().mockResolvedValue(null);
+    service.getByUuid = vi.fn().mockResolvedValue(null);
 
     await expect(
       service.changeOwnPassword("nonexistent-uuid", "pw", "new-pw"),
@@ -189,7 +174,7 @@ describe("UserService — changePassword (admin) sends notification email", () =
   beforeEach(() => {
     vi.clearAllMocks();
     mockGenerateAlertLink.mockResolvedValue("https://app/login?alert=xxx");
-    mockGenerateAdminMailto.mockResolvedValue("mailto:admin@example.com");
+    mockGenerateAdminMailto.mockResolvedValue("mailto:test-admin@example.com");
   });
 
   it("sends password_changed email after admin password change", async () => {
@@ -207,7 +192,7 @@ describe("UserService — changePassword (admin) sends notification email", () =
     expect(mockSendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         template_code: "password_changed",
-        to: ["admin@example.com"],
+        to: ["test-admin@example.com"],
       }),
     );
   });

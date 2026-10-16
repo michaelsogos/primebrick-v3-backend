@@ -1,0 +1,257 @@
+/**
+ * auth-session.router — thin controller for authentication session endpoints.
+ *
+ * Endpoints:
+ *   POST   /api/v1/auth/login    → Casdoor OAuth password grant, sets cookies
+ *   POST   /api/v1/auth/refresh  → Casdoor OAuth refresh grant, sets cookies
+ *   GET    /api/v1/auth/config   → public auth flags (enable_webauthn, passkey_required, enable_mfa)
+ *   PATCH  /api/v1/auth/me       → self-service profile update
+ *   GET    /api/v1/auth/me       → fetch own profile
+ *   GET    /api/v1/auth/me/meta  → metadata for the self-service profile form
+ *
+ * The router contains NO business logic. Cookies are set via the
+ * `setAuthCookies` / `clearRefreshCookie` helpers (the only place the auth
+ * flow touches `res` for cookies). All errors are thrown as `ApiError`
+ * subclasses and converted to RFC 7807 by the centralized `errorHandler`.
+ */
+
+import type { RequestHandler, Response } from "express";
+import { z } from "zod";
+
+import { makeProtectedRouter } from "../../../http/protected-router.js";
+import { registerRoutes } from "../../../http/define-route.js";
+import { asyncHandler } from "../../../http/async-handler.js";
+import { validateBody } from "../../../http/validation.js";
+import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
+import { Permission, getAuthConfig } from "@primebrick/sdk";
+import {
+  setAuthCookies,
+  clearRefreshCookie,
+  buildUserFromClaims,
+} from "../../../modules/auth/services/auth-session.service.js";
+import { makeAuthSessionService, makeUserService } from "./wiring.js";
+import { LoginBodySchema, ProfileUpdateSchema, makeChangeOwnPasswordSchema } from "../../../modules/auth/dto.js";
+import { PasswordPolicy, DEFAULT_PASSWORD_POLICY } from "../../../modules/auth/password-policy.js";
+import { UnauthorizedError, ApiError } from "../../../http/api-errors.js";
+import type { EntityMeta } from "../../../http/entity-meta.types.js";
+import { assembleMeta } from "../../../http/meta-assembler.js";
+import { UserProfileEntity } from "../../../modules/auth/user_profile_entity.js";
+
+
+
+// Schema for self-service password change — requires current_password + newPassword
+const ChangeMyPasswordSchema = makeChangeOwnPasswordSchema(DEFAULT_PASSWORD_POLICY);
+
+/** Metadata for the self-service profile form (`GET /api/v1/auth/me/meta`).
+ *  Canonical `EntityMeta` shape — no `table` (form-only meta). */
+const meMeta: EntityMeta = {
+  entity: "user_profile",
+  translation_key: "user_profile",
+  uid: "uuid",
+  display_field: "display_name",
+  // Explicit because this meta is served directly, not via `assembleMeta`
+  // (which would default `display_name` to `"${" + display_field + "}"`).
+  display_name: "${display_name}",
+  columns: [
+    { key: "is_admin", label_key: "system.entities.user_profile.fields.is_admin", type: "boolean", order: 0, tooltip: "system.entities.user_profile.hints.is_admin", tooltip_priority: "WARNING", tooltip_title: "system.entities.user_profile.hints.is_admin_title", show_form_tooltip: true },
+    { key: "is_verified", label_key: "system.entities.user_profile.fields.is_verified", type: "boolean", order: 1, tooltip: "system.entities.user_profile.hints.is_verified", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.is_verified_title", show_form_tooltip: true },
+    { key: "email_verified", label_key: "system.entities.user_profile.fields.email_verified", type: "boolean", order: 2, tooltip: "system.entities.user_profile.hints.email_verified", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.email_verified_title", show_form_tooltip: true },
+    { key: "deleted_at", label_key: "system.entities.user_profile.fields.deleted_at", type: "datetime", order: 3, sortable: true, default_visible: false, filterable: true, audited: true },
+    { key: "deleted_by", label_key: "system.entities.user_profile.fields.deleted_by", type: "text", order: 4, sortable: false, default_visible: false, searchable: false, audited: true },
+    { key: "updated_at", label_key: "system.entities.user_profile.fields.updated_at", type: "datetime", order: 5, sortable: true, default_visible: false, filterable: true, audited: true },
+    { key: "updated_by", label_key: "system.entities.user_profile.fields.updated_by", type: "text", order: 6, sortable: false, default_visible: false, searchable: false, audited: true },
+    { key: "last_synced_at", label_key: "system.entities.user_profile.fields.last_synced_at", type: "datetime", order: 7, sortable: true, default_visible: false, filterable: true, audited: true },
+    { key: "created_at", label_key: "system.entities.user_profile.fields.created_at", type: "datetime", order: 8, sortable: true, default_visible: false, filterable: true, audited: true },
+    { key: "created_by", label_key: "system.entities.user_profile.fields.created_by", type: "text", order: 9, sortable: false, default_visible: false, searchable: false, audited: true },
+    { key: "version", label_key: "system.entities.user_profile.fields.version", type: "text", order: 10, sortable: false, default_visible: false, searchable: false, audited: true },
+  ],
+};
+
+function requireUserId(req: { user?: { id?: string } }): string {
+  const userId = (req as any).user?.id;
+  if (!userId) {
+    throw new UnauthorizedError("User ID not found in request", {
+      internal_code: "USER_NOT_AUTHENTICATED",
+    });
+  }
+  return userId;
+}
+
+export function authSessionRouter() {
+  const router = makeProtectedRouter();
+  const service = makeAuthSessionService();
+
+  const login: RequestHandler = asyncHandler(async (req, res) => {
+    const request_ctx = {
+      ip_address: (req.headers["x-forwarded-for"] as string) || req.ip,
+      user_agent: req.headers["user-agent"],
+    };
+    const outcome = await service.login(req.body as z.infer<typeof LoginBodySchema>, request_ctx);
+    if ("mfa_required" in outcome) {
+      // MFA challenge required — do NOT set cookies. The FE must present the
+      // MFA challenge UI and call POST /api/v1/auth/mfa/verify.
+      res.json({
+        success: false,
+        mfa_required: true,
+        mfa_challenge_token: outcome.mfa_challenge_token,
+        available_factors: outcome.available_factors,
+      });
+      return;
+    }
+    setAuthCookies(res as Response, outcome.tokens);
+    res.json({ success: true, user: buildUserFromClaims(outcome.claims) });
+  });
+
+  const refresh: RequestHandler = asyncHandler(async (req, res) => {
+    const refreshToken = req.cookies.refresh_token;
+    try {
+      const { tokens, claims } = await service.refresh(refreshToken);
+      setAuthCookies(res as Response, tokens);
+      res.json({ success: true, user: buildUserFromClaims(claims) });
+    } catch (err) {
+      // Clear invalid refresh token cookie on any auth failure.
+      clearRefreshCookie(res as Response);
+      throw err;
+    }
+  });
+
+  // Logout — PUBLIC on purpose: must work even with an expired access token.
+  // Both auth cookies are httpOnly → JS cannot clear them; only the server
+  // can. Clearing them is the auth boundary (the refresh token becomes
+  // unreachable to the browser even if still valid at the IdP).
+  const logout: RequestHandler = asyncHandler(async (_req, res) => {
+    res.clearCookie("access_token", { path: "/" });
+    clearRefreshCookie(res as Response);
+    res.json({ success: true });
+  });
+
+  const updateMe: RequestHandler = asyncHandler(async (req, res) => {
+    const userId = requireUserId(req);
+    const { profile } = await service.updateMe(userId, req.body as z.infer<typeof ProfileUpdateSchema>);
+    res.json({ success: true, profile });
+  });
+
+  const getMe: RequestHandler = asyncHandler(async (req, res) => {
+    const userId = requireUserId(req);
+    const { profile, has_passkey, auth_method_enforcer_dismissed, has_mfa } = await service.getMe(userId);
+    // Expanded permission set — same data the RBAC middleware computes per
+    // request (roles → role_mappings → wildcard patterns). The FE uses it for
+    // per-CTA enablement; BE enforcement stays authoritative.
+    const permissions = req.user ? Array.from(req.user.permissions) : [];
+    res.json({ success: true, profile, has_passkey, auth_method_enforcer_dismissed, has_mfa, permissions });
+  });
+
+  const getMeMeta: RequestHandler = asyncHandler(async (_req, res) => {
+    res.json(assembleMeta(meMeta, UserProfileEntity));
+  });
+
+  /**
+   * POST /api/v1/auth/me/dismiss-auth-method-enforcer
+   * Dismiss the auth method enforcer dialog (passkey/MFA prompt) for the current user.
+   */
+  const dismissAuthMethodEnforcer: RequestHandler = asyncHandler(async (req, res) => {
+    const userId = requireUserId(req);
+    const result = await service.dismissAuthMethodEnforcer(userId);
+    res.json(result);
+  });
+
+  /**
+   * POST /api/v1/auth/me/change-password
+   * Self-service password change for the authenticated user.
+   * Requires the current password for verification (sent to Casdoor).
+   * The email notification is sent by UserService.changeOwnPassword().
+   */
+  const changeMyPassword: RequestHandler = asyncHandler(async (req, res) => {
+    const userId = requireUserId(req);
+    const { current_password, newPassword } = req.body as z.infer<typeof ChangeMyPasswordSchema>;
+    const userService = makeUserService();
+    const result = await userService.changeOwnPassword(userId, current_password, newPassword);
+    if (result.status !== "ok") {
+      throw new ApiError(
+        "/errors/internal-error",
+        "Password change failed",
+        502,
+        result.msg || "Casdoor™ returned an error while changing the password",
+        { internal_code: "CASDOOR_CHANGE_PASSWORD_FAILED", severity: "HIGH" },
+      );
+    }
+
+    res.json({ success: true });
+  });
+
+  /**
+   * Public auth configuration — returns only the flags the FE needs to decide
+   * which login methods to show. No secrets, no endpoint URLs.
+   * `GET /api/v1/auth/config`
+   */
+  const getAuthConfigPublic: RequestHandler = asyncHandler(async (_req, res) => {
+    const cfg = getAuthConfig();
+    res.json({
+      enable_webauthn: cfg.enable_webauthn,
+      passkey_required: cfg.passkey_required,
+      enable_mfa: cfg.enable_mfa,
+    });
+  });
+
+  registerRoutes(router, [
+    {
+      method: "post",
+      path: "/api/v1/auth/login",
+      permission: rbacHandler([Permission.PUBLIC]),
+      middlewares: [validateBody(LoginBodySchema)],
+      handler: login,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/refresh",
+      permission: rbacHandler([Permission.PUBLIC]),
+      handler: refresh,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/logout",
+      permission: rbacHandler([Permission.PUBLIC]),
+      handler: logout,
+    },
+    {
+      method: "get",
+      path: "/api/v1/auth/config",
+      permission: rbacHandler([Permission.PUBLIC]),
+      handler: getAuthConfigPublic,
+    },
+    {
+      method: "patch",
+      path: "/api/v1/auth/me",
+      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
+      middlewares: [validateBody(ProfileUpdateSchema)],
+      handler: updateMe,
+    },
+    {
+      method: "get",
+      path: "/api/v1/auth/me",
+      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
+      handler: getMe,
+    },
+    {
+      method: "get",
+      path: "/api/v1/auth/me/meta",
+      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
+      handler: getMeMeta,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/me/dismiss-auth-method-enforcer",
+      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
+      handler: dismissAuthMethodEnforcer,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/me/change-password",
+      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
+      middlewares: [validateBody(ChangeMyPasswordSchema)],
+      handler: changeMyPassword,
+    },
+  ]);
+
+  return router;
+}

@@ -15,7 +15,7 @@
  *   - send notification emails when passkeys are added/removed
  */
 
-import type { IAuditableEntity } from "@primebrick/dal-pg";
+import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
@@ -33,9 +33,10 @@ export class UserPasskeyEntity implements IAuditableEntity {
   id: bigint;
 
   @Unique()
-  uuid: string;
+  uuid: UUID;
 
   /** FK to user_profiles.id. */
+  @Column({ nullable: false })
   user_profile_id: bigint;
 
   /** base64url credential ID from WebAuthn. */
@@ -60,19 +61,19 @@ export class UserPasskeyEntity implements IAuditableEntity {
   last_used_at?: Date;
 
   /** WebAuthn AuthenticatorAttachment: "platform" | "cross-platform". */
-  @Column({ length: 32, nullable: true })
+  @Column({ nullable: true })
   authenticator_attachment?: string;
 
   /** navigator.userAgent captured at enrollment (truncated to 512 chars). */
-  @Column({ length: 512, nullable: true })
+  @Column({ nullable: true })
   user_agent?: string;
 
   /** OS inferred from UA at enrollment (e.g. Windows, macOS, iOS, Android, Linux). */
-  @Column({ length: 64, nullable: true })
+  @Column({ nullable: true })
   os?: string;
 
   /** Device model inferred from UA at enrollment (e.g. "Windows PC", "Mac", "iPhone"). */
-  @Column({ length: 128, nullable: true })
+  @Column({ nullable: true })
   device_model?: string;
 
   @AuditableField(AuditableFieldType.CREATED_AT)

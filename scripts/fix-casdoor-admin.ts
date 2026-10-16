@@ -8,6 +8,11 @@ function toSnakeCaseLower(str: string): string {
 
 const CASDOOR_ENDPOINT = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
 const CASDOOR_CLIENT_ID = process.env.CASDOOR_CLIENT_ID || "primebrick-api";
+// ⚠️ DEV-ONLY REPAIR SCRIPT for the bootstrap `admin` identity. The `admin`
+// user is a dev first-login account — it must NEVER be used by tests of any
+// kind (unit/integration/E2E). Tests authenticate as the seeded E2E actors
+// `test-admin` / `test-user`; never destroy/recreate `admin`'s credentials,
+// MFA factors, or passkeys to bypass MFA in tests.
 const CASDOOR_ADMIN_USERNAME = process.env.CASDOOR_ADMIN_USERNAME || "admin";
 const CASDOOR_ADMIN_EMAIL = process.env.CASDOOR_ADMIN_EMAIL || "admin@acme.local";
 const CASDOOR_ADMIN_PASSWORD = process.env.CASDOOR_ADMIN_PASSWORD || "admin";

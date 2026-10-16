@@ -1,0 +1,289 @@
+---
+title: API Conventions
+description: "Endpoint taxonomy, naming conventions, and path standards for the Primebrick backend."
+---
+
+# API Conventions
+
+The backend exposes a standardized set of endpoint categories. Every HTTP
+route falls into exactly one category, each with its own path prefix and
+API style.
+
+## Endpoint categories
+
+| Category | Path prefix | API style | Purpose |
+|---|---|---|---|
+| Entity CRUD | `/api/v1/entities/:entity/...` | RESTful CRUD | Standard lifecycle operations on database-backed entities |
+| Auth RPC | `/api/v1/auth/...` | RPC | Authentication, session, MFA, WebAuthn |
+| System RPC | `/api/v1/system/...` | RPC | Infrastructure, config, runtime reads, health, OpenAPI |
+| MCP | `/mcp/...` | Tool protocol | AI tool-calling protocol (OAuth + transport) |
+| Webhooks | `/webhook/...` | RPC | External callbacks (US microservices only) |
+| Well-known | `/.well-known/...` | RPC | Protocol-mandated discovery (OAuth) |
+
+- **SYSTEM** is the default module for BE-internal RPC endpoints.
+- **AUTH** is a separate module for authentication.
+- **ENTITIES** is for RESTful CRUD only.
+- **MCP** is a distinct tool-calling protocol for AIs — not AUTH, not RPC, not CRUD.
+
+## Entity CRUD
+
+Database-backed entities with standard CRUD lifecycle use this pattern:
+
+```
+GET    /api/v1/entities/:entity/meta              → entity metadata
+GET    /api/v1/entities/:entity/list              → paginated list
+GET    /api/v1/entities/:entity/:uuid             → single record
+POST   /api/v1/entities/:entity                   → create
+PUT    /api/v1/entities/:entity/:uuid             → update
+DELETE /api/v1/entities/:entity/:uuid             → soft-delete
+DELETE /api/v1/entities/:entity/:uuid/purge       → hard-delete (opt-in capability)
+POST   /api/v1/entities/:entity/:uuid/restore     → restore
+GET    /api/v1/entities/:entity/:uuid/audit       → audit history
+POST   /api/v1/entities/:entity/bulk-delete       → bulk soft-delete
+POST   /api/v1/entities/:entity/bulk-restore      → bulk restore
+GET    /api/v1/entities/:entity/export            → streamed export
+GET    /api/v1/entities/:entity/check-availability → uniqueness check
+```
+
+`:entity` is always snake_case **singular** (e.g. `customer`, `organization`,
+`user_profile`).
+
+Bulk routes (`bulk-delete`, `bulk-restore`, `bulk-update`) and `export` are
+**per-entity opt-in**: an entity exposes them only when its router registers
+them, and a bulk op must be an atomic set operation — never a loop of single
+writes. `duplicate` is the exception: it is **ON by default** for every
+entity-factory router (`<entity>.duplicate.bulk` permission derived by
+convention) and is switched OFF explicitly via `duplicate: false` — currently
+disabled on `organization`, `role_mapping`, `user_profile`, `ai_model`, and
+`ai_cerebellum` (IdP-synced or domain-lifecycle entities where cloning is
+meaningless; the last two are served by the AI microservice via the
+`/ws/ai` proxy, but `duplicate` stays off there too). `organization` has no bulk routes by architectural necessity
+(per-record IdP sync) — see
+[Authentication → Organizations](./authentication#organizations). Since
+`meta.actions` is derived from the registered route table and always emits
+the full standard op vocabulary, absent routes surface as explicit
+`enabled: false` entries and the UI hides the corresponding actions.
+
+### Duplicate — clone semantics
+
+`POST /:entity/duplicate` accepts `{ "uuids": [...] }` and clones each source
+row: a fresh `uuid` is generated, `@Unique`/`@Key`/audit/deletable columns are
+reset, all other fields are copied verbatim, and `cloned_from` (when the
+entity declares `@CloneField`) points at the source uuid. Every clone writes
+an audit row with action **`CLONE`** (distinct from `INSERT`) so the version
+history can tell "created via clone" from "created via form" — the delta is
+the full new record. Per-item failures are collected in `errors` without
+aborting the batch.
+
+### Export — meta-derived pipeline
+
+`GET /:entity/export?file_type=csv|xlsx|html` streams the same row set the
+`list` endpoint would return for identical filters/search/sort (one shared
+filter builder — no duplicated query logic). The export layout is derived
+from entity meta: columns = meta columns minus audit-actor (`*_by`),
+`version`, `deleted_at`, and IANA-helper fields; header labels are resolved
+from each column's `label_key` through the translations service for the
+requested `locale`; `datetime` columns with `datetime_iana_toggle` are
+rendered in the record's own timezone. Templates resolve by convention at
+`templates/<entity>_export_template.{xlsx,html}`.
+
+### Delete semantics — soft vs hard capabilities
+
+Deletion is capability-driven and declared per entity:
+
+- **`DELETE /:uuid`** — soft delete (`deleted_at`/`deleted_by` stamp).
+  Registered only when the entity declares the delete capability.
+- **`DELETE /:uuid/purge`** — hard delete (physical `DELETE FROM`).
+  Opt-in capability; entities that support ONLY hard delete register just
+  this route — the soft `DELETE /:uuid` route does not exist and returns
+  `404`. Entities supporting both expose both routes.
+- `POST /:uuid/restore` and the `delete.bulk`/`restore.bulk` ops exist only
+  for soft-delete entities.
+
+Which endpoint applies is never a client guess: `meta.actions` emits
+`delete.single` (soft) and `purge.single` (hard) with `enabled` flags derived
+from the registered route table. The frontend's entity list table picks the
+correct URL automatically.
+
+`role_mapping` is the current hard-delete-only entity: deleting a role
+removes the local row AND the Casdoor role atomically (Casdoor first, local
+second), so there is no `deleted_at` lifecycle and no restore.
+
+### Optimistic concurrency (`?version=`)
+
+Every mutation that targets an existing row — `PUT /:uuid`,
+`DELETE /:uuid`, `DELETE /:uuid/purge`, `POST /:uuid/restore` — requires the
+caller-observed row `version` as a query parameter:
+
+```bash
+curl -X DELETE -H "Authorization: Bearer <jwt>" \
+  "http://localhost:3001/api/v1/entities/customer/<uuid>?version=3"
+```
+
+- Missing or non-integer `version` → `400` with `internal_code:
+  VERSION_REQUIRED`.
+- A stale version (row modified by someone else since you read it) → the
+  write's `WHERE ... AND version = $n` matches zero rows → `409`
+  concurrency error.
+- The `version` field is present on every entity row returned by `list`
+  and `get` — always send back the version you observed.
+
+### Write responses — the entity is the response
+
+Every entity write (`create`, `update`, `delete`, `purge`, `restore`)
+returns the **authoritative entity row** produced by PostgreSQL
+`RETURNING` — never a wrapper like `{ "success": true }` and never a
+hand-built DTO. `create` uses `201`, the other writes `200`.
+
+RPC endpoints under `/api/v1/auth/*` and `/api/v1/system/*` are exempt —
+they orchestrate workflows (e.g. user creation = Casdoor + profile +
+invitation) and return action-specific payloads.
+
+### List filters — canonical query-string format
+
+`GET /list` accepts structured filters via **QS bracket notation** — the
+only supported format (no JSON-stringified parameters):
+
+```
+GET /api/v1/entities/:entity/list
+    ?filters[0][field]=status&filters[0][op]==&filters[0][value]=ACTIVE&filters[0][connector]=AND
+    &filters[1][field]=created_at&filters[1][op]=between
+    &filters[1][value][start]=2024-01-01&filters[1][value][end]=2024-12-31
+```
+
+- Array values use repeated keys: `filters[0][value][]=A&filters[0][value][]=B`.
+- `field` and `op` are validated against the entity's allowed filter set.
+- `connector` applies between consecutive conditions (`AND`/`OR`).
+
+### Aggregate columns in list rows
+
+Some entities project server-computed aggregate columns into `list` rows —
+e.g. `organization` rows carry `user_count` (a `LEFT JOIN` + `GROUP BY`
+rollup computed in the same query as the page). These fields are read-only,
+declared per entity, and behave like normal row fields in the response.
+
+### Write-payload standard (`{entity}` envelope)
+
+Single-entity `POST`/`PUT` bodies MUST wrap the entity fields under `entity`
+— flat entity fields at the body root are rejected with `400`:
+
+```jsonc
+{
+  "entity": { "code": "ACME", "name": "Acme Corp" },
+  "translations": [
+    { "key": "entities.customer.name", "language": "it-IT", "value": "Nome" }
+  ]
+}
+```
+
+- `translations` is optional: `{key, language, value}` rows persisted in the
+  SAME transaction as the entity write. Requires the
+  `translation.*` permission set (a missing/insufficient permission
+  returns `403`).
+- `/api/v1/entities/translation` itself takes `{entity}` only — a
+  `translations` sibling there is rejected.
+- Validation errors keep their shape; issue paths are prefixed with
+  `entity.` (e.g. `entity.idp_name`).
+- **Exempt** (keep their own bodies): bulk endpoints (`bulk-delete`,
+  `bulk-restore`, `bulk-update`, `duplicate` — already atomic via
+  streams/temp tables), action endpoints, `DELETE`, and all RPC endpoints
+  (`/api/v1/auth/*`, `/api/v1/system/*`).
+- Microservice entity endpoints (`/ws/:service/api/v1/entities/*`) use the
+  same `{entity}` envelope; `translations` is rejected there.
+- **Ext-JSON note:** `extJsonBodyParser` decodes every JSON integer as
+  `bigint`. Body schemas must accept `bigint` for integer fields — use
+  `zBoundedInt(min, max)` from `src/http/validation.ts` instead of
+  `z.number().int()`. Query params stay `z.coerce.number()`.
+
+### curl examples
+
+```bash
+# List with search + pagination
+curl -H "Authorization: Bearer <jwt>" \
+  "http://localhost:3001/api/v1/entities/customer/list?search=acme&page=1&page_size=20"
+
+# Get entity metadata (field schema for dynamic forms)
+curl -H "Authorization: Bearer <jwt>" \
+  http://localhost:3001/api/v1/entities/customer/meta
+
+# Create a customer ({entity} envelope)
+curl -X POST -H "Authorization: Bearer <jwt>" -H "Content-Type: application/json" \
+  http://localhost:3001/api/v1/entities/customer \
+  -d '{"entity":{"code":"ACME","name":"Acme Corp"}}'
+
+# Soft-delete by UUID (caller-observed version required)
+curl -X DELETE -H "Authorization: Bearer <jwt>" \
+  "http://localhost:3001/api/v1/entities/customer/550e8400-e29b-41d4-a716-446655440000?version=3"
+
+# Hard-delete (purge capability — role_mapping example)
+curl -X DELETE -H "Authorization: Bearer <jwt>" \
+  "http://localhost:3001/api/v1/entities/role_mapping/550e8400-e29b-41d4-a716-446655440000/purge?version=1"
+
+# Restore a soft-deleted record
+curl -X POST -H "Authorization: Bearer <jwt>" \
+  "http://localhost:3001/api/v1/entities/customer/550e8400-e29b-41d4-a716-446655440000/restore?version=4"
+```
+
+## Auth RPC
+
+Authentication endpoints under `/api/v1/auth/...` handle login, refresh,
+WebAuthn, MFA, and user self-service. See [Authentication](./authentication)
+for the full endpoint list and flows.
+
+## System RPC
+
+Infrastructure and runtime endpoints under `/api/v1/system/...`:
+
+```bash
+# Active organizations for sidebar switcher
+curl -H "Authorization: Bearer <jwt>" \
+  http://localhost:3001/api/v1/system/organizations/active
+
+# Active roles
+curl -H "Authorization: Bearer <jwt>" \
+  http://localhost:3001/api/v1/system/roles/active
+
+# Password policy
+curl -H "Authorization: Bearer <jwt>" \
+  http://localhost:3001/api/v1/system/password-policy
+```
+
+`POST /ws/ai/api/v1/system/docs/search` is an authenticated RPC served by the
+AI microservice (the docs knowledge base is AI-owned — the BE only proxies).
+The caller supplies either raw `query` text or a precomputed `embedding`,
+plus optional `keywords`, `limit` (1–20), and `repo`; the response contains
+ranked documentation chunks from `ai.docs_kb`.
+
+## MCP
+
+The MCP (Model Context Protocol) server exposes AI tool-calling endpoints
+under `/mcp/...`. MCP is a distinct protocol with its own OAuth flow
+(Authorization Code + PKCE + Dynamic Client Registration), its own token
+verifier, and its own transport. It is NOT a variant of AUTH/CRUD/RPC.
+
+```bash
+# OAuth discovery (RFC 8414)
+curl http://localhost:3001/.well-known/oauth-authorization-server
+
+# Protected resource metadata (RFC 9728)
+curl http://localhost:3001/.well-known/oauth-protected-resource/mcp
+```
+
+## Naming conventions
+
+| Layer | Name form | Example |
+|---|---|---|
+| PG table | snake_case **plural** | `customers`, `user_profiles` |
+| TS entity class | PascalCase **singular** | `CustomerEntity`, `UserProfileEntity` |
+| API URL entity segment | snake_case **singular** | `/api/v1/entities/customer/...` |
+| Translation key entity segment | snake_case **singular** | `entities.customer.title` |
+
+- Entity class = singular (one row schema)
+- PG table = plural (collection of rows)
+- URL entity segment = singular (resource type)
+
+## Next steps
+
+- [Authentication](./authentication) — Casdoor IDP integration, JWT, sessions, passkeys
+- [RBAC](./rbac) — the wildcard permission system and role mappings
+- [Architecture](./architecture) — request flow and HTTP layer internals

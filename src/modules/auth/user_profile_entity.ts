@@ -19,7 +19,7 @@
  * `id` is internal-only (joins, FKs); only `uuid` is ever surfaced via API.
  */
 
-import type { IAuditableEntity } from "@primebrick/dal-pg";
+import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
@@ -43,7 +43,7 @@ export class UserProfileEntity implements IAuditableEntity {
   id: bigint;
 
   @Unique()
-  uuid: string;
+  uuid: UUID;
 
   /**
    * IDP subject claim. Unique per IDP. We never expose this externally.
@@ -53,10 +53,10 @@ export class UserProfileEntity implements IAuditableEntity {
   @Column({ length: 255, nullable: false })
   idp_code: string;
 
-  @Column({ length: 320 })
+  @Column({ length: 320, nullable: true })
   email?: string;
 
-  @Column({ length: 255 })
+  @Column({ length: 255, nullable: true })
   display_name?: string;
 
   @Column({ length: 7, nullable: true })
@@ -65,17 +65,17 @@ export class UserProfileEntity implements IAuditableEntity {
   @Column({ length: 10, nullable: true })
   avatar_initials?: string;
 
-  @Column({ pgType: "boolean", defaultSql: "true", nullable: false })
+  @Column({ defaultSql: "true", nullable: false })
   is_active: boolean;
 
-  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  @Column({ defaultSql: "false", nullable: false })
   is_admin: boolean;
 
   @Column({ pgType: "jsonb", nullable: true })
   roles?: string[];
 
   @SynchronizableField(SynchronizableFieldType.LAST_SYNCED_AT)
-  @Column({ pgType: "timestamp with time zone", nullable: true })
+  @Column({ nullable: true })
   last_synced_at?: Date;
 
   @Column({ length: 255, nullable: true })
@@ -84,10 +84,10 @@ export class UserProfileEntity implements IAuditableEntity {
   @Column({ length: 255, nullable: true })
   idp_username?: string;
 
-  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  @Column({ defaultSql: "false", nullable: false })
   is_verified: boolean;
 
-  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  @Column({ defaultSql: "false", nullable: false })
   email_verified: boolean;
 
   @Column({ length: 255, nullable: true })
@@ -115,10 +115,10 @@ export class UserProfileEntity implements IAuditableEntity {
   deleted_by?: string;
 
   /** Whether the user dismissed the auth method enforcer dialog (passkey/MFA prompt). */
-  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  @Column({ defaultSql: "false", nullable: false })
   auth_method_enforcer_dismissed: boolean;
 
   /** Whether the user completed the welcome/onboarding flow. */
-  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  @Column({ defaultSql: "false", nullable: false })
   onboarding_completed: boolean;
 }

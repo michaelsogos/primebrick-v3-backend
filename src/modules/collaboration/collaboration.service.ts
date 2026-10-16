@@ -11,6 +11,10 @@ import { NatsClient } from "@primebrick/sdk";
 import type { PresencePort, PresenceEntry, PresenceSignal, PresenceSnapshot } from "@primebrick/sdk";
 import { publishPresence } from "@primebrick/sdk";
 import { getPresenceStore } from "./presence-store-holder.js";
+import {getDal} from "../../db/dal-gateway.js";
+import { findAuditById } from "../../db/audit-query-helper.js";
+import { NotFoundError } from "../../http/api-errors.js";
+import type { AuditDiffResponse } from "./dto.js";
 
 /**
  * Build a `PresenceEntry` from the authenticated user + signal.
@@ -126,5 +130,39 @@ export const collaborationService = {
     } catch {
       // best-effort: NATS publish failure is non-fatal
     }
+  },
+
+  /**
+   * Field-level audit diff for a single audit_log row, verified to belong
+   * to the requested entity UUID. Returns the response shape ready for
+   * serialization (controllers do not reshape).
+   */
+  async getAuditLogDiff(
+    entityType: string,
+    entityUuid: string,
+    auditLogId: bigint,
+  ): Promise<AuditDiffResponse> {
+    const row = await findAuditById(getDal(), `${entityType}_audit`, auditLogId);
+    if (!row) {
+      throw new NotFoundError(
+        `Audit log entry ${auditLogId} not found in ${entityType}_audit`,
+        { internal_code: "AUDIT_LOG_NOT_FOUND" },
+      );
+    }
+    if (row.entity_uuid !== entityUuid) {
+      throw new NotFoundError(
+        `Audit log entry ${auditLogId} does not belong to entity ${entityUuid}`,
+        { internal_code: "AUDIT_LOG_ENTITY_MISMATCH" },
+      );
+    }
+    return {
+      audit_log_id: Number(row.id),
+      entity_type: entityType,
+      entity_uuid: row.entity_uuid,
+      version: row.version,
+      changed_by: row.changed_by,
+      changed_at: new Date(row.changed_at).getTime(),
+      delta: row.delta as Record<string, { old: unknown; new: unknown }>,
+    };
   },
 };

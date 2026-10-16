@@ -22,7 +22,7 @@
  *   service returns `null` and logs a single warning (no spam on every call).
  */
 
-import type { Pool } from "pg";
+import { logger } from "@primebrick/sdk";
 import { CasdoorApiClient } from "../casdoor-api-client.js";
 import { getAuthConfig } from "../config.js";
 
@@ -30,7 +30,6 @@ export class CasdoorService {
   private client: CasdoorApiClient | null = null;
   private initialized = false;
 
-  constructor(private pool: Pool) {}
 
   /**
    * Returns the lazily-initialized `CasdoorApiClient`, or `null` when Casdoor
@@ -51,16 +50,16 @@ export class CasdoorService {
       // directly when needed. For now, the cached config exposes idp_endpoint
       // and idp_organization; the admin credentials are read from DB on
       // first init.
-      const { AuthConfigurationsDal } = await import("../auth_configurations_dal.js");
-      const dal = new AuthConfigurationsDal(this.pool);
+      const { getConfigEntriesService } = await import("./config-entries.service.js");
+      const svc = getConfigEntriesService();
       const [clientIdRow, clientSecretRow] = await Promise.all([
-        dal.findByKey("idp_client_id"),
-        dal.findByKey("idp_client_secret"),
+        svc.findByKey("idp_client_id"),
+        svc.findByKey("idp_client_secret"),
       ]);
       const adminClientId = clientIdRow?.value;
       const adminClientSecret = clientSecretRow?.value;
       if (!adminClientId || !adminClientSecret) {
-        console.warn("[CasdoorService] Admin credentials not configured; skipping Casdoor sync");
+        logger.warn("Admin credentials not configured; skipping Casdoor sync", { tags: ["casdoor"] });
         return null;
       }
       this.client = new CasdoorApiClient({
@@ -71,7 +70,7 @@ export class CasdoorService {
       });
       return this.client;
     } catch (error) {
-      console.error("[CasdoorService] Failed to create Casdoor API client:", error);
+      logger.error("Failed to create Casdoor API client:", { tags: ["casdoor"], error: error });
       return null;
     }
   }

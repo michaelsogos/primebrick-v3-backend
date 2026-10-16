@@ -58,7 +58,7 @@ class BearerTokenHeaderProvider implements HeaderProvider {
  * Convert a verified AuthUser into MCP AuthInfo.
  * The AuthInfo is what tool handlers receive via `ctx.http.authInfo`.
  */
-function authUserToAuthInfo(user: AuthUser, token: string): AuthInfo {
+export function authUserToAuthInfo(user: AuthUser, token: string): AuthInfo {
   // Extract expiration from the JWT if available.
   // The Casdoor JWT includes an `exp` claim (seconds since epoch).
   // We parse it here to populate expiresAt (required by the SDK).
@@ -66,6 +66,7 @@ function authUserToAuthInfo(user: AuthUser, token: string): AuthInfo {
   try {
     const payloadB64 = token.split(".")[1];
     if (payloadB64) {
+      // standards-exempt: ext-json — external wire payload (JWT RFC7519) — must not bigint-ify
       const payload = JSON.parse(
         Buffer.from(payloadB64, "base64url").toString("utf-8"),
       ) as { exp?: number };

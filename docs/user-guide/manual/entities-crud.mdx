@@ -1,0 +1,90 @@
+---
+title: Entities and CRUD conventions
+description: How Primebrick entities expose list, create, update, delete and bulk operations — and which endpoints power them.
+---
+
+Every business entity in Primebrick follows the same CRUD contract. List
+and form pages are thin views over this contract: the entity metadata
+endpoint declares which columns, labels, tooltips and actions exist, and
+the table/form components render what the metadata describes.
+
+## The metadata endpoint
+
+`GET /api/v1/entities/<entity>/meta` returns the entity contract:
+
+- `columns` — key, label, type, visibility/sort/filter flags, tooltips
+- `translation_key` — i18n prefix for labels, fields and the page-title
+  template parameters
+- `title_key` — optional i18n key that overrides the canonical page title
+  (absent on standard CRUD entities, whose titles come from
+  `system.entities.page_title.*` templates — see below)
+- `table` — default view, sort, page size, custom row actions
+- `actions` — the capability map: every standard operation with an
+  `enabled` flag and the permissions required to run it
+
+## Standard operations
+
+Every entity exposes the same operation vocabulary; operations that are
+not available for an entity are reported with `enabled: false`:
+
+- `list` / `meta` / `get` — read
+- `create.single` / `update.single` — write one record
+- `delete.single` / `restore.single` / `purge.single` — soft delete,
+  restore, permanent delete
+- `read.audit` — record audit history
+- `export`, `delete.bulk`, `restore.bulk`, `duplicate.bulk` — collection
+  operations
+
+## Endpoint conventions
+
+- `GET /api/v1/entities/<entity>/list` — paged, filtered, sorted list
+- `POST /api/v1/entities/<entity>` — create (`{ entity: {...} }` body)
+- `GET|PUT|DELETE /api/v1/entities/<entity>/<uuid>` — get, update, soft
+  delete
+- `POST /api/v1/entities/<entity>/<uuid>/restore` — restore
+- `DELETE /api/v1/entities/<entity>/<uuid>/purge` — permanent delete
+
+Some entities also expose module-specific endpoints (for example
+`/api/v1/auth/users` for user creation with invitations). Entity-specific
+manual pages link back here instead of repeating endpoint details.
+
+## API existence is declared, not inferred
+
+A standard endpoint exists only when its permission is declared in the
+entity router configuration (`permissions.<op>` in `makeEntityRouter`) or
+in a module-specific router (for example `users.router.ts` with
+`rbacHandler`). There is no hidden fallback: an operation without a
+declared permission has no route at all, on both backend and frontend. The
+meta `actions` map the UI reads is generated from the same declaration, so
+a disabled operation is unavailable end-to-end — not just hidden in the
+interface.
+
+Sensitive operations can additionally require step-up MFA: the
+`requireMfaStepUp` middleware is attached per-operation via
+`hooks.actionMiddlewares` (for example permanent-delete of a role
+mapping) or in module-specific route middleware.
+
+## Page titles
+
+List, create and edit page titles share a single source of truth: the
+generic templates `system.entities.page_title.{list|create|edit}`, stored
+as normal translations and interpolated at runtime with the entity's
+translated names
+(`system.entities.<translation_key>.{plural|singular}`).
+
+| Kind | en-GB | it-IT |
+|------|-------|-------|
+| list | `{entity_plural} List` | `Lista {entity_plural}` |
+| create | `Create {entity_singular}` | `Crea {entity_singular}` |
+| edit | `Edit {entity_singular}` | `Modifica {entity_singular}` |
+
+Because word order differs per language, the suffix/prefix is **never**
+hardcoded in code — each language carries its own template. Frontend
+pages resolve the H1 through the shared helper
+`entityPageTitle(metaOrTranslationKey, 'list' | 'create' | 'edit', $t)`,
+and generated manual pages use the same keys, so documentation titles
+always match the UI. `meta.title_key`, when present, wins over the
+templates — it is reserved for custom pages that need a bespoke title;
+standard CRUD entity metas do not declare it. On record pages the
+record's display name goes in the breadcrumb last segment; the H1 stays
+the standard "Edit {entity_singular}".

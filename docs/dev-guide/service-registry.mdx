@@ -1,0 +1,60 @@
+---
+title: Service Registry
+description: "How the BE tracks which microservices exist and whether they're healthy — the lifecycle subscriber, heartbeat + stale detection, the status state machine, client_shield_registry, and who consumes the registry."
+---
+
+# Service registry
+
+The `service_registry` table is the BE's live map of the platform: which
+services exist, where they listen, what they can do, and whether they're
+actually alive. It is **event-fed** — the BE never polls services; they
+announce themselves.
+
+## Inbound lifecycle — `ServiceLifecycleSubscriber`
+
+Shielded NATS subscriptions (`publisher-identity` verifies the sender is
+a registered service before any handler runs):
+
+| Subject | Effect |
+|---|---|
+| `service.register` | upsert the registry row — code, base_url, version, capabilities, endpoints; then MCP `discoverEntitiesFromService` learns the service's entities and `serviceEventsBus` fans out to dependents |
+| `service.heartbeat` | refresh `last_health_check_at` + health flags |
+| `service.unregister` | mark the service gone — proxy closes its `/ws/<code>` routes, dependents (e.g. AI docs ingest) drop its data |
+| `service.stale` | self-reported degradation |
+
+## Status derivation
+
+```
+http_healthy && nats_connected  → 'online'
+!http_healthy && !nats_connected → 'offline'
+one true, one false              → 'going_live'
+```
+
+## Stale detection — `stale-detection-job`
+
+A watchdog job scans the registry: any row whose `last_health_check_at`
+is older than **90s (3× the heartbeat interval)** is stale. Two alarm
+modes:
+
+- **some stale** → those services degraded; proxy returns 503 for them.
+- **ALL stale simultaneously** → a single CRITICAL alarm (once per
+  outage): likely a NATS outage rather than N independent crashes.
+
+## `client_shield_registry`
+
+A parallel table: the known **client identities** (services + FE/BE
+themselves) used by the client-identity gate — inbound internal calls
+must present a `User-Agent` matching a registered client plus the
+client-shield secret. `client_shield_registry.get` is the governed NATS lookup
+US services use for the same gate.
+
+## Consumers
+
+- **Proxy** — `/ws/:code/*` forwards only to registered, enabled,
+  routable services.
+- **MCP** — entity discovery per registered service; the tool catalog
+  grows/shrinks with the registry.
+- **Settings → Modules** — the admin UI reads `service_registry` for the
+  live/stale/offline/unhealthy display (see the user-guide page).
+- **AI** — `docs_pack` capability in the register payload drives the
+  docs-pack pull; unregister cleans the KB.

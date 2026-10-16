@@ -1,0 +1,82 @@
+---
+title: Database migrations
+description: What the Migrations admin page shows, what patch statuses mean, and how an administrator recovers a service after a failed migration.
+---
+
+# Database migrations
+
+Every Primebrick module upgrades its own database schema when it starts —
+schema changes are shipped as signed, ordered **patches** that each service
+applies automatically at boot. **Settings → Migrations** is the window into
+that machinery: one card per service, showing every patch it has recorded
+and what happened when it ran.
+
+The page is primarily a safety net: in day-to-day operation everything on it
+is green and boring. It exists for the moments when a patch cannot apply —
+a failed migration no longer requires SSH and SQL access to fix.
+
+## What each card shows
+
+- **Service and schema** — the module and the database schema it owns
+  (the backend owns `public`).
+- **Service status** — the live health badge from the service registry. A
+  service stuck at **Migration failed** is degraded: it refuses domain
+  traffic but keeps answering this page, which is what makes remote
+  remediation possible.
+- **Last boot error** — shown only when the most recent migration run
+  failed.
+- **Patch table** — every patch the service knows about, oldest first:
+
+| Column | Meaning |
+|---|---|
+| Patch | Patch name (timestamp + slug) and, when present, the error or resolution note |
+| Status | `pending`, `applied`, `failed`, `pending_review`, `approved`, `resolved_manual` |
+| Attempts | How many times the engine tried to apply it |
+| Duration | Wall-clock time of the last successful run |
+| Signed by | The key that signed the patch in the manifest |
+| Applied at | When the patch last ran |
+
+## Patch statuses
+
+- **applied** — ran successfully; nothing to do.
+- **pending** — known to the manifest but not yet run (typically a patch that
+  arrived while the service was stopped; it applies at next boot).
+- **pending_review** — a *review-gated* patch: the migration engine refuses
+  to run it until an administrator approves it. Used for destructive or
+  ambiguous schema changes. A pending_review patch pauses everything after
+  it, so the service reports itself degraded.
+- **failed** — the patch ran and errored; the engine will not retry on its
+  own.
+- **approved** — a pending_review patch an administrator approved; it runs
+  on the next migration pass.
+- **resolved_manual** — an administrator marked the patch as handled outside
+  the engine (e.g. the change was applied by hand). It is never run again.
+
+## Actions
+
+All actions require an administrator and are available per service card:
+
+- **Retry failed** — resets every `failed` patch to `pending` and re-runs
+  the migration pass immediately. Use this after the underlying problem is
+  fixed (e.g. a missing extension installed, a conflict resolved).
+- **Approve** — per-row action on a `pending_review` patch. Opens a dialog
+  for an optional note, then marks the patch `approved` and re-runs
+  migrations. Only approve a patch after reading its review comments.
+- **Mark resolved** — per-row escape hatch on `failed`/`pending` patches:
+  marks the row `resolved_manual` with your note. Use it when the change was
+  applied by hand and the patch must never run again.
+- **Drift check** — compares the service's declared entities against the live
+  database and reports whether the schema is clean or differences exist.
+  Drift means the code and the database disagree — investigate before
+  approving or retrying anything.
+- **Refresh** — reloads the card's status on demand.
+
+## The recovery loop
+
+When a migration fails at boot, the affected service registers itself as
+`migration_failed`: the rest of the platform keeps working, and only that
+service's domain APIs answer `503`. From this page you can read the exact
+error, fix the cause, then **Retry failed** — the service re-runs its
+migrations live and returns to `online` without a restart. Nothing about
+the failure is hidden: failed rows keep their error text and attempt count
+until they succeed or are explicitly resolved.

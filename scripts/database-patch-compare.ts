@@ -3,26 +3,30 @@
  * then writes diff (entity intent vs database target).
  *
  * Run this when you change @Entity models / schema intent — not from git post-merge.
- * After pulling, apply pending SQL with `pnpm run db:migrate` (see `.githooks/post-merge`).
- *
- * DATABASE_URL or backend/.env line DATABASE_URL=...
- *
  * SQL patches: `db-meta/patches/<UTC_yyyyMMddHHmmss>_<slug>.sql`
- * Set `PB_SCHEMA_META_PATCH_SKIP_IF_DUPLICATE=1` to skip writing a new patch file when the
- * same body SHA256 is already recorded in the database patch registry table
- * (see footer in each patch).
+ *
+ * After generation: `primebrick-db sign --db-meta db-meta ...` seals the
+ * manifest — unsigned manifests are refused by the apply engine (fail-closed).
  */
-import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
-import { buildDatabaseSnapshot } from "../src/db/build-database-snapshot.js";
-import { buildEntitySnapshot } from "../src/db/build-entity-snapshot.js";
-import { buildPatchFilename, patchIdFromFilename, sha256Hex } from "../src/db/database-patch-naming.js";
-import { isPatchBodyAlreadyRecorded, PATCH_REGISTRY_FQNAME } from "../src/db/database-patch-registry.js";
-import { buildSqlPatchFromMetaDiff } from "../src/db/database-patch-to-sql.js";
-import { compareSnapshots } from "../src/db/schema-snapshot.js";
-import { getEntityPersistenceMeta, type EntityClass } from "../src/domain/entities/entity-decorators.js";
+import {
+  buildDatabaseSnapshot,
+  buildEntitySnapshot,
+  buildPatchFilename,
+  patchNameFromFilename,
+  sha256Hex,
+  buildSqlPatchFromMetaDiff,
+  compareSnapshots,
+  getEntityPersistenceMeta,
+  loadManifest,
+  writeManifest,
+  manifestPaths,
+  type EntityClass,
+  type PatchManifest,
+} from "@primebrick/dal-pg";
 import { ENTITY_REGISTRY } from "../src/domain/entities/registry.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -58,7 +62,7 @@ const patchesDir = join(outDir, "patches");
 mkdirSync(outDir, { recursive: true });
 mkdirSync(patchesDir, { recursive: true });
 
-const entitySnap = buildEntitySnapshot();
+const entitySnap = buildEntitySnapshot(ENTITY_REGISTRY as EntityClass[]);
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -72,33 +76,40 @@ const tables = ENTITY_REGISTRY.map((c) => {
   return { schema: m.tableSchema, name: m.tableName };
 });
 
-const dbSnap = await buildDatabaseSnapshot(url, tables);
+const pool = new Pool({ connectionString: url, max: 2 });
+let dbSnap;
+try {
+  dbSnap = await buildDatabaseSnapshot(pool, tables);
+} finally {
+  await pool.end();
+}
 const diff = compareSnapshots(entitySnap, dbSnap);
 const sqlPatch = buildSqlPatchFromMetaDiff(entitySnap, diff);
-const bodySha = sha256Hex(sqlPatch);
 
 writeFileSync(join(outDir, "snapshot-entities.json"), JSON.stringify(entitySnap, null, 2));
 writeFileSync(join(outDir, "snapshot-database.json"), JSON.stringify(dbSnap, null, 2));
 writeFileSync(join(outDir, "diff-entities-vs-database.json"), JSON.stringify(diff, null, 2));
 
-const skipDup = process.env.PB_SCHEMA_META_PATCH_SKIP_IF_DUPLICATE === "1";
-let patchWrittenPath: string | null = null;
+const noop =
+  diff.onlyInEntityTables.length === 0 &&
+  Object.values(diff.tables).every(
+    (t) =>
+      !t.onlyInEntityColumns.length &&
+      !t.likelyRenames.length &&
+      !t.typeMismatches.length &&
+      !t.nullabilityMismatches.length &&
+      !(t.onlyInEntityIndexes?.length) &&
+      !(t.onlyInEntityForeignKeys?.length),
+  );
 
-if (skipDup) {
-  const pool = new Pool({ connectionString: url, max: 1 });
-  try {
-    if (await isPatchBodyAlreadyRecorded(pool, bodySha)) {
-      console.warn(
-        `PB_SCHEMA_META_PATCH_SKIP_IF_DUPLICATE: content_sha256 already in ${PATCH_REGISTRY_FQNAME} — skipping new patch file (JSON snapshots still updated).`
-      );
-    } else {
-      patchWrittenPath = writeTimestampedPatch(sqlPatch, bodySha, diff);
-    }
-  } finally {
-    await pool.end();
-  }
+if (!noop) {
+  const patchFilename = buildPatchFilename(diff);
+  writeFileSync(join(patchesDir, patchFilename), sqlPatch);
+  console.log(`SQL patch: ${join(patchesDir, patchFilename)}`);
+  refreshManifest();
+  console.warn("MANIFEST.json refreshed (UNSIGNED) — run `primebrick-db sign` to seal it");
 } else {
-  patchWrittenPath = writeTimestampedPatch(sqlPatch, bodySha, diff);
+  console.log("no drift — no patch written");
 }
 
 if (diff.renameHeuristicUserReviewRequired) {
@@ -108,25 +119,24 @@ if (diff.renameHeuristicUserReviewRequired) {
 }
 
 console.log(`Database patch snapshots written to ${outDir}`);
-if (patchWrittenPath) console.log(`SQL patch: ${patchWrittenPath}`);
 
-function writeTimestampedPatch(sql: string, sha: string, d: typeof diff): string {
-  const patchFilename = buildPatchFilename(d);
-  const patchId = patchIdFromFilename(patchFilename);
-  const escId = patchId.replace(/'/g, "''");
-  const footer = `
-
--- === database patch registry (repeatable runs) ===
--- Create once on TARGET: see backend/src/db/database-patch-registry.ts (PATCH_REGISTRY_DDL).
--- patch_id: ${patchId}
--- content_sha256: ${sha}
--- After apply:
--- INSERT INTO public.primebrick_database_patch (patch_id, content_sha256)
--- VALUES ('${escId}', '${sha}')
--- ON CONFLICT (patch_id) DO NOTHING;
-`;
-  const patchPath = join(patchesDir, patchFilename);
-  writeFileSync(patchPath, sql + footer);
-  return patchPath;
+/** Re-hash every patch file on disk into MANIFEST.json (unsigned — sign seals it). */
+function refreshManifest(): void {
+  const { manifestPath } = manifestPaths(outDir);
+  const existing = loadManifest(manifestPath);
+  const patches: Record<string, string> = { ...(existing?.patches ?? {}) };
+  for (const f of readdirSync(patchesDir).filter((f) => f.endsWith(".sql")).sort()) {
+    patches[patchNameFromFilename(f)] = sha256Hex(readFileSync(join(patchesDir, f), "utf8"));
+  }
+  const onDisk = new Set(
+    readdirSync(patchesDir).filter((f) => f.endsWith(".sql")).map(patchNameFromFilename),
+  );
+  for (const k of Object.keys(patches)) if (!onDisk.has(k)) delete patches[k];
+  writeManifest(manifestPath, {
+    version: 1,
+    key_id: existing?.key_id ?? "unsigned",
+    issued_at: new Date().toISOString(),
+    patches,
+    signature: "",
+  } as PatchManifest);
 }
-

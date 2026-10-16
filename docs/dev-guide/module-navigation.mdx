@@ -1,0 +1,55 @@
+---
+title: Module Navigation Metadata
+description: "module-nav-meta.ts — the single declaration point for every FE route a module owns: nav trees, route_prefixes, the ModuleRouteDecl census, and the consumers (sidebar, route census, generated navigation-map)."
+---
+
+# Module navigation metadata
+
+`src/modules/module-nav-meta.ts` is the **single source of truth** for
+which frontend routes belong to which module. The FE never hardcodes
+navigation — it fetches this metadata; the AI assistant navigates through
+it; the generated `navigation-map.mdx` doc derives from it.
+
+## The declaration — `ModuleNavWithPrefixes`
+
+```ts
+buildModuleNavMeta("crm") → {
+  module: "crm",
+  icon: "users",
+  route_prefixes: ["/system/customers", "/crm"],
+  is_reserved?: true,
+  nav: [ {id, label_key, href, icon, children?} ],   // sidebar tree
+  routes: [ {route, kind, entity?, label_key?} ],    // ModuleRouteDecl census
+}
+```
+
+Three layers, each with a distinct consumer:
+
+| Layer | Purpose |
+|---|---|
+| `nav[]` | The **sidebar tree** — label keys, icons, hrefs. FE renders it verbatim via `fetchModuleMeta` |
+| `route_prefixes` | Coarse ownership — "every path starting here belongs to this module" (last-resort coverage) |
+| `routes: ModuleRouteDecl[]` | The **complete census** — every FE path the module owns, incl. detail/create/param routes not deducible from nav links, each typed `list \| detail \| create \| page` and optionally bound to an `entity` |
+
+**Modules MUST declare every path they own.** A route missing from the
+census is invisible to the AI and to the generated navigation map.
+
+## Consumers
+
+1. **FE sidebar** — `AppSidebar` → `GET module meta` → renders `nav[]`.
+2. **`RoutesCensusService`** (`GET /system/routes`) — aggregates per
+   enabled service: declared `routes` + nav `href`s + `route_prefixes`.
+   Powers the guide assistant's `search_routes` client tool — answers
+   *"where do I find X?"* with real paths. Cached 30s in-process.
+3. **`generate:docs`** — `generate-reference-docs.ts` iterates
+   `listModuleNavCodes()` + `buildModuleNavMeta()` to emit
+   `docs/user-guide/generated/navigation-map.mdx` (route → module → kind
+   → entity). No FE file scanning — the metadata already knows everything
+   a `+page.svelte` scan could find and more.
+
+## Adding a module's routes
+
+Add a case to `MODULE_NAV` with nav tree + prefixes + full `routes`
+census — one edit makes the module appear in the sidebar, the census,
+the AI's navigation answers and the generated doc at the next
+`generate:docs`.
