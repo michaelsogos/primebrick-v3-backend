@@ -1,15 +1,15 @@
 {
   "version": 1,
   "key_id": "dev-micha",
-  "issued_at": "2026-10-15T23:49:57.016Z",
+  "issued_at": "2026-10-16T13:00:39.624Z",
   "patches": {
-    "00000000000000_init_database": "88eab627d2b16e5e554d91fb8a8b20b2a6a99659c040bef2e7676d0138869ca0",
-    "00000000000001_seed_translations_en_gb": "633e4ca7ee25f2430b29a27b5197014a1af722391bda18819d5ad5e8b7623cb5",
-    "00000000000002_seed_translations_it_it": "e5586457edbb148fa09d54edf1a71a32fe0c39ce02239341365c33eb255619ba",
-    "00000000000003_seed_translations_fr_fr": "1b8e68579a9a0e5f1c464550a9593a32c197e22ba03dc4d00fc9af7c27d554ec",
-    "00000000000004_seed_translations_es_es": "bd1346510baf0adc7d4f4a3fc0b67957ae1b63f3ab15f3a6c36d401dd3a24184",
-    "00000000000005_seed_translations_de_de": "c936e60cad4c8338ccdda3192e438da6070445f2680490b1c601723ee950dae9",
-    "00000000000006_seed_translations_pt_pt": "6a0852e9df9035c571aee0af205cb413ce97afeecdb0555fa3c0dd58288d9d38",
+    "00000000000000_init_database": "05761ee7f89f3a6518779ac1fee25ed83a90c0d8d11a5aff1da28a61db2d1efa",
+    "00000000000001_seed_translations_en_gb": "52492d182cbd158744a14a93d4234f56552a73abe8d7a0af39047dc05eeb2654",
+    "00000000000002_seed_translations_it_it": "9c919c39883d45b2de4d08ac43ebb6d11706bb5227d36a008338efd48ee33049",
+    "00000000000003_seed_translations_fr_fr": "2fe53348767f8a1e20fe5a5153b7ecbda1e1165f0ce802ea1e4255907b0c35ca",
+    "00000000000004_seed_translations_es_es": "4c75545daa722bed93e3f76a694640cae4e605eeb24e35355f52d8cf48ba356b",
+    "00000000000005_seed_translations_de_de": "b4e539e00a1c35344249a2773fab05781c76b38e8e85449341e61b9d21e226ea",
+    "00000000000006_seed_translations_pt_pt": "3843c7ccd230122011e20efc5095ca76d11c8e69e72795107557884a1f49ed72",
     "00000000000007_consolidate_config_error_keys": "3f34a25eedac0d08d20f3aac6ef772e18ae7ccf41f545b8fcf5034201c8bd8c4",
     "00000000000008_create_ai_models": "cdbcd24f454796b1683813fa8a70a6dd4c6a2ed6eb20dab201505af6f2498245",
     "00000000000009_create_custom_schema": "dc42cabbeea3875f6a7a75e6b5704445c397b7f9d822b49f2b32090f59505ee2",
@@ -26,5 +26,5 @@
     "20261015004652_drift_public_config_entries_public_mfa_action_authorizations_public_orga": "13554333af410a70fd2b11bd6930aa9304ff46fc0d1a2661c57523b242b4f434",
     "20261016010000_rename_client_shield_registry": "2e4379db7b103832f121b9fdc50922770bbdb1c7d5c6ab7fd05b21fa65e6df75"
   },
-  "signature": "x2BsMDKF8SocWTLxUMI3IHUy6LDaXBLzrHImBBSUPHl8N8jPcycBsiWV13Ka56ynsFiFx//PYULW7URdSHKJCg=="
+  "signature": "o26pF9jZMfF9k2SsuQElOSFwqUoh+DSdgTSit3z/zFvRZbfyK5+MHPt/0c+XZO5weVk0jiHwDFxQeoZU7D1MAA=="
 }
