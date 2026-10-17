@@ -343,7 +343,7 @@ responsibility.
 A plain TypeScript class decorated with `@Entity`, `@Key`, `@Unique`,
 `@AuditableField`, `@DeletableField`, `@CloneField`, and `@AuditTrail`. The
 class IS the DB schema — there is no separate SQL file to keep in sync. See
-the [DAL entities guide](/dal/guide/entities) for every decorator.
+the [DAL entities guide](/dal/dev/entities) for every decorator.
 
 ```typescript
 import type { IAuditableEntity, IExposableEntity, IClonableEntity } from "@primebrick/dal-pg";
@@ -571,4 +571,4 @@ Key prefixes are authoritative — `app.*` must never appear in
 - [Authentication](./authentication) — the Casdoor OIDC flow, JWT verification, passkeys, and invitations.
 - [RBAC](./rbac) — the wildcard permission system, `rbacHandler`, and role mappings.
 - [Collaboration](./collaboration) — optimistic locking, field-level audit, and visual merge.
-- [DAL entities & decorators](/dal/guide/entities) — the entity decorators used by every module.
+- [DAL entities & decorators](/dal/dev/entities) — the entity decorators used by every module.
