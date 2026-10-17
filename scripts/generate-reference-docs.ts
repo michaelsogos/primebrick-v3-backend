@@ -38,6 +38,14 @@ type EntityMeta = {
   };
 };
 
+// MDX-safe prose: escape MDX metacharacters outside inline-code spans so
+// `{`, `}`, `<`, `>` in generated text can never be parsed as JSX/expressions.
+function mdxSafe(s: string): string {
+  return String(s).replace(/(`[^`]*`)|[{}<>]/g, (m, codeSpan) =>
+    codeSpan ? m : `&#${m.charCodeAt(0)};`,
+  );
+}
+
 function listFilesRecursive(dir: string, predicate: (n: string) => boolean): string[] {
   const out: string[] = [];
   function walk(d: string) {
@@ -116,7 +124,7 @@ function generateEntityFieldReference(entityMetas: EntityMeta[]): string {
         const sortable = col.sortable ? "yes" : "no";
         const filterable = col.filterable ? "yes" : "no";
         const searchable = col.searchable === false ? "no" : "yes";
-        lines.push(`| \`${col.key}\` | ${col.type || "text"} | ${sortable} | ${filterable} | ${searchable} | \`${col.labelKey || ""}\` |`);
+        lines.push(`| \`${col.key}\` | ${mdxSafe(col.type || "text")} | ${sortable} | ${filterable} | ${searchable} | \`${col.labelKey || ""}\` |`);
       }
       lines.push("");
       if (meta.list?.defaultSort) {
@@ -181,7 +189,7 @@ function generateFilterOperatorReference(operators: string[]): string {
       : op === "BETWEEN" ? "`{ start, end }`"
       : op === "IS" || op === "IS NOT" ? "null / boolean"
       : "string / number";
-    lines.push(`| \`${op}\` | ${desc} | ${valueType} |`);
+    lines.push(`| \`${op}\` | ${mdxSafe(desc)} | ${valueType} |`);
   }
 
   lines.push(
@@ -270,7 +278,7 @@ function generateFilterSyntaxGuide(entityMetas: EntityMeta[]): string {
           : col.type === "badge"
             ? '{ "op": "=", "value": "ACTIVE" }'
             : '{ "op": "ILIKE", "value": "%search%" }';
-      lines.push(`| \`${col.key}\` | ${col.type} | \`${example}\` |`);
+      lines.push(`| \`${col.key}\` | ${mdxSafe(col.type)} | \`${example}\` |`);
     }
     lines.push("");
   }

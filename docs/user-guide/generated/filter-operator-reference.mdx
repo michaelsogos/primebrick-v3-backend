@@ -19,16 +19,23 @@ and a `value`. This document lists every supported operator.
 | `!=` | Inequality. Matches rows where the field does not equal the value. | string / number |
 | `<>` | Inequality (ANSI alternative to !=). Same behavior as !=. | string / number |
 | `<` | Less than. Matches rows where the field is strictly less than the value. | string / number |
-| `<=` | Less than or equal. Matches rows where the field is <= the value. | string / number |
+| `<=` | Less than or equal. Matches rows where the field is &#60;= the value. | string / number |
 | `>` | Greater than. Matches rows where the field is strictly greater than the value. | string / number |
-| `>=` | Greater than or equal. Matches rows where the field is >= the value. | string / number |
+| `>=` | Greater than or equal. Matches rows where the field is &#62;= the value. | string / number |
 | `ILIKE` | Case-insensitive pattern match (PostgreSQL). Use % as wildcard for any sequence, _ for any single char. | string / number |
 | `LIKE` | Case-sensitive pattern match. Use % and _ wildcards. | string / number |
 | `IN` | Membership in a set. Value is an array; matches rows where the field equals any element. | array |
 | `NOT IN` | Exclusion from a set. Value is an array; matches rows where the field is not any element. | array |
-| `BETWEEN` | Range check. Value is an object { start, end }; matches rows where start <= field <= end. | `{ start, end }` |
+| `BETWEEN` | Range check. Value is an object &#123; start, end &#125;; matches rows where start &#60;= field &#60;= end. | `{ start, end }` |
 | `IS` | Null/boolean check. Use value: null for IS NULL, true/false for boolean. | null / boolean |
 | `IS NOT` | Negated null/boolean check. Use value: null for IS NOT NULL. | null / boolean |
+| `<=>` | Custom operator. | string / number |
+| `<->` | Custom operator. | string / number |
+| `<#>` | Custom operator. | string / number |
+| `<+>` | Custom operator. | string / number |
+| `<~>` | Custom operator. | string / number |
+| `<%>` | Custom operator. | string / number |
+| `@@` | Custom operator. | string / number |
 
 ## Filter connectors
 

@@ -1,6 +1,6 @@
 {
   "name": "primebrick-api",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "private": true,
   "type": "module",
   "engines": {
@@ -10,7 +10,7 @@
     "dev": "tsx watch src/index.ts",
     "dev:kill": "node scripts/kill-port-3001.mjs",
     "version:auto": "node scripts/version-sync.mjs",
-    "prebuild": "node scripts/version-sync.mjs && pnpm check:standards && pnpm db:check",
+    "prebuild": "node scripts/version-sync.mjs && pnpm check:standards && pnpm db:check && pnpm generate:docs",
     "build": "tsc",
     "test": "pnpm check:standards && vitest run",
     "test:watch": "vitest",
