@@ -51,4 +51,88 @@ With `connector=OR` query parameter, matches rows where status is ACTIVE **or** 
 
 ## Filterable fields per entity
 
+### config_entry
+
+| Field | Type | Example |
+|-------|------|---------|
+| `uuid` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `key` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `type` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `reserved` | boolean | `{ "op": "ILIKE", "value": "%search%" }` |
+| `updated_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+
+### organization
+
+| Field | Type | Example |
+|-------|------|---------|
+| `display_name` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `uuid` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `idp_code` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `website_url` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `created_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+| `updated_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+| `last_synced_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+
+### role_mapping
+
+| Field | Type | Example |
+|-------|------|---------|
+| `idp_role` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `uuid` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `idp_org` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `label_key` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `is_admin` | badge | `{ "op": "=", "value": "ACTIVE" }` |
+| `last_synced_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+| `created_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+| `updated_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+
+### user_profile
+
+| Field | Type | Example |
+|-------|------|---------|
+| `display_name` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `uuid` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `idp_code` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `email` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `avatar_initials` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `idp_org` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `idp_username` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `is_active` | boolean | `{ "op": "ILIKE", "value": "%search%" }` |
+| `is_admin` | boolean | `{ "op": "ILIKE", "value": "%search%" }` |
+| `is_verified` | boolean | `{ "op": "ILIKE", "value": "%search%" }` |
+| `email_verified` | boolean | `{ "op": "ILIKE", "value": "%search%" }` |
+| `issuer` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `last_synced_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+| `created_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+| `updated_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+
+### customer
+
+| Field | Type | Example |
+|-------|------|---------|
+| `code` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `first_name` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `last_name` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `company_name` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `email` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `status` | badge | `{ "op": "=", "value": "ACTIVE" }` |
+| `onboarding_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+| `local_city` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `local_state` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `local_country` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+
+### client_registry
+
+| Field | Type | Example |
+|-------|------|---------|
+| `ua_prefix` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `uuid` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `source` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `key_mode` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `key_generation` | text | `{ "op": "ILIKE", "value": "%search%" }` |
+| `key_rotated_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+| `is_enabled` | boolean | `{ "op": "ILIKE", "value": "%search%" }` |
+| `created_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+| `updated_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
+
 <!-- END -->
