@@ -15,15 +15,16 @@
  *   - determine which factors are available for login/step-up challenges
  */
 
-import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
+
+import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
   Key,
   Unique,
-  AuditableField,
-  AuditableFieldType,
   AuditTrail,
+  EntityBase,
+  Auditable,
 } from "@primebrick/dal-pg";
 
 /** MFA factor types supported by Primebrick. v1 = TOTP only. */
@@ -31,7 +32,8 @@ export type MfaFactorType = "totp";
 
 @Entity("user_mfa_factors")
 @AuditTrail()
-export class UserMfaFactorEntity implements IAuditableEntity {
+export class UserMfaFactorEntity
+  extends Auditable(EntityBase) {
   @Key()
   id: bigint;
 
@@ -75,18 +77,8 @@ export class UserMfaFactorEntity implements IAuditableEntity {
   @Column({ nullable: true })
   last_used_at?: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_AT)
-  created_at: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_BY)
-  created_by: string;
 
-  @AuditableField(AuditableFieldType.UPDATED_AT)
-  updated_at: Date;
 
-  @AuditableField(AuditableFieldType.UPDATED_BY)
-  updated_by: string;
 
-  @AuditableField(AuditableFieldType.VERSION)
-  version: number;
 }

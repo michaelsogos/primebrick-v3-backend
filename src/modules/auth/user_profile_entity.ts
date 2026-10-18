@@ -19,26 +19,27 @@
  * `id` is internal-only (joins, FKs); only `uuid` is ever surfaced via API.
  */
 
-import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
+
+import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
   Key,
   Unique,
-  AuditableField,
-  AuditableFieldType,
-  DeletableField,
-  DeletableFieldType,
   SynchronizableField,
   SynchronizableFieldType,
   AuditTrail,
+  EntityBase,
+  Auditable,
+  Deletable,
 } from "@primebrick/dal-pg";
 import { Cached } from "@primebrick/sdk";
 
 @Entity("user_profiles")
 @AuditTrail()
 @Cached(300_000) // 5 min TTL — mutable (JIT provisioning, sync)
-export class UserProfileEntity implements IAuditableEntity {
+export class UserProfileEntity
+  extends Deletable(Auditable(EntityBase)) {
   @Key()
   id: bigint;
 
@@ -93,26 +94,12 @@ export class UserProfileEntity implements IAuditableEntity {
   @Column({ length: 255, nullable: true })
   issuer?: string;
 
-  @AuditableField(AuditableFieldType.CREATED_AT)
-  created_at: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_BY)
-  created_by: string;
 
-  @AuditableField(AuditableFieldType.UPDATED_AT)
-  updated_at: Date;
 
-  @AuditableField(AuditableFieldType.UPDATED_BY)
-  updated_by: string;
 
-  @AuditableField(AuditableFieldType.VERSION)
-  version: number;
 
-  @DeletableField(DeletableFieldType.DELETED_AT)
-  deleted_at?: Date;
 
-  @DeletableField(DeletableFieldType.DELETED_BY)
-  deleted_by?: string;
 
   /** Whether the user dismissed the auth method enforcer dialog (passkey/MFA prompt). */
   @Column({ defaultSql: "false", nullable: false })

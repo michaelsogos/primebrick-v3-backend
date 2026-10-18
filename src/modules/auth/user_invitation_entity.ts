@@ -13,22 +13,24 @@
  * transition status, they are never deleted).
  */
 
-import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
+
+import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
   Key,
   Unique,
-  AuditableField,
-  AuditableFieldType,
   AuditTrail,
+  EntityBase,
+  Auditable,
 } from "@primebrick/dal-pg";
 
 export type InvitationStatus = "PENDING" | "OTP_SENT" | "COMPLETED" | "EXPIRED" | "REVOKED";
 
 @Entity("user_invitations")
 @AuditTrail()
-export class UserInvitationEntity implements IAuditableEntity {
+export class UserInvitationEntity
+  extends Auditable(EntityBase) {
   @Key()
   id: bigint;
 
@@ -76,18 +78,8 @@ export class UserInvitationEntity implements IAuditableEntity {
   @Column({ nullable: true })
   otp_verified_at?: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_AT)
-  created_at: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_BY)
-  created_by: string;
 
-  @AuditableField(AuditableFieldType.UPDATED_AT)
-  updated_at: Date;
 
-  @AuditableField(AuditableFieldType.UPDATED_BY)
-  updated_by: string;
 
-  @AuditableField(AuditableFieldType.VERSION)
-  version: number;
 }

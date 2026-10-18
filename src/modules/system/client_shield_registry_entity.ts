@@ -1,8 +1,7 @@
-import type { IAuditableEntity } from "@primebrick/dal-pg";
-import { Column, Entity, Key, Unique } from "@primebrick/dal-pg";
+import { Column, Entity, Key, Unique, EntityBase, Auditable, Deletable } from "@primebrick/dal-pg";
 
 @Entity("client_shield_registry", "system")
-export class ClientShieldRegistryEntity implements IAuditableEntity {
+export class ClientShieldRegistryEntity extends Deletable(Auditable(EntityBase)) {
   @Key()
   id: bigint;
 
@@ -20,25 +19,4 @@ export class ClientShieldRegistryEntity implements IAuditableEntity {
 
   @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })
   is_enabled: boolean;
-
-  @Column({ pgType: "timestamptz", nullable: false, defaultSql: "now()" })
-  created_at: Date;
-
-  @Column({ nullable: false })
-  created_by: string;
-
-  @Column({ pgType: "timestamptz", nullable: false, defaultSql: "now()" })
-  updated_at: Date;
-
-  @Column({ nullable: false })
-  updated_by: string;
-
-  @Column({ nullable: false, defaultSql: "1" })
-  version: number;
-
-  @Column({ pgType: "timestamptz", nullable: true })
-  deleted_at?: Date;
-
-  @Column({ nullable: true })
-  deleted_by?: string;
 }

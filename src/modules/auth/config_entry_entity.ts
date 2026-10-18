@@ -17,24 +17,25 @@
  * connection and `NODE_ENV` for the cookie `secure` attribute).
  */
 
-import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
+
+import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
   Key,
   Unique,
-  AuditableField,
-  AuditableFieldType,
-  DeletableField,
-  DeletableFieldType,
   AuditTrail,
+  EntityBase,
+  Auditable,
+  Deletable,
 } from "@primebrick/dal-pg";
 import { Cached } from "@primebrick/sdk";
 
 @Entity("config_entries")
 @AuditTrail()
 @Cached(300_000) // 5 min TTL — same as other cached entities
-export class ConfigEntryEntity implements IAuditableEntity {
+export class ConfigEntryEntity
+  extends Deletable(Auditable(EntityBase)) {
   @Key()
   id: bigint;
 
@@ -73,24 +74,10 @@ export class ConfigEntryEntity implements IAuditableEntity {
   @Column({ length: 100, nullable: true })
   group_key?: string | null;
 
-  @AuditableField(AuditableFieldType.CREATED_AT)
-  created_at: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_BY)
-  created_by: string;
 
-  @AuditableField(AuditableFieldType.UPDATED_AT)
-  updated_at: Date;
 
-  @AuditableField(AuditableFieldType.UPDATED_BY)
-  updated_by: string;
 
-  @AuditableField(AuditableFieldType.VERSION)
-  version: number;
 
-  @DeletableField(DeletableFieldType.DELETED_AT)
-  deleted_at?: Date;
 
-  @DeletableField(DeletableFieldType.DELETED_BY)
-  deleted_by?: string;
 }
