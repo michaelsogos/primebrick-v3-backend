@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha",
-  "issued_at": "2026-10-16T13:24:02.303Z",
+  "issued_at": "2026-10-18T12:49:01.365Z",
   "patches": {
     "00000000000000_init_database": "05761ee7f89f3a6518779ac1fee25ed83a90c0d8d11a5aff1da28a61db2d1efa",
     "00000000000001_seed_translations_en_gb": "52492d182cbd158744a14a93d4234f56552a73abe8d7a0af39047dc05eeb2654",
@@ -24,7 +24,8 @@
     "20261014003756_modules_instance_translations": "af6368cd56b9a0569f0a6ae8c6f272e307fcd49af6a5cfdf9e6197e81d935eb0",
     "20261015004600_migrations_page_translations": "540b1a91e9804b521256104cf49526431f108ad173465e9295282f416fcbf036",
     "20261016010000_rename_client_shield_registry": "2e4379db7b103832f121b9fdc50922770bbdb1c7d5c6ab7fd05b21fa65e6df75",
-    "20261016140000_seed_translations_missing_keys": "3b1a3edb7ef74705de24c677d89186762361ee62b625bea73fa361abd066066f"
+    "20261016140000_seed_translations_missing_keys": "3b1a3edb7ef74705de24c677d89186762361ee62b625bea73fa361abd066066f",
+    "20261018143000_seed_translations_docs_browser": "6e2c9a1f4826593026bed19bef61f0f54ec3b9c9b42d2d669f6bfb8eb1fcf7e5"
   },
-  "signature": "TKmCMC5ycri/k6D47QgTTfXOaL903R23N2F0QcXSRZ1yt23tv2HGYJ9XL3RMXezSU4UOAYq6pwC1eNCk0QnHAA=="
+  "signature": "wSvcf5DAPsdxdR6Wb7ODvWKA4gyAL26jy21ZR0wnHLusk52V6PsODlaDlgDpqCFpXckuyyp9PDXR1RXiyIH9CQ=="
 }
