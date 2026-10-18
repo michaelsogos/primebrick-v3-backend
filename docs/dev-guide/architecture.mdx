@@ -341,20 +341,24 @@ responsibility.
 ### 1. Entity (`customer_entity.ts`)
 
 A plain TypeScript class decorated with `@Entity`, `@Key`, `@Unique`,
-`@AuditableField`, `@DeletableField`, `@CloneField`, and `@AuditTrail`. The
-class IS the DB schema — there is no separate SQL file to keep in sync. See
-the [DAL entities guide](/dal/dev/entities) for every decorator.
+`@CloneField`, and `@AuditTrail`, composed on the DAL capability mixins
+(`Auditable()` / `Deletable()`) so the shared audit/soft-delete columns are
+declared once in the library — never per entity. The class IS the DB schema —
+there is no separate SQL file to keep in sync. See
+the [DAL entities guide](/dal/dev/entities) for every decorator and mixin.
 
 ```typescript
-import type { IAuditableEntity, IExposableEntity, IClonableEntity } from "@primebrick/dal-pg";
+import type { IExposableEntity, IClonableEntity } from "@primebrick/dal-pg";
 import {
-  Entity, Column, Key, Unique, AuditableField, DeletableField, CloneField,
-  AuditableFieldType, DeletableFieldType, AuditTrail,
+  Entity, Column, Key, Unique, CloneField, AuditTrail,
+  EntityBase, Auditable, Deletable,
 } from "@primebrick/dal-pg";
 
 @Entity("customers")
 @AuditTrail()
-export class CustomerEntity implements IAuditableEntity, IExposableEntity, IClonableEntity {
+export class CustomerEntity
+  extends Deletable(Auditable(EntityBase))   // audit + soft-delete columns
+  implements IExposableEntity, IClonableEntity {
   @Key() id: bigint;
   @Unique() uuid: string;
   @Column({ length: 20, nullable: false }) code: string;
@@ -363,18 +367,12 @@ export class CustomerEntity implements IAuditableEntity, IExposableEntity, IClon
   @Column({ length: 320 }) email?: string;
   @Column({ nullable: false }) status: "ACTIVE" | "INACTIVE";
 
-  @AuditableField(AuditableFieldType.CREATED_AT) created_at: Date;
-  @AuditableField(AuditableFieldType.CREATED_BY) created_by: string;
-  @AuditableField(AuditableFieldType.UPDATED_AT) updated_at: Date;
-  @AuditableField(AuditableFieldType.UPDATED_BY) updated_by: string;
-  @AuditableField(AuditableFieldType.VERSION)    version: number;
-
-  @DeletableField(DeletableFieldType.DELETED_AT) deleted_at?: Date;
-  @DeletableField(DeletableFieldType.DELETED_BY) deleted_by?: string;
-
   @CloneField() cloned_from?: string;
 }
 ```
+
+Hard-delete entities compose `Auditable(EntityBase)` only; `AuditTrail()` stays
+an opt-in on the concrete class.
 
 ### 2. Service (`customers.service.ts`)
 

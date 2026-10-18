@@ -5,18 +5,18 @@
  * Il suffisso `!` è richiesto da TypeScript (`strictPropertyInitialization`): indica che i valori
  * vengono assegnati dal layer di hydration / DAL, non alla dichiarazione della classe.
  */
-import type { IAuditableEntity, IExposableEntity, IClonableEntity, UUID } from "@primebrick/dal-pg";
+
+import type { UUID, IExposableEntity, IClonableEntity } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
   Key,
   Unique,
-  AuditableField,
-  DeletableField,
   CloneField,
-  AuditableFieldType,
-  DeletableFieldType,
-  AuditTrail
+  AuditTrail,
+  EntityBase,
+  Auditable,
+  Deletable,
 } from "@primebrick/dal-pg";
 import { Cached } from "@primebrick/sdk";
 
@@ -25,7 +25,9 @@ export type CustomerStatus = "ACTIVE" | "INACTIVE";
 @Entity("customers")
 @AuditTrail()
 @Cached(300_000) // 5 min TTL — mutable business data
-export class CustomerEntity implements IAuditableEntity, IExposableEntity, IClonableEntity {
+export class CustomerEntity
+  extends Deletable(Auditable(EntityBase))
+  implements IExposableEntity, IClonableEntity {
   @Key()
   id: bigint;
 
@@ -83,26 +85,12 @@ export class CustomerEntity implements IAuditableEntity, IExposableEntity, IClon
   @Column({ length: 100, nullable: true })
   onboarding_time_zone?: string;
 
-  @AuditableField(AuditableFieldType.CREATED_AT)
-  created_at: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_BY)
-  created_by: string;
 
-  @AuditableField(AuditableFieldType.UPDATED_AT)
-  updated_at: Date;
 
-  @AuditableField(AuditableFieldType.UPDATED_BY)
-  updated_by: string;
 
-  @AuditableField(AuditableFieldType.VERSION)
-  version: number;
 
-  @DeletableField(DeletableFieldType.DELETED_AT)
-  deleted_at?: Date;
 
-  @DeletableField(DeletableFieldType.DELETED_BY)
-  deleted_by?: string;
 
   @Column({ pgType: "uuid", nullable: true })
   @CloneField()

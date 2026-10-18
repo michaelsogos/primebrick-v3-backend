@@ -1,15 +1,17 @@
-import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
+
+import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
   Key,
   Unique,
-  AuditableField,
-  AuditableFieldType,
+  EntityBase,
+  Auditable,
 } from "@primebrick/dal-pg";
 
 @Entity("service_registry")
-export class ServiceRegistryEntity implements IAuditableEntity {
+export class ServiceRegistryEntity
+  extends Auditable(EntityBase) {
   @Key()
   id: bigint;
 
@@ -73,18 +75,8 @@ export class ServiceRegistryEntity implements IAuditableEntity {
   @Column({ nullable: false, defaultSql: "false" })
   is_reserved: boolean;
 
-  @AuditableField(AuditableFieldType.CREATED_AT)
-  created_at: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_BY)
-  created_by: string;
 
-  @AuditableField(AuditableFieldType.UPDATED_AT)
-  updated_at: Date;
 
-  @AuditableField(AuditableFieldType.UPDATED_BY)
-  updated_by: string;
 
-  @AuditableField(AuditableFieldType.VERSION)
-  version: number;
 }

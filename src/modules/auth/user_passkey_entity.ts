@@ -15,20 +15,22 @@
  *   - send notification emails when passkeys are added/removed
  */
 
-import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
+
+import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
   Key,
   Unique,
-  AuditableField,
-  AuditableFieldType,
   AuditTrail,
+  EntityBase,
+  Auditable,
 } from "@primebrick/dal-pg";
 
 @Entity("user_passkeys")
 @AuditTrail()
-export class UserPasskeyEntity implements IAuditableEntity {
+export class UserPasskeyEntity
+  extends Auditable(EntityBase) {
   @Key()
   id: bigint;
 
@@ -76,18 +78,8 @@ export class UserPasskeyEntity implements IAuditableEntity {
   @Column({ nullable: true })
   device_model?: string;
 
-  @AuditableField(AuditableFieldType.CREATED_AT)
-  created_at: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_BY)
-  created_by: string;
 
-  @AuditableField(AuditableFieldType.UPDATED_AT)
-  updated_at: Date;
 
-  @AuditableField(AuditableFieldType.UPDATED_BY)
-  updated_by: string;
 
-  @AuditableField(AuditableFieldType.VERSION)
-  version: number;
 }

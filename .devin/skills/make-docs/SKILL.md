@@ -73,37 +73,36 @@ Summarize in chat:
 - Which doc pages were skipped (already accurate)
 - That changes are NOT committed — wait for user instruction to commit
 
-### 7. Auto-generated reference docs (AI knowledge base)
+### 7. Auto-generated reference docs (generated IN this repo)
 
-The docs repo (`primebrick-v3-docs`) has a script `scripts/generate-reference-docs.mjs`
-that auto-generates 4 critical reference MDX files for the AI chat knowledge base:
+Generated reference docs are produced **in this repo** by
+`scripts/generate-reference-docs.ts`, invoked through `pnpm generate:docs`
+(which also builds `dist/docs-pack/`). `generate:docs` runs automatically in
+`prebuild` — every `pnpm build` regenerates them.
 
-1. `entity-field-reference.mdx` — extracted from BE `src/modules/**/*.meta.ts`
-2. `filter-operator-reference.mdx` — extracted from BE `src/db/repository/dsl.ts`
+Outputs (committed under `docs/user-guide/generated/`):
+
+1. `entity-field-reference.mdx` — extracted from `src/modules/**/*.meta.ts`
+2. `filter-operator-reference.mdx` — extracted from the DAL `SqlOperator` union
 3. `filter-syntax-guide.mdx` — filter examples per operator + filterable fields per entity
 4. `navigation-map.mdx` — FE routes + entity associations
+5. Per-entity module pages (`modules*.mdx`, `configurations*.mdx`, etc.)
 
-These docs are regenerated automatically by the docs CI on every push to `main`
-and on a 6-hour cron. They are committed to the docs repo by the CI.
+Downstream consumers (no manual steps):
+- **Product KB**: the AI service pulls `dist/docs-pack/` via
+  `GET /api/v1/system/docs/pack` on service registration and embeds the
+  user-guide into `ai.docs_kb`.
+- **Institutional site**: `primebrick-v3-docs` syncs `docs/user-guide/` from
+  this repo's `main` on its scheduled `docs-release` workflow.
 
-**When to regenerate locally:**
-- After adding/removing entity meta files (`*.meta.ts`)
-- After changing the `SqlOperator` enum in `dsl.ts`
-- After adding/removing FE routes that associate with entities
-- To validate the generated content before a release
+**When to regenerate locally:** after adding/removing `*.meta.ts` files,
+changing filter operators, or touching module navigation metadata — run
+`pnpm generate:docs` (or just `pnpm build`, which includes it) and commit the
+regenerated `docs/user-guide/generated/` files with your branch.
 
-**How to regenerate locally:**
-```
-cd <primebrick-v3-docs repo>
-node scripts/generate-reference-docs.mjs
-```
-This requires `.tmp-repo-sync/` to exist (run `node scripts/sync-repo-docs.mjs`
-first if it doesn't). The script overwrites the 4 MDX files in
-`pages/backend/guide/` and updates `_order.json`.
+**MDX safety:** generated prose MUST pass through `mdxSafe()` — raw `{`, `}`,
+`<`, `>` in table cells/prose are parsed by MDX as JS expressions/JSX and will
+crash the docs-site build (or silently drop content).
 
-**Do NOT hand-edit** the 4 generated MDX files — they have
+**Do NOT hand-edit** the generated MDX files — they have
 `<!-- AUTO-GENERATED -->` markers and will be overwritten on the next run.
-
-If the diff touched meta files or `dsl.ts`, mention in the report that the
-auto-generated reference docs should be regenerated in the docs repo (the CI
-will do this automatically, but local validation is recommended before a release).
