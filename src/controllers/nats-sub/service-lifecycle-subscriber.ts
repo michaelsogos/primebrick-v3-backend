@@ -45,7 +45,7 @@ export class ServiceLifecycleSubscriber {
     // service publishes with a private reply inbox and retries every 5s
     // until this ack lands — no ack, no heartbeats. Callers authenticate
     // via client-shield identity (`verify`), not AuthUser headers.
-    await makeNatsRequestRoute<ServiceRegisterPayload, { registered: boolean; error?: string }>(
+    await makeNatsRequestRoute<ServiceRegisterPayload, { registered: boolean; error?: string; key_generation?: number }>(
       [
         {
           subject: SERVICE_SUBJECTS.REGISTER,
@@ -77,8 +77,7 @@ export class ServiceLifecycleSubscriber {
               });
               return { registered: false, error: ownershipError };
             }
-            await this.handleRegister(payload);
-            return { registered: true };
+            return this.handleRegister(payload);
           },
         },
       ],
@@ -226,7 +225,7 @@ export class ServiceLifecycleSubscriber {
     return null;
   }
 
-  private async handleRegister(payload: ServiceRegisterPayload): Promise<void> {
+  private async handleRegister(payload: ServiceRegisterPayload): Promise<{ registered: boolean; error?: string; key_generation?: number }> {
     const { code, base_url, is_behind_scaler } = payload;
     const status = this.deriveStatus(payload.http_healthy, payload.nats_connected, payload.checks);
     const now = new Date();
@@ -238,10 +237,34 @@ export class ServiceLifecycleSubscriber {
     // `{pkg_name}/{service_version}` — the UA prefix it will send.
     // Raw keys never travel; only the sha256 hash is stored.
     if (payload.pkg_name && payload.client_key_hash) {
-      await this.upsertClientShieldRegistry(
-        `${payload.pkg_name}/${payload.service_version ?? ""}`,
+      const uaPrefix = `${payload.pkg_name}/${payload.service_version ?? ""}`;
+      // Derived-mode claims are cryptographically verified against the
+      // service's HMAC chain (master → service secret → generation key):
+      // the BE can check the material without ever seeing the secret.
+      if (payload.key_mode === "derived" && payload.key_generation !== undefined) {
+        const svc = new ClientShieldRegistryService();
+        const valid = await svc.verifyDerivedClaim(uaPrefix, payload.key_generation, payload.client_key_hash);
+        if (!valid) {
+          logger.warn(`service.register rejected — derived key material does not verify for ${uaPrefix} (generation ${payload.key_generation})`, {
+            tags: ["nats"],
+          });
+          return { registered: false, error: "derived key material does not verify" };
+        }
+      }
+      const outcome = await this.upsertClientShieldRegistry(
+        uaPrefix,
         payload.client_key_hash,
+        { keyMode: payload.key_mode, keyGeneration: payload.key_generation },
       );
+      // Stale-generation (B14): the service derived for an older generation
+      // — send back the issued one; its registrar self-heals and retries.
+      if (outcome.outcome === "stale_generation") {
+        return {
+          registered: false,
+          error: "stale key generation",
+          key_generation: outcome.key_generation,
+        };
+      }
     }
 
     if (is_behind_scaler) {
@@ -351,6 +374,7 @@ export class ServiceLifecycleSubscriber {
     if (status === "online") {
       void this.registerMcpEntities(code, base_url);
     }
+    return { registered: true };
   }
 
   /**
@@ -358,11 +382,20 @@ export class ServiceLifecycleSubscriber {
    * Registry rows are system-owned — find→add|update keeps them fresh on
    * re-registration; admins can only touch `source='manual'` rows.
    */
-  private async upsertClientShieldRegistry(uaPrefix: string, clientKeyHash: string): Promise<void> {
-    await new ClientShieldRegistryService().enrollRegistryRow(uaPrefix, clientKeyHash, "service-registry");
-    logger.done(`The service ${uaPrefix} has been enrolled and its protection shield key registered`, { tags: ["nats"] });
-    // Invalidate consumer-side allowlist caches.
-    await NatsClient.publish(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
+  private async upsertClientShieldRegistry(
+    uaPrefix: string,
+    clientKeyHash: string,
+    opts: { keyMode?: "static" | "derived"; keyGeneration?: number } = {},
+  ): Promise<{ outcome: "enrolled" | "stale_generation"; key_generation?: number }> {
+    const outcome = await new ClientShieldRegistryService().enrollRegistryRow(uaPrefix, clientKeyHash, "service-registry", opts);
+    if (outcome.outcome === "enrolled") {
+      logger.done(`The service ${uaPrefix} has been enrolled and its protection shield key registered`, { tags: ["nats"] });
+      // Invalidate consumer-side allowlist caches.
+      await NatsClient.publish(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
+    } else {
+      logger.warn(`The service ${uaPrefix} registered with a stale key generation — issued generation ${outcome.key_generation} returned`, { tags: ["nats"] });
+    }
+    return outcome;
   }
 
   private async handleHeartbeat(payload: ServiceHeartbeatPayload): Promise<void> {

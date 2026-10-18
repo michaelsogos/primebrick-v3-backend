@@ -36,6 +36,9 @@ associated entity (when declared). The AI assistant uses this to answer
 | `/system/settings/docs-index` | settings | page | — |
 | `/system/settings/modules` | settings | list | service_registry |
 | `/system/settings/modules/[code]` | settings | detail | service_registry |
+| `/system/settings/clients` | settings | list | client_registry |
+| `/system/settings/clients/[uuid]` | settings | detail | client_registry |
+| `/system/settings/clients/create` | settings | create | client_registry |
 | `/system/settings/templates` | settings | list | template |
 | `/system/settings/translations` | settings | page | — |
 | `/system/settings/email-providers` | settings | list | email_provider |
@@ -43,6 +46,11 @@ associated entity (when declared). The AI assistant uses this to answer
 | `/system/migrations` | settings | page | — |
 
 ## Routes grouped by entity
+
+### client_registry
+- `/system/settings/clients`
+- `/system/settings/clients/[uuid]`
+- `/system/settings/clients/create`
 
 ### config_entry
 - `/system/settings/configurations`
