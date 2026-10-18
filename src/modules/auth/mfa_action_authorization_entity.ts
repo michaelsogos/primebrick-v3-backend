@@ -12,20 +12,21 @@
  * which resource, and when.
  */
 
-import type { IAuditableEntity } from "@primebrick/dal-pg";
+
 import {
   Column,
   Entity,
   Key,
   Unique,
-  AuditableField,
-  AuditableFieldType,
   AuditTrail,
+  EntityBase,
+  Auditable,
 } from "@primebrick/dal-pg";
 
 @Entity("mfa_action_authorizations")
 @AuditTrail()
-export class MfaActionAuthorizationEntity implements IAuditableEntity {
+export class MfaActionAuthorizationEntity
+  extends Auditable(EntityBase) {
   @Key()
   id: bigint;
 
@@ -58,18 +59,8 @@ export class MfaActionAuthorizationEntity implements IAuditableEntity {
   @Column({ nullable: true })
   used_at?: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_AT)
-  created_at: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_BY)
-  created_by: string;
 
-  @AuditableField(AuditableFieldType.UPDATED_AT)
-  updated_at: Date;
 
-  @AuditableField(AuditableFieldType.UPDATED_BY)
-  updated_by: string;
 
-  @AuditableField(AuditableFieldType.VERSION)
-  version: number;
 }

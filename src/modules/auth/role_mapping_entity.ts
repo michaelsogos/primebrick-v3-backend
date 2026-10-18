@@ -1,5 +1,16 @@
-import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
-import { Entity, Key, Column, Unique, AuditableField, AuditableFieldType, SynchronizableField, SynchronizableFieldType, AuditTrail } from "@primebrick/dal-pg";
+
+import type { UUID } from "@primebrick/dal-pg";
+import {
+  Entity,
+  Key,
+  Column,
+  Unique,
+  SynchronizableField,
+  SynchronizableFieldType,
+  AuditTrail,
+  EntityBase,
+  Auditable,
+} from "@primebrick/dal-pg";
 
 /**
  * Maps IDP roles (from JWT) to Primebrick permissions.
@@ -33,7 +44,8 @@ import { Entity, Key, Column, Unique, AuditableField, AuditableFieldType, Synchr
  */
 @Entity("role_mappings")
 @AuditTrail()
-export class RoleMappingEntity implements IAuditableEntity {
+export class RoleMappingEntity
+  extends Auditable(EntityBase) {
   @Key()
   id!: bigint;
 
@@ -60,18 +72,8 @@ export class RoleMappingEntity implements IAuditableEntity {
   @Column({ nullable: true })
   last_synced_at?: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_AT)
-  created_at!: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_BY)
-  created_by!: string;
 
-  @AuditableField(AuditableFieldType.UPDATED_AT)
-  updated_at!: Date;
 
-  @AuditableField(AuditableFieldType.UPDATED_BY)
-  updated_by!: string;
 
-  @AuditableField(AuditableFieldType.VERSION)
-  version!: number;
 }

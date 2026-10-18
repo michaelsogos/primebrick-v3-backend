@@ -14,26 +14,27 @@
  *   - `idp_code` is immutable after creation (one-to-one mapping with Casdoor)
  */
 
-import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
+
+import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
   Key,
   Unique,
-  AuditableField,
-  AuditableFieldType,
-  DeletableField,
-  DeletableFieldType,
   SynchronizableField,
   SynchronizableFieldType,
   AuditTrail,
+  EntityBase,
+  Auditable,
+  Deletable,
 } from "@primebrick/dal-pg";
 import { Cached } from "@primebrick/sdk";
 
 @Entity("organizations")
 @AuditTrail()
 @Cached(300_000) // 5 min TTL — mutable (Casdoor sync)
-export class OrganizationEntity implements IAuditableEntity {
+export class OrganizationEntity
+  extends Deletable(Auditable(EntityBase)) {
   @Key()
   id: bigint;
 
@@ -64,24 +65,10 @@ export class OrganizationEntity implements IAuditableEntity {
   last_synced_at?: Date;
 
   // Audit fields (NOT synced to Casdoor)
-  @AuditableField(AuditableFieldType.CREATED_AT)
-  created_at: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_BY)
-  created_by: string;
 
-  @AuditableField(AuditableFieldType.UPDATED_AT)
-  updated_at: Date;
 
-  @AuditableField(AuditableFieldType.UPDATED_BY)
-  updated_by: string;
 
-  @AuditableField(AuditableFieldType.VERSION)
-  version: number;
 
-  @DeletableField(DeletableFieldType.DELETED_AT)
-  deleted_at?: Date;
 
-  @DeletableField(DeletableFieldType.DELETED_BY)
-  deleted_by?: string;
 }

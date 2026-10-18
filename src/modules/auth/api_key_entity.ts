@@ -6,18 +6,20 @@
  * Auditable (version + audit stamps) but NOT deletable — no `deleted_at`;
  * revocation is `is_active = false` or hard delete.
  */
-import type { IAuditableEntity, UUID } from "@primebrick/dal-pg";
+
+import type { UUID } from "@primebrick/dal-pg";
 import {
-  AuditableField,
-  AuditableFieldType,
   Column,
   Entity,
   Key,
   Unique,
+  EntityBase,
+  Auditable,
 } from "@primebrick/dal-pg";
 
 @Entity("api_keys")
-export class ApiKeyEntity implements IAuditableEntity {
+export class ApiKeyEntity
+  extends Auditable(EntityBase) {
   @Key()
   id: bigint;
 
@@ -50,18 +52,8 @@ export class ApiKeyEntity implements IAuditableEntity {
   @Column({ nullable: true })
   expires_at?: Date | null;
 
-  @AuditableField(AuditableFieldType.CREATED_AT)
-  created_at: Date;
 
-  @AuditableField(AuditableFieldType.CREATED_BY)
-  created_by: string;
 
-  @AuditableField(AuditableFieldType.UPDATED_AT)
-  updated_at: Date;
 
-  @AuditableField(AuditableFieldType.UPDATED_BY)
-  updated_by: string;
 
-  @AuditableField(AuditableFieldType.VERSION)
-  version: number;
 }
