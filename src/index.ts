@@ -35,7 +35,7 @@ import { createPublisherVerifier } from "./controllers/nats-sub/publisher-identi
 import { initBackendIdentity } from "./modules/proxy/backend-identity.js";
 import { initSecretEngine } from "./modules/secrets/secret-engine.js";
 import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js";
-import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
+import { resolveModuleNavMeta } from "./modules/module-nav-meta.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
 import { initBackendTelemetry, getTelemetryShared } from "./observability/telemetry.js";
 import { shutdownTelemetry, flushLogsSync } from "@primebrick/sdk";
@@ -244,7 +244,10 @@ apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_re
   const services = await new ServiceRegistryService().findAll();
   res.json({
     modules: services.map((s) => {
-      const navMeta = buildModuleNavMeta(s.code);
+      // Static registry (BE-owned modules) first, then the service's own
+      // endpoints.nav declaration — the self-published wiring that lets a
+      // service own its pages (route_prefixes/icon included).
+      const navMeta = resolveModuleNavMeta(s.code, s.endpoints);
       return {
         id: s.code.toLowerCase(),
         name: s.name || s.code,
@@ -259,7 +262,8 @@ apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_re
 
 apiRouter.get("/modules/:code/meta", rbacHandler([Permission.MODULES_READ_ALL]), async (req, res) => {
   const code = req.params.code as string;
-  const meta = buildModuleNavMeta(code);
+  const service = await new ServiceRegistryService().findByCode(code);
+  const meta = resolveModuleNavMeta(code, service?.endpoints);
   if (!meta) {
     res.status(404).json({
       type: "about:blank",

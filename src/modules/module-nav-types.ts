@@ -1,20 +1,20 @@
 /**
- * Module navigation metadata types.
+ * Module navigation metadata types — facades over the canonical contracts
+ * in `@primebrick/core`.
  *
- * Shared between the /modules list endpoint (ModuleInfo fields) and the
- * /modules/:code/meta endpoint (full nav tree). All field names are
- * snake_case per the BE data-model convention.
+ * Shared between the /modules list endpoint (ModuleInfo fields), the
+ * /modules/:code/meta endpoint (full nav tree), the routes census, and the
+ * service-registration self-declaration (`service_registry.endpoints.nav`).
+ * All field names are snake_case per the BE data-model convention.
  */
 
-import type { PageRouteDeclaration } from "@primebrick/sdk";
+import type {
+  ModuleNavDeclaration as CoreModuleNavDeclaration,
+  ModuleNavLink,
+  PageRouteDeclaration,
+} from "@primebrick/sdk";
 
-export type ModuleNavLink = {
-  id: string;
-  label_key: string;
-  href: string;
-  icon?: string;
-  children?: ModuleNavLink[];
-};
+export type { ModuleNavLink, PageRouteDeclaration };
 
 export type ModuleNav = {
   module: string;
@@ -30,16 +30,14 @@ export type ModuleNav = {
  */
 export type ModuleRouteDecl = PageRouteDeclaration;
 
-export type { PageRouteDeclaration };
-
 /**
- * Extended with route_prefixes + is_reserved — used internally by the
- * /modules list endpoint to attach route resolution metadata. The
- * /modules/:code/meta endpoint strips these and returns plain ModuleNav.
+ * A module's full nav declaration — the shape services self-publish via
+ * `service.register` (`endpoints.nav`) AND the shape the static MODULE_NAV
+ * registry returns for BE-owned modules. One contract, two sources:
+ * service-declared nav is the wiring; static nav is only for the BE's own
+ * reserved/system modules.
  */
-export type ModuleNavWithPrefixes = ModuleNav & {
-  route_prefixes: string[];
-  is_reserved?: boolean;
-  /** Full route census of the module — nav-declared AND non-derivable paths. */
-  routes?: PageRouteDeclaration[];
+export type ModuleNavWithPrefixes = CoreModuleNavDeclaration & {
+  /** Module code — always populated when resolved (static or endpoints). */
+  module: string;
 };

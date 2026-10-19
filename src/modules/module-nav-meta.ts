@@ -1,15 +1,25 @@
 /**
- * Static registry of module navigation metadata.
+ * Module navigation metadata resolution.
  *
- * This is a PLACEHOLDER until microservices self-describe their nav via NATS
- * (stored in service_registry.endpoints jsonb). For now, the BE is the single
- * source of truth for module nav — including the reserved 'settings' module
- * which is a Primebrick shell constant, not a registrable microservice.
+ * Two sources, one contract (`ModuleNavWithPrefixes`):
+ *
+ * - `MODULE_NAV` — static registry for BE-OWNED modules only: the reserved
+ *   `settings` shell module and BE-native modules (crm) whose pages are
+ *   served by the FE itself. NEVER declare another service's pages here —
+ *   a module must present only its own nav.
+ * - `service_registry.endpoints.nav` — self-described nav published by a
+ *   service in its `service.register` payload (see `navFromEndpoints`).
+ *   This is the wiring that lets each module own its pages: the BE merges
+ *   it into /modules, /modules/:code/meta and the routes census.
  *
  * The FE never hardcodes any of this — it fetches everything via the API.
  */
 
-import type { ModuleNavWithPrefixes } from "./module-nav-types.js";
+import type {
+  ModuleNavLink,
+  ModuleNavWithPrefixes,
+  PageRouteDeclaration,
+} from "./module-nav-types.js";
 
 const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
   crm: {
@@ -44,7 +54,6 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
           { id: "clients", label_key: "system.settings.tabs.clients", href: "/system/settings/clients", icon: "shield-check" },
           { id: "templates", label_key: "system.settings.tabs.templates", href: "/system/settings/templates", icon: "file-text" },
           { id: "email-providers", label_key: "system.settings.tabs.emailProviders", href: "/system/settings/email-providers", icon: "mail" },
-          { id: "jobs", label_key: "system.jobs.nav", href: "/system/jobs", icon: "list-clock" },
           { id: "migrations", label_key: "system.migrations.nav", href: "/system/migrations", icon: "database-zap" },
         ],
         // Full route census — every FE path this module owns, including
@@ -74,14 +83,6 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
           { route: "/system/settings/templates", kind: "list", entity: "template" },
           { route: "/system/settings/translations", kind: "page" },
           { route: "/system/settings/email-providers", kind: "list", entity: "email_provider" },
-          {
-            route: "/system/jobs",
-            kind: "page",
-            // Module-owned page — the job service ships this route's UI as a
-            // precompiled ESM chunk; the FE mounts it via RemotePageMount.
-            component_url: "/ws/job/api/v1/module-assets/jobs-page.js",
-            component_format: "esm-mount",
-          },
           { route: "/system/migrations", kind: "page" },
         ],
   },
@@ -94,4 +95,47 @@ export function listModuleNavCodes(): string[] {
 
 export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
   return MODULE_NAV[code.toLowerCase()] ?? null;
+}
+
+// ─── Service-declared nav (service_registry.endpoints.nav) ────────────────
+
+/**
+ * Read a module's self-declared nav from a service_registry row's
+ * `endpoints` payload (`endpoints.nav`, published via `service.register`).
+ *
+ * This is the channel by which a service owns its FE pages — e.g. the job
+ * service declares `/system/jobs` with its remote `component_url`, so the
+ * census/module-meta serve it as a JOB-module route, never as a Settings
+ * page. Returns null when the row has no nav declaration or the payload is
+ * malformed (a bad declaration must not break module resolution).
+ */
+export function navFromEndpoints(
+  code: string,
+  endpoints: Record<string, unknown> | null | undefined,
+): ModuleNavWithPrefixes | null {
+  const raw = endpoints?.["nav"];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const decl = raw as Record<string, unknown>;
+  if (!Array.isArray(decl["nav"]) || !Array.isArray(decl["route_prefixes"])) {
+    return null;
+  }
+  return {
+    module: code,
+    icon: typeof decl["icon"] === "string" ? decl["icon"] : undefined,
+    route_prefixes: decl["route_prefixes"] as string[],
+    nav: decl["nav"] as ModuleNavLink[],
+    routes: Array.isArray(decl["routes"]) ? (decl["routes"] as PageRouteDeclaration[]) : undefined,
+  };
+}
+
+/**
+ * Resolve the effective nav meta for a module code — static registry first
+ * (BE-owned/reserved modules), then the service's own endpoints.nav
+ * declaration. Pass the service_registry row's `endpoints` when available.
+ */
+export function resolveModuleNavMeta(
+  code: string,
+  endpoints?: Record<string, unknown> | null,
+): ModuleNavWithPrefixes | null {
+  return buildModuleNavMeta(code) ?? navFromEndpoints(code, endpoints);
 }

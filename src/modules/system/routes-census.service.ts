@@ -7,17 +7,18 @@
  *   - nav `href`s (list/utility pages)
  *   - `route_prefixes` (prefix-level coverage, last resort)
  *
- * Source of truth: `service_registry` rows + `buildModuleNavMeta` — the same
- * declaration point remote microservices will use via self-registration.
- * No build-time manifest: a FE-only scan could never see routes owned by
- * remote module frontends.
+ * Source of truth: `service_registry` rows + `resolveModuleNavMeta` — static
+ * registry for BE-owned modules, `endpoints.nav` self-declaration for
+ * service-owned modules (the same wiring remote module frontends use to own
+ * their pages). No build-time manifest: a FE-only scan could never see
+ * routes owned by remote module frontends.
  *
  * Used by the Guide assistant's `search_routes` client tool (loop action
  * selection) — responses are small and cached in-process for 30s.
  */
 
 import { ServiceRegistryService } from "./service-registry.service.js";
-import { buildModuleNavMeta } from "../module-nav-meta.js";
+import { resolveModuleNavMeta } from "../module-nav-meta.js";
 import type { PageRouteDeclaration } from "@primebrick/sdk";
 
 export interface CensusRoute extends PageRouteDeclaration {
@@ -44,7 +45,10 @@ export class RoutesCensusService {
     };
 
     for (const s of services.filter((x) => x.is_enabled)) {
-      const meta = buildModuleNavMeta(s.code);
+      // Static registry first, then the service's self-published
+      // endpoints.nav — either way the route keeps THIS service's code as
+      // its owning module.
+      const meta = resolveModuleNavMeta(s.code, s.endpoints);
       if (!meta) continue;
       for (const r of meta.routes ?? []) push(s.code.toLowerCase(), r);
       for (const link of meta.nav) push(s.code.toLowerCase(), { route: link.href, kind: "page", label_key: link.label_key });
