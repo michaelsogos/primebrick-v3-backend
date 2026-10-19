@@ -46,6 +46,13 @@ reshaping). `GET /meta` is assembled by `meta-assembler` from the static
 `*.meta.ts` plus the *derived* action set — the FE builds its whole page
 (columns, filters, buttons) from that single response.
 
+List query parameters (`list-query.ts` is the single parser — routes must
+not re-parse): `search` + `search_in` (CSV column allowlist),
+`filters[i][field|op|value|connector]` (bracket notation),
+`sort_key`/`sort_dir`, `page`/`page_size`, and `deleted_records` —
+`EXCLUDED` | `ONLY` | `INCLUDED`, sent explicitly by the FE for soft-delete
+entities (absent param = BE default, currently EXCLUDED).
+
 ## Error discipline
 
 Domain errors come from the service layer (`ApiError`/`mapDalError`); the

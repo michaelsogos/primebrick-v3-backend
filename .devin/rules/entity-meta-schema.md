@@ -88,9 +88,11 @@ required fields (`type_capabilities`).
 {
   "display_name": "${display_name}",  // materialized default when omitted
   "actions": [                         // deriveEntityActions — full standard
-    { "op": "list", "enabled": true, "permissions": ["user_profile.read.all"] },
-    { "op": "create.single", "enabled": true, "permissions": ["user_profile.create.single"] },
-    { "op": "duplicate.bulk", "enabled": false }   // route absent → explicit false
+    { "op": "list", "enabled": true, "permissions": ["user_profile.read.all"],
+      "endpoint": { "method": "GET", "path": "/api/v1/entities/user_profile/list" } },
+    { "op": "delete.single", "enabled": true, "permissions": ["user.delete.single"],
+      "endpoint": { "method": "DELETE", "path": "/api/v1/auth/users/:uuid" } },
+    { "op": "duplicate.bulk", "enabled": false }   // route absent → explicit false, no endpoint
   ],
   "collaboration": { "enabled": true, "expose_editing_value": true }
 }
@@ -123,6 +125,13 @@ routes produce explicit `{ enabled: false }` entries, never absent ops:
 `duplicate.single`, `duplicate.bulk`
 
 Non-standard routes (e.g. `change-password`) surface as additional bare ops.
+
+Every enabled op carries `endpoint: { method, path }` — the real registered
+route (path params use `:param`, filled client-side from the row `uid`).
+This is how entities whose writes live outside `/entities/{entity}/` (e.g.
+`user_profile` → `/api/v1/auth/users/*`) dispatch correctly: the frontend
+uses the declared endpoint and only falls back to the entity convention
+when `endpoint` is absent. Disabled ops carry no endpoint.
 
 ## Search contract
 

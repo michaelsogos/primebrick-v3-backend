@@ -102,8 +102,11 @@ Deletion is capability-driven and declared per entity:
 
 Which endpoint applies is never a client guess: `meta.actions` emits
 `delete.single` (soft) and `purge.single` (hard) with `enabled` flags derived
-from the registered route table. The frontend's entity list table picks the
-correct URL automatically.
+from the registered route table. Enabled ops also carry
+`endpoint: &lbrace; method, path &rbrace;` — the real registered route —
+so the frontend dispatches write ops to their declared path (e.g.
+`user_profile` writes under `/api/v1/auth/users/*`) instead of reconstructing
+`/entities/&lbrace;entity&rbrace;/:uuid` by convention.
 
 `role_mapping` is the current hard-delete-only entity: deleting a role
 removes the local row AND the Casdoor role atomically (Casdoor first, local
