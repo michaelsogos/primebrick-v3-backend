@@ -18,14 +18,10 @@
 
 import { ServiceRegistryService } from "./service-registry.service.js";
 import { buildModuleNavMeta } from "../module-nav-meta.js";
-import type { ModuleRouteDecl } from "../module-nav-types.js";
+import type { PageRouteDeclaration } from "@primebrick/sdk";
 
-export interface CensusRoute {
-  route: string;
-  kind: ModuleRouteDecl["kind"];
+export interface CensusRoute extends PageRouteDeclaration {
   module: string;
-  entity?: string;
-  label_key?: string;
 }
 
 const CACHE_TTL_MS = 30_000;
@@ -39,16 +35,12 @@ export class RoutesCensusService {
     const seen = new Set<string>();
     const routes: CensusRoute[] = [];
 
-    const push = (module: string, decl: ModuleRouteDecl) => {
+    const push = (module: string, decl: PageRouteDeclaration) => {
       if (seen.has(decl.route)) return;
       seen.add(decl.route);
-      routes.push({
-        route: decl.route,
-        kind: decl.kind,
-        module,
-        ...(decl.entity ? { entity: decl.entity } : {}),
-        ...(decl.label_key ? { label_key: decl.label_key } : {}),
-      });
+      // Spread keeps remote-delivery fields (component_url/component_format/
+      // integrity) flowing to the FE — they are the route's resolution config.
+      routes.push({ ...decl, module });
     };
 
     for (const s of services.filter((x) => x.is_enabled)) {

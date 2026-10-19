@@ -6,6 +6,8 @@
  * snake_case per the BE data-model convention.
  */
 
+import type { PageRouteDeclaration } from "@primebrick/sdk";
+
 export type ModuleNavLink = {
   id: string;
   label_key: string;
@@ -21,19 +23,14 @@ export type ModuleNav = {
 };
 
 /**
- * A declared frontend route owned by a module. Modules MUST declare every
- * FE path they own that is not deducible from nav links or entity
- * conventions — the AI route census (GET /system/routes) depends on it.
- * `param` marks dynamic segments using the FE convention ([uuid], [code]).
+ * A declared frontend route owned by a module. The canonical contract lives
+ * in `@primebrick/core` (`PageRouteDeclaration`) — it carries optional remote
+ * component delivery fields (`component_url`/`component_format`/`integrity`)
+ * consumed by the FE `RemotePageMount`.
  */
-export type ModuleRouteDecl = {
-  route: string;
-  kind: "list" | "detail" | "create" | "page";
-  /** Entity code when the route is bound to a CRUD surface. */
-  entity?: string;
-  /** i18n key for a human-readable label, when available. */
-  label_key?: string;
-};
+export type ModuleRouteDecl = PageRouteDeclaration;
+
+export type { PageRouteDeclaration };
 
 /**
  * Extended with route_prefixes + is_reserved — used internally by the
@@ -44,5 +41,5 @@ export type ModuleNavWithPrefixes = ModuleNav & {
   route_prefixes: string[];
   is_reserved?: boolean;
   /** Full route census of the module — nav-declared AND non-derivable paths. */
-  routes?: ModuleRouteDecl[];
+  routes?: PageRouteDeclaration[];
 };
