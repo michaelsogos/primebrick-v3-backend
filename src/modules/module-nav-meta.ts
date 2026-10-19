@@ -74,7 +74,14 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
           { route: "/system/settings/templates", kind: "list", entity: "template" },
           { route: "/system/settings/translations", kind: "page" },
           { route: "/system/settings/email-providers", kind: "list", entity: "email_provider" },
-          { route: "/system/jobs", kind: "page" },
+          {
+            route: "/system/jobs",
+            kind: "page",
+            // Module-owned page — the job service ships this route's UI as a
+            // precompiled ESM chunk; the FE mounts it via RemotePageMount.
+            component_url: "/ws/job/api/v1/module-assets/jobs-page.js",
+            component_format: "esm-mount",
+          },
           { route: "/system/migrations", kind: "page" },
         ],
   },
