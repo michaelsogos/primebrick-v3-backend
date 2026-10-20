@@ -27,7 +27,11 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
   settings: {
         module: "settings",
         icon: "settings",
-        route_prefixes: ["/system"],
+        // Attribution, not containment: settings declares ONLY the prefixes
+        // its own routes actually live under. `/system` as a catch-all
+        // would re-attribute service-owned pages (e.g. /system/jobs) to
+        // settings whenever the owning service goes offline.
+        route_prefixes: ["/system/settings", "/system/migrations"],
         is_reserved: true,
         nav: [
           { id: "profile", label_key: "system.settings.tabs.profile", href: "/system/settings/profile", icon: "square-user" },
