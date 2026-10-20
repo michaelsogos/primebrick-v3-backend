@@ -4,9 +4,9 @@
  * Two sources, one contract (`ModuleNavWithPrefixes`):
  *
  * - `MODULE_NAV` — static registry for BE-OWNED modules only: the reserved
- *   `settings` shell module and BE-native modules (crm) whose pages are
- *   served by the FE itself. NEVER declare another service's pages here —
- *   a module must present only its own nav.
+ *   `settings` shell module. NEVER declare a service module's pages here —
+ *   a module must present only its own nav; service modules (job,
+ *   emailsender, crm, …) publish their nav via service registration.
  * - `service_registry.endpoints.nav` — self-described nav published by a
  *   service in its `service.register` payload (see `navFromEndpoints`).
  *   This is the wiring that lets each module own its pages: the BE merges
@@ -24,20 +24,6 @@ import type {
 } from "./module-nav-types.js";
 
 const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
-  crm: {
-        module: "crm",
-        icon: "users",
-        route_prefixes: ["/system/customers", "/crm"],
-        nav: [
-          { id: "customers", label_key: "system.entities.customer.title", href: "/system/customers", icon: "users" },
-          { id: "pipeline", label_key: "system.entities.crm.pipeline.nav", href: "/crm/pipeline", icon: "git-branch" },
-        ],
-        routes: [
-          { route: "/system/customers", kind: "list", entity: "customer" },
-          { route: "/system/customers/new", kind: "create", entity: "customer" },
-          { route: "/crm/pipeline", kind: "page" },
-        ],
-  },
   settings: {
         module: "settings",
         icon: "settings",

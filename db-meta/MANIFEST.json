@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha",
-  "issued_at": "2026-10-20T16:30:09.721Z",
+  "issued_at": "2026-10-20T16:48:27.149Z",
   "patches": {
     "00000000000000_init_database": "05761ee7f89f3a6518779ac1fee25ed83a90c0d8d11a5aff1da28a61db2d1efa",
     "00000000000001_seed_translations_en_gb": "52492d182cbd158744a14a93d4234f56552a73abe8d7a0af39047dc05eeb2654",
@@ -33,7 +33,8 @@
     "20261019211200_client_shield_audit_cols_text": "3ee76d49d7d2cd82bb0ed68e7c870b36b163f529a04c5cc1477f97536e243639",
     "20261020160000_purge_public_job_entity_drift": "cabfdcfd192a90230c9c3ae183bda74f2730944d15dbccd6c94a0f7b89ab19ad",
     "20261020160500_purge_public_system_drift": "316efcab950b22738b0da1148cafcc6c80f56f1bbe86b272baa3c29f57581d87",
+    "20261020170000_purge_system_crm_drift": "971670d97f6589c9cc92faad1bc2806e02ff1f154b03199f6a847850c0e9c167",
     "20261020170000_service_registry_soft_delete": "ed4a9a41806444c7b1e333ed3c1d35773c9f29aaa9f4db96d5312ef5ec42f49b"
   },
-  "signature": "4Jjun0y+unogB6CLEakoDQcLBWFnBsRv2W/KgQGMKG9QsXrnjgXVJl+/jLtc8bmhyygAPLU+BPsfbW6FLGlUDw=="
+  "signature": "5S0qFkzvOuK8vJY0l2sw8dXnx06PLlWpgIIPGItMakhgBQke/2eHUBbheLP2EwQAW7h4hGItfjA5ZRtgIv7/Dw=="
 }

@@ -24,6 +24,7 @@ import { ServiceLifecycleSubscriber } from "../service-lifecycle-subscriber.js";
 
 function makeRegisterPayload(overrides: Partial<{
   code: string;
+  pkg_name: string;
   base_url: string;
   is_behind_scaler: boolean;
   http_healthy: boolean;
@@ -214,7 +215,7 @@ describe("ServiceLifecycleSubscriber", () => {
     it("derived: code === pkg_name minus primebrick- → accepted", () => {
       const sub = new ServiceLifecycleSubscriber();
       const err = (sub as any).checkServiceCodeIntegrity(
-        makeRegisterPayload({ code: "job" as never, is_behind_scaler: true, ...({ pkg_name: "primebrick-job" } as never) }),
+        makeRegisterPayload({ code: "job", pkg_name: "primebrick-job", is_behind_scaler: true }),
       );
       expect(err).toBeNull();
     });
