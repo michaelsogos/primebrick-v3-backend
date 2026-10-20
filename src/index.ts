@@ -250,13 +250,15 @@ apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_re
     modules: services.map((s) => {
       // Static registry (BE-owned modules) first, then the service's own
       // endpoints.nav declaration — the self-published wiring that lets a
-      // service own its pages (route_prefixes/icon included).
+      // service own its pages (route_prefixes included). The module icon is
+      // service identity: service_registry.icon is the single source —
+      // endpoints.nav.icon does not exist (nav declares links+routes only).
       const navMeta = resolveModuleNavMeta(s.code, s.endpoints);
       return {
         id: s.code.toLowerCase(),
         name: s.name || s.code,
         enabled: s.is_enabled,
-        icon: s.icon || navMeta?.icon,
+        icon: s.icon,
         route_prefixes: navMeta?.route_prefixes,
         is_reserved: s.is_reserved,
       };

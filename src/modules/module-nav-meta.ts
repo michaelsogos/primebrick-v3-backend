@@ -26,7 +26,6 @@ import type {
 const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
   settings: {
         module: "settings",
-        icon: "settings",
         // Attribution, not containment: settings declares ONLY the prefixes
         // its own routes actually live under. `/system` as a catch-all
         // would re-attribute service-owned pages (e.g. /system/jobs) to
@@ -169,9 +168,6 @@ export function validateNavDeclaration(code: string, decl: unknown): string | nu
       }
     }
   }
-  if (d["icon"] !== undefined && typeof d["icon"] !== "string") {
-    return "endpoints.nav.icon must be a lucide name string";
-  }
   return null;
 }
 
@@ -197,7 +193,6 @@ export function navFromEndpoints(
   const decl = raw as Record<string, unknown>;
   return {
     module: code,
-    icon: typeof decl["icon"] === "string" ? decl["icon"] : undefined,
     route_prefixes: decl["route_prefixes"] as string[],
     nav: decl["nav"] as ModuleNavLink[],
     routes: Array.isArray(decl["routes"]) ? (decl["routes"] as PageRouteDeclaration[]) : undefined,

@@ -18,7 +18,6 @@ export type { ModuleNavLink, PageRouteDeclaration };
 
 export type ModuleNav = {
   module: string;
-  icon?: string;
   nav: ModuleNavLink[];
 };
 
