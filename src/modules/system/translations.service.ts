@@ -7,6 +7,9 @@
  *   - system.translations        (SystemTranslationEntity)
  *   - emailsender.translations   (EmailsenderTranslationEntity)
  *   - custom.translations        (CustomTranslationEntity — user-created keys)
+ *   - <service>.translations     (discovered from service_registry — every
+ *     registered microservice owns its translations schema; no BE-side
+ *     hardcoded module map)
  *
  * Data access is `getDal()` proxies (entity ops, schema-domain guarded —
  * `translations` is the governed shared table). Caching uses the SDK's
@@ -17,16 +20,19 @@
  */
 
 import {
+  Entity,
   field,
   Filter,
   Project,
   Sort,
   getEntityPersistenceMeta,
+  TranslationEntityBase,
   type Repository,
   type EntityClass,
   type FilterExpr,
 } from "@primebrick/dal-pg";
 import {
+  logger,
   requireActor,
   TranslationsCache,
   type I18nDict,
@@ -36,7 +42,8 @@ import {
 
 import {getDal} from "../../db/dal-gateway.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
-import { ValidationError } from "../../http/api-errors.js";
+import { NotFoundError, ValidationError } from "../../http/api-errors.js";
+import { ServiceRegistryService } from "./service-registry.service.js";
 import {
   AppTranslationEntity,
   SystemTranslationEntity,
@@ -129,11 +136,41 @@ export class TranslationsService {
     return cache;
   }
 
-  /** Resolve module code → entity class. Throws if unknown. */
-  resolveEntity(moduleCode: string): TranslationEntityCtor {
-    const entity = MODULE_ENTITIES[moduleCode.toLowerCase()];
+  /**
+   * Entities synthesized from `service_registry` rows — each registered
+   * microservice owns `<code>.translations`; the BE is its CRUD gateway.
+   * Populated lazily on first resolve miss (null = not yet loaded).
+   */
+  private serviceEntities: Map<string, TranslationEntityCtor> | null = null;
+
+  /**
+   * Discover translation entities for registered services. Refreshes lazily:
+   * a service that registers after the first discovery is picked up on the
+   * next unknown-module resolve (see {@link resolveEntity}).
+   */
+  private async discoverServiceEntities(): Promise<Map<string, TranslationEntityCtor>> {
+    const map = new Map<string, TranslationEntityCtor>();
+    for (const s of await new ServiceRegistryService().findAll()) {
+      const code = s.code.toLowerCase();
+      if (MODULE_ENTITIES[code] || map.has(code)) continue;
+      const cls = class extends TranslationEntityBase {} as unknown as TranslationEntityCtor;
+      Entity("translations", code)(cls as unknown as Function);
+      map.set(code, cls);
+    }
+    this.serviceEntities = map;
+    return map;
+  }
+
+  /**
+   * Resolve module code → entity class. Static BE-owned modules first, then
+   * service_registry-discovered service schemas; unknown codes → 404.
+   */
+  async resolveEntity(moduleCode: string): Promise<TranslationEntityCtor> {
+    const code = moduleCode.toLowerCase();
+    const entity = MODULE_ENTITIES[code] ?? (this.serviceEntities ?? await this.discoverServiceEntities()).get(code)
+      ?? (await this.discoverServiceEntities()).get(code);
     if (!entity) {
-      throw new Error(`Unknown translation module: '${moduleCode}'`);
+      throw new NotFoundError(`Unknown translation module: '${moduleCode}'`);
     }
     return entity;
   }
@@ -147,20 +184,35 @@ export class TranslationsService {
     moduleCode: string,
     language: string,
   ): Promise<CacheEntry<I18nDict>> {
-    const entity = this.resolveEntity(moduleCode);
+    const entity = await this.resolveEntity(moduleCode);
     const schema = schemaOf(entity);
     const cache = this.getCache(schema);
 
     const cached = await cache.getI18nDict(language);
     if (cached) return cached;
 
-    const rows = (await getDal().findAll(
-      entity,
-      [Project.expr("jsonb_object_agg(key, value)", "dict")],
-      {
-        filters: [Filter.fieldValue(field(entity, "language"), "=", language)],
-      },
-    )) as { dict: I18nDict | null }[];
+    let rows: { dict: I18nDict | null }[];
+    try {
+      rows = (await getDal().findAll(
+        entity,
+        [Project.expr("jsonb_object_agg(key, value)", "dict")],
+        {
+          filters: [Filter.fieldValue(field(entity, "language"), "=", language)],
+        },
+      )) as { dict: I18nDict | null }[];
+    } catch (e) {
+      // A registered service whose schema has no `translations` table yet
+      // simply has no module translations — return an empty dict (uncached,
+      // so the schema fix takes effect immediately) instead of a 500.
+      if ((e as { code?: string }).code === "42P01") {
+        logger.warn("translations table missing for module — serving empty dict", {
+          tags: ["i18n"],
+          module: moduleCode,
+        });
+        return wrapCacheEntry({});
+      }
+      throw e;
+    }
     const dict = (rows[0]?.dict ?? {}) as I18nDict;
     const entry = wrapCacheEntry(dict);
     await cache.setI18nDict(language, dict);
@@ -169,7 +221,7 @@ export class TranslationsService {
 
   /** Paginated list of translation rows for a module. */
   async list(moduleCode: string, query: TranslationListQuery) {
-    const entity = this.resolveEntity(moduleCode);
+    const entity = await this.resolveEntity(moduleCode);
     const filters: FilterExpr[] = [];
     if (query.language) {
       filters.push(Filter.fieldValue(field(entity, "language"), "=", query.language));
@@ -205,7 +257,7 @@ export class TranslationsService {
     options?: { tx?: Repository; onConflict?: "raise" | "ignore" },
   ) {
     assertKeyModuleBoundary(moduleCode, data.key);
-    const entity = this.resolveEntity(moduleCode);
+    const entity = await this.resolveEntity(moduleCode);
     const actor = requireActor();
     const repo = options?.tx ?? getDal();
     const row = await repo.add(entity, data, {
@@ -223,14 +275,14 @@ export class TranslationsService {
    * creates inside a transaction (invalidation must happen post-commit).
    */
   async invalidateModuleCache(moduleCode: string, language?: string): Promise<void> {
-    const entity = this.resolveEntity(moduleCode);
+    const entity = await this.resolveEntity(moduleCode);
     await this.getCache(schemaOf(entity)).invalidate(language);
   }
 
   /** Update a translation row by uuid. */
   async update(moduleCode: string, uuid: string, data: TranslationUpdateBody) {
     assertKeyModuleBoundary(moduleCode, data.key);
-    const entity = this.resolveEntity(moduleCode);
+    const entity = await this.resolveEntity(moduleCode);
     const actor = requireActor();
     const row = await getDal().update(
       entity,
@@ -243,7 +295,7 @@ export class TranslationsService {
 
   /** Soft-delete a translation row by uuid. */
   async softDelete(moduleCode: string, uuid: string) {
-    const entity = this.resolveEntity(moduleCode);
+    const entity = await this.resolveEntity(moduleCode);
     const actor = requireActor();
     const row = (await getDal().findByUUID<any, any>(entity, uuid, { deletedRecords: "INCLUDED" }))!;
     await getDal().delete(entity, { uuid, version: row.version }, { actor });
@@ -252,7 +304,7 @@ export class TranslationsService {
 
   /** Restore a soft-deleted translation row by uuid. */
   async restore(moduleCode: string, uuid: string) {
-    const entity = this.resolveEntity(moduleCode);
+    const entity = await this.resolveEntity(moduleCode);
     const actor = requireActor();
     const row = (await getDal().findByUUID<any, any>(entity, uuid, { deletedRecords: "INCLUDED" }))!;
     await getDal().restore(entity, { uuid, version: row.version }, { actor });
