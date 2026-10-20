@@ -1,55 +1,74 @@
 ---
 title: Module Navigation Metadata
-description: "module-nav-meta.ts — the single declaration point for every FE route a module owns: nav trees, route_prefixes, the ModuleRouteDecl census, and the consumers (sidebar, route census, generated navigation-map)."
+description: "module-nav-meta.ts — how each module declares the FE routes it owns: nav trees, route_prefixes, the ModuleRouteDecl census, and the consumers (sidebar, route census, generated navigation-map)."
 ---
 
 # Module navigation metadata
 
-`src/modules/module-nav-meta.ts` is the **single source of truth** for
-which frontend routes belong to which module. The FE never hardcodes
-navigation — it fetches this metadata; the AI assistant navigates through
-it; the generated `navigation-map.mdx` doc derives from it.
+`src/modules/module-nav-meta.ts` resolves **which frontend routes belong to
+which module** (`resolveModuleNavMeta`). The FE never hardcodes navigation —
+it fetches this metadata; the AI assistant navigates through it; the
+generated `navigation-map.mdx` doc derives from it.
 
-## The declaration — `ModuleNavWithPrefixes`
+## Two sources, one contract (`ModuleNavWithPrefixes`)
 
 ```ts
-buildModuleNavMeta("crm") → {
+{
   module: "crm",
-  icon: "users",
-  route_prefixes: ["/system/customers", "/crm"],
+  route_prefixes: ["/crm"],                       // coarse ownership
   is_reserved?: true,
-  nav: [ {id, label_key, href, icon, children?} ],   // sidebar tree
-  routes: [ {route, kind, entity?, label_key?} ],    // ModuleRouteDecl census
+  nav: [ {id, label_key, href, icon, children?} ], // sidebar tree
+  routes: [ {route, kind, entity?, label_key?, component_url?, component_format?} ],
 }
 ```
+
+| Source | Owner | Use |
+|---|---|---|
+| `MODULE_NAV` (static registry) | **BE-owned modules only** — currently just the reserved `settings` shell | Bootstrap nav for the platform itself |
+| `service_registry.endpoints.nav` | **Service-owned modules** (job, emailsender, crm, …) | Self-declared in the `service.register` payload, validated at enrollment by `validateNavDeclaration` — a malformed declaration is rejected and can never poison `/modules` or the census |
+
+A module presents **only its own nav** — Settings MUST NOT declare links to
+service-owned pages (a service going offline would orphan them, and the
+module would masquerade as part of Settings). Settings therefore declares
+only the prefixes its own routes live under — `/system/settings`,
+`/system/migrations` — never a `/system` catch-all.
 
 Three layers, each with a distinct consumer:
 
 | Layer | Purpose |
 |---|---|
-| `nav[]` | The **sidebar tree** — label keys, icons, hrefs. FE renders it verbatim via `fetchModuleMeta` |
-| `route_prefixes` | Coarse ownership — "every path starting here belongs to this module" (last-resort coverage) |
-| `routes: ModuleRouteDecl[]` | The **complete census** — every FE path the module owns, incl. detail/create/param routes not deducible from nav links, each typed `list \| detail \| create \| page` and optionally bound to an `entity` |
+| `nav[]` | The **sidebar tree** — label keys, icons, hrefs. FE renders it verbatim via `fetchModuleMeta`. **Module home = `nav[0].href`** (single source of truth for the module switcher) |
+| `route_prefixes` | Coarse ownership — "every path starting here belongs to this module" (last-resort coverage; powers `isLinkActive` longest-match in the sidebar) |
+| `routes: PageRouteDeclaration[]` | The **complete census** — every FE path the module owns, incl. detail/create/param routes not deducible from nav links, each typed `list \| detail \| create \| page`, optionally bound to an `entity` and/or a remote `component_url` + `component_format` (`esm-mount`) |
 
 **Modules MUST declare every path they own.** A route missing from the
 census is invisible to the AI and to the generated navigation map.
 
+**Icons:** the module/service icon lives on `service_registry.icon` (the
+sole module icon — there is no top-level `nav.icon`); per-page icons are
+the `nav[].icon` fields and resolve through `DynamicIcon`.
+
 ## Consumers
 
 1. **FE sidebar** — `AppSidebar` → `GET module meta` → renders `nav[]`.
+   Nested routes activate exactly one link: the longest matching href wins.
 2. **`RoutesCensusService`** (`GET /system/routes`) — aggregates per
    enabled service: declared `routes` + nav `href`s + `route_prefixes`.
-   Powers the guide assistant's `search_routes` client tool — answers
-   *"where do I find X?"* with real paths. Cached 30s in-process.
+   Remote-delivery fields (`component_url`, `component_format`,
+   `integrity`) flow through to the FE verbatim — they are the route's
+   resolution config. Powers the guide assistant's `search_routes` client
+   tool — answers *"where do I find X?"* with real paths. Cached 30s
+   in-process.
 3. **`generate:docs`** — `generate-reference-docs.ts` iterates
-   `listModuleNavCodes()` + `buildModuleNavMeta()` to emit
+   `listModuleNavCodes()` + the service registry to emit
    `docs/user-guide/generated/navigation-map.mdx` (route → module → kind
    → entity). No FE file scanning — the metadata already knows everything
    a `+page.svelte` scan could find and more.
 
-## Adding a module's routes
+## Adding a service module's routes
 
-Add a case to `MODULE_NAV` with nav tree + prefixes + full `routes`
-census — one edit makes the module appear in the sidebar, the census,
-the AI's navigation answers and the generated doc at the next
-`generate:docs`.
+Publish `endpoints.nav` in the service's `service.register` payload —
+`route_prefixes` + `nav[]` + full `routes` census. One declaration makes
+the module appear in the sidebar, the census, the AI's navigation answers
+and the generated doc at the next `generate:docs`. BE-owned modules add a
+case to `MODULE_NAV` instead.

@@ -152,6 +152,13 @@ when `endpoint` is absent. Disabled ops carry no endpoint.
 
 ## Filter presets semantics (`table.filter_presets`)
 
+- `display: "button_group"` is the **toolbar icon-only standard**: the label
+  is NEVER rendered visibly — `icon` is REQUIRED on every option (a lucide
+  name resolvable by `DynamicIcon`), `tooltip_key` SHOULD be declared (it
+  feeds the `title` tooltip, falling back to `label_key`). Meaning lives in
+  the tooltip + `aria-label`/`aria-pressed`, like `DeletionFilterToggle`.
+- `display: "combobox"` renders the detailed option row (icon + label +
+  tooltip as secondary text) — use it for long option lists.
 - Exactly one option is always selected — no deselect; restoring a persisted
   selection that doesn't match a declared option falls back to `default_option`.
 - `where: []` or omitted = "all" — still a real selection, not a clear.
