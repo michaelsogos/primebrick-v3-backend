@@ -28,7 +28,8 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
         module: "settings",
         // Attribution, not containment: settings declares ONLY the prefixes
         // its own routes actually live under. `/system` as a catch-all
-        // would re-attribute service-owned pages (e.g. /system/jobs) to
+        // would re-attribute service-owned pages to settings whenever the
+        // owning service goes offline (e.g. the job module's /jobs).
         // settings whenever the owning service goes offline.
         route_prefixes: ["/system/settings", "/system/migrations"],
         is_reserved: true,
@@ -176,9 +177,9 @@ export function validateNavDeclaration(code: string, decl: unknown): string | nu
  * `endpoints` payload (`endpoints.nav`, published via `service.register`).
  *
  * This is the channel by which a service owns its FE pages — e.g. the job
- * service declares `/system/jobs` with its remote `component_url`, so the
- * census/module-meta serve it as a JOB-module route, never as a Settings
- * page. Returns null when the row has no nav declaration or the payload is
+ * service declares `/jobs` (with a remote `component_url` for its custom
+ * schedule form), so the census/module-meta serve those routes as
+ * JOB-module routes, never as Settings pages. Returns null when the row has no nav declaration or the payload is
  * malformed — a declaration that reaches the registry is already
  * validated at enrollment ({@link validateNavDeclaration}), so a null here
  * means legacy/pre-enforcement data and is reported by the caller.
