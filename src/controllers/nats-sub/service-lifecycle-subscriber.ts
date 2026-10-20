@@ -15,6 +15,7 @@ import { assertDbEnv, logger } from "@primebrick/sdk";
 import { NatsClient, SERVICE_SUBJECTS, CLIENT_SHIELD_REGISTRY_SUBJECTS, makeNatsRequestRoute, setNatsShieldRegistry, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
 import { createPublisherVerifier } from "./publisher-identity.js";
 import { ServiceRegistryService } from "../../modules/system/service-registry.service.js";
+import { validateNavDeclaration } from "../../modules/module-nav-meta.js";
 import { ClientShieldRegistryService } from "../../modules/system/client-shield-registry.service.js";
 import { entityRegistry } from "../../modules/mcp/tools/entity-registry.js";
 import { discoverEntitiesFromService } from "../../modules/mcp/tools/openapi-discovery.js";
@@ -76,6 +77,19 @@ export class ServiceLifecycleSubscriber {
                 received_schemas: payload.schemas ?? [],
               });
               return { registered: false, error: ownershipError };
+            }
+            // A malformed endpoints.nav declaration is rejected at
+            // enrollment — it must never reach service_registry and poison
+            // /modules or the routes census downstream.
+            if (payload.endpoints?.["nav"] !== undefined) {
+              const navError = validateNavDeclaration(payload.code, payload.endpoints["nav"]);
+              if (navError) {
+                logger.warn(`service.register rejected — ${navError}`, {
+                  tags: ["nats"],
+                  received_code: payload.code,
+                });
+                return { registered: false, error: navError };
+              }
             }
             return this.handleRegister(payload);
           },

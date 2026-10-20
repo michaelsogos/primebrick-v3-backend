@@ -3,13 +3,12 @@
  *
  * The ONLY place translation rows are read/written. The BE is the central
  * CRUD gateway for all translation schemas:
- *   - public.translations        (AppTranslationEntity)
- *   - system.translations        (SystemTranslationEntity)
- *   - emailsender.translations   (EmailsenderTranslationEntity)
- *   - custom.translations        (CustomTranslationEntity — user-created keys)
+ *   - public.translations        (AppTranslationEntity — `app.*` keys only)
+ *   - system.translations        (SystemTranslationEntity — `system.*` keys only)
+ *   - custom.translations        (CustomTranslationEntity — `custom.*` user keys)
  *   - <service>.translations     (discovered from service_registry — every
- *     registered microservice owns its translations schema; no BE-side
- *     hardcoded module map)
+ *     registered microservice owns its translations schema and may write
+ *     ONLY `<code>.*` keys; no BE-side hardcoded module map)
  *
  * Data access is `getDal()` proxies (entity ops, schema-domain guarded —
  * `translations` is the governed shared table). Caching uses the SDK's
@@ -32,9 +31,10 @@ import {
   type FilterExpr,
 } from "@primebrick/dal-pg";
 import {
-  logger,
   requireActor,
   TranslationsCache,
+  translationKeyNamespace,
+  keyNamespaceOf,
   type I18nDict,
   type CacheEntry,
   wrapCacheEntry,
@@ -42,12 +42,11 @@ import {
 
 import {getDal} from "../../db/dal-gateway.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
-import { NotFoundError, ValidationError } from "../../http/api-errors.js";
+import { ApiError, NotFoundError, ValidationError } from "../../http/api-errors.js";
 import { ServiceRegistryService } from "./service-registry.service.js";
 import {
   AppTranslationEntity,
   SystemTranslationEntity,
-  EmailsenderTranslationEntity,
   CustomTranslationEntity,
 } from "./translation_entities.js";
 
@@ -66,34 +65,35 @@ type TranslationEntityCtor = EntityClass & (new () => AppTranslationEntity);
  * `system.translations` (keys are `system.settings.*`). It has no own schema.
  * Other module codes (from microservices) map to their own translation schemas.
  */
-const MODULE_ENTITIES: Record<string, TranslationEntityCtor> = {
+/**
+ * Module code → entity class mapping — BE-OWNED schemas only
+ * (`app`/`system`/`settings` shell/`custom`). Registered microservices are
+ * discovered from `service_registry` — never add a service schema here.
+ */
+export const MODULE_ENTITIES: Record<string, TranslationEntityCtor> = {
   app: AppTranslationEntity as unknown as TranslationEntityCtor,
   system: SystemTranslationEntity as unknown as TranslationEntityCtor,
   settings: SystemTranslationEntity as unknown as TranslationEntityCtor,
-  emailsender: EmailsenderTranslationEntity as unknown as TranslationEntityCtor,
   custom: CustomTranslationEntity as unknown as TranslationEntityCtor,
 };
 
 /**
- * User-created translations live only in custom.translations and their keys
- * MUST start with `custom.`. Conversely, `custom.*` keys are forbidden in every
- * module-owned schema. Enforced here so collisions are impossible by
- * construction (seed/module keys are never shadowed by user keys).
+ * The write boundary: a module may create/update translation keys ONLY
+ * inside the namespace owned by its entity's PG schema
+ * (`public`→`app.*`, else `<schema>.*` — `custom` is the same rule, not a
+ * special case). This makes cross-module dictionary collisions impossible
+ * by construction: a service can never write `system.*` keys into its own
+ * schema nor `<svc>.*` keys anywhere else. Meta-declared key REFERENCES are
+ * unaffected — they may cite `app.*`/`system.*` CORE labels from any module.
  */
-const CUSTOM_KEY_PREFIX = /^custom\./;
-
-function assertKeyModuleBoundary(moduleCode: string, key?: string): void {
+export function assertKeyNamespace(entity: TranslationEntityCtor, key?: string): void {
   if (key === undefined) return;
-  const isCustomModule = moduleCode.toLowerCase() === "custom";
-  if (isCustomModule && !CUSTOM_KEY_PREFIX.test(key)) {
-    throw new ValidationError(`Keys in module 'custom' must start with 'custom.' (got '${key}')`, {
-      internal_code: "VALIDATION_ERROR",
-    });
-  }
-  if (!isCustomModule && CUSTOM_KEY_PREFIX.test(key)) {
-    throw new ValidationError(`Keys starting with 'custom.' belong to module 'custom' (got '${key}')`, {
-      internal_code: "VALIDATION_ERROR",
-    });
+  const ns = translationKeyNamespace(schemaOf(entity));
+  if (keyNamespaceOf(key) !== ns) {
+    throw new ValidationError(
+      `Key '${key}' is outside the '${ns}.*' namespace owned by schema '${schemaOf(entity)}'`,
+      { internal_code: "TRANSLATION_NAMESPACE_VIOLATION" },
+    );
   }
 }
 
@@ -201,15 +201,17 @@ export class TranslationsService {
         },
       )) as { dict: I18nDict | null }[];
     } catch (e) {
-      // A registered service whose schema has no `translations` table yet
-      // simply has no module translations — return an empty dict (uncached,
-      // so the schema fix takes effect immediately) instead of a 500.
+      // A registered service whose schema lacks the `translations` table is
+      // a provisioning failure — fail LOUDLY. An empty dict would silently
+      // render raw keys and mask the misconfiguration.
       if ((e as { code?: string }).code === "42P01") {
-        logger.warn("translations table missing for module — serving empty dict", {
-          tags: ["i18n"],
-          module: moduleCode,
-        });
-        return wrapCacheEntry({});
+        throw new ApiError(
+          "/errors/translation-storage-missing",
+          "Translation storage not provisioned",
+          503,
+          `Module '${moduleCode}' is registered but has no 'translations' table in schema '${schema}' — run its db-meta migrations`,
+          { internal_code: "TRANSLATIONS_SCHEMA_MISSING", severity: "CRITICAL" },
+        );
       }
       throw e;
     }
@@ -256,8 +258,8 @@ export class TranslationsService {
     data: TranslationCreateBody,
     options?: { tx?: Repository; onConflict?: "raise" | "ignore" },
   ) {
-    assertKeyModuleBoundary(moduleCode, data.key);
     const entity = await this.resolveEntity(moduleCode);
+    assertKeyNamespace(entity, data.key);
     const actor = requireActor();
     const repo = options?.tx ?? getDal();
     const row = await repo.add(entity, data, {
@@ -281,8 +283,8 @@ export class TranslationsService {
 
   /** Update a translation row by uuid. */
   async update(moduleCode: string, uuid: string, data: TranslationUpdateBody) {
-    assertKeyModuleBoundary(moduleCode, data.key);
     const entity = await this.resolveEntity(moduleCode);
+    assertKeyNamespace(entity, data.key);
     const actor = requireActor();
     const row = await getDal().update(
       entity,
