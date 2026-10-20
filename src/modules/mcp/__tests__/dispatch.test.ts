@@ -64,7 +64,7 @@ const mockRepo = {
   findByCode: vi.fn(),
   toggleEnabled: vi.fn(),
   updateByCodeAdmin: vi.fn(),
-  hardDeleteByCode: vi.fn(),
+  deleteByCode: vi.fn(),
 };
 vi.mock("../../system/service-registry.service.js", () => ({
   ServiceRegistryService: vi.fn().mockImplementation(function () { return mockRepo; }),
@@ -426,12 +426,12 @@ describe("MCP Dispatch — Service registry (manage_service)", () => {
     expect(result).toEqual({ service: { code: "emailsender", name: "Updated", is_enabled: true } });
   });
 
-  it("deleteService hard-deletes and returns permanent: true", async () => {
+  it("deleteService soft-deletes the service row", async () => {
     mockRepo.findByCode.mockResolvedValue({ code: "emailsender", is_enabled: true });
-    mockRepo.hardDeleteByCode.mockResolvedValue(undefined);
+    mockRepo.deleteByCode.mockResolvedValue(undefined);
     const result = await deleteService("emailsender");
-    expect(mockRepo.hardDeleteByCode).toHaveBeenCalledWith("emailsender");
-    expect(result).toEqual({ code: "emailsender", deleted: true, permanent: true });
+    expect(mockRepo.deleteByCode).toHaveBeenCalledWith("emailsender");
+    expect(result).toEqual({ code: "emailsender", deleted: true });
   });
 
   it("deleteService throws when service not found", async () => {

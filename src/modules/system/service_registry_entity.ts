@@ -7,11 +7,22 @@ import {
   Unique,
   EntityBase,
   Auditable,
+  Deletable,
 } from "@primebrick/dal-pg";
 
+/**
+ * ServiceRegistryEntity — `public.service_registry`.
+ *
+ * Deletable: `service.unregister` / admin delete soft-delete the row —
+ * a removed service follows the default arch rule (query system
+ * auto-excludes `deleted_at` rows: module switcher, NATS routing gate and
+ * schema-ownership checks all stop seeing it). `hardDelete*` remains for
+ * admin purge. `is_enabled`/`status` are operational axes (admin toggle /
+ * liveness) and are intentionally NOT conflated with deletion.
+ */
 @Entity("service_registry")
 export class ServiceRegistryEntity
-  extends Auditable(EntityBase) {
+  extends Deletable(Auditable(EntityBase)) {
   @Key()
   id: bigint;
 

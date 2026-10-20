@@ -138,7 +138,11 @@ export class SystemService {
   }
 
   /**
-   * Hard delete a service from the registry. Throws NotFoundError when missing.
+   * Soft-delete a service from the registry — the arch default for removal:
+   * the row becomes a tombstone and every finder auto-excludes it (module
+   * switcher, NATS routing gate, schema-ownership checks). A later
+   * service.register restores it. `hardDelete*` survives for explicit
+   * purge operations only. Throws NotFoundError when missing.
    */
   async deleteService(code: string) {
     const registry = new ServiceRegistryService();
@@ -148,13 +152,14 @@ export class SystemService {
         internal_code: "SERVICE_NOT_FOUND",
       });
     }
-    await registry.hardDeleteByCode(code);
+    await registry.deleteByCode(code);
     return { code, deleted: true };
   }
 
   /**
-   * Hard delete a single registry instance by uuid. Deleting the row also
-   * releases its schema claim (claims live on the row itself).
+   * Soft-delete a single registry instance by uuid. Deleting the row also
+   * releases its schema claim (deleted rows are excluded from ownership
+   * checks). Throws NotFoundError when missing.
    */
   async deleteServiceInstance(uuid: string) {
     const registry = new ServiceRegistryService();
@@ -164,7 +169,7 @@ export class SystemService {
         internal_code: "SERVICE_NOT_FOUND",
       });
     }
-    await registry.hardDeleteByUuid(uuid);
+    await registry.deleteByUuid(uuid);
     return { uuid, code: existing.code, deleted: true };
   }
 

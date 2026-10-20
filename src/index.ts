@@ -241,7 +241,11 @@ app.use(aggregatedOpenApiRouter());
 // Use makeProtectedRouter for /modules endpoint
 const apiRouter = makeProtectedRouter();
 apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_req, res) => {
-  const services = await new ServiceRegistryService().findAll();
+  // Switcher candidates: enabled rows only. Soft-deleted rows are already
+  // excluded by the finder's arch default; `is_enabled === false` is the
+  // admin's "do not expose" decision — the module must not be reachable
+  // from the switcher while disabled.
+  const services = (await new ServiceRegistryService().findAll()).filter((s) => s.is_enabled);
   res.json({
     modules: services.map((s) => {
       // Static registry (BE-owned modules) first, then the service's own

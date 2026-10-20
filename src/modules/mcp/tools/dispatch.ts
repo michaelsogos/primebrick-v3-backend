@@ -610,10 +610,11 @@ export async function updateService(
 }
 
 /**
- * Hard delete a service from the registry.
- * This is a PERMANENT deletion — the record cannot be restored.
+ * Soft-delete a service from the registry — the arch default for removal:
+ * the row becomes a tombstone (excluded from /modules, NATS routing and
+ * schema-ownership checks) and a later service.register restores it.
+ * Physical purge happens only through explicit admin `hardDelete*`.
  */
 export async function deleteService(code: string): Promise<unknown> {
-  const result = await new SystemService().deleteService(code);
-  return { ...result, permanent: true };
+  return new SystemService().deleteService(code);
 }

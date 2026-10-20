@@ -69,6 +69,21 @@ export class ServiceLifecycleSubscriber {
               });
               return { registered: false, error: "service.register requires non-empty code and base_url" };
             }
+            // Static service identity: `code` must derive from `pkg_name`
+            // (primebrick-<code>) unless the payload declares an explicit
+            // package.json `service_code` override. A drifting code
+            // re-identifies the service — different /ws proxy path, i18n
+            // namespace and schema claim — rejected at enrollment.
+            const codeError = this.checkServiceCodeIntegrity(payload);
+            if (codeError) {
+              logger.warn(`service.register rejected — ${codeError}`, {
+                tags: ["nats"],
+                received_code: payload.code,
+                received_pkg_name: payload.pkg_name ?? null,
+                received_code_source: payload.code_source ?? null,
+              });
+              return { registered: false, error: codeError };
+            }
             const ownershipError = await this.checkSchemaOwnership(payload);
             if (ownershipError) {
               logger.warn(`service.register rejected — ${ownershipError}`, {
@@ -195,6 +210,35 @@ export class ServiceLifecycleSubscriber {
   }
 
   /**
+   * Service-code integrity gate for `service.register`.
+   *
+   * `code` is static identity resolved by the service from its shipped
+   * artifact — either derived (`pkg_name` minus the `primebrick-` prefix)
+   * or an explicit package.json `service_code` override declared via
+   * `code_source='override'`. A payload where `code` does not match the
+   * derivation is a service presenting a mutated identity (e.g. a
+   * hand-edited `service_code` config row): refused outright — the BE
+   * never persists an identity the artifact cannot prove.
+   */
+  private checkServiceCodeIntegrity(payload: ServiceRegisterPayload): string | null {
+    const code = payload.code;
+    if (!/^[a-z][a-z0-9_]*$/.test(code)) {
+      return `service code "${code}" is invalid — must match ^[a-z][a-z0-9_]*$`;
+    }
+    if (payload.code_source === "override") return null;
+    const pkg = payload.pkg_name;
+    if (!pkg) return null; // legacy payload without pkg_name — nothing to derive against
+    const derived = pkg.replace(/^primebrick-/, "");
+    if (code !== derived) {
+      return (
+        `service code "${code}" does not match pkg_name "${pkg}" (expected "${derived}") — ` +
+        `an explicit service_code must be declared in package.json, not runtime config`
+      );
+    }
+    return null;
+  }
+
+  /**
    * Schema ownership gate for `service.register`.
    *
    * A service claims the PG schemas of its DATABASE_SCHEMA env contract.
@@ -239,6 +283,19 @@ export class ServiceLifecycleSubscriber {
     return null;
   }
 
+  /**
+   * `is_enabled` is a per-CODE operational decision (admin toggle), not a
+   * per-row property — a service re-registering at a new base_url or
+   * rising from a tombstone must never silently re-enable itself.
+   * Decision rule: no prior rows → enabled (new service); any prior row
+   * enabled → enabled; every prior row disabled → disabled.
+   */
+  private async enabledForNewRegistration(code: string): Promise<boolean> {
+    const siblings = await this.repo.findAllByCode(code, "INCLUDED");
+    if (siblings.length === 0) return true;
+    return siblings.some((s) => s.is_enabled);
+  }
+
   private async handleRegister(payload: ServiceRegisterPayload): Promise<{ registered: boolean; error?: string; key_generation?: number }> {
     const { code, base_url, is_behind_scaler } = payload;
     const status = this.deriveStatus(payload.http_healthy, payload.nats_connected, payload.checks);
@@ -281,97 +338,87 @@ export class ServiceLifecycleSubscriber {
       }
     }
 
+    // Shared per-register field set — identical across insert/update and
+    // scaler/non-scaler paths (DRY: one payload→row projection).
+    const registerFields = {
+      service_version: payload.service_version,
+      pkg_name: payload.pkg_name,
+      capabilities: payload.capabilities ?? [],
+      schemas: payload.schemas ?? [],
+      name: payload.name,
+      description: payload.description,
+      author: payload.author,
+      github_repo_url: payload.github_repo_url,
+      endpoints: payload.endpoints,
+      icon: payload.icon,
+      icon_type: payload.icon_type,
+      status,
+      last_health_check_at: now,
+    };
+
     if (is_behind_scaler) {
       const existing = await this.repo.findByCode(code);
       if (existing) {
         const oldStatus = existing.status;
-        await this.repo.updateByCode(code, {
-          service_version: payload.service_version,
-          pkg_name: payload.pkg_name,
-          capabilities: payload.capabilities ?? [],
-          schemas: payload.schemas ?? [],
-          name: payload.name,
-          description: payload.description,
-          author: payload.author,
-          github_repo_url: payload.github_repo_url,
-          endpoints: payload.endpoints,
-          icon: payload.icon,
-          icon_type: payload.icon_type,
-          status,
-          last_health_check_at: now,
-        });
+        // code is unique for scaler rows — a redeploy at a new base_url
+        // moves the row; base_url belongs in the update set.
+        await this.repo.updateByCode(code, { ...registerFields, base_url });
         this.logStatusChange(this.serviceRef(payload, code), base_url, oldStatus, status);
         const updated = await this.repo.findByCode(code);
         if (updated) this.emitServiceEvent("service.register", updated);
       } else {
-        await this.repo.insert({
-          code,
-          base_url,
-          endpoints: payload.endpoints,
-          service_version: payload.service_version,
-          pkg_name: payload.pkg_name,
-          capabilities: payload.capabilities ?? [],
-          schemas: payload.schemas ?? [],
-          name: payload.name,
-          description: payload.description,
-          author: payload.author,
-          github_repo_url: payload.github_repo_url,
-          icon: payload.icon,
-          icon_type: payload.icon_type || "icon",
-          is_behind_scaler: true,
-          is_enabled: true,
-          status,
-          last_health_check_at: now,
-        });
-        this.logStatusChange(ref, base_url, "unregistered", status);
-        const inserted = await this.repo.findByCode(code);
-        if (inserted) this.emitServiceEvent("service.register", inserted);
+        // Re-registration after a soft-delete: restore the tombstone row —
+        // uuid, is_enabled and history survive the remove→re-add cycle.
+        const tombstone = await this.repo.findDeletedByCode(code);
+        if (tombstone?.uuid) {
+          await this.repo.restoreByUuid(tombstone.uuid, tombstone.version);
+          await this.repo.updateByCode(code, { ...registerFields, base_url });
+          this.logStatusChange(ref, base_url, "restored", status);
+          const restored = await this.repo.findByCode(code);
+          if (restored) this.emitServiceEvent("service.register", restored);
+        } else {
+          await this.repo.insert({
+            code,
+            base_url,
+            ...registerFields,
+            icon_type: payload.icon_type || "icon",
+            is_behind_scaler: true,
+            is_enabled: await this.enabledForNewRegistration(code),
+          });
+          this.logStatusChange(ref, base_url, "unregistered", status);
+          const inserted = await this.repo.findByCode(code);
+          if (inserted) this.emitServiceEvent("service.register", inserted);
+        }
       }
     } else {
       const existing = await this.repo.findByCodeAndBaseUrl(code, base_url);
       if (existing) {
         const oldStatus = existing.status;
-        await this.repo.updateByCodeAndBaseUrl(code, base_url, {
-          service_version: payload.service_version,
-          pkg_name: payload.pkg_name,
-          capabilities: payload.capabilities ?? [],
-          schemas: payload.schemas ?? [],
-          name: payload.name,
-          description: payload.description,
-          author: payload.author,
-          github_repo_url: payload.github_repo_url,
-          endpoints: payload.endpoints,
-          icon: payload.icon,
-          icon_type: payload.icon_type,
-          status,
-          last_health_check_at: now,
-        });
+        await this.repo.updateByCodeAndBaseUrl(code, base_url, registerFields);
         this.logStatusChange(this.serviceRef(payload, code), base_url, oldStatus, status);
         const updated = await this.repo.findByCodeAndBaseUrl(code, base_url);
         if (updated) this.emitServiceEvent("service.register", updated);
       } else {
-        await this.repo.insert({
-          code,
-          base_url,
-          endpoints: payload.endpoints,
-          service_version: payload.service_version,
-          pkg_name: payload.pkg_name,
-          capabilities: payload.capabilities ?? [],
-          schemas: payload.schemas ?? [],
-          name: payload.name,
-          description: payload.description,
-          author: payload.author,
-          github_repo_url: payload.github_repo_url,
-          icon: payload.icon,
-          icon_type: payload.icon_type || "icon",
-          is_behind_scaler: false,
-          is_enabled: true,
-          status,
-          last_health_check_at: now,
-        });
-        this.logStatusChange(ref, base_url, "unregistered", status);
-        const inserted = await this.repo.findByCodeAndBaseUrl(code, base_url);
-        if (inserted) this.emitServiceEvent("service.register", inserted);
+        const tombstone = await this.repo.findDeletedByCodeAndBaseUrl(code, base_url);
+        if (tombstone?.uuid) {
+          await this.repo.restoreByUuid(tombstone.uuid, tombstone.version);
+          await this.repo.updateByCodeAndBaseUrl(code, base_url, registerFields);
+          this.logStatusChange(ref, base_url, "restored", status);
+          const restored = await this.repo.findByCodeAndBaseUrl(code, base_url);
+          if (restored) this.emitServiceEvent("service.register", restored);
+        } else {
+          await this.repo.insert({
+            code,
+            base_url,
+            ...registerFields,
+            icon_type: payload.icon_type || "icon",
+            is_behind_scaler: false,
+            is_enabled: await this.enabledForNewRegistration(code),
+          });
+          this.logStatusChange(ref, base_url, "unregistered", status);
+          const inserted = await this.repo.findByCodeAndBaseUrl(code, base_url);
+          if (inserted) this.emitServiceEvent("service.register", inserted);
+        }
       }
     }
 

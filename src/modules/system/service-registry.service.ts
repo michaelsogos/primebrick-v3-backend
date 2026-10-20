@@ -36,6 +36,7 @@ export interface ServiceRegistryEntry {
   is_reserved: boolean;
   uuid?: string;
   version?: number;
+  deleted_at?: Date | null;
 }
 
 const FULL_PROJECTION = [
@@ -60,6 +61,7 @@ const FULL_PROJECTION = [
   Project.field(field(ServiceRegistryEntity, "is_reserved" as any)),
   Project.field(field(ServiceRegistryEntity, "uuid" as any)),
   Project.field(field(ServiceRegistryEntity, "version" as any)),
+  Project.field(field(ServiceRegistryEntity, "deleted_at" as any)),
 ];
 
 export class ServiceRegistryService {
@@ -74,12 +76,13 @@ export class ServiceRegistryService {
     );
   }
 
-  async findAllByCode(code: string): Promise<ServiceRegistryEntry[]> {
+  async findAllByCode(code: string, deletedRecords: "EXCLUDED" | "ONLY" | "INCLUDED" = "EXCLUDED"): Promise<ServiceRegistryEntry[]> {
     const rows = await getDal().findAll<ServiceRegistryEntity, ServiceRegistryEntry>(
       ServiceRegistryEntity,
       FULL_PROJECTION,
       {
         filters: [Filter.fieldValue(field(ServiceRegistryEntity, "code" as any), "=", code)],
+        deletedRecords,
       },
     );
     return rows as ServiceRegistryEntry[];
@@ -125,9 +128,11 @@ export class ServiceRegistryService {
   async updateByCode(code: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
     const existing = await this.findByCode(code);
     if (!existing) return;
+    // `code` is pinned AFTER the row spread — identity is path-derived and
+    // can never be overridden by payload content (defense in depth).
     await getDal().update(
       ServiceRegistryEntity,
-      { code, ...row, version: existing.version } as any,
+      { ...row, code, version: existing.version } as any,
       { actor: "system", matchBy: "code" },
     );
   }
@@ -141,15 +146,81 @@ export class ServiceRegistryService {
     }
     await getDal().update(
       ServiceRegistryEntity,
-      { uuid: existing.uuid, ...row, version: existing.version } as any,
+      { ...row, uuid: existing.uuid, version: existing.version } as any,
       { actor: "system" },
     );
   }
 
+  /** Soft-deleted row lookup — for the register-restore path. */
+  async findDeletedByCodeAndBaseUrl(code: string, baseUrl: string): Promise<ServiceRegistryEntry | null> {
+    return getDal().find<ServiceRegistryEntity, ServiceRegistryEntry>(
+      ServiceRegistryEntity,
+      FULL_PROJECTION,
+      {
+        filters: [
+          Filter.fieldValue(field(ServiceRegistryEntity, "code" as any), "=", code),
+          Filter.fieldValue(field(ServiceRegistryEntity, "base_url" as any), "=", baseUrl),
+        ],
+        deletedRecords: "ONLY",
+        throwIfNotFound: false,
+      },
+    );
+  }
+
+  /** Soft-deleted row lookup by code — for the scaler register-restore path. */
+  async findDeletedByCode(code: string): Promise<ServiceRegistryEntry | null> {
+    return getDal().find<ServiceRegistryEntity, ServiceRegistryEntry>(
+      ServiceRegistryEntity,
+      FULL_PROJECTION,
+      {
+        filters: [Filter.fieldValue(field(ServiceRegistryEntity, "code" as any), "=", code)],
+        deletedRecords: "ONLY",
+        throwIfNotFound: false,
+      },
+    );
+  }
+
+  /** Restore a soft-deleted registry row (unregister → re-register). */
+  async restoreByUuid(uuid: string, version?: number): Promise<void> {
+    await getDal().restore(
+      ServiceRegistryEntity,
+      { uuid, version } as any,
+      { actor: "system" },
+    );
+  }
+
+  /**
+   * Soft-delete — the arch default for removal: the row becomes a tombstone,
+   * every finder auto-excludes it (module switcher, NATS routing gate,
+   * schema-ownership checks) and a later re-registration restores it.
+   * `hardDelete*` survives for admin purge only.
+   */
   async deleteByCodeAndBaseUrl(code: string, baseUrl: string): Promise<void> {
     const existing = await this.findByCodeAndBaseUrl(code, baseUrl);
     if (!existing || !existing.uuid) return;
-    await getDal().hardDelete(
+    await getDal().delete(
+      ServiceRegistryEntity,
+      { uuid: existing.uuid, version: existing.version } as any,
+      { actor: "system" },
+    );
+  }
+
+  /** Soft-delete every row for a code (admin remove — tombstone, not purge). */
+  async deleteByCode(code: string): Promise<void> {
+    const existing = await this.findByCode(code);
+    if (!existing) return;
+    await getDal().delete(
+      ServiceRegistryEntity,
+      { code, version: existing.version } as any,
+      { actor: "system", matchBy: "code" },
+    );
+  }
+
+  /** Soft-delete one registry instance by uuid. */
+  async deleteByUuid(uuid: string): Promise<void> {
+    const existing = await this.findByUuid(uuid);
+    if (!existing || !existing.uuid) return;
+    await getDal().delete(
       ServiceRegistryEntity,
       { uuid: existing.uuid, version: existing.version } as any,
       { actor: "system" },
@@ -189,9 +260,11 @@ export class ServiceRegistryService {
   async updateByCodeAdmin(code: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
     const existing = await this.findByCode(code);
     if (!existing) return;
+    // `code` LAST — admin rows never carry identity; even if one slips
+    // through validation it cannot rename the service.
     await getDal().update(
       ServiceRegistryEntity,
-      { code, ...row, version: existing.version } as any,
+      { ...row, code, version: existing.version } as any,
       { actor: "system", matchBy: "code" },
     );
   }
