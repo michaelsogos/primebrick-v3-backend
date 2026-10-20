@@ -253,12 +253,13 @@ apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_re
       // service own its pages (route_prefixes included). The module icon is
       // service identity: service_registry.icon is the single source —
       // endpoints.nav.icon does not exist (nav declares links+routes only).
-      const navMeta = resolveModuleNavMeta(s.code, s.endpoints);
+      const navMeta = resolveModuleNavMeta(s.code, s.endpoints, s.part_of);
       return {
         id: s.code.toLowerCase(),
         name: s.name || s.code,
         enabled: s.is_enabled,
         icon: s.icon,
+        part_of: s.part_of,
         route_prefixes: navMeta?.route_prefixes,
         is_reserved: s.is_reserved,
       };
@@ -269,7 +270,7 @@ apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_re
 apiRouter.get("/modules/:code/meta", rbacHandler([Permission.MODULES_READ_ALL]), async (req, res) => {
   const code = req.params.code as string;
   const service = await new ServiceRegistryService().findByCode(code);
-  const meta = resolveModuleNavMeta(code, service?.endpoints);
+  const meta = resolveModuleNavMeta(code, service?.endpoints, service?.part_of);
   if (!meta) {
     res.status(404).json({
       type: "about:blank",

@@ -35,10 +35,12 @@ function makeRegisterPayload(overrides: Partial<{
   author: string;
   github_repo_url: string;
   endpoints: Record<string, unknown>;
+  part_of: string;
 }> = {}) {
   return {
     code: "svc-a",
     base_url: "http://localhost:8000",
+    part_of: "system",
     is_behind_scaler: true,
     http_healthy: true,
     nats_connected: true,

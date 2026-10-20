@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T16:30:46.893Z",
+  "generatedAt": "2026-10-20T22:50:34.967Z",
   "source": "entities",
   "tables": {
     "public.auth_events": {
@@ -2618,9 +2618,20 @@
           "propertyKey": "base_url",
           "isNullable": false
         },
+        "part_of": {
+          "name": "part_of",
+          "ordinalPosition": 12,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "part_of",
+          "isNullable": false
+        },
         "endpoints": {
           "name": "endpoints",
-          "ordinalPosition": 12,
+          "ordinalPosition": 13,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -2631,7 +2642,7 @@
         },
         "name": {
           "name": "name",
-          "ordinalPosition": 13,
+          "ordinalPosition": 14,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2642,7 +2653,7 @@
         },
         "description": {
           "name": "description",
-          "ordinalPosition": 14,
+          "ordinalPosition": 15,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2653,7 +2664,7 @@
         },
         "author": {
           "name": "author",
-          "ordinalPosition": 15,
+          "ordinalPosition": 16,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2664,7 +2675,7 @@
         },
         "github_repo_url": {
           "name": "github_repo_url",
-          "ordinalPosition": 16,
+          "ordinalPosition": 17,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2675,7 +2686,7 @@
         },
         "service_version": {
           "name": "service_version",
-          "ordinalPosition": 17,
+          "ordinalPosition": 18,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2686,7 +2697,7 @@
         },
         "pkg_name": {
           "name": "pkg_name",
-          "ordinalPosition": 18,
+          "ordinalPosition": 19,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2697,7 +2708,7 @@
         },
         "capabilities": {
           "name": "capabilities",
-          "ordinalPosition": 19,
+          "ordinalPosition": 20,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -2709,7 +2720,7 @@
         },
         "schemas": {
           "name": "schemas",
-          "ordinalPosition": 20,
+          "ordinalPosition": 21,
           "dataType": "text[]",
           "typname": "text[]",
           "isPrimaryKey": false,
@@ -2721,7 +2732,7 @@
         },
         "is_behind_scaler": {
           "name": "is_behind_scaler",
-          "ordinalPosition": 21,
+          "ordinalPosition": 22,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -2733,7 +2744,7 @@
         },
         "status": {
           "name": "status",
-          "ordinalPosition": 22,
+          "ordinalPosition": 23,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2745,7 +2756,7 @@
         },
         "last_health_check_at": {
           "name": "last_health_check_at",
-          "ordinalPosition": 23,
+          "ordinalPosition": 24,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -2756,7 +2767,7 @@
         },
         "is_enabled": {
           "name": "is_enabled",
-          "ordinalPosition": 24,
+          "ordinalPosition": 25,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -2768,7 +2779,7 @@
         },
         "icon": {
           "name": "icon",
-          "ordinalPosition": 25,
+          "ordinalPosition": 26,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2779,7 +2790,7 @@
         },
         "icon_type": {
           "name": "icon_type",
-          "ordinalPosition": 26,
+          "ordinalPosition": 27,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2791,7 +2802,7 @@
         },
         "is_reserved": {
           "name": "is_reserved",
-          "ordinalPosition": 27,
+          "ordinalPosition": 28,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,

@@ -61,13 +61,13 @@ export class ServiceLifecycleSubscriber {
           enrollment: true,
           verify: this.verifier.asRouteVerify(undefined, { allowNewPrefix: true }),
           handler: async ({ request: payload }) => {
-            if (!payload?.code || !payload?.base_url) {
-              logger.warn(`service.register rejected — missing required field(s): ${[!payload?.code && "code", !payload?.base_url && "base_url"].filter(Boolean).join(", ")}`, {
+            if (!payload?.code || !payload?.base_url || !payload?.part_of) {
+              logger.warn(`service.register rejected — missing required field(s): ${[!payload?.code && "code", !payload?.base_url && "base_url", !payload?.part_of && "part_of"].filter(Boolean).join(", ")}`, {
                 tags: ["nats"],
                 received_code: payload?.code ?? null,
                 received_base_url: payload?.base_url ?? null,
               });
-              return { registered: false, error: "service.register requires non-empty code and base_url" };
+              return { registered: false, error: "service.register requires non-empty code, base_url and part_of" };
             }
             // Static service identity: `code` must derive from `pkg_name`
             // (primebrick-<code>) unless the payload declares an explicit
@@ -97,7 +97,7 @@ export class ServiceLifecycleSubscriber {
             // enrollment — it must never reach service_registry and poison
             // /modules or the routes census downstream.
             if (payload.endpoints?.["nav"] !== undefined) {
-              const navError = validateNavDeclaration(payload.code, payload.endpoints["nav"]);
+              const navError = validateNavDeclaration(payload.code, payload.endpoints["nav"], payload.part_of);
               if (navError) {
                 logger.warn(`service.register rejected — ${navError}`, {
                   tags: ["nats"],
@@ -349,6 +349,7 @@ export class ServiceLifecycleSubscriber {
       description: payload.description,
       author: payload.author,
       github_repo_url: payload.github_repo_url,
+      part_of: payload.part_of,
       endpoints: payload.endpoints,
       icon: payload.icon,
       icon_type: payload.icon_type,

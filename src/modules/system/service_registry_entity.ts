@@ -35,6 +35,15 @@ export class ServiceRegistryEntity
   @Column({ nullable: false })
   base_url: string;
 
+  /**
+   * ROOT LEVEL the module belongs to (`part of`) — 'system' for platform
+   * services, 'crm' for the CRM domain, … Combined with `code` it derives
+   * the module's route prefix `/{part_of}/{code}`; service.register
+   * validates every declared route_prefix/nav href/route against it.
+   */
+  @Column({ nullable: false })
+  part_of: string;
+
   @Column({ nullable: false })
   endpoints: Record<string, unknown>;
 

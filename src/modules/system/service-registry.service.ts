@@ -17,6 +17,8 @@ import { ServiceRegistryEntity } from "./service_registry_entity.js";
 export interface ServiceRegistryEntry {
   code: string;
   base_url: string;
+  /** Root level the module belongs to — `/{part_of}/{code}` route prefix. */
+  part_of: string;
   endpoints: Record<string, unknown>;
   name?: string;
   description?: string;
@@ -42,6 +44,7 @@ export interface ServiceRegistryEntry {
 const FULL_PROJECTION = [
   Project.field(field(ServiceRegistryEntity, "code" as any)),
   Project.field(field(ServiceRegistryEntity, "base_url" as any)),
+  Project.field(field(ServiceRegistryEntity, "part_of" as any)),
   Project.field(field(ServiceRegistryEntity, "endpoints" as any)),
   Project.field(field(ServiceRegistryEntity, "name" as any)),
   Project.field(field(ServiceRegistryEntity, "description" as any)),

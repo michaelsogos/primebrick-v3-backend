@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T16:30:46.899Z",
+  "generatedAt": "2026-10-20T22:50:34.972Z",
   "source": "database",
   "tables": {
     "public.auth_events": {
@@ -3290,6 +3290,19 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "part_of": {
+          "name": "part_of",
+          "ordinalPosition": 28,
+          "dataType": "text",
+          "typname": "text",
+          "typeOid": 25,
+          "typcategory": "S",
+          "formatType": "text",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
           "isPrimaryKey": false
         }
       },

@@ -30,8 +30,26 @@ generated `navigation-map.mdx` doc derives from it.
 A module presents **only its own nav** — Settings MUST NOT declare links to
 service-owned pages (a service going offline would orphan them, and the
 module would masquerade as part of Settings). Settings therefore declares
-only the prefixes its own routes live under — `/system/settings`,
-`/system/migrations` — never a `/system` catch-all.
+only the prefix its own routes live under — `/system/settings` — never a
+`/system` catch-all.
+
+## Root level (`part_of`) — module namespace
+
+Every module has a **root level** (`service_registry.part_of`, persisted at
+registration) and a **module code** (`service_registry.code`). Together they
+form the module's single route namespace:
+
+- **Standard**: `/{part_of}/{code}` — `job` (`part_of: "system"`) owns
+  `/system/job/**`; `settings` (`part_of: "system"`) owns `/system/settings/**`.
+- **Collapse**: when `part_of === code` the module IS its own root level and
+  the segment collapses to `/{code}` — `crm` (`part_of: "crm"`) owns `/crm/**`.
+
+`validateNavDeclaration` enforces this at `service.register` time:
+`route_prefixes` must equal exactly the computed prefix, and every `nav[].href`
+and `routes[].route` must live under it — a module can never declare pages on
+a foreign prefix. `/api/v1/modules` returns `part_of` so the FE can group
+modules by root level (root switcher → module switcher) and prepend the root
+segment to breadcrumbs (`{root} / {module} / {page}`).
 
 Three layers, each with a distinct consumer:
 

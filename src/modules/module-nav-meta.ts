@@ -26,12 +26,12 @@ import type {
 const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
   settings: {
         module: "settings",
-        // Attribution, not containment: settings declares ONLY the prefixes
-        // its own routes actually live under. `/system` as a catch-all
-        // would re-attribute service-owned pages to settings whenever the
-        // owning service goes offline (e.g. the job module's /jobs).
-        // settings whenever the owning service goes offline.
-        route_prefixes: ["/system/settings", "/system/migrations"],
+        // Attribution, not containment: settings declares ONLY the prefix
+        // its own routes actually live under — the module prefix
+        // `/{part_of}/{code}` = /system/settings. `/system` as a catch-all
+        // would re-attribute service-owned pages (job, ai, …) to settings
+        // whenever the owning service goes offline.
+        route_prefixes: ["/system/settings"],
         is_reserved: true,
         nav: [
           { id: "profile", label_key: "system.settings.tabs.profile", href: "/system/settings/profile", icon: "square-user" },
@@ -46,7 +46,7 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
           { id: "clients", label_key: "system.settings.tabs.clients", href: "/system/settings/clients", icon: "shield-check" },
           { id: "templates", label_key: "system.settings.tabs.templates", href: "/system/settings/templates", icon: "file-text" },
           { id: "email-providers", label_key: "system.settings.tabs.emailProviders", href: "/system/settings/email-providers", icon: "mail" },
-          { id: "migrations", label_key: "system.migrations.nav", href: "/system/migrations", icon: "database-zap" },
+          { id: "migrations", label_key: "system.migrations.nav", href: "/system/settings/migrations", icon: "database-zap" },
         ],
         // Full route census — every FE path this module owns, including
         // detail/create/param routes not deducible from nav links.
@@ -75,7 +75,7 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
           { route: "/system/settings/templates", kind: "list", entity: "template" },
           { route: "/system/settings/translations", kind: "page" },
           { route: "/system/settings/email-providers", kind: "list", entity: "email_provider" },
-          { route: "/system/migrations", kind: "page" },
+          { route: "/system/settings/migrations", kind: "page" },
         ],
   },
 };
@@ -129,18 +129,31 @@ function validateNavLink(code: string, link: unknown, path: string): string | nu
  * `service.register` time so a malformed declaration is REJECTED at
  * enrollment and can never poison /modules or the routes census.
  * Returns the first error string, or null when valid.
+ *
+ * `partOf` is the module's declared ROOT LEVEL — the module's single
+ * route prefix is derived, never free-chosen: `/{partOf}/{code}`. When
+ * the module IS its own root (`partOf === code`, e.g. crm) the segment
+ * collapses to `/{code}` — `/crm/customers`, not `/crm/crm/customers`.
+ * `route_prefixes` must equal exactly that prefix and every nav href /
+ * routes entry must live under it — a module can never declare pages on
+ * a foreign prefix.
  */
-export function validateNavDeclaration(code: string, decl: unknown): string | null {
+export function validateNavDeclaration(code: string, decl: unknown, partOf: string): string | null {
   if (!decl || typeof decl !== "object" || Array.isArray(decl)) {
     return "endpoints.nav must be an object {route_prefixes, nav, routes?}";
   }
   const d = decl as Record<string, unknown>;
+  const modulePrefix = partOf === code ? `/${code}` : `/${partOf}/${code}`;
+  const underPrefix = (p: string) => p === modulePrefix || p.startsWith(modulePrefix + "/");
   if (!Array.isArray(d["route_prefixes"]) || d["route_prefixes"].length === 0) {
     return "endpoints.nav.route_prefixes must be a non-empty array of FE path prefixes";
   }
   for (const p of d["route_prefixes"] as unknown[]) {
     if (typeof p !== "string" || !p.startsWith("/")) {
       return `endpoints.nav.route_prefixes: every prefix must be an absolute FE path (got ${extJsonStringify(p)})`;
+    }
+    if ((p as string) !== modulePrefix) {
+      return `endpoints.nav.route_prefixes: module '${code}' (part_of='${partOf}') must declare exactly '${modulePrefix}' (got ${extJsonStringify(p)})`;
     }
   }
   if (!Array.isArray(d["nav"])) {
@@ -149,6 +162,10 @@ export function validateNavDeclaration(code: string, decl: unknown): string | nu
   for (let i = 0; i < (d["nav"] as unknown[]).length; i++) {
     const err = validateNavLink(code, (d["nav"] as unknown[])[i], `[${i}]`);
     if (err) return err;
+    const href = ((d["nav"] as unknown[])[i] as Record<string, unknown>)["href"] as string;
+    if (!underPrefix(href)) {
+      return `endpoints.nav.nav[${i}]: href '${href}' is outside the module prefix '${modulePrefix}'`;
+    }
   }
   if (d["routes"] !== undefined) {
     if (!Array.isArray(d["routes"])) return "endpoints.nav.routes must be an array of route declarations";
@@ -160,6 +177,9 @@ export function validateNavDeclaration(code: string, decl: unknown): string | nu
       const rd = r as Record<string, unknown>;
       if (typeof rd["route"] !== "string" || !(rd["route"] as string).startsWith("/")) {
         return `endpoints.nav.routes[${i}]: route must be an absolute FE path`;
+      }
+      if (!underPrefix(rd["route"] as string)) {
+        return `endpoints.nav.routes[${i}]: route '${rd["route"]}' is outside the module prefix '${modulePrefix}'`;
       }
       if (typeof rd["kind"] !== "string" || !PAGE_ROUTE_KINDS.has(rd["kind"] as string)) {
         return `endpoints.nav.routes[${i}]: kind must be one of ${[...PAGE_ROUTE_KINDS].join("|")}`;
@@ -177,7 +197,7 @@ export function validateNavDeclaration(code: string, decl: unknown): string | nu
  * `endpoints` payload (`endpoints.nav`, published via `service.register`).
  *
  * This is the channel by which a service owns its FE pages — e.g. the job
- * service declares `/jobs` (with a remote `component_url` for its custom
+ * service declares `/system/job` (with a remote `component_url` for its custom
  * schedule form), so the census/module-meta serve those routes as
  * JOB-module routes, never as Settings pages. Returns null when the row has no nav declaration or the payload is
  * malformed — a declaration that reaches the registry is already
@@ -187,10 +207,11 @@ export function validateNavDeclaration(code: string, decl: unknown): string | nu
 export function navFromEndpoints(
   code: string,
   endpoints: Record<string, unknown> | null | undefined,
+  partOf: string,
 ): ModuleNavWithPrefixes | null {
   const raw = endpoints?.["nav"];
   if (raw === undefined) return null;
-  if (validateNavDeclaration(code, raw) !== null) return null;
+  if (validateNavDeclaration(code, raw, partOf) !== null) return null;
   const decl = raw as Record<string, unknown>;
   return {
     module: code,
@@ -208,6 +229,7 @@ export function navFromEndpoints(
 export function resolveModuleNavMeta(
   code: string,
   endpoints?: Record<string, unknown> | null,
+  partOf?: string,
 ): ModuleNavWithPrefixes | null {
-  return buildModuleNavMeta(code) ?? navFromEndpoints(code, endpoints);
+  return buildModuleNavMeta(code) ?? (partOf ? navFromEndpoints(code, endpoints, partOf) : null);
 }

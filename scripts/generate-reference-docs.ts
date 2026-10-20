@@ -308,6 +308,13 @@ function generateNavigationMap(): string {
     "associated entity (when declared). The AI assistant uses this to answer",
     '"where do I find X?" questions and to emit navigation events.',
     "",
+    "Only **BE-owned** (static `MODULE_NAV`) routes appear here — service-owned",
+    "modules (job, crm, emailsender, …) declare their nav in",
+    "`service_registry.endpoints.nav` at registration; resolve them at runtime",
+    "via `GET /api/v1/system/routes`. Every module route lives under its single",
+    "namespace `/{part_of}/{code}` — collapsed to `/{code}` when the module IS",
+    "its own root level (e.g. crm → `/crm`).",
+    "",
     "| Route | Module | Kind | Entity |",
     "|-------|--------|------|--------|",
   ];

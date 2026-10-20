@@ -48,7 +48,7 @@ export class RoutesCensusService {
       // Static registry first, then the service's self-published
       // endpoints.nav — either way the route keeps THIS service's code as
       // its owning module.
-      const meta = resolveModuleNavMeta(s.code, s.endpoints);
+      const meta = resolveModuleNavMeta(s.code, s.endpoints, s.part_of);
       if (!meta) continue;
       for (const r of meta.routes ?? []) push(s.code.toLowerCase(), r);
       for (const link of meta.nav) push(s.code.toLowerCase(), { route: link.href, kind: "page", label_key: link.label_key });
