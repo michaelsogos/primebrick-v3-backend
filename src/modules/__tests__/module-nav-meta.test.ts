@@ -15,10 +15,11 @@ describe("validateNavDeclaration — module route namespace", () => {
     expect(
       validateNavDeclaration("job", {
         route_prefixes: ["/system/job"],
-        nav: [validLink("/system/job"), validLink("/system/job/rules")],
+        nav: [validLink("/system/job/job-schedules"), validLink("/system/job/rules")],
         routes: [
-          { route: "/system/job", kind: "list", entity: "job_schedule" },
-          { route: "/system/job/new", kind: "create", entity: "job_schedule" },
+          { route: "/system/job/job-schedules", kind: "list", entity: "job_schedule" },
+          { route: "/system/job/job-schedules/create", kind: "create", entity: "job_schedule" },
+          { route: "/system/job/rules", kind: "list", entity: "job_rule" },
         ],
       }, "system"),
     ).toBeNull();
@@ -30,7 +31,7 @@ describe("validateNavDeclaration — module route namespace", () => {
         route_prefixes: ["/jobs"],
         nav: [validLink("/jobs")],
       }, "system"),
-    ).toMatch(/must declare exactly '\/system\/job'/);
+    ).toMatch(/extra prefix '\/jobs' must be '\/<root>\/job'/);
   });
 
   it("rejects nav hrefs outside the module prefix", () => {
@@ -47,7 +48,10 @@ describe("validateNavDeclaration — module route namespace", () => {
       validateNavDeclaration("crm", {
         route_prefixes: ["/crm"],
         nav: [validLink("/crm/customers", "crm.customers.nav"), validLink("/crm/pipeline", "crm.pipeline.nav")],
-        routes: [{ route: "/crm/customers", kind: "list", entity: "customer" }],
+        routes: [
+          { route: "/crm/customers", kind: "list", entity: "customer" },
+          { route: "/crm/pipeline", kind: "page" },
+        ],
       }, "crm"),
     ).toBeNull();
     // …and /crm/crm must NOT be demanded
@@ -56,7 +60,7 @@ describe("validateNavDeclaration — module route namespace", () => {
         route_prefixes: ["/crm/crm"],
         nav: [validLink("/crm/crm/customers", "crm.customers.nav")],
       }, "crm"),
-    ).toMatch(/must declare exactly '\/crm'/);
+    ).toMatch(/must declare its primary prefix '\/crm'/);
   });
 
   it("rejects a foreign-root prefix even when the code matches", () => {
@@ -65,7 +69,7 @@ describe("validateNavDeclaration — module route namespace", () => {
         route_prefixes: ["/crm/job"],
         nav: [validLink("/crm/job")],
       }, "system"),
-    ).toMatch(/must declare exactly '\/system\/job'/);
+    ).toMatch(/must declare its primary prefix '\/system\/job'/);
   });
 
   it("rejects malformed declarations", () => {

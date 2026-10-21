@@ -50,6 +50,30 @@ form the module's single route namespace:
 `nav[].href` and `routes[].route` must live under SOME declared prefix —
 a module can never declare pages on a foreign prefix or a foreign code.
 
+**Route-shape conventions — mechanically enforced.** The same validator
+(the shared `@primebrick/sdk` export, identical for service declarations,
+the static `MODULE_NAV`, and unit tests) rejects:
+
+- **`kind:"list"` with a non-plural leaf** — list routes name the plural
+  collection (`/system/job/job-schedules`, `/system/settings/users`);
+  `pluralize` decides, `[param]` leaves are exempt.
+- **`kind:"create"` not ending in `/create`** — `create` is the single
+  canonical suffix; `/new` or any other leaf is refused at enrollment.
+- **`kind:"detail"` not ending in `[param]`** — detail routes address one
+  record (`/users/[uuid]`, `/modules/[code]`).
+- **nav leaf `href` resolving to no declared route and not plural** —
+  every sidebar link must point at a census route or name a plural
+  collection; a dangling singular leaf is a declaration bug, not a style
+  choice.
+
+Paths are **derived, never literals**: `entityPaths(prefix, listLeaf,
+detailParam?)` (SDK) is the single constructor —
+`{list, create, detail}` for one entity collection. Services declare
+`routes` through it and unit-test `validateNavDeclaration` at write time;
+the static `MODULE_NAV` goes through the same validator in CI. A
+convention violation fails before the declaration ever reaches the
+registry — today and on every future module.
+
 **Extra root memberships (multi-root):** `route_prefixes` may add entries
 of the form `/{other-root}/{code}` — the module code stays the URL's
 second segment under every root. A crm service can therefore own `/crm/**`

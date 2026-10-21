@@ -49,7 +49,7 @@ const jobRow = svc({
     nav: {
       route_prefixes: ["/system/job"],
       nav: [
-        { id: "jobs", label_key: "job.jobs.nav", href: "/system/job", icon: "schedule" },
+        { id: "schedules", label_key: "job.jobs.nav", href: "/system/job/job-schedules", icon: "schedule" },
         { id: "runs", label_key: "job.runs.nav", href: "/system/job/runs", icon: "list-checks" },
         {
           id: "rules",
@@ -60,7 +60,7 @@ const jobRow = svc({
         },
       ],
       routes: [
-        { route: "/system/job", kind: "list", entity: "job_schedule" },
+        { route: "/system/job/job-schedules", kind: "list", entity: "job_schedule" },
         { route: "/system/job/runs", kind: "list", entity: "job_run" },
         { route: "/system/job/rules", kind: "list", entity: "job_rule", access: "access.system.job.rules" },
       ],
@@ -135,7 +135,7 @@ describe("ModuleDiscoveryService — access filtering", () => {
     setup([jobRow]);
     const { modules } = await list(["access.system.job"]);
     const job = modules[0];
-    expect(job.nav?.map((l) => l.id)).toEqual(["jobs", "runs", "rules"]);
+    expect(job.nav?.map((l) => l.id)).toEqual(["schedules", "runs", "rules"]);
     expect(job.routes?.map((r) => r.route)).toContain("/system/job/rules");
   });
 
@@ -145,11 +145,11 @@ describe("ModuleDiscoveryService — access filtering", () => {
     const { modules } = await list(["access.system.job.runs"]);
     const job = modules[0];
     expect(job).toBeTruthy();
-    // 'jobs'/'runs' are undeclared → open; 'rules' gated → filtered out.
-    expect(job.nav?.map((l) => l.id)).toEqual(["jobs", "runs"]);
+    // 'schedules'/'runs' are undeclared → open; 'rules' gated → filtered out.
+    expect(job.nav?.map((l) => l.id)).toEqual(["schedules", "runs"]);
     expect(job.routes?.map((r) => r.route)).not.toContain("/system/job/rules");
-    // home = first REACHABLE page — still /system/job.
-    expect(job.home?.["system"]).toBe("/system/job");
+    // home = first REACHABLE page — still the schedules list.
+    expect(job.home?.["system"]).toBe("/system/job/job-schedules");
   });
 
   it("a page grant does NOT satisfy a module-level gate", async () => {
@@ -168,7 +168,7 @@ describe("ModuleDiscoveryService — access filtering", () => {
         nav: {
           route_prefixes: ["/system/job"],
           nav: [
-            { id: "jobs", label_key: "job.jobs.nav", href: "/system/job", access: "access.system.job.list" },
+            { id: "jobs", label_key: "job.jobs.nav", href: "/system/job/job-schedules", access: "access.system.job.list" },
             { id: "runs", label_key: "job.runs.nav", href: "/system/job/runs" },
           ],
         },
@@ -196,6 +196,10 @@ describe("ModuleDiscoveryService — access filtering", () => {
                 { id: "flags", label_key: "job.flags.nav", href: "/system/job/admin/flags" },
               ],
             },
+          ],
+          routes: [
+            { route: "/system/job/admin", kind: "page" },
+            { route: "/system/job/admin/flags", kind: "page" },
           ],
         },
       },
