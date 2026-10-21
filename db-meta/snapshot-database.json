@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T13:18:45.382Z",
+  "generatedAt": "2026-10-21T00:58:27.683Z",
   "source": "database",
   "tables": {
     "public.auth_events": {
@@ -3265,9 +3265,92 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "ordinalPosition": 26,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "typeOid": 1184,
+          "typcategory": "D",
+          "formatType": "timestamp with time zone",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "deleted_by": {
+          "name": "deleted_by",
+          "ordinalPosition": 27,
+          "dataType": "text",
+          "typname": "text",
+          "typeOid": 25,
+          "typcategory": "S",
+          "formatType": "text",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "part_of": {
+          "name": "part_of",
+          "ordinalPosition": 28,
+          "dataType": "text",
+          "typname": "text",
+          "typeOid": 25,
+          "typcategory": "S",
+          "formatType": "text",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "is_default": {
+          "name": "is_default",
+          "ordinalPosition": 29,
+          "dataType": "bool",
+          "typname": "bool",
+          "typeOid": 16,
+          "typcategory": "B",
+          "formatType": "boolean",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "label_key": {
+          "name": "label_key",
+          "ordinalPosition": 30,
+          "dataType": "varchar",
+          "typname": "varchar",
+          "typeOid": 1043,
+          "typcategory": "S",
+          "formatType": "character varying(255)",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
         }
       },
       "indexes": [
+        {
+          "name": "service_registry_uuid_uq",
+          "using": "btree",
+          "isUnique": true,
+          "columns": [
+            "uuid"
+          ],
+          "definition": "CREATE UNIQUE INDEX service_registry_uuid_uq ON public.service_registry USING btree (uuid)"
+        },
+        {
+          "name": "service_registry_deleted_at_idx",
+          "using": "btree",
+          "isUnique": false,
+          "columns": [
+            "deleted_at"
+          ],
+          "definition": "CREATE INDEX service_registry_deleted_at_idx ON public.service_registry USING btree (deleted_at)"
+        },
         {
           "name": "service_registry_code_uq_scaler",
           "using": "btree",
@@ -3275,8 +3358,8 @@
           "columns": [
             "code"
           ],
-          "where": "(is_behind_scaler = true)",
-          "definition": "CREATE UNIQUE INDEX service_registry_code_uq_scaler ON public.service_registry USING btree (code) WHERE (is_behind_scaler = true)"
+          "where": "((is_behind_scaler = true) AND (deleted_at IS NULL))",
+          "definition": "CREATE UNIQUE INDEX service_registry_code_uq_scaler ON public.service_registry USING btree (code) WHERE ((is_behind_scaler = true) AND (deleted_at IS NULL))"
         },
         {
           "name": "service_registry_code_base_url_uq",
@@ -3286,17 +3369,269 @@
             "code",
             "base_url"
           ],
-          "where": "(is_behind_scaler = false)",
-          "definition": "CREATE UNIQUE INDEX service_registry_code_base_url_uq ON public.service_registry USING btree (code, base_url) WHERE (is_behind_scaler = false)"
+          "where": "((is_behind_scaler = false) AND (deleted_at IS NULL))",
+          "definition": "CREATE UNIQUE INDEX service_registry_code_base_url_uq ON public.service_registry USING btree (code, base_url) WHERE ((is_behind_scaler = false) AND (deleted_at IS NULL))"
+        }
+      ]
+    },
+    "system.client_shield_registry": {
+      "kind": "table",
+      "schema": "system",
+      "name": "client_shield_registry",
+      "columns": {
+        "id": {
+          "name": "id",
+          "ordinalPosition": 1,
+          "dataType": "int8",
+          "typname": "int8",
+          "typeOid": 20,
+          "typcategory": "N",
+          "formatType": "bigint",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": true
         },
+        "uuid": {
+          "name": "uuid",
+          "ordinalPosition": 2,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "ua_prefix": {
+          "name": "ua_prefix",
+          "ordinalPosition": 3,
+          "dataType": "varchar",
+          "typname": "varchar",
+          "typeOid": 1043,
+          "typcategory": "S",
+          "formatType": "character varying(255)",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "client_key_hash": {
+          "name": "client_key_hash",
+          "ordinalPosition": 4,
+          "dataType": "varchar",
+          "typname": "varchar",
+          "typeOid": 1043,
+          "typcategory": "S",
+          "formatType": "character varying(255)",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "source": {
+          "name": "source",
+          "ordinalPosition": 5,
+          "dataType": "varchar",
+          "typname": "varchar",
+          "typeOid": 1043,
+          "typcategory": "S",
+          "formatType": "character varying(20)",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "is_enabled": {
+          "name": "is_enabled",
+          "ordinalPosition": 6,
+          "dataType": "bool",
+          "typname": "bool",
+          "typeOid": 16,
+          "typcategory": "B",
+          "formatType": "boolean",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "ordinalPosition": 7,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "typeOid": 1184,
+          "typcategory": "D",
+          "formatType": "timestamp with time zone",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "ordinalPosition": 8,
+          "dataType": "text",
+          "typname": "text",
+          "typeOid": 25,
+          "typcategory": "S",
+          "formatType": "text",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "ordinalPosition": 9,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "typeOid": 1184,
+          "typcategory": "D",
+          "formatType": "timestamp with time zone",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "ordinalPosition": 10,
+          "dataType": "text",
+          "typname": "text",
+          "typeOid": 25,
+          "typcategory": "S",
+          "formatType": "text",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "version": {
+          "name": "version",
+          "ordinalPosition": 11,
+          "dataType": "int4",
+          "typname": "int4",
+          "typeOid": 23,
+          "typcategory": "N",
+          "formatType": "integer",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "ordinalPosition": 12,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "typeOid": 1184,
+          "typcategory": "D",
+          "formatType": "timestamp with time zone",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "deleted_by": {
+          "name": "deleted_by",
+          "ordinalPosition": 13,
+          "dataType": "text",
+          "typname": "text",
+          "typeOid": 25,
+          "typcategory": "S",
+          "formatType": "text",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "key_mode": {
+          "name": "key_mode",
+          "ordinalPosition": 14,
+          "dataType": "varchar",
+          "typname": "varchar",
+          "typeOid": 1043,
+          "typcategory": "S",
+          "formatType": "character varying(10)",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "key_generation": {
+          "name": "key_generation",
+          "ordinalPosition": 15,
+          "dataType": "int4",
+          "typname": "int4",
+          "typeOid": 23,
+          "typcategory": "N",
+          "formatType": "integer",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "previous_key_hash": {
+          "name": "previous_key_hash",
+          "ordinalPosition": 16,
+          "dataType": "varchar",
+          "typname": "varchar",
+          "typeOid": 1043,
+          "typcategory": "S",
+          "formatType": "character varying(255)",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "previous_valid_until": {
+          "name": "previous_valid_until",
+          "ordinalPosition": 17,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "typeOid": 1184,
+          "typcategory": "D",
+          "formatType": "timestamp with time zone",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "key_rotated_at": {
+          "name": "key_rotated_at",
+          "ordinalPosition": 18,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "typeOid": 1184,
+          "typcategory": "D",
+          "formatType": "timestamp with time zone",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        }
+      },
+      "indexes": [
         {
-          "name": "service_registry_uuid_uq",
+          "name": "client_shield_registry_uuid_uq",
           "using": "btree",
           "isUnique": true,
           "columns": [
             "uuid"
           ],
-          "definition": "CREATE UNIQUE INDEX service_registry_uuid_uq ON public.service_registry USING btree (uuid)"
+          "definition": "CREATE UNIQUE INDEX client_shield_registry_uuid_uq ON system.client_shield_registry USING btree (uuid)"
+        },
+        {
+          "name": "client_shield_registry_ua_prefix_uidx",
+          "using": "btree",
+          "isUnique": true,
+          "columns": [
+            "ua_prefix"
+          ],
+          "definition": "CREATE UNIQUE INDEX client_shield_registry_ua_prefix_uidx ON system.client_shield_registry USING btree (ua_prefix)"
         }
       ]
     }

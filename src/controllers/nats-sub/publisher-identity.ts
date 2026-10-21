@@ -11,7 +11,7 @@
  * call `invalidate()` to refresh immediately on rotation.
  */
 
-import type { Msg } from "nats";
+import type { Msg } from "@nats-io/transport-node";
 import { ClientShieldRegistryService } from "../../modules/system/client-shield-registry.service.js";
 import {
   CLIENT_SHIELD_KEY_HEADER,

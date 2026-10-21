@@ -153,6 +153,12 @@ see [RBAC](./rbac) for the full system. In short:
 4. Otherwise, evaluate `checkRbac(req.user, declaredPerms, mode)` — OR (any-of)
    by default, AND (all-of) via `rbacHandler.all([...])`.
 
+The `isAdmin`/`isSystem` bypass covers **entity/API RBAC only**. Navigation
+visibility is a separate axis: `access.{app}.{module}.{page}` grants travel in
+the same permission set but gate discovery metadata, evaluated by
+`isAccessGranted()` — `is_admin` implies `access.system` there, nothing more.
+See [Module navigation metadata — Access axis](./module-navigation#access-axis--accessappmodulepage).
+
 ## MFA (TOTP)
 
 When a user has enrolled MFA factors, `POST /api/v1/auth/login` returns

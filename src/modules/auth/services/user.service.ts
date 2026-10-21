@@ -515,7 +515,11 @@ export class UserService extends DomainService<UserProfileDetailDto> {
       const searchFilters = searchFields.map((f) =>
         Filter.fieldValue(field(UserProfileEntity, f as any), "ILIKE", `%${search}%`)
       );
-      baseFilters.push(Filter.group(searchFilters, "OR"));
+      // A `search_in` scope that survives the allowlist as empty must not
+      // render an empty OR group — it would produce `()` in SQL (500).
+      if (searchFilters.length > 0) {
+        baseFilters.push(Filter.group(searchFilters, "OR"));
+      }
     }
 
     // Custom filters
@@ -854,8 +858,24 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
   // --- Restore (un-soft-delete) --------------------------------------------
 
+  private async getByUuidIncludingDeleted(uuid: string): Promise<UserProfileDetailDto | null> {
+    const row = await this.dal.find<any, any>(
+      UserProfileEntity,
+      null,
+      {
+        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
+        joins: buildAuditableJoins(UserProfileEntity, UserProfileEntity),
+        deletedRecords: "INCLUDED",
+        throwIfNotFound: false,
+      }
+    );
+    return row ? this.toDto(row) : null;
+  }
+
   async restoreUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
-    const existing = await this.getByUuid(uuid);
+    // The record being restored IS soft-deleted — the lookup must include
+    // tombstoned rows or the existence check 404s on every restore.
+    const existing = await this.getByUuidIncludingDeleted(uuid);
     if (!existing) {
       throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
     }

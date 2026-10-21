@@ -1146,6 +1146,15 @@ export const openapi = {
                 enabled: { type: "boolean" },
                 permissions: { type: "array", items: { type: "string" } },
                 sentinel: { type: "string", enum: ["_public", "_authenticated_user", "_authenticated_admin"] },
+                endpoint: {
+                  type: "object",
+                  required: ["method", "path"],
+                  description: "Backing route — present on every enabled op (incl. non-standard prefixes via metaExtraScans); absent when enabled:false",
+                  properties: {
+                    method: { type: "string" },
+                    path: { type: "string", description: "Full API path with :param placeholders (e.g. /api/v1/auth/users/:uuid)" },
+                  },
+                },
               },
             },
           },

@@ -145,9 +145,12 @@ export async function streamEntityExport(
   }
 
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  // Entity-label keys live in the owning module's namespace (`job` →
+  // `job.entities.<entity>.*`); BE-owned entities default to `system`.
+  const ens = meta.entities_ns ?? "system";
   const entityLabels = cfg.entityLabels ?? {
-    singular: cap(dict[`system.entities.${entityName}.singular`] ?? humanize(entityName)),
-    plural: cap(dict[`system.entities.${entityName}.plural`] ?? `${humanize(entityName)}s`),
+    singular: cap(dict[`${ens}.entities.${entityName}.singular`] ?? humanize(entityName)),
+    plural: cap(dict[`${ens}.entities.${entityName}.plural`] ?? `${humanize(entityName)}s`),
   };
 
   const config: ExportConfig = {

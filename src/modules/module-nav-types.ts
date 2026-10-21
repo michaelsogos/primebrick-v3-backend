@@ -1,48 +1,42 @@
 /**
- * Module navigation metadata types.
+ * Module navigation metadata types — facades over the canonical contracts
+ * in `@primebrick/core`.
  *
- * Shared between the /modules list endpoint (ModuleInfo fields) and the
- * /modules/:code/meta endpoint (full nav tree). All field names are
- * snake_case per the BE data-model convention.
+ * Shared between the /modules discovery payload (nav + routes + home),
+ * the client-derived route census, and the service-registration
+ * self-declaration (`service_registry.endpoints.nav`).
+ * All field names are snake_case per the BE data-model convention.
  */
 
-export type ModuleNavLink = {
-  id: string;
-  label_key: string;
-  href: string;
-  icon?: string;
-  children?: ModuleNavLink[];
-};
+import type {
+  ModuleNavDeclaration as CoreModuleNavDeclaration,
+  ModuleNavLink,
+  PageRouteDeclaration,
+} from "@primebrick/sdk";
+
+export type { ModuleNavLink, PageRouteDeclaration };
 
 export type ModuleNav = {
   module: string;
-  icon?: string;
   nav: ModuleNavLink[];
 };
 
 /**
- * A declared frontend route owned by a module. Modules MUST declare every
- * FE path they own that is not deducible from nav links or entity
- * conventions — the AI route census (GET /system/routes) depends on it.
- * `param` marks dynamic segments using the FE convention ([uuid], [code]).
+ * A declared frontend route owned by a module. The canonical contract lives
+ * in `@primebrick/core` (`PageRouteDeclaration`) — it carries optional remote
+ * component delivery fields (`component_url`/`component_format`/`integrity`)
+ * consumed by the FE `RemotePageMount`.
  */
-export type ModuleRouteDecl = {
-  route: string;
-  kind: "list" | "detail" | "create" | "page";
-  /** Entity code when the route is bound to a CRUD surface. */
-  entity?: string;
-  /** i18n key for a human-readable label, when available. */
-  label_key?: string;
-};
+export type ModuleRouteDecl = PageRouteDeclaration;
 
 /**
- * Extended with route_prefixes + is_reserved — used internally by the
- * /modules list endpoint to attach route resolution metadata. The
- * /modules/:code/meta endpoint strips these and returns plain ModuleNav.
+ * A module's full nav declaration — the shape services self-publish via
+ * `service.register` (`endpoints.nav`) AND the shape the static MODULE_NAV
+ * registry returns for BE-owned modules. One contract, two sources:
+ * service-declared nav is the wiring; static nav is only for the BE's own
+ * reserved/system modules.
  */
-export type ModuleNavWithPrefixes = ModuleNav & {
-  route_prefixes: string[];
-  is_reserved?: boolean;
-  /** Full route census of the module — nav-declared AND non-derivable paths. */
-  routes?: ModuleRouteDecl[];
+export type ModuleNavWithPrefixes = CoreModuleNavDeclaration & {
+  /** Module code — always populated when resolved (static or endpoints). */
+  module: string;
 };

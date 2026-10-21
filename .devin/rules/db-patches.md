@@ -55,7 +55,7 @@ re-read after each run (a patch may change it). No env flag, no guessing.
 
 Registry transitions happen through the admin surface, never by hand:
 `failed → retry` · `pending_review → approve` · `any → resolveManually`
-(FE `/system/migrations` page or `src/migrations/status.ts` helpers).
+(FE `/system/settings/migrations` page or `src/migrations/status.ts` helpers).
 **NEVER** hand-edit `MANIFEST.json`, `keys.json`, or registry rows.
 
 ## Deep dive

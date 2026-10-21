@@ -13,11 +13,17 @@ This document maps every application route to its owning module and its
 associated entity (when declared). The AI assistant uses this to answer
 "where do I find X?" questions and to emit navigation events.
 
+Only **BE-owned** (static `MODULE_NAV`) routes appear here — service-owned
+modules (job, crm, emailsender, …) declare their nav in
+`service_registry.endpoints.nav` at registration; resolve them at runtime
+via the access-filtered `GET /api/v1/modules` discovery payload
+(`ModuleInfo.routes`). Every module route lives under its
+primary namespace `/{part_of}/{code}` — collapsed to `/{code}` when the
+module IS its own root level (e.g. crm → `/crm`) — or under an extra
+root membership `/{other-root}/{code}` (e.g. crm → `/system/crm/pipeline`).
+
 | Route | Module | Kind | Entity |
 |-------|--------|------|--------|
-| `/system/customers` | crm | list | customer |
-| `/system/customers/new` | crm | create | customer |
-| `/crm/pipeline` | crm | page | — |
 | `/system/settings` | settings | page | — |
 | `/system/settings/profile` | settings | page | — |
 | `/system/settings/credentials` | settings | page | — |
@@ -42,8 +48,7 @@ associated entity (when declared). The AI assistant uses this to answer
 | `/system/settings/templates` | settings | list | template |
 | `/system/settings/translations` | settings | page | — |
 | `/system/settings/email-providers` | settings | list | email_provider |
-| `/system/jobs` | settings | page | — |
-| `/system/migrations` | settings | page | — |
+| `/system/settings/migrations` | settings | page | — |
 
 ## Routes grouped by entity
 
@@ -55,10 +60,6 @@ associated entity (when declared). The AI assistant uses this to answer
 ### config_entry
 - `/system/settings/configurations`
 - `/system/settings/configurations/create`
-
-### customer
-- `/system/customers`
-- `/system/customers/new`
 
 ### email_provider
 - `/system/settings/email-providers`

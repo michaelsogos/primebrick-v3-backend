@@ -92,7 +92,7 @@ comboboxes, related-object labels. It supports `${field}` template syntax
 |------|----------|---------|
 | `key` | yes | Row field key (snake_case) |
 | `label_key` | yes | i18n key for header/form label |
-| `type` | yes | `text` \| `badge` \| `date` \| `datetime` \| `color` \| `boolean` \| `number` |
+| `type` | yes | `text` \| `badge` \| `date` \| `datetime` \| `color` \| `boolean` \| `number` \| `sparkline` |
 | `order` | yes | Explicit position within its rendering group — array position in `columns` MUST NOT matter. Convention: `uuid` is `order: -1` (canonical first sticky column, hidden but selectable), the `display_field` column is `order: 0` |
 | `sticky` | | Pinned left — `uuid` and the `display_field` column are the standard sticky pair |
 | `audited` | | System audit column — rendered last |
@@ -100,6 +100,7 @@ comboboxes, related-object labels. It supports `${field}` template syntax
 | `default_visible` | | `false` = selectable but hidden by default |
 | `badge` | | `{ values: Record<string, { label_key?, label_text?, color? }> }` |
 | `datetime_iana_toggle` | | `{ record_iana_field }` |
+| `sparkline` | | `type:"sparkline"` — `{ endpoint, request_field, row_key, response_field?, bucket_field?, bucket_unit_field?, series }`; virtual column, the list engine batch-POSTs row keys after every load |
 | `tooltip`, `tooltip_priority`, `tooltip_title` | | Tooltip keys/priority |
 | `show_form_tooltip`, `show_list_tooltip` | | Tooltip visibility per context |
 
@@ -115,6 +116,7 @@ sorted by `order` (`orderedColumns` on the FE).
 | `default_page_size` | Initial rows per page |
 | `page_size_options` | Dropdown values |
 | `row_custom_actions` | Custom row CTA display config for non-standard ops |
+| `filter_presets` | Mutually-exclusive preset scope filters in the toolbar — `display: "button_group"` renders **icon-only** buttons (per-option `icon` required, meaning via `title` tooltip + `aria-pressed`; the label is never displayed); `"combobox"` for long lists. Exactly one option active; `where:[]` = "all" escape; conditions AND into every `/list` request |
 
 `table` is absent on form-only metas (e.g. `GET /api/v1/auth/me/meta` —
 `meMeta` in `auth-session.router.ts` is a plain `EntityMeta` without
