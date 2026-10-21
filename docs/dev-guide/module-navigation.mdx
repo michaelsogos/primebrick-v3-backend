@@ -45,11 +45,26 @@ form the module's single route namespace:
   the segment collapses to `/{code}` — `crm` (`part_of: "crm"`) owns `/crm/**`.
 
 `validateNavDeclaration` enforces this at `service.register` time:
-`route_prefixes` must equal exactly the computed prefix, and every `nav[].href`
-and `routes[].route` must live under it — a module can never declare pages on
-a foreign prefix. `/api/v1/modules` returns `part_of` so the FE can group
-modules by root level (root switcher → module switcher) and prepend the root
-segment to breadcrumbs (`{root} / {module} / {page}`).
+`route_prefixes` must CONTAIN the computed primary prefix, and every
+`nav[].href` and `routes[].route` must live under SOME declared prefix —
+a module can never declare pages on a foreign prefix or a foreign code.
+
+**Extra root memberships (multi-root):** `route_prefixes` may add entries
+of the form `/{other-root}/{code}` — the module code stays the URL's
+second segment under every root. A crm service can therefore own `/crm/**`
+(primary) AND `/system/crm/**` (extra): the pipeline page lives at
+`/system/crm/pipeline` while customers stay at `/crm/customers`. Each
+extra prefix materializes its first segment as an additional app level in
+the FE launcher; ownership still resolves by longest-prefix. Single-segment
+extras (`/foo`) and foreign-code segments (`/system/other`) are rejected.
+
+**Default module (`is_default`):** `service_registry.is_default` marks the
+module as the default of its OWN root (`part_of`). At most one winner per
+root: a registration claiming `is_default` demotes the previous winner
+(keep-winner policy — a re-registering service never downgrades an
+admin's later choice; the claim is an upgrade-only flag). `/api/v1/modules`
+returns `part_of` + `is_default` so the FE app launcher can group modules
+by app level and resolve app-click → default module → first page.
 
 Three layers, each with a distinct consumer:
 

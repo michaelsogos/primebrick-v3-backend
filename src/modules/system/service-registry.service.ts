@@ -36,6 +36,8 @@ export interface ServiceRegistryEntry {
   icon?: string;
   icon_type: string;
   is_reserved: boolean;
+  /** Declared default module of its root level — at most one per part_of. */
+  is_default: boolean;
   uuid?: string;
   version?: number;
   deleted_at?: Date | null;
@@ -62,6 +64,7 @@ const FULL_PROJECTION = [
   Project.field(field(ServiceRegistryEntity, "icon" as any)),
   Project.field(field(ServiceRegistryEntity, "icon_type" as any)),
   Project.field(field(ServiceRegistryEntity, "is_reserved" as any)),
+  Project.field(field(ServiceRegistryEntity, "is_default" as any)),
   Project.field(field(ServiceRegistryEntity, "uuid" as any)),
   Project.field(field(ServiceRegistryEntity, "version" as any)),
   Project.field(field(ServiceRegistryEntity, "deleted_at" as any)),
@@ -260,6 +263,50 @@ export class ServiceRegistryService {
     );
   }
 
+  /**
+   * The enabled module currently holding `is_default` for a root level —
+   * at most one per `part_of` by the keep-winner / demote-other rules.
+   * `excludeCode` lets a claimant ignore its own row on re-registration.
+   */
+  async findDefaultHolder(partOf: string, excludeCode?: string): Promise<ServiceRegistryEntry | null> {
+    const filters = [
+      Filter.fieldValue(field(ServiceRegistryEntity, "part_of" as any), "=", partOf),
+      Filter.fieldValue(field(ServiceRegistryEntity, "is_default" as any), "=", true),
+      Filter.fieldValue(field(ServiceRegistryEntity, "is_enabled" as any), "=", true),
+    ];
+    if (excludeCode) {
+      filters.push(Filter.fieldValue(field(ServiceRegistryEntity, "code" as any), "!=", excludeCode));
+    }
+    const rows = await getDal().findAll<ServiceRegistryEntity, ServiceRegistryEntry>(
+      ServiceRegistryEntity,
+      FULL_PROJECTION,
+      { filters },
+    );
+    return rows[0] ?? null;
+  }
+
+  /** Demote every OTHER `is_default` holder under `partOf` — admin flip wins. */
+  private async demoteOtherDefaults(partOf: string, winnerCode: string): Promise<void> {
+    const holders = await getDal().findAll<ServiceRegistryEntity, ServiceRegistryEntry>(
+      ServiceRegistryEntity,
+      FULL_PROJECTION,
+      {
+        filters: [
+          Filter.fieldValue(field(ServiceRegistryEntity, "part_of" as any), "=", partOf),
+          Filter.fieldValue(field(ServiceRegistryEntity, "is_default" as any), "=", true),
+          Filter.fieldValue(field(ServiceRegistryEntity, "code" as any), "!=", winnerCode),
+        ],
+      },
+    );
+    for (const h of holders) {
+      await getDal().update(
+        ServiceRegistryEntity,
+        { code: h.code, is_default: false, version: h.version } as any,
+        { actor: "system", matchBy: "code" },
+      );
+    }
+  }
+
   async updateByCodeAdmin(code: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
     const existing = await this.findByCode(code);
     if (!existing) return;
@@ -270,5 +317,8 @@ export class ServiceRegistryService {
       { ...row, code, version: existing.version } as any,
       { actor: "system", matchBy: "code" },
     );
+    if (row.is_default === true) {
+      await this.demoteOtherDefaults(existing.part_of, code);
+    }
   }
 }

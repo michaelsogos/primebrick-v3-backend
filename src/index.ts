@@ -262,6 +262,7 @@ apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_re
         part_of: s.part_of,
         route_prefixes: navMeta?.route_prefixes,
         is_reserved: s.is_reserved,
+        is_default: s.is_default,
       };
     }),
   });

@@ -130,13 +130,17 @@ function validateNavLink(code: string, link: unknown, path: string): string | nu
  * enrollment and can never poison /modules or the routes census.
  * Returns the first error string, or null when valid.
  *
- * `partOf` is the module's declared ROOT LEVEL — the module's single
- * route prefix is derived, never free-chosen: `/{partOf}/{code}`. When
- * the module IS its own root (`partOf === code`, e.g. crm) the segment
- * collapses to `/{code}` — `/crm/customers`, not `/crm/crm/customers`.
- * `route_prefixes` must equal exactly that prefix and every nav href /
- * routes entry must live under it — a module can never declare pages on
- * a foreign prefix.
+ * `partOf` is the module's declared ROOT LEVEL — its primary route prefix
+ * is derived, never free-chosen: `/{partOf}/{code}`. When the module IS its
+ * own root (`partOf === code`, e.g. crm) the segment collapses to `/{code}`
+ * — `/crm/customers`, not `/crm/crm/customers`.
+ * `route_prefixes` must CONTAIN that primary prefix and may add EXTRA root
+ * memberships in the `/{root}/{code}` shape only — a module with a foot in
+ * two apps keeps its code as the URL's second segment
+ * (`/system/crm/pipeline` = a crm page inside the System app), so
+ * longest-prefix ownership keeps resolving module and breadcrumb.
+ * Single-segment extras and foreign-code segments are rejected.
+ * Every nav href / routes entry must live under SOME declared prefix.
  */
 export function validateNavDeclaration(code: string, decl: unknown, partOf: string): string | null {
   if (!decl || typeof decl !== "object" || Array.isArray(decl)) {
@@ -144,18 +148,28 @@ export function validateNavDeclaration(code: string, decl: unknown, partOf: stri
   }
   const d = decl as Record<string, unknown>;
   const modulePrefix = partOf === code ? `/${code}` : `/${partOf}/${code}`;
-  const underPrefix = (p: string) => p === modulePrefix || p.startsWith(modulePrefix + "/");
   if (!Array.isArray(d["route_prefixes"]) || d["route_prefixes"].length === 0) {
     return "endpoints.nav.route_prefixes must be a non-empty array of FE path prefixes";
   }
+  const prefixes: string[] = [];
   for (const p of d["route_prefixes"] as unknown[]) {
     if (typeof p !== "string" || !p.startsWith("/")) {
       return `endpoints.nav.route_prefixes: every prefix must be an absolute FE path (got ${extJsonStringify(p)})`;
     }
-    if ((p as string) !== modulePrefix) {
-      return `endpoints.nav.route_prefixes: module '${code}' (part_of='${partOf}') must declare exactly '${modulePrefix}' (got ${extJsonStringify(p)})`;
+    if (p === modulePrefix) {
+      prefixes.push(p);
+      continue;
     }
+    const segs = (p as string).split("/").filter(Boolean);
+    if (segs.length !== 2 || segs[1] !== code) {
+      return `endpoints.nav.route_prefixes: extra prefix '${p}' must be '/<root>/${code}' — the module code stays the URL's second segment (primary prefix '${modulePrefix}' is always required)`;
+    }
+    prefixes.push(p);
   }
+  if (!prefixes.includes(modulePrefix)) {
+    return `endpoints.nav.route_prefixes: module '${code}' (part_of='${partOf}') must declare its primary prefix '${modulePrefix}'`;
+  }
+  const underAny = (p: string) => prefixes.some((px) => p === px || p.startsWith(px + "/"));
   if (!Array.isArray(d["nav"])) {
     return "endpoints.nav.nav must be an array of {id,label_key,href} links";
   }
@@ -163,8 +177,8 @@ export function validateNavDeclaration(code: string, decl: unknown, partOf: stri
     const err = validateNavLink(code, (d["nav"] as unknown[])[i], `[${i}]`);
     if (err) return err;
     const href = ((d["nav"] as unknown[])[i] as Record<string, unknown>)["href"] as string;
-    if (!underPrefix(href)) {
-      return `endpoints.nav.nav[${i}]: href '${href}' is outside the module prefix '${modulePrefix}'`;
+    if (!underAny(href)) {
+      return `endpoints.nav.nav[${i}]: href '${href}' is outside the module prefixes ${JSON.stringify(prefixes)}`;
     }
   }
   if (d["routes"] !== undefined) {
@@ -178,8 +192,8 @@ export function validateNavDeclaration(code: string, decl: unknown, partOf: stri
       if (typeof rd["route"] !== "string" || !(rd["route"] as string).startsWith("/")) {
         return `endpoints.nav.routes[${i}]: route must be an absolute FE path`;
       }
-      if (!underPrefix(rd["route"] as string)) {
-        return `endpoints.nav.routes[${i}]: route '${rd["route"]}' is outside the module prefix '${modulePrefix}'`;
+      if (!underAny(rd["route"] as string)) {
+        return `endpoints.nav.routes[${i}]: route '${rd["route"]}' is outside the module prefixes ${JSON.stringify(prefixes)}`;
       }
       if (typeof rd["kind"] !== "string" || !PAGE_ROUTE_KINDS.has(rd["kind"] as string)) {
         return `endpoints.nav.routes[${i}]: kind must be one of ${[...PAGE_ROUTE_KINDS].join("|")}`;

@@ -95,6 +95,16 @@ export class ServiceRegistryEntity
   @Column({ nullable: false, defaultSql: "false" })
   is_reserved: boolean;
 
+  /**
+   * Declared DEFAULT MODULE of its root level (`part_of`) — selecting the
+   * app in the sidebar loads this module, which lands on nav[0].href.
+   * At most one enabled row per part_of: keep-winner on register conflicts
+   * (a second claimant is demoted to false, never rejected), demote-other
+   * on admin flip.
+   */
+  @Column({ nullable: false, defaultSql: "false" })
+  is_default: boolean;
+
 
 
 

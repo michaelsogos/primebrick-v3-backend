@@ -338,9 +338,31 @@ export class ServiceLifecycleSubscriber {
       }
     }
 
+    // `is_default` is a CLAIM, not a snapshot: `is_default: true` upgrades
+    // the row, `false`/absent never downgrades — an admin-set default must
+    // survive a service reboot. A claim colliding with a DIFFERENT holder
+    // is demoted (keep-winner) and warned, never rejected — a display
+    // preference must not gate a service boot.
+    let claimDefault: boolean | undefined;
+    if (payload.is_default === true) {
+      const holder = await this.repo.findDefaultHolder(payload.part_of, code);
+      if (holder) {
+        claimDefault = false;
+        logger.warn(
+          `service.register: '${code}' claimed is_default for root '${payload.part_of}' but '${holder.code}' holds it — claim ignored (keep-winner)`,
+          { tags: ["nats"] },
+        );
+      } else {
+        claimDefault = true;
+      }
+    }
+
     // Shared per-register field set — identical across insert/update and
-    // scaler/non-scaler paths (DRY: one payload→row projection).
+    // scaler/non-scaler paths (DRY: one payload→row projection). When the
+    // claim is absent the column key is omitted so update paths preserve
+    // the stored flag.
     const registerFields = {
+      ...(claimDefault !== undefined ? { is_default: claimDefault } : {}),
       service_version: payload.service_version,
       pkg_name: payload.pkg_name,
       capabilities: payload.capabilities ?? [],

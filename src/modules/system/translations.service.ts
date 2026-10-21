@@ -189,7 +189,21 @@ export class TranslationsService {
     const cache = this.getCache(schema);
 
     const cached = await cache.getI18nDict(language);
-    if (cached) return cached;
+    if (cached) {
+      // db-meta seed patches and direct SQL writes bypass this service's
+      // write path, so invalidation-on-write can never see them — the stale
+      // dict would survive up to the 6h TTL. Freshness is therefore proven
+      // read-side: a cached dict older than the table's max(updated_at) is
+      // rebuilt. One indexed aggregate query per dict fetch (rare — the FE
+      // caches by ETag anyway).
+      const [latest] = (await getDal().findAll(
+        entity,
+        [Project.expr("max(updated_at)", "latest_write")],
+        {},
+      )) as { latest_write: string | null }[];
+      const latestWrite = latest?.latest_write ? new Date(latest.latest_write).getTime() : 0;
+      if (latestWrite <= cached.cached_at) return cached;
+    }
 
     let rows: { dict: I18nDict | null }[];
     try {
