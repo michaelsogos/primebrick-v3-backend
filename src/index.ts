@@ -263,6 +263,7 @@ apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_re
         route_prefixes: navMeta?.route_prefixes,
         is_reserved: s.is_reserved,
         is_default: s.is_default,
+        label_key: s.label_key,
       };
     }),
   });
@@ -283,7 +284,7 @@ apiRouter.get("/modules/:code/meta", rbacHandler([Permission.MODULES_READ_ALL]),
   }
   // Strip route_prefixes + is_reserved from the response — only needed in the /modules list
   const { route_prefixes: _rp, is_reserved: _ir, ...navMeta } = meta;
-  res.json(navMeta);
+  res.json({ ...navMeta, label_key: service?.label_key });
 });
 
 app.use("/api/v1", apiRouter);

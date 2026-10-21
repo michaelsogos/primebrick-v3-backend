@@ -375,6 +375,7 @@ export class ServiceLifecycleSubscriber {
       endpoints: payload.endpoints,
       icon: payload.icon,
       icon_type: payload.icon_type,
+      label_key: payload.label_key,
       status,
       last_health_check_at: now,
     };

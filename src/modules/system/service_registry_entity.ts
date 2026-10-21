@@ -96,6 +96,15 @@ export class ServiceRegistryEntity
   is_reserved: boolean;
 
   /**
+   * i18n key for the module's localized display name, resolved against the
+   * module's own translation namespace (same contract as nav[].label_key).
+   * Single source for every UI surface — breadcrumbs, app launcher, module
+   * menus. Falls back to the raw `name` when absent or unresolved.
+   */
+  @Column({ nullable: true, pgType: "varchar" })
+  label_key?: string;
+
+  /**
    * Declared DEFAULT MODULE of its root level (`part_of`) — selecting the
    * app in the sidebar loads this module, which lands on nav[0].href.
    * At most one enabled row per part_of: keep-winner on register conflicts

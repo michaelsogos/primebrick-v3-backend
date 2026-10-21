@@ -38,6 +38,8 @@ export interface ServiceRegistryEntry {
   is_reserved: boolean;
   /** Declared default module of its root level — at most one per part_of. */
   is_default: boolean;
+  /** i18n key for the module's display name, resolved in its own namespace. */
+  label_key?: string;
   uuid?: string;
   version?: number;
   deleted_at?: Date | null;
@@ -65,6 +67,7 @@ const FULL_PROJECTION = [
   Project.field(field(ServiceRegistryEntity, "icon_type" as any)),
   Project.field(field(ServiceRegistryEntity, "is_reserved" as any)),
   Project.field(field(ServiceRegistryEntity, "is_default" as any)),
+  Project.field(field(ServiceRegistryEntity, "label_key" as any)),
   Project.field(field(ServiceRegistryEntity, "uuid" as any)),
   Project.field(field(ServiceRegistryEntity, "version" as any)),
   Project.field(field(ServiceRegistryEntity, "deleted_at" as any)),
@@ -281,7 +284,7 @@ export class ServiceRegistryService {
       ServiceRegistryEntity,
       FULL_PROJECTION,
       { filters },
-    );
+    ) as ServiceRegistryEntry[];
     return rows[0] ?? null;
   }
 
@@ -297,7 +300,7 @@ export class ServiceRegistryService {
           Filter.fieldValue(field(ServiceRegistryEntity, "code" as any), "!=", winnerCode),
         ],
       },
-    );
+    ) as ServiceRegistryEntry[];
     for (const h of holders) {
       await getDal().update(
         ServiceRegistryEntity,

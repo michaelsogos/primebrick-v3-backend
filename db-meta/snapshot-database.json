@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T22:50:34.972Z",
+  "generatedAt": "2026-10-21T00:58:27.683Z",
   "source": "database",
   "tables": {
     "public.auth_events": {
@@ -3303,6 +3303,32 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "is_default": {
+          "name": "is_default",
+          "ordinalPosition": 29,
+          "dataType": "bool",
+          "typname": "bool",
+          "typeOid": 16,
+          "typcategory": "B",
+          "formatType": "boolean",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "label_key": {
+          "name": "label_key",
+          "ordinalPosition": 30,
+          "dataType": "varchar",
+          "typname": "varchar",
+          "typeOid": 1043,
+          "typcategory": "S",
+          "formatType": "character varying(255)",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
           "isPrimaryKey": false
         }
       },

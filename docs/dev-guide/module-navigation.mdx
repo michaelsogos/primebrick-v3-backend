@@ -66,6 +66,19 @@ admin's later choice; the claim is an upgrade-only flag). `/api/v1/modules`
 returns `part_of` + `is_default` so the FE app launcher can group modules
 by app level and resolve app-click → default module → first page.
 
+**Module display name (`label_key`):** `service_registry.label_key` is the
+i18n key for the module's localized name, resolved against the module's
+OWN translation namespace — the same contract as `nav[].label_key`. The
+service declares it at register time (`labelKey` option → `label_key`
+payload) and seeds the key in its own `*.translations` schema. Every UI
+surface that renders a module name — app launcher columns, breadcrumb
+module menu (`moduleMenuSegment`), service-admin pages — resolves it via
+`resolveModuleLabel(module)`: `t(label_key)` with the raw `name` as the
+only fallback when the key is absent or unresolved. Never render
+`service_registry.name` directly in navigation surfaces, and never invent
+per-page keys for the module name (`settings` → `system.settings.title`,
+`job` → `job.module.name`, `crm` → `crm.module.name`).
+
 Three layers, each with a distinct consumer:
 
 | Layer | Purpose |

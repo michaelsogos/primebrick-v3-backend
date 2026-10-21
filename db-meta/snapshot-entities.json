@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T22:50:34.967Z",
+  "generatedAt": "2026-10-21T00:58:27.674Z",
   "source": "entities",
   "tables": {
     "public.auth_events": {
@@ -2809,6 +2809,29 @@
           "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "is_reserved",
+          "isNullable": false,
+          "defaultSql": "false"
+        },
+        "label_key": {
+          "name": "label_key",
+          "ordinalPosition": 29,
+          "dataType": "varchar",
+          "typname": "varchar",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "label_key",
+          "isNullable": true
+        },
+        "is_default": {
+          "name": "is_default",
+          "ordinalPosition": 30,
+          "dataType": "boolean",
+          "typname": "boolean",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "is_default",
           "isNullable": false,
           "defaultSql": "false"
         }

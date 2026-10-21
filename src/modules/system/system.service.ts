@@ -186,6 +186,7 @@ export class SystemService {
       icon_type?: string;
       author?: string;
       github_repo_url?: string;
+      label_key?: string;
     },
   ) {
     const registry = new ServiceRegistryService();

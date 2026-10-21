@@ -46,6 +46,7 @@ const ServiceUpdateBodySchema = z.object({
   icon_type: z.string().optional(),
   author: z.string().optional(),
   github_repo_url: z.string().optional(),
+  label_key: z.string().optional(),
 });
 
 /** Single-code param helper (rejects arrays by schema). */
