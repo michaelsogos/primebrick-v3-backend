@@ -547,6 +547,7 @@ export function clearRefreshCookie(res: import("express").Response): void {
  */
 export function buildUserFromClaims(claims: Record<string, any>): {
   username: string;
+  idp_code: string;
   display_name: string;
   email: string;
   organization: string;
@@ -562,6 +563,9 @@ export function buildUserFromClaims(claims: Record<string, any>): {
     }));
   return {
     username: claims.name || claims.username || claims.preferred_username,
+    // The Casdoor JWT `sub` IS the user's idp_code — session metadata for
+    // the FE account-switch guard; NOT identity (that is /auth/me's).
+    idp_code: claims.sub,
     display_name: claims.displayName || claims.name || claims.username || claims.preferred_username,
     email: claims.email,
     organization: claims.organization,

@@ -38,6 +38,8 @@ export function deriveSearchableKeys(meta: EntityMeta, entityClass: EntityClass)
     .map((c) => c.key)
     .filter((key) => {
       const t = pgTypeByProp.get(key);
-      return t !== undefined && TEXTLIKE_PG_TYPES.has(t);
+      // `inferredPgType` carries length/precision specifiers (`varchar(255)`,
+      // `numeric(10,2)`) — strip the parameterization before the type check.
+      return t !== undefined && TEXTLIKE_PG_TYPES.has(t.replace(/\(.*\)/, ""));
     });
 }

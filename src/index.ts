@@ -35,7 +35,7 @@ import { createPublisherVerifier } from "./controllers/nats-sub/publisher-identi
 import { initBackendIdentity } from "./modules/proxy/backend-identity.js";
 import { initSecretEngine } from "./modules/secrets/secret-engine.js";
 import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js";
-import { buildModuleNavMeta } from "./modules/module-nav-meta.js";
+import { ModuleDiscoveryService } from "./modules/system/module-discovery.service.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
 import { initBackendTelemetry, getTelemetryShared } from "./observability/telemetry.js";
 import { shutdownTelemetry, flushLogsSync } from "@primebrick/sdk";
@@ -240,38 +240,15 @@ app.use(aggregatedOpenApiRouter());
 
 // Use makeProtectedRouter for /modules endpoint
 const apiRouter = makeProtectedRouter();
-apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_req, res) => {
-  const services = await new ServiceRegistryService().findAll();
-  res.json({
-    modules: services.map((s) => {
-      const navMeta = buildModuleNavMeta(s.code);
-      return {
-        id: s.code.toLowerCase(),
-        name: s.name || s.code,
-        enabled: s.is_enabled,
-        icon: s.icon || navMeta?.icon,
-        route_prefixes: navMeta?.route_prefixes,
-        is_reserved: s.is_reserved,
-      };
-    }),
-  });
-});
-
-apiRouter.get("/modules/:code/meta", rbacHandler([Permission.MODULES_READ_ALL]), async (req, res) => {
-  const code = req.params.code as string;
-  const meta = buildModuleNavMeta(code);
-  if (!meta) {
-    res.status(404).json({
-      type: "about:blank",
-      title: "Module not found",
-      status: 404,
-      detail: `No module with code '${code}'`,
-    });
-    return;
-  }
-  // Strip route_prefixes + is_reserved from the response — only needed in the /modules list
-  const { route_prefixes: _rp, is_reserved: _ir, ...navMeta } = meta;
-  res.json(navMeta);
+apiRouter.get("/modules", rbacHandler([Permission.AUTHENTICATED_USER]), async (req, res) => {
+  // THE module discovery document — one access-filtered payload feeding the
+  // launcher, sidebar, breadcrumb and the client-derived route census.
+  // AUTHENTICATED_USER: discovery must work for ordinary users; WHAT they
+  // see is governed by the `access.*` grant axis inside the service
+  // (is_admin ⇒ access.system only — business roots need explicit grants).
+  // Disabled rows never surface: `is_enabled === false` is the admin's
+  // "do not expose" decision.
+  res.json(await new ModuleDiscoveryService().list(req.user));
 });
 
 app.use("/api/v1", apiRouter);

@@ -15,6 +15,7 @@
 
 import type { Express } from "express";
 
+import { clientRegistryRouter } from "../controllers/http/client-registry.router.js";
 import { customersRouter } from "../controllers/http/customers.router.js";
 import { organizationsRouter } from "../controllers/http/auth/organizations.router.js";
 import { systemRouter } from "../controllers/http/system.router.js";
@@ -24,6 +25,7 @@ import { proxyRouter } from "../controllers/http/proxy.router.js";
 import { collaborationRouter } from "../controllers/http/collaboration.router.js";
 
 export function mountModules(app: Express): void {
+  app.use(clientRegistryRouter());
   app.use(customersRouter());
   app.use(organizationsRouter());
   app.use(systemRouter());

@@ -20,49 +20,29 @@
  *
  * Hand-written `actions_overrides` in `*.meta.ts` may only toggle `enabled`
  * (visibility) — never permissions and never invent ops.
+ *
+ * The canonical type/vocabulary definitions live in `@primebrick/core`
+ * (re-exported via `@primebrick/sdk`) — this file owns only the BE-side
+ * derivation machinery.
  */
 
 import type { IRouter } from "express";
 import { PERMISSION_DECLARED } from "../modules/auth/rbac.middleware.js";
-import { isPermissionSentinel } from "@primebrick/sdk";
+import {
+  isPermissionSentinel,
+  STANDARD_OPS,
+  type ActionsOverrides,
+  type EntityAction,
+  type EntityActionSentinel,
+} from "@primebrick/sdk";
 
-export interface EntityAction {
-  /** Operation name — canonical (`list`, `get`, `delete.bulk`, ...) or the
-   *  last path segment for non-standard routes (`check-availability`). */
-  op: string;
-  /** Declared non-sentinel permissions, verbatim (OR semantics). */
-  permissions: string[];
-  /** Sentinel gate when the route declares one instead of real perms
-   *  (`_public` | `_authenticated_user` | `_authenticated_admin`). */
-  sentinel?: string;
-  /** Visibility flag — false hides the CTA for everyone. Default true. */
-  enabled: boolean;
-}
-
-export type ActionsOverrides = Record<string, { enabled?: boolean }>;
-
-/**
- * The canonical vocabulary of standard entity ops. Every op is always
- * present in `meta.actions` — ops whose route is not registered are emitted
- * with `enabled: false` (explicitly unavailable) instead of being omitted.
- */
-export const STANDARD_OPS = [
-  "list",
-  "meta",
-  "get",
-  "create.single",
-  "update.single",
-  "delete.single",
-  "purge.single",
-  "restore.single",
-  "read.audit",
-  "export",
-  "delete.bulk",
-  "restore.bulk",
-  "duplicate.bulk",
-] as const;
-
-export type StandardOp = (typeof STANDARD_OPS)[number];
+export {
+  STANDARD_OPS,
+  type StandardOp,
+  type EntityAction,
+  type EntityActionEndpoint,
+  type ActionsOverrides,
+} from "@primebrick/sdk";
 
 interface ExpressLayer {
   route?: {
@@ -168,8 +148,9 @@ export function deriveEntityActions(
         actions.set(op, {
           op,
           permissions,
-          ...(sentinel ? { sentinel } : {}),
+          ...(sentinel ? { sentinel: sentinel as EntityActionSentinel } : {}),
           enabled: true,
+          endpoint: { method: method.toUpperCase(), path: route.path },
         });
       }
     }

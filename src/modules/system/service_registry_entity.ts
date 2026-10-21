@@ -7,11 +7,22 @@ import {
   Unique,
   EntityBase,
   Auditable,
+  Deletable,
 } from "@primebrick/dal-pg";
 
+/**
+ * ServiceRegistryEntity — `public.service_registry`.
+ *
+ * Deletable: `service.unregister` / admin delete soft-delete the row —
+ * a removed service follows the default arch rule (query system
+ * auto-excludes `deleted_at` rows: module switcher, NATS routing gate and
+ * schema-ownership checks all stop seeing it). `hardDelete*` remains for
+ * admin purge. `is_enabled`/`status` are operational axes (admin toggle /
+ * liveness) and are intentionally NOT conflated with deletion.
+ */
 @Entity("service_registry")
 export class ServiceRegistryEntity
-  extends Auditable(EntityBase) {
+  extends Deletable(Auditable(EntityBase)) {
   @Key()
   id: bigint;
 
@@ -23,6 +34,15 @@ export class ServiceRegistryEntity
 
   @Column({ nullable: false })
   base_url: string;
+
+  /**
+   * ROOT LEVEL the module belongs to (`part of`) — 'system' for platform
+   * services, 'crm' for the CRM domain, … Combined with `code` it derives
+   * the module's route prefix `/{part_of}/{code}`; service.register
+   * validates every declared route_prefix/nav href/route against it.
+   */
+  @Column({ nullable: false })
+  part_of: string;
 
   @Column({ nullable: false })
   endpoints: Record<string, unknown>;
@@ -74,6 +94,25 @@ export class ServiceRegistryEntity
 
   @Column({ nullable: false, defaultSql: "false" })
   is_reserved: boolean;
+
+  /**
+   * i18n key for the module's localized display name, resolved against the
+   * module's own translation namespace (same contract as nav[].label_key).
+   * Single source for every UI surface — breadcrumbs, app launcher, module
+   * menus. Falls back to the raw `name` when absent or unresolved.
+   */
+  @Column({ nullable: true, pgType: "varchar" })
+  label_key?: string;
+
+  /**
+   * Declared DEFAULT MODULE of its root level (`part_of`) — selecting the
+   * app in the sidebar loads this module, which lands on nav[0].href.
+   * At most one enabled row per part_of: keep-winner on register conflicts
+   * (a second claimant is demoted to false, never rejected), demote-other
+   * on admin flip.
+   */
+  @Column({ nullable: false, defaultSql: "false" })
+  is_default: boolean;
 
 
 

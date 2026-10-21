@@ -1,0 +1,57 @@
+---
+title: "Entity API & Tool Catalog"
+description: "Generic entity tools and the (module, entity) operation matrix — auto-generated from the BE entity registry"
+source: guide
+repo: "backend"
+---
+
+# Entity API & Tool Catalog
+
+<!-- AUTO-GENERATED:entity-api-catalog — DO NOT EDIT MANUALLY. Run pnpm generate:docs to regenerate. -->
+
+The assistant can act on entities through the generic entity tools
+(exposed via MCP `tools/list` and the REST shim `POST /api/v1/system/mcp/call`).
+Every call is RBAC-enforced for the current user; **write tools always
+require user confirmation** before dispatching.
+
+## Tools
+
+| Tool | Kind | Arguments | Notes |
+|------|------|-----------|-------|
+| `list_available_entities` | read | `—` | Discovery: all (module, entity) + supported operations + online status. Always call first. |
+| `get_entity_meta` | read | `module, entity` | Field schema for create/update — required fields, types, flags. |
+| `list_entities` | read | `module, entity, search?, search_in?, sort_key?, sort_dir?, page?, page_size?, filters?, deleted_records?, aggregate?` | Paginated list; `aggregate` switches to COUNT/SUM/AVG/MIN/MAX. |
+| `get_entity` | read | `module, entity, uuid` | Single record by UUID. |
+| `get_entity_audit` | read | `module, entity, uuid, page?, page_size?` | Audit history for one record. |
+| `search_docs` | read | `embedding, keywords?, limit?, repo?` | Docs KB vector+keyword search (caller supplies the embedding). |
+| `create_entity` | write | `module, entity, data` | data keys = snake_case entity fields; fetch get_entity_meta first. |
+| `update_entity` | write | `module, entity, uuid, data` | Partial update — only provided fields change. |
+| `delete_entity` | write | `module, entity, uuid, version` | Soft-delete; `version` is the optimistic-concurrency guard. |
+| `restore_entity` | write | `module, entity, uuid, version` | Restores a soft-deleted record. |
+| `bulk_entity_action` | write | `module, entity, action, items[]` | action: delete|restore; items: up to 100 &#123;uuid, version&#125; pairs. |
+| `manage_service` | write | `action, code?, data?` | Service registry: list|get|activate|update|delete (delete is permanent). |
+
+## Entity operation matrix
+
+Valid `(module, entity)` pairs and the operations each supports.
+Microservice entities appear dynamically — `list_available_entities` is
+the authoritative live source.
+
+| Module | Entity | Label | Supported operations |
+|--------|--------|-------|----------------------|
+| `be` | `customer` | Customer | list, get, create, update, delete, restore, audit, meta |
+| `be` | `organization` | Organization | list, get, create, update, delete, restore, audit, meta |
+| `be` | `user_profile` | User Profile | list, get, update, restore, audit, meta |
+| `be` | `auth_event` | Auth Events | list, aggregate, meta |
+
+## Writable fields per entity
+
+### be.customer
+
+`code (text)`, `first_name (text)`, `last_name (text)`, `company_name (text)`, `email (text)`, `phone (text)`, `status (badge)`, `onboarding_at (datetime)`, `status_reason (text)`, `local_address (text)`, `local_city (text)`, `local_state (text)`, `local_country (text)`, `local_zip (text)`, `onboarding_time_zone (text)`
+
+### be.organization
+
+`display_name (text)`, `idp_code (text)`, `website_url (text)`, `user_count (number)`
+
+<!-- END -->

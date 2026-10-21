@@ -6,7 +6,6 @@
  *   GET    /api/v1/system/roles/active           → role dropdown list
  *   GET    /api/v1/system/permissions            → permission catalog
  *   GET    /api/v1/system/password-policy        → active password policy
- *   GET    /api/v1/system/routes                 → FE route census (AI guide)
  *   GET    /api/v1/system/services               → service registry list
  *   GET    /api/v1/system/services/:code         → single service
  *   PATCH  /api/v1/system/services/:code/toggle  → toggle is_enabled
@@ -30,7 +29,7 @@ import { Permission } from "@primebrick/sdk";
 import { ValidationError } from "../../http/api-errors.js";
 import { DbMigrationService } from "../../modules/system/db-migration.service.js";
 import { SystemService } from "../../modules/system/system.service.js";
-import { RoutesCensusService } from "../../modules/system/routes-census.service.js";
+
 import { servicesEventsRouter } from "./services-events.router.js";
 import { mcpCallRouter } from "./mcp-call.router.js";
 
@@ -46,6 +45,7 @@ const ServiceUpdateBodySchema = z.object({
   icon_type: z.string().optional(),
   author: z.string().optional(),
   github_repo_url: z.string().optional(),
+  label_key: z.string().optional(),
 });
 
 /** Single-code param helper (rejects arrays by schema). */
@@ -108,14 +108,6 @@ export function systemRouter() {
     rbacHandler([Permission.PUBLIC]),
     asyncHandler(async (_req, res) => {
       res.json(await service.getPasswordPolicy());
-    }),
-  );
-
-  router.get(
-    "/api/v1/system/routes",
-    rbacHandler([Permission.AUTHENTICATED_USER]),
-    asyncHandler(async (_req, res) => {
-      res.json(await new RoutesCensusService().list());
     }),
   );
 

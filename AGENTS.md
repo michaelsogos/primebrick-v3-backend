@@ -110,14 +110,14 @@ If `db-meta/diff-entities-vs-database.json` has `renameHeuristicUserReviewRequir
 ### Database patches vs migrations
 
 - **`pnpm run db:meta:compare`** — run when **entity / model code** changes. It refreshes JSON snapshots and may add a new file under `db-meta/patches/`. Do **not** wire this to **post-merge** (it is not a migration runner). It scans `ENTITY_REGISTRY` (`src/domain/entities/registry.ts`) — **every new `@Entity` class MUST be registered there**, and decorator metadata comes from `@primebrick/dal-pg` (there is no local decorators module — `src/domain/entities/` only holds the registry).
-- **`pnpm run db:migrate`** — applies pending `.sql` files in order, using `public.primebrick_database_patches` (patch_id + `content_sha256`) so already-applied files are skipped and the first missing patch is applied next.
+- **`pnpm run db:migrate`** — runs the dal-pg migration engine (`runMigrations`) once, the same code path as service boot: signed `MANIFEST.json` verification, per-schema `<schema>.primebrick_database_patches` registry, mandatory ordered patches.
 
-### Patch SHA256 management
+### Database patch rules
 
-If `db:migrate` fails with "exists in registry with a different content_sha256", see
-[.devin/rules/patch-sha256-management.md](./.devin/rules/patch-sha256-management.md).
-**Never create a new initial patch** — update the existing `00000000000000_init_database.sql`
-in place and create a fire-and-forget script to update the registry hash on existing databases.
+See [.devin/rules/db-patches.md](./.devin/rules/db-patches.md) — **never edit a shipped
+patch** (sha256 mismatch is a security event), ship a new one instead. `db-meta/fire-and-forget/`
+is retired (deleted); one-off SQL lives in workspace `temp/`, never committed. After adding a
+patch, re-sign the manifest: `primebrick-db sign --db-meta db-meta --key @<keyfile> --key-id <id>`.
 
 ### Git hooks (optional)
 
@@ -294,7 +294,7 @@ All endpoints are admin-only (`AUTHENTICATED_ADMIN`):
 - Router: `src/controllers/http/auth/config-entries.router.ts`
 - Meta: `src/modules/auth/config-entries.meta.ts`
 - DB patch: `db-meta/patches/00000000000000_init_database.sql`
-- Migration: `db-meta/fire-and-forget/add_config_table_standard_columns.sql`
+- Migration: `db-meta/fire-and-forget/add_config_table_standard_columns.sql` (historical — FnF dir retired 2026-10; today such a change ships as a `db-meta/patches/` file)
 
 ## Further documentation
 

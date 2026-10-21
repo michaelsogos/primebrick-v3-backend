@@ -683,8 +683,8 @@ export function registerGenericTools(server: McpServer): void {
       description:
         "Manage registered microservices in the Primebrick service registry. " +
         "Actions: 'list' (all services), 'get' (single service by code), 'activate' (toggle enabled/disabled), " +
-        "'update' (modify service metadata), 'delete' (PERMANENT hard-delete with no restore). " +
-        "WARNING: The 'delete' action is irreversible — the service record is permanently removed from the registry.",
+        "'update' (modify service metadata), 'delete' (soft-delete — tombstoned, excluded everywhere, restored on re-registration). " +
+        "The service code itself is immutable: it is never editable via 'update'.",
       inputSchema: z.object({
         action: z
           .enum(["list", "get", "activate", "update", "delete"])

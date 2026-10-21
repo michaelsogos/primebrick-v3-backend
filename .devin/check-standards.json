@@ -21,5 +21,6 @@
         "modules/mcp/"
       ]
     }
-  }
+  },
+  "i18n_namespaces": ["app", "system", "custom"]
 }

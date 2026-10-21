@@ -11,7 +11,7 @@
  * call `invalidate()` to refresh immediately on rotation.
  */
 
-import type { Msg } from "nats";
+import type { Msg } from "@nats-io/transport-node";
 import { ClientShieldRegistryService } from "../../modules/system/client-shield-registry.service.js";
 import {
   CLIENT_SHIELD_KEY_HEADER,
@@ -20,6 +20,7 @@ import {
   logger,
   msgHeader,
   verifyClientIdentity,
+  verifyRowKey,
   type NatsRouteVerify,
   type ShieldRegistryLike,
 } from "@primebrick/sdk";
@@ -32,7 +33,15 @@ export interface PublisherVerifier {
    */
   verify(
     msg: Msg,
-    claimed?: { code?: string; base_url?: string; pkg_name?: string; service_version?: string; client_key_hash?: string } | null,
+    claimed?: {
+      code?: string;
+      base_url?: string;
+      pkg_name?: string;
+      service_version?: string;
+      client_key_hash?: string;
+      key_mode?: "static" | "derived";
+      key_generation?: number;
+    } | null,
     opts?: { allowNewPrefix?: boolean },
   ): Promise<boolean>;
   /** NatsRouteVerify adapter: verify + decode claimed payload from msg.data. */
@@ -74,11 +83,28 @@ export function createPublisherVerifier(): PublisherVerifier {
       { headers: { get: getHdr } },
       {
         allowedPrefixes: r.map((x) => x.ua_prefix),
-        verifyKey: (prefix, key) =>
-          r.find((x) => x.ua_prefix === prefix)?.client_key_hash === clientKeyHash(key),
+        verifyKey: (prefix, key) => verifyRowKey(r.find((x) => x.ua_prefix === prefix), key),
       },
     );
     if (!result.ok) {
+      // Derived-mode bootstrap lane (B14, service.register only): a service
+      // holding a valid derivation secret but deriving for a stale/unknown
+      // generation cannot satisfy the row hash — it still proves the secret
+      // because `clientKeyHash(headerKey) == hash(derive(secret, prefix,
+      // claimed.generation))`. Admitted callers reach the register handler,
+      // which re-verifies the claim and returns the issued generation when
+      // stale — self-healing instead of a permanent wall.
+      if (
+        opts.allowNewPrefix &&
+        knownPrefix &&
+        claimed?.key_mode === "derived" &&
+        typeof claimed.key_generation === "number" &&
+        claimed.client_key_hash &&
+        clientKeyHash(getHdr(CLIENT_SHIELD_KEY_HEADER) ?? "") === claimed.client_key_hash &&
+        (await registrySvc.verifyDerivedClaim(knownPrefix, claimed.key_generation, claimed.client_key_hash))
+      ) {
+        return true;
+      }
       logger.error(`service publisher rejected on "${msg.subject}" — ${result.error}`, {
         tags: ["nats", `${result.status}`],
         claimed_code: claimed?.code ?? claimed?.pkg_name ?? null,
@@ -118,7 +144,7 @@ export function createPublisherVerifier(): PublisherVerifier {
         return (rows ?? []).map((x) => x.ua_prefix);
       },
       verifyKey: (prefix, key) =>
-        (rows ?? []).find((x) => x.ua_prefix === prefix)?.client_key_hash === clientKeyHash(key),
+        verifyRowKey((rows ?? []).find((x) => x.ua_prefix === prefix), key),
       refresh: () => loadRows(),
     },
   };

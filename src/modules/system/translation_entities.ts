@@ -21,10 +21,6 @@ export class AppTranslationEntity extends TranslationEntityBase {}
 @Entity("translations", "system")
 export class SystemTranslationEntity extends TranslationEntityBase {}
 
-/** Emailsender microservice translations (schema: emailsender). */
-@Entity("translations", "emailsender")
-export class EmailsenderTranslationEntity extends TranslationEntityBase {}
-
 /**
  * User-created translations (schema: custom).
  * Global, shared, cross-system/cross-org — keys MUST start with `custom.`

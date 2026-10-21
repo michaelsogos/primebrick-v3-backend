@@ -70,3 +70,53 @@ describe("deriveEntityActions — op mapping", () => {
     expect(byOp["delete.single"].enabled).toBe(false);
   });
 });
+
+describe("deriveEntityActions — endpoint emission", () => {
+  it("every enabled op carries {method, path} of its backing route", () => {
+    const router = routerWith((r) => {
+      r.delete(`${PREFIX}/:uuid`, declared(["x.delete_single"]));
+      r.post(`${PREFIX}/:uuid/restore`, declared(["x.restore_single"]));
+      r.get(`${PREFIX}/list`, declared(["x.read_all"]));
+    });
+    const byOp = Object.fromEntries(deriveEntityActions(router, ENTITY).map((a) => [a.op, a]));
+
+    expect(byOp["delete.single"].endpoint).toEqual({ method: "DELETE", path: `${PREFIX}/:uuid` });
+    expect(byOp["restore.single"].endpoint).toEqual({ method: "POST", path: `${PREFIX}/:uuid/restore` });
+    expect(byOp["list"].endpoint).toEqual({ method: "GET", path: `${PREFIX}/list` });
+  });
+
+  it("disabled ops (no route) have no endpoint", () => {
+    const router = routerWith(() => {});
+    for (const a of deriveEntityActions(router, ENTITY)) {
+      expect(a.endpoint).toBeUndefined();
+    }
+  });
+
+  it("extraScans: non-standard prefix routes emit their real path (user_profile case)", () => {
+    const EPREFIX = "/api/v1/entities/user_profile";
+    const entityRouter = routerWith((r) => {
+      r.get(`${EPREFIX}/meta`, declared(["x.read_all"]));
+      r.get(`${EPREFIX}/list`, declared(["x.read_all"]));
+      r.get(`${EPREFIX}/:uuid`, declared(["x.read_single"]));
+      r.get(`${EPREFIX}/:uuid/audit`, declared(["x.read_audit"]));
+    });
+    const usersRouter = routerWith((r) => {
+      r.post("/api/v1/auth/users", declared(["x.create_single"]));
+      r.put("/api/v1/auth/users/:uuid", declared(["x.update_single"]));
+      r.delete("/api/v1/auth/users/:uuid", declared(["x.delete_single"]));
+      r.post("/api/v1/auth/users/:uuid/restore", declared(["x.restore_single"]));
+    });
+    const byOp = Object.fromEntries(
+      deriveEntityActions(entityRouter, "user_profile", undefined, [
+        { router: usersRouter, prefix: "/api/v1/auth/users" },
+      ]).map((a) => [a.op, a]),
+    );
+
+    // The write ops must point at the auth prefix — NOT /api/v1/entities/...
+    expect(byOp["create.single"].endpoint).toEqual({ method: "POST", path: "/api/v1/auth/users" });
+    expect(byOp["update.single"].endpoint).toEqual({ method: "PUT", path: "/api/v1/auth/users/:uuid" });
+    expect(byOp["delete.single"].endpoint).toEqual({ method: "DELETE", path: "/api/v1/auth/users/:uuid" });
+    expect(byOp["restore.single"].endpoint).toEqual({ method: "POST", path: "/api/v1/auth/users/:uuid/restore" });
+    expect(byOp["list"].endpoint).toEqual({ method: "GET", path: `${EPREFIX}/list` });
+  });
+});

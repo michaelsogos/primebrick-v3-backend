@@ -10,7 +10,7 @@
  */
 
 import { logger, makeNatsRequestRoute, setNatsShieldRegistry, CLIENT_SHIELD_REGISTRY_SUBJECTS, AUTH_MFA_CONSUME_SUBJECT, CachingApiKeyPort, type ClientShieldRegistryRow, type MfaConsumeResult } from "@primebrick/sdk";
-import type { Msg } from "nats";
+import type { Msg } from "@nats-io/transport-node";
 import { ApiError } from "../../http/api-errors.js";
 import { DomainApiKeyPort } from "../../modules/auth/sdk-auth-ports.js";
 import { CasdoorService } from "../../modules/auth/services/casdoor.service.js";
