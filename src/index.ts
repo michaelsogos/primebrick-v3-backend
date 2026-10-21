@@ -35,7 +35,7 @@ import { createPublisherVerifier } from "./controllers/nats-sub/publisher-identi
 import { initBackendIdentity } from "./modules/proxy/backend-identity.js";
 import { initSecretEngine } from "./modules/secrets/secret-engine.js";
 import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js";
-import { resolveModuleNavMeta } from "./modules/module-nav-meta.js";
+import { ModuleDiscoveryService } from "./modules/system/module-discovery.service.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
 import { initBackendTelemetry, getTelemetryShared } from "./observability/telemetry.js";
 import { shutdownTelemetry, flushLogsSync } from "@primebrick/sdk";
@@ -240,51 +240,15 @@ app.use(aggregatedOpenApiRouter());
 
 // Use makeProtectedRouter for /modules endpoint
 const apiRouter = makeProtectedRouter();
-apiRouter.get("/modules", rbacHandler([Permission.MODULES_READ_ALL]), async (_req, res) => {
-  // Switcher candidates: enabled rows only. Soft-deleted rows are already
-  // excluded by the finder's arch default; `is_enabled === false` is the
-  // admin's "do not expose" decision — the module must not be reachable
-  // from the switcher while disabled.
-  const services = (await new ServiceRegistryService().findAll()).filter((s) => s.is_enabled);
-  res.json({
-    modules: services.map((s) => {
-      // Static registry (BE-owned modules) first, then the service's own
-      // endpoints.nav declaration — the self-published wiring that lets a
-      // service own its pages (route_prefixes included). The module icon is
-      // service identity: service_registry.icon is the single source —
-      // endpoints.nav.icon does not exist (nav declares links+routes only).
-      const navMeta = resolveModuleNavMeta(s.code, s.endpoints, s.part_of);
-      return {
-        id: s.code.toLowerCase(),
-        name: s.name || s.code,
-        enabled: s.is_enabled,
-        icon: s.icon,
-        part_of: s.part_of,
-        route_prefixes: navMeta?.route_prefixes,
-        is_reserved: s.is_reserved,
-        is_default: s.is_default,
-        label_key: s.label_key,
-      };
-    }),
-  });
-});
-
-apiRouter.get("/modules/:code/meta", rbacHandler([Permission.MODULES_READ_ALL]), async (req, res) => {
-  const code = req.params.code as string;
-  const service = await new ServiceRegistryService().findByCode(code);
-  const meta = resolveModuleNavMeta(code, service?.endpoints, service?.part_of);
-  if (!meta) {
-    res.status(404).json({
-      type: "about:blank",
-      title: "Module not found",
-      status: 404,
-      detail: `No module with code '${code}'`,
-    });
-    return;
-  }
-  // Strip route_prefixes + is_reserved from the response — only needed in the /modules list
-  const { route_prefixes: _rp, is_reserved: _ir, ...navMeta } = meta;
-  res.json({ ...navMeta, label_key: service?.label_key });
+apiRouter.get("/modules", rbacHandler([Permission.AUTHENTICATED_USER]), async (req, res) => {
+  // THE module discovery document — one access-filtered payload feeding the
+  // launcher, sidebar, breadcrumb and the client-derived route census.
+  // AUTHENTICATED_USER: discovery must work for ordinary users; WHAT they
+  // see is governed by the `access.*` grant axis inside the service
+  // (is_admin ⇒ access.system only — business roots need explicit grants).
+  // Disabled rows never surface: `is_enabled === false` is the admin's
+  // "do not expose" decision.
+  res.json(await new ModuleDiscoveryService().list(req.user));
 });
 
 app.use("/api/v1", apiRouter);

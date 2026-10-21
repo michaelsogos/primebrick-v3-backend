@@ -15,7 +15,7 @@
  * The FE never hardcodes any of this — it fetches everything via the API.
  */
 
-import { allowedKeyNamespaces, extJsonStringify, keyNamespaceOf } from "@primebrick/sdk";
+import { allowedKeyNamespaces, extJsonStringify, isAccessKey, keyNamespaceOf } from "@primebrick/sdk";
 
 import type {
   ModuleNavLink,
@@ -33,6 +33,10 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
         // whenever the owning service goes offline.
         route_prefixes: ["/system/settings"],
         is_reserved: true,
+        // Access gate: the whole module requires `access.system.settings` —
+        // admins inherit it via `access.system`, everyone else needs an
+        // explicit role grant (so a normal user does NOT see Settings).
+        access: "access.system.settings",
         nav: [
           { id: "profile", label_key: "system.settings.tabs.profile", href: "/system/settings/profile", icon: "square-user" },
           { id: "credentials", label_key: "system.settings.tabs.credentials", href: "/system/settings/credentials", icon: "key-round" },
@@ -93,7 +97,36 @@ export function buildModuleNavMeta(code: string): ModuleNavWithPrefixes | null {
 
 const PAGE_ROUTE_KINDS = new Set(["list", "detail", "create", "page"]);
 
-function validateNavLink(code: string, link: unknown, path: string): string | null {
+/**
+ * A module's access-axis namespace — `access.{app}.{module}` with the
+ * `part_of === code` collapse (same rule as the URL prefix). Declared
+ * `access` keys on the nav declaration MUST live under it: job can only
+ * gate `access.system.job.*`, never `access.system.settings.*`.
+ */
+export function accessNamespace(code: string, partOf: string): string {
+  return partOf === code ? `access.${code}` : `access.${partOf}.${code}`;
+}
+
+function validateAccessKey(
+  ns: string,
+  value: unknown,
+  path: string,
+  field: "module" | "item",
+): string | null {
+  if (value === undefined) return null;
+  if (!isAccessKey(value)) {
+    return `${path}: access must be an 'access.{app}.{module}[.{page}]' key`;
+  }
+  if (field === "module" && value !== ns) {
+    return `${path}: module-level access must be exactly '${ns}'`;
+  }
+  if (field === "item" && value !== ns && !(value as string).startsWith(ns + ".")) {
+    return `${path}: access '${value}' is outside the module access namespace '${ns}.*'`;
+  }
+  return null;
+}
+
+function validateNavLink(code: string, accessNs: string, link: unknown, path: string): string | null {
   if (!link || typeof link !== "object" || Array.isArray(link)) {
     return `endpoints.nav.nav ${path}: link must be an object`;
   }
@@ -112,12 +145,14 @@ function validateNavLink(code: string, link: unknown, path: string): string | nu
   if (l["icon"] !== undefined && typeof l["icon"] !== "string") {
     return `endpoints.nav.nav ${path} ('${l["id"]}'): icon must be a lucide name string`;
   }
+  const accessErr = validateAccessKey(accessNs, l["access"], `endpoints.nav.nav ${path} ('${l["id"]}')`, "item");
+  if (accessErr) return accessErr;
   if (l["children"] !== undefined) {
     if (!Array.isArray(l["children"])) {
       return `endpoints.nav.nav ${path} ('${l["id"]}'): children must be an array`;
     }
     for (let i = 0; i < (l["children"] as unknown[]).length; i++) {
-      const err = validateNavLink(code, (l["children"] as unknown[])[i], `${path}.children[${i}]`);
+      const err = validateNavLink(code, accessNs, (l["children"] as unknown[])[i], `${path}.children[${i}]`);
       if (err) return err;
     }
   }
@@ -170,15 +205,18 @@ export function validateNavDeclaration(code: string, decl: unknown, partOf: stri
     return `endpoints.nav.route_prefixes: module '${code}' (part_of='${partOf}') must declare its primary prefix '${modulePrefix}'`;
   }
   const underAny = (p: string) => prefixes.some((px) => p === px || p.startsWith(px + "/"));
+  const accessNs = accessNamespace(code, partOf);
+  const moduleAccessErr = validateAccessKey(accessNs, d["access"], "endpoints.nav.access", "module");
+  if (moduleAccessErr) return moduleAccessErr;
   if (!Array.isArray(d["nav"])) {
     return "endpoints.nav.nav must be an array of {id,label_key,href} links";
   }
   for (let i = 0; i < (d["nav"] as unknown[]).length; i++) {
-    const err = validateNavLink(code, (d["nav"] as unknown[])[i], `[${i}]`);
+    const err = validateNavLink(code, accessNs, (d["nav"] as unknown[])[i], `[${i}]`);
     if (err) return err;
     const href = ((d["nav"] as unknown[])[i] as Record<string, unknown>)["href"] as string;
     if (!underAny(href)) {
-      return `endpoints.nav.nav[${i}]: href '${href}' is outside the module prefixes ${JSON.stringify(prefixes)}`;
+      return `endpoints.nav.nav[${i}]: href '${href}' is outside the module prefixes ${extJsonStringify(prefixes)}`;
     }
   }
   if (d["routes"] !== undefined) {
@@ -193,7 +231,7 @@ export function validateNavDeclaration(code: string, decl: unknown, partOf: stri
         return `endpoints.nav.routes[${i}]: route must be an absolute FE path`;
       }
       if (!underAny(rd["route"] as string)) {
-        return `endpoints.nav.routes[${i}]: route '${rd["route"]}' is outside the module prefixes ${JSON.stringify(prefixes)}`;
+        return `endpoints.nav.routes[${i}]: route '${rd["route"]}' is outside the module prefixes ${extJsonStringify(prefixes)}`;
       }
       if (typeof rd["kind"] !== "string" || !PAGE_ROUTE_KINDS.has(rd["kind"] as string)) {
         return `endpoints.nav.routes[${i}]: kind must be one of ${[...PAGE_ROUTE_KINDS].join("|")}`;
@@ -201,6 +239,8 @@ export function validateNavDeclaration(code: string, decl: unknown, partOf: stri
       if (rd["component_url"] !== undefined && typeof rd["component_url"] !== "string") {
         return `endpoints.nav.routes[${i}]: component_url must be a string`;
       }
+      const routeAccessErr = validateAccessKey(accessNs, rd["access"], `endpoints.nav.routes[${i}]`, "item");
+      if (routeAccessErr) return routeAccessErr;
     }
   }
   return null;
@@ -230,6 +270,7 @@ export function navFromEndpoints(
   return {
     module: code,
     route_prefixes: decl["route_prefixes"] as string[],
+    access: decl["access"] as string | undefined,
     nav: decl["nav"] as ModuleNavLink[],
     routes: Array.isArray(decl["routes"]) ? (decl["routes"] as PageRouteDeclaration[]) : undefined,
   };

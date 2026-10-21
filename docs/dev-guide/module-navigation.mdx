@@ -17,8 +17,9 @@ generated `navigation-map.mdx` doc derives from it.
   module: "crm",
   route_prefixes: ["/crm"],                       // coarse ownership
   is_reserved?: true,
-  nav: [ {id, label_key, href, icon, children?} ], // sidebar tree
-  routes: [ {route, kind, entity?, label_key?, component_url?, component_format?} ],
+  access?: "access.crm",                          // module-level gate
+  nav: [ {id, label_key, href, icon, access?, children?} ], // sidebar tree
+  routes: [ {route, kind, entity?, label_key?, access?, component_url?, component_format?} ],
 }
 ```
 
@@ -94,17 +95,58 @@ census is invisible to the AI and to the generated navigation map.
 sole module icon — there is no top-level `nav.icon`); per-page icons are
 the `nav[].icon` fields and resolve through `DynamicIcon`.
 
+## The single discovery document — `GET /api/v1/modules`
+
+`ModuleDiscoveryService.list(user)` emits, per enabled service, the
+registry identity fields **plus** the resolved nav declaration —
+`nav` + `routes` + per-root `home` (`nav[0]` of each root slice,
+post-filter). This ONE payload feeds every nav surface: the launcher
+columns, the sidebar, the breadcrumb, and the client-derived route census
+(`routesCensusFromModules` in the FE). The former `/modules/:code/meta`
+and `/system/routes` endpoints are **retired** — they were projections of
+the same source and leaked module metadata regardless of access.
+
+## Access axis — `access.{app}.{module}.{page}`
+
+Discovery is **deny-first and access-filtered server-side**: what a user
+cannot reach is absent from the payload (non-disclosure), not emitted and
+hidden client-side. `access` is a separate vocabulary inside the SAME
+permission pipeline as entity RBAC (`role_mappings` → expanded set →
+wildcards, evaluated by `isAccessGranted` in `@primebrick/sdk`):
+
+| Declaration | Gate |
+|---|---|
+| `ModuleNavDeclaration.access` | The WHOLE module — `access.{app}.{module}` exactly (e.g. `access.system.settings`); a page grant never satisfies it |
+| `nav[].access` / `routes[].access` | One page — `access.{app}.{module}.{page}` or deeper |
+
+Semantics:
+
+- **Hierarchical** — a bare grant covers its subtree: `access.system.job`
+  ⇒ `access.system.job.rules`. Wildcards work at any level
+  (`access.system.*`, `access.*`). A page-level grant never climbs to its
+  module ancestor.
+- **Namespace-enforced at enrollment** — `validateNavDeclaration`
+  rejects `access` keys outside the module's own namespace
+  (`accessNamespace(code, partOf)` = `access.{partOf}.{code}`, collapsing
+  to `access.{code}` when `part_of === code` — the same rule as URLs).
+- **`is_admin` implies `access.system` ONLY** — platform plane. Business
+  roots (`access.crm.*`, `access.shop.*`, …) require explicit grants even
+  for admins.
+- **Undeclared = open** to authenticated users (backward compatible).
+- A nav link whose children survive filtering stays as a group header.
+
+Settings carries `access: "access.system.settings"` — normal users do not
+see it; admins do via the implied `access.system` grant.
+
 ## Consumers
 
-1. **FE sidebar** — `AppSidebar` → `GET module meta` → renders `nav[]`.
-   Nested routes activate exactly one link: the longest matching href wins.
-2. **`RoutesCensusService`** (`GET /system/routes`) — aggregates per
-   enabled service: declared `routes` + nav `href`s + `route_prefixes`.
-   Remote-delivery fields (`component_url`, `component_format`,
-   `integrity`) flow through to the FE verbatim — they are the route's
-   resolution config. Powers the guide assistant's `search_routes` client
-   tool — answers *"where do I find X?"* with real paths. Cached 30s
-   in-process.
+1. **FE sidebar** — `AppSidebar` → `GET /api/v1/modules` → renders the
+   selected module's `nav[]` slice. Nested routes activate exactly one
+   link: the longest matching href wins.
+2. **FE route census** — derived client-side from `ModuleInfo.routes` +
+   nav hrefs (`routesCensusFromModules`). Powers the guide assistant's
+   `search_routes` client tool and remote `component_url` resolution —
+   already access-filtered.
 3. **`generate:docs`** — `generate-reference-docs.ts` iterates
    `listModuleNavCodes()` + the service registry to emit
    `docs/user-guide/generated/navigation-map.mdx` (route → module → kind
