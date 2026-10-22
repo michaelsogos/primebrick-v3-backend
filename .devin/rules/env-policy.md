@@ -1,44 +1,14 @@
 # Devin Rule: Environment Variable Policy
 
 ## Trigger
-- Applies to ALL code in this repository that reads `process.env` or defines
-  configuration.
+- Applies to ALL code in this repository that reads `process.env` or
+  defines configuration.
 
-## Golden Rule
-
-**The ONLY allowed environment variables are the database bootstrap pair**
-`DATABASE_URL` (connection string) + `DATABASE_SCHEMA` (declared schema
-domain — CSV or JSON array; `[0]` is the service's owned schema, sent to the
-BE as the registry schema claim). Everything else — URLs, ports, secrets,
-keys, feature flags — is a **module config** read from the config table
-(`config_entries` on the BE, `<schema>.config` via `ConfigLoader` in
-microservices). `assertDbEnv()` validates the pair at boot — unknown,
-missing, empty or malformed keys crash startup.
-
-## Why
-
-- Env vars are invisible, un-versioned, and un-audited — config entries are
-  managed, audited and consistent across environments.
-- Per-service secrets (e.g. `client_key` for the B11 service-identity layer)
-  MUST be per-service config rows, so each service holds its own key and a
-  leaked key compromises one caller only — never a shared secret via env.
+## Canonical doc
+**`docs/ai/env-policy.md` — read it before acting.** This file is a
+pointer; the normative text lives in the canonical doc.
 
 ## Enforcement
-
-- ❌ NEVER introduce a new `process.env.X` read for a configurable value
-  (secrets included — a secret is config, not env).
-- ❌ NEVER use env vars for URLs, ports, credentials, client keys, feature
-  flags, or anything the service could read from its config table.
-- ✅ `DATABASE_URL` + `DATABASE_SCHEMA` are the sole exceptions — they must
-  exist before the config table is readable, and `DATABASE_SCHEMA` declares
-  which PG schemas the service may touch (entity guard + registry claim).
-- ✅ When adding a config value: create a config entry (key, type, i18n
-  label) in the module's config seed, document it, and read it via
-  `ConfigLoader`/`ConfigEntriesDal`.
-- When reviewing code, flag any new `process.env.` read other than the DB
-  connection as a violation.
-
-
-## Deep dive
-
-The normative rules live here; the full mechanics and rationale are in `docs/dev-guide/environment-configuration.mdx` — link, do not duplicate.
+- ONLY `DATABASE_URL` + `DATABASE_SCHEMA` may live in `.env`; everything
+  else is a module config row (`config_entries` / `<schema>.config`).
+- Any new `process.env.` read beyond the DB pair is a violation.

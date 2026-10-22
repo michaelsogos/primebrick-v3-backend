@@ -9,7 +9,7 @@
 - The BE serves i18n dicts from Redis key `translations:i18n:{schema}:{language}`
   (TTL 6h — performance only, NOT an anti-stale mechanism).
 - Correctness is guaranteed by **invalidation on write**, never by TTL expiry.
-- Writes through `TranslationsDal` (`create`/`update`/`softDelete`/`restore`)
+- Writes through `TranslationsService` (`create`/`update`/`softDelete`/`restore`)
   already invalidate automatically — nothing to do.
 - Writes through any other channel (fire-and-forget SQL, `psql`, migrations)
   bypass the DAL and leave the Redis dict stale for up to 6h.

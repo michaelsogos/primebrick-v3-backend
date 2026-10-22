@@ -19,7 +19,6 @@
     "generated/modules",
     "generated/modules-edit",
     "generated/profile",
-    "manual/entities-crud",
     "manual/migrations",
     "generated/entity-field-reference",
     "generated/filter-operator-reference",

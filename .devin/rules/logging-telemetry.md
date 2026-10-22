@@ -16,7 +16,7 @@
 4. **No env config** besides `DATABASE_URL` — telemetry/logging settings live
    in `config_entries` (single point; see `src/observability/telemetry.ts`),
    distributed to microservices via `SharedConfig.telemetry` and the
-   `config.changed` NATS broadcast fired from `ConfigEntriesDal.reloadCache`.
+   `config.changed` NATS broadcast fired from `ConfigEntriesService.reloadCache`.
 5. **Context propagation**: outbound HTTP → `fetchTraced()` (injects
    `traceparent`); NATS propagation is automatic inside `NatsClient`.
    Do not hand-roll traceparent strings.

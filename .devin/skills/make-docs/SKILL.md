@@ -35,7 +35,7 @@ changes detected. Docs are current." and stop.
 ### 3. Determine if user-facing files changed
 
 For this repo (backend), user-facing changes include:
-- API endpoints (src/routes/**, src/modules/**/routes.ts)
+- API endpoints (src/controllers/http/**, src/controllers/nats-sub/**)
 - Auth/RBAC changes (src/modules/auth/**)
 - Error handling (error codes, RFC 7807 format)
 - Service registry / proxy behavior

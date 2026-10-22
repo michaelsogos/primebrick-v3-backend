@@ -149,7 +149,7 @@ Every entity `meta` response MUST include `actions`, derived by
 hand-written. `*.meta.ts` may only carry `actions_overrides` (visibility
 `enabled` toggles). Ops outside the `/entities/` prefix (e.g.
 `/api/v1/auth/users`) are folded in via `extraScans` — see
-`userProfilesRouter(users)` in `src/modules/auth/router.ts`.
+`userProfilesRouter(users)` in `src/controllers/http/auth/user-profiles.router.ts`.
 
 ## Naming convention
 

@@ -78,14 +78,14 @@ Each row shows the Onboarded At.
 | Action | Status | Permission | What it does | Require Step-Up Auth |
 |--------|--------|------------|--------------|----------------------|
 | **create** | ENABLED | `customer.create.single` | Creates a new customer | no |
-| **update** | DISABLED | `customer.update.single` | Opens the customer for editing | no |
+| **update** | ENABLED | `customer.update.single` | Opens the customer for editing | no |
 | **delete** | ENABLED | `customer.delete.single` | Marks the customer as deleted but keeps it so it can be restored | no |
 | **restore** | ENABLED | `customer.restore.single` | Brings a soft-deleted customer back | no |
 | **purge** | DISABLED | — | Removes the customer forever | no |
 | **audit history** | ENABLED | `customer.read.audit` | Shows the change history of the customer | no |
 
 - Creating a new customer is available on this page — the create action opens the create form in the same tab and it requires the `customer.create.single` permission.
-- Editing a customer is not available on this page — if enabled, it would require the `customer.update.single` permission.
+- Editing a customer is available on this page — opens the customer for editing and it requires the `customer.update.single` permission.
 - Soft-deleting a customer is available on this page — marks the customer as deleted but keeps it so it can be restored and it requires the `customer.delete.single` permission.
 - Restoring a soft-deleted customer is available on this page — brings a soft-deleted customer back and it requires the `customer.restore.single` permission.
 - Permanently deleting a customer is not available on this page — no permission is declared for it on customers.
@@ -107,5 +107,5 @@ Each row shows the Onboarded At.
 
 ## Doc references
 
-- [Entities Crud](/docs/user-guide/manual/entities-crud)
+- [Entities Crud](/docs/dev-guide/entities-crud)
 

@@ -44,7 +44,7 @@ feature closes. Proceed to step 5.
 
 **For feature/hotfix branches**: check if the changed files affect
 user-facing behavior. For this repo (backend), user-facing changes include:
-- New or modified API endpoints (src/routes/**, src/modules/**/routes.ts)
+- New or modified API endpoints (src/controllers/http/**, src/controllers/nats-sub/**)
 - Auth/RBAC changes (src/modules/auth/**)
 - Error handling changes (error codes, RFC 7807 format)
 - Service registry / proxy behavior changes

@@ -48,7 +48,10 @@ assertDbEnv();
 let stopKeyspaceListener: (() => Promise<void>) | null = null;
 
 const app = express();
-const port = Number(process.env.PORT) || 3001;
+// Closed-set env contract (assertDbEnv above): only DATABASE_URL and
+// DATABASE_SCHEMA may be consumed — the API port is a fixed product constant,
+// not an env override.
+const port = 3001;
 
 app.use(cors({ origin: true }));
 // Use ext-json body parser instead of native express.json() to preserve
@@ -85,10 +88,12 @@ async function checkDb(): Promise<HealthCheckResult> {
 
 async function checkIdp(): Promise<HealthCheckResult> {
   try {
-    // Load configuration from database or fallback to environment variables
-    let casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
-    let clientId = process.env.CASDOOR_BUILTIN_CLIENT_ID || "cb05577e2097c31af3c7";
-    let clientSecret = process.env.CASDOOR_BUILTIN_CLIENT_SECRET || "47b2e05673a5307ccf0552e32ba45a18f6627f21";
+    // Closed-set env contract: no env fallbacks — IDP configuration lives in
+    // config_entries only. A missing config is an honest "unhealthy", not a
+    // fake default pointing at a wrong IDP.
+    let casdoorEndpoint: string | undefined;
+    let clientId: string | undefined;
+    let clientSecret: string | undefined;
     let orgName = "admin";
 
     try {
@@ -98,7 +103,11 @@ async function checkIdp(): Promise<HealthCheckResult> {
       clientSecret = dbConfig.idp_client_secret || clientSecret;
       orgName = dbConfig.idp_organization || orgName;
     } catch (error) {
-      logger.warn("Could not load configuration from database, using fallback:", { tags: ["core"], error: error });
+      logger.warn("Could not load IDP configuration from database:", { tags: ["core"], error: error });
+    }
+
+    if (!casdoorEndpoint || !clientId || !clientSecret) {
+      return { ok: false, error: "idp config missing" };
     }
 
     // Call the correct version endpoint from Casdoor docs with authentication
@@ -401,8 +410,15 @@ async function refreshAuthConfig(): Promise<void> {
 
 async function startServiceLifecycle(): Promise<void> {
   try {
-    const natsUrl = process.env.NATS_URL ?? "nats://127.0.0.1:4222";
-    await NatsClient.getConnection(natsUrl);
+    // nats_url lives in config_entries (seeded by patch
+    // 20261021040000_seed_nats_url) — the env contract allows only
+    // DATABASE_URL + DATABASE_SCHEMA. Runs after initDal(); the row is
+    // mandatory — missing config means a misconfigured system, not a default.
+    const natsEntry = await getConfigEntriesService().findByKey("nats_url");
+    if (!natsEntry?.value) {
+      throw new Error('config_entries row "nats_url" missing — run pnpm db:migrate');
+    }
+    await NatsClient.getConnection(String(natsEntry.value));
     // config.get — governed correlation-reply serving the shared config
     // (redis_url, telemetry) to microservices at boot and on config.changed.
     const sharedConfigVerifier = createPublisherVerifier();

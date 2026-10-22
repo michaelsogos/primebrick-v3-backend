@@ -308,7 +308,7 @@ All three follow RFC 7807 (`application/problem+json`):
   "title": "Optimistic concurrency violation",
   "status": 409,
   "detail": "The record was modified by another user. Please refresh and try again.",
-  "instance": "/api/v1/entities/customers/550e8400-...",
+  "instance": "/api/v1/entities/customer/550e8400-...",
   "internal_code": "ERR01",
   "severity": "HIGH"
 }
@@ -409,14 +409,14 @@ sequenceDiagram
 
     Note over FE_A, FE_B: Both users have the same record open
 
-    FE_A->>BE: PUT /api/v1/entities/customers/:uuid (version=42)
+    FE_A->>BE: PUT /api/v1/entities/customer/:uuid (version=42)
     BE->>BE: Optimistic lock check (version matches)
     BE->>BE: Write audit row to customers_audit
     BE->>Redis: setChanged(marker, 5min TTL)
     BE->>NATS: publish entity.customers.:uuid.changed
     NATS->>BE: Fanout to all instances
     BE->>FE_B: SSE event: entity-changed (marker)
-    FE_B->>BE: GET /api/v1/entities/customers/:uuid/audit/:auditLogId
+    FE_B->>BE: GET /api/v1/entities/customer/:uuid/audit/:auditLogId
     BE->>FE_B: 200 OK (field-level delta)
     FE_B->>FE_B: Compare delta with local edits
 
@@ -424,7 +424,7 @@ sequenceDiagram
         FE_B->>FE_B: Silent merge — apply remote changes locally
     else Overlapping fields
         FE_B->>FE_B: Show conflict resolution UI
-        FE_B->>BE: PUT /api/v1/entities/customers/:uuid (version=43)
+        FE_B->>BE: PUT /api/v1/entities/customer/:uuid (version=43)
         BE->>BE: Optimistic lock check (version matches)
         BE->>FE_B: 200 OK (merged)
     end

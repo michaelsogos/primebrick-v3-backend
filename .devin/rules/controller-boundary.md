@@ -26,8 +26,10 @@ src/
     #                    #    broadcasts. Raw NatsClient.subscribe on shared
     #                    #    subjects is a security gap.
   modules/<domain>/
-    services/             # transport-agnostic business logic
-    *_dal.ts / *-repo.ts  # data access — imported ONLY by services
+    services/             # transport-agnostic business logic — extends
+                          # DomainService (this.dal / this.svc); the per-domain
+                          # *_dal.ts / *-repo.ts wrapper layer was REMOVED
+                          # (see dal-usage.md) — do not recreate it
 ```
 
 Every inbound transport gets exactly one controller file. A NATS

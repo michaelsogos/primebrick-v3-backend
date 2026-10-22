@@ -299,6 +299,9 @@ All endpoints are admin-only (`AUTHENTICATED_ADMIN`):
 ## Further documentation
 
 See `docs/ai/` for skills selection and suggested workflows.
+DAL access: `.devin/rules/dal-usage.md` — governed `DomainService`/`svc` API;
+no consumer `*_dal.ts`/`*-repo.ts` layer; `getDal()`/`initDal()` are
+allowlist-restricted (`.devin/check-standards.json`).
 
 ## RBAC Permission System
 
@@ -369,7 +372,7 @@ invents operations.
 Entity ops that live **outside** `/api/v1/entities/:entity` (e.g. user
 management under `/api/v1/auth/users`) are included via the `extraScans`
 parameter of `deriveEntityActions` — pass the mounted router + its prefix
-(see `userProfilesRouter(users)` in `src/modules/auth/router.ts`).
+(see `userProfilesRouter(users)` in `src/controllers/http/auth/user-profiles.router.ts`).
 
 ### Wildcard Support
 
@@ -437,5 +440,5 @@ When testing RBAC changes, ensure the role mapping cache is reloaded by restarti
 
 - Use `logger` from `@primebrick/sdk` — never `console.*` in new code.
 - Telemetry/logging settings are `config_entries` rows (`telemetry_enabled`, `otel_*`, `log_*`) — the single point of configuration. No env vars besides `DATABASE_URL` + `DATABASE_SCHEMA` (the declared schema domain — `public,system,custom` for the BE; closed-set validated by `assertDbEnv()`).
-- `src/observability/logging-init.ts` installs the console bridge (first import in `src/index.ts`); `src/observability/telemetry.ts` loads config, inits/restarts OTel, and broadcasts `config.changed` on config writes (wired in `ConfigEntriesDal.reloadCache`).
+- `src/observability/logging-init.ts` installs the console bridge (first import in `src/index.ts`); `src/observability/telemetry.ts` loads config, inits/restarts OTel, and broadcasts `config.changed` on config writes (wired in `ConfigEntriesService.reloadCache`).
 - See [.devin/rules/logging-telemetry.md](./.devin/rules/logging-telemetry.md).

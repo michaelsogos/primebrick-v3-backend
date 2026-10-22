@@ -1,0 +1,49 @@
+---
+title: Create Client
+description: Create a new client.
+entity: client_registry
+---
+
+Create a new client.
+
+## Pages routes
+
+- `/system/settings/clients` — List, search and manage all clients.
+- `/system/settings/clients/create` — Create a new client registry. *(this page)*
+- `/system/settings/clients/{uuid}` — View and edit an existing client registry.
+
+## What you can do here
+
+### How to create a new client
+1. On the **Clients** list page, click **New** in the toolbar.
+2. Fill in the fields below.
+3. Click **Save** — the new client is created.
+
+## Fields
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **User-Agent prefix** | optional | text input — custom format; max 120; min 2 |
+| **client key** | optional | text input — max 256 |
+| **Enabled** | optional | button |
+
+- The **User-Agent prefix** field is an optional text input that must match a custom format and allows up to 120 characters and requires at least 2 characters.
+- The **client key** field is an optional text input that allows up to 256 characters.
+- The **Enabled** field is an optional button.
+
+## Actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **Save** | ENABLED | `client_registry.create.single` | Validates the form and creates the client | no |
+| **Cancel** | ENABLED | — | Discards changes and returns to the previous page | no |
+
+- The **Save** action is available on this page — validates the form and creates the client and it requires the `client_registry.create.single` permission.
+- The **Cancel** action is available on this page — discards changes and returns to the previous page.
+
+## Doc references
+
+- [Clients](/docs/user-guide/generated/clients)
+- [Clients Edit](/docs/user-guide/generated/clients-edit)
+- [Entities Crud](/docs/dev-guide/entities-crud)
+
