@@ -40,6 +40,21 @@ a version tag. There is no CI pipeline that auto-deploys on push.
 | **primebrick-v3-docs** | Cloudflare® Worker CI | Push to `main` — auto-deploys |
 | **primebrick-v3-website** | Cloudflare® Worker CI | Push to `main` — auto-deploys |
 
+### Docker image build (pnpm deploy)
+
+The backend deploys as a self-contained image built over a `pnpm deploy` artifact:
+
+```bash
+pnpm deploy                             # = node scripts/deploy.mjs
+docker build -f primebrick-be-v3/Dockerfile <primebrick>/temp/deploy-out/be
+```
+
+`scripts/deploy.mjs` builds the package, runs `pnpm deploy --prod` with
+workspace-package injection, and pins `workspace:*` specifiers to real versions
+in the emitted `package.json`. The image copies only `package.json`, vendored
+`node_modules`, `dist`, `db-meta`, `scripts`, `docs` — `.env`, `src`, `test`
+never ship.
+
 ## Commands
 
 | Action | Command |

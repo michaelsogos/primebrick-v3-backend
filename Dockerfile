@@ -1,33 +1,26 @@
-# ─── Builder stage ─────────────────────────────────────────────────────
-FROM node:24-alpine AS builder
+# Runtime image over a `pnpm deploy` artifact — build context is the
+# deployed dir, NOT this repo. Produce it first:
+#   node primebrick-be-v3/scripts/deploy.mjs be
+#   docker build -f primebrick-be-v3/Dockerfile <primebrick>/temp/deploy-out/be
+# The deployed package.json has workspace deps pinned to real versions and
+# node_modules vendored — no install/build inside the image.
+FROM oven/bun:1.1.0-alpine
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile
+COPY package.json ./
+COPY node_modules ./node_modules
+COPY dist ./dist
+COPY db-meta ./db-meta
+COPY scripts ./scripts
+COPY docs ./docs
 
-COPY . .
-RUN pnpm run build
-
-# ─── Production stage ──────────────────────────────────────────────────
-FROM node:24-alpine
-
-WORKDIR /app
-
-COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --prod --frozen-lockfile
-
-COPY --from=builder /app/dist ./dist
-
-# NODE_ENV is a platform env var — supplied at image level (never in .env,
-# never in config_entries). production → release-trusted migration
-# signatures only + Secure session cookies.
 ENV NODE_ENV=production
-# Internal port is always 3001 — fixed in src/index.ts, not configurable.
+# Internal port is always 3001 — comes from config table, not ENV.
 # Host port mapping is handled by Terraform.
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "fetch('http://localhost:3001/api/v1/health').then(r => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"
+  CMD bun -e "fetch('http://localhost:3001/health').then(r => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"
 
-CMD ["node", "dist/index.js"]
+CMD ["bun", "dist/index.js"]
