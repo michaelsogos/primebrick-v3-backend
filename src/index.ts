@@ -5,6 +5,7 @@ import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
 import { extJsonMiddleware, extJsonBodyParser, extJsonParse, Permission, NatsClient, subscribeSharedConfig, logModuleStartup, logServiceStartup, type HealthResponse } from "@primebrick/sdk";
+import type { NatsConnection } from "@nats-io/transport-node";
 import { mountModules } from "./modules/index.js";
 import CasdoorSDK from "casdoor-nodejs-sdk";
 import { getConfigEntriesService, type AuthConfigDb } from "./modules/auth/services/config-entries.service.js";
@@ -183,7 +184,10 @@ async function checkLlm(): Promise<HealthCheckResult> {
     }
 
     const healthUrl = `${service.base_url}/api/v1/ai/health`;
-    const res = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
+    // Bounded at 2.5s: the ai service is local — when healthy it answers in
+    // ms; the budget only burns while IT waits on its own upstream LLM probe.
+    // LLM must never gate the /health latency of the whole API.
+    const res = await fetch(healthUrl, { signal: AbortSignal.timeout(2500) });
     if (!res.ok) {
       return { ok: false, error: `AI microservice health failed: HTTP ${res.status}` };
     }
@@ -209,14 +213,22 @@ async function checkLlm(): Promise<HealthCheckResult> {
 }
 
 async function healthPayload(): Promise<HealthResponse> {
+  // Parallel: /health latency is bounded by the SLOWEST check, not the sum —
+  // the informational llm probe must not stack its wait on the critical path.
+  const [db, idp, redis, llm] = await Promise.all([
+    checkDb(),
+    checkIdp(),
+    checkRedis(),
+    checkLlm(),
+  ]);
   const checks: Record<string, HealthCheckResult> = {
-    db: await checkDb(),
-    idp: await checkIdp(),
-    redis: await checkRedis(),
+    db,
+    idp,
+    redis,
     nats: checkNats(),
     // LLM is optional infrastructure — included for the version panel but
     // does NOT affect the overall health status (BE stays 200 even if LLM is down).
-    llm: await checkLlm(),
+    llm,
   };
   // Only core infra (db, idp, redis, nats) determines overall health.
   // LLM is reported but does not cause 503.
@@ -408,17 +420,39 @@ async function refreshAuthConfig(): Promise<void> {
   }
 }
 
+/** One instance for the process — start() is interval-guarded, so
+ * re-running the lifecycle after a NATS outage must not leak timers. */
+const staleJob = new StaleDetectionJob();
+/** Suppresses the nc.closed() re-arm during graceful shutdown. */
+let serviceLifecycleStopping = false;
+/** Dedup: nc.closed() is hooked once per live connection, not once per init pass. */
+let natsCloseHooked: NatsConnection | null = null;
+
 async function startServiceLifecycle(): Promise<void> {
   try {
     // nats_url lives in config_entries (seeded by patch
-    // 20261021040000_seed_nats_url) — the env contract allows only
+    // 20261022225000_seed_nats_url) — the env contract allows only
     // DATABASE_URL + DATABASE_SCHEMA. Runs after initDal(); the row is
     // mandatory — missing config means a misconfigured system, not a default.
     const natsEntry = await getConfigEntriesService().findByKey("nats_url");
     if (!natsEntry?.value) {
       throw new Error('config_entries row "nats_url" missing — run pnpm db:migrate');
     }
-    await NatsClient.getConnection(String(natsEntry.value));
+    const nc = await NatsClient.getConnection(String(natsEntry.value));
+    // Permanent close (broker restart past the client's reconnect window)
+    // cannot be revived by nats.js — re-run this whole init to reconnect,
+    // re-enroll identity and re-subscribe every route. closed() resolves
+    // only on permanent close, never during reconnect attempts.
+    if (natsCloseHooked !== nc) {
+      natsCloseHooked = nc;
+      void nc.closed().then(() => {
+        if (serviceLifecycleStopping) return;
+        logger.warn("NATS connection closed permanently — re-running service lifecycle in 5s", {
+          tags: ["nats"],
+        });
+        setTimeout(() => void startServiceLifecycle().catch(() => {}), 5000);
+      });
+    }
     // config.get — governed correlation-reply serving the shared config
     // (redis_url, telemetry) to microservices at boot and on config.changed.
     const sharedConfigVerifier = createPublisherVerifier();
@@ -434,7 +468,6 @@ async function startServiceLifecycle(): Promise<void> {
     await subscriber.start();
     await startInternalRequestRoutes();
     await initSecretEngine();
-    const staleJob = new StaleDetectionJob();
     staleJob.start();
   } catch (err) {
     logger.warn(
@@ -462,6 +495,7 @@ async function enrollBackendIdentity(): Promise<void> {
 // quits cleanly (avoids "QUIT" errors in Redis logs on abrupt process exit).
 
 async function gracefulShutdown(): Promise<void> {
+  serviceLifecycleStopping = true;
   // Notify all SSE clients that the server is shutting down
   try {
     serviceEventsBus.emit({

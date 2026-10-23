@@ -4,9 +4,13 @@
 -- sha256 hash in system.client_shield_registry. Without it every proxied
 -- call fails the identity gate ("BE cannot enroll" — fail-loud, no fake
 -- fallback). Generated per environment (never committed, never shared).
+--
+-- Replaces 20261021041000_seed_service_client_shield_key (removed): it
+-- omitted the NOT NULL audit columns (updated_by) and could never apply
+-- on a fresh environment.
 
-INSERT INTO "public"."config_entries" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "group_key", "created_by") VALUES
-('service_client_shield_key', encode(gen_random_bytes(32), 'hex'), 'secret', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":32,"error_label_key":"app.common.validation.tooShort"},"max":{"value":256,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.infra.service_client_shield_key.label', 'system.settings.config.infra.service_client_shield_key.description', true, 'system_settings', 'system')
+INSERT INTO "public"."config_entries" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "group_key", "created_at", "created_by", "updated_at", "updated_by", "version") VALUES
+('service_client_shield_key', encode(gen_random_bytes(32), 'hex'), 'secret', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":32,"error_label_key":"app.common.validation.tooShort"},"max":{"value":256,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.infra.service_client_shield_key.label', 'system.settings.config.infra.service_client_shield_key.description', true, 'system_settings', now(), 'system', now(), 'system', 1)
 ON CONFLICT ("key") DO NOTHING;
 
 -- Audit trail for the seed (INSERT record, version 1) — same convention as

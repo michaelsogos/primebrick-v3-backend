@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha",
-  "issued_at": "2026-10-22T18:04:07.913Z",
+  "issued_at": "2026-10-22T22:49:20.953Z",
   "patches": {
     "00000000000000_init_database": "05761ee7f89f3a6518779ac1fee25ed83a90c0d8d11a5aff1da28a61db2d1efa",
     "00000000000001_seed_translations_en_gb": "52492d182cbd158744a14a93d4234f56552a73abe8d7a0af39047dc05eeb2654",
@@ -42,8 +42,8 @@
     "20261021020000_service_registry_is_default": "dcc0d5eea882dcad6c938574a0d26e65c27792ba603735d5d928bd391c7ab2de",
     "20261021030000_service_registry_label_key": "4b6bb2cd789b310bfc24387acd18883d13e339b086172fa130b7de2f2caac64c",
     "20261021031000_app_nav_goto": "c296dea5f376989a628e8d23b6c6bd185dad4e7520d16ea794a85228014b67f5",
-    "20261021040000_seed_nats_url": "0786a3824b37b6ba912f66f701945bbe10318607900757824ba6f1d7064a180a",
-    "20261021041000_seed_service_client_shield_key": "c1278458a5eb03cdd363d3c2b05adff82130c8b6e1d797784fdc29ef58046e34"
+    "20261022225000_seed_nats_url": "5450a7d42e8bc30bbe76b3c3e6cccbc35405da6db65c3b21dc0f1ec7e0e90005",
+    "20261022225100_seed_service_client_shield_key": "d725680cd9427a8b0bd27a36472c264a4e8dd522edcebe9e7bc4c47da565d818"
   },
-  "signature": "WIdPg7kRS70ESB/bxGqtYiV9mUyHEkoS8oJx5Eh8gAKoSReVdBqrODFD5PwDviMHefDHjrwz1KWBJHlrE6E2Cw=="
+  "signature": "1glG8DTp6KKTRVTF6tEGQGb8IKHyUaclE8EU0GdvFr5ydAGrd2Em1b/VIOKQIvtHqjWWGk0B14SNWwQfX7bXDQ=="
 }

@@ -2,9 +2,12 @@
 -- env read in src/index.ts (NATS_URL process.env). The BE connects to NATS
 -- inside startServiceLifecycle(), which runs after refreshAuthConfig(), so
 -- config_entries is the source of truth like every microservice.
+--
+-- Replaces 20261021040000_seed_nats_url (removed): it omitted the NOT NULL
+-- audit columns (updated_by) and could never apply.
 
-INSERT INTO "public"."config_entries" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "group_key", "created_by") VALUES
-('nats_url', 'nats://127.0.0.1:4222', 'url', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"url":{"protocols":["nats","nats+ws","tls"],"error_label_key":"app.common.validation.invalidUrl"}}}}', 'system.settings.config.infra.nats_url.label', 'system.settings.config.infra.nats_url.description', true, 'system_settings', 'system')
+INSERT INTO "public"."config_entries" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "group_key", "created_at", "created_by", "updated_at", "updated_by", "version") VALUES
+('nats_url', 'nats://127.0.0.1:4222', 'url', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"url":{"protocols":["nats","nats+ws","tls"],"error_label_key":"app.common.validation.invalidUrl"}}}}', 'system.settings.config.infra.nats_url.label', 'system.settings.config.infra.nats_url.description', true, 'system_settings', now(), 'system', now(), 'system', 1)
 ON CONFLICT ("key") DO NOTHING;
 
 -- Audit trail for the seed (INSERT record, version 1) — same convention as
