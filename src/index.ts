@@ -169,8 +169,10 @@ function checkNats(): HealthCheckResult {
 }
 
 /**
- * LLM health check — calls the AI microservice health endpoint to get
- * LLM connectivity + model + version info for the version panel.
+ * LLM health check — reads checks.llm from the AI microservice's public
+ * /health probe (LLM connectivity + model + version for the version panel).
+ * The shielded /api/v1/ai/health domain route is NOT usable here — it
+ * requires client identity and 403s on unauthenticated probes.
  *
  * The AI microservice must be registered in service_registry with code='ai'.
  * If the AI microservice is not registered or not running, the LLM check
@@ -183,29 +185,34 @@ async function checkLlm(): Promise<HealthCheckResult> {
       return { ok: false, error: "AI microservice not registered in service_registry" };
     }
 
-    const healthUrl = `${service.base_url}/api/v1/ai/health`;
+    // Public system probe (api-path-conventions: /health is always public,
+    // no client identity — mounted before the shield gate in the SDK).
+    // checks.llm carries { ok, model?, version?, error? } from the ai
+    // service's customHealthChecks.
+    const healthUrl = `${service.base_url}/health`;
     // Bounded at 2.5s: the ai service is local — when healthy it answers in
     // ms; the budget only burns while IT waits on its own upstream LLM probe.
     // LLM must never gate the /health latency of the whole API.
     const res = await fetch(healthUrl, { signal: AbortSignal.timeout(2500) });
-    if (!res.ok) {
+    if (!res.ok && res.status !== 503) {
       return { ok: false, error: `AI microservice health failed: HTTP ${res.status}` };
     }
 
     const json = (await res.json()) as {
       ok: boolean;
-      llm?: { ok: boolean; model?: string; version?: string; error?: string };
+      checks?: { llm?: { ok: boolean; model?: string; version?: string; error?: string } };
     };
 
-    if (!json.llm) {
+    if (!json.checks?.llm) {
       return { ok: false, error: "AI microservice did not return LLM health info" };
     }
+    const llmCheck = json.checks.llm;
 
     return {
-      ok: json.llm.ok,
-      model: json.llm.model,
-      version: json.llm.version,
-      ...(json.llm.ok ? {} : { error: json.llm.error ?? "LLM check failed" }),
+      ok: llmCheck.ok,
+      model: llmCheck.model,
+      version: llmCheck.version,
+      ...(llmCheck.ok ? {} : { error: llmCheck.error ?? "LLM check failed" }),
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "LLM check error" };
