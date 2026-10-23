@@ -20,6 +20,7 @@ import { entityPaths, validateNavDeclaration } from "@primebrick/sdk";
 import type {
   ModuleNavLink,
   ModuleNavWithPrefixes,
+  ModuleSheetDecl,
   PageRouteDeclaration,
 } from "./module-nav-types.js";
 
@@ -140,6 +141,7 @@ export function navFromEndpoints(
     access: decl["access"] as string | undefined,
     nav: decl["nav"] as ModuleNavLink[],
     routes: Array.isArray(decl["routes"]) ? (decl["routes"] as PageRouteDeclaration[]) : undefined,
+    sheets: Array.isArray(decl["sheets"]) ? (decl["sheets"] as ModuleSheetDecl[]) : undefined,
   };
 }
 

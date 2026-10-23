@@ -23,7 +23,11 @@
 import { isAccessGranted } from "@primebrick/sdk";
 
 import { resolveModuleNavMeta } from "../module-nav-meta.js";
-import type { ModuleNavLink, PageRouteDeclaration } from "../module-nav-types.js";
+import type {
+  ModuleNavLink,
+  ModuleSheetDecl,
+  PageRouteDeclaration,
+} from "../module-nav-types.js";
 import { ServiceRegistryService } from "./service-registry.service.js";
 
 export interface DiscoveryUser {
@@ -46,6 +50,8 @@ export interface DiscoveredModule {
   home?: Record<string, string>;
   nav?: ModuleNavLink[];
   routes?: PageRouteDeclaration[];
+  /** Remote sheet panels declared by the module — access-filtered like routes. */
+  sheets?: ModuleSheetDecl[];
 }
 
 const rootOf = (path: string) => path.split("/").filter(Boolean)[0] ?? "";
@@ -111,6 +117,9 @@ export class ModuleDiscoveryService {
       const routes = meta?.routes?.filter((r) =>
         isAccessGranted(perms, isAdmin, r.access),
       );
+      const sheets = meta?.sheets?.filter((s) =>
+        isAccessGranted(perms, isAdmin, s.access),
+      );
 
       modules.push({
         id: s.code.toLowerCase(),
@@ -125,6 +134,7 @@ export class ModuleDiscoveryService {
         home: computeHome(nav, meta?.route_prefixes),
         nav,
         routes,
+        sheets,
       });
     }
     return { modules };
