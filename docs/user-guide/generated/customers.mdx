@@ -15,11 +15,6 @@ Each row shows the Onboarded At.
 
 ## What you can do here
 
-### How to create a new customer
-1. Click **New** in the toolbar.
-2. Fill in the form — required fields are marked.
-3. Click **Save** — the new customer is created.
-
 ### How to delete a customer
 1. Open the row actions menu on the customer and click **Delete**.
 2. Confirm the deletion in the dialog — the customer is soft-deleted and can be restored.
@@ -77,15 +72,15 @@ Each row shows the Onboarded At.
 
 | Action | Status | Permission | What it does | Require Step-Up Auth |
 |--------|--------|------------|--------------|----------------------|
-| **create** | ENABLED | `customer.create.single` | Creates a new customer | no |
-| **update** | ENABLED | `customer.update.single` | Opens the customer for editing | no |
+| **create** | DISABLED | `customer.create.single` | Creates a new customer | no |
+| **update** | DISABLED | `customer.update.single` | Opens the customer for editing | no |
 | **delete** | ENABLED | `customer.delete.single` | Marks the customer as deleted but keeps it so it can be restored | no |
 | **restore** | ENABLED | `customer.restore.single` | Brings a soft-deleted customer back | no |
 | **purge** | DISABLED | — | Removes the customer forever | no |
 | **audit history** | ENABLED | `customer.read.audit` | Shows the change history of the customer | no |
 
-- Creating a new customer is available on this page — the create action opens the create form in the same tab and it requires the `customer.create.single` permission.
-- Editing a customer is available on this page — opens the customer for editing and it requires the `customer.update.single` permission.
+- Creating a new customer is not available on this page — if enabled, it would require the `customer.create.single` permission.
+- Editing a customer is not available on this page — if enabled, it would require the `customer.update.single` permission.
 - Soft-deleting a customer is available on this page — marks the customer as deleted but keeps it so it can be restored and it requires the `customer.delete.single` permission.
 - Restoring a soft-deleted customer is available on this page — brings a soft-deleted customer back and it requires the `customer.restore.single` permission.
 - Permanently deleting a customer is not available on this page — no permission is declared for it on customers.
