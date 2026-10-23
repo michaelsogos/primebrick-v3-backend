@@ -24,6 +24,8 @@
     "generated/filter-operator-reference",
     "generated/filter-syntax-guide",
     "generated/navigation-map",
-    "generated/entity-api-catalog"
+    "generated/entity-api-catalog",
+    "generated/clients-create",
+    "generated/clients-edit"
   ]
 }
