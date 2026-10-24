@@ -26,6 +26,7 @@
     "generated/navigation-map",
     "generated/entity-api-catalog",
     "generated/clients-create",
-    "generated/clients-edit"
+    "generated/clients-edit",
+    "generated/clients"
   ]
 }
