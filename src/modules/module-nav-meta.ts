@@ -52,12 +52,14 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
         // whenever the owning service goes offline.
         route_prefixes: ["/system/settings"],
         is_reserved: true,
-        // Access gate: the whole module requires `access.system.settings` —
-        // admins inherit it via `access.system`, everyone else needs an
-        // explicit role grant (so a normal user does NOT see Settings).
+        // Access namespace: every leaf derives its key under
+        // `access.system.settings` (`/system/settings/roles` ⇒
+        // `access.system.settings.roles`). The module is visible iff at
+        // least one leaf key is covered by the user's grants — nothing
+        // is admin-inherited; visibility is always an explicit grant.
         access: "access.system.settings",
         nav: [
-          { id: "profile", label_key: "system.settings.tabs.profile", href: "/system/settings/profile", icon: "square-user" },
+          { id: "profile", label_key: "system.settings.tabs.profile", href: "/system/settings/profile", icon: "square-user", default: true },
           { id: "credentials", label_key: "system.settings.tabs.credentials", href: "/system/settings/credentials", icon: "key-round" },
           { id: "organizations", label_key: "system.settings.tabs.organizations", href: organizationsPaths.list, icon: "building-complex" },
           { id: "users", label_key: "system.settings.tabs.users", href: usersPaths.list, icon: "users" },
@@ -65,14 +67,11 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
           { id: "configurations", label_key: "system.settings.tabs.configurations", href: configurationsPaths.list, icon: "settings-2" },
           { id: "modules", label_key: "system.settings.tabs.modules", href: modulesPaths.list, icon: "package" },
           { id: "clients", label_key: "system.settings.tabs.clients", href: clientsPaths.list, icon: "shield-check" },
-          { id: "templates", label_key: "system.settings.tabs.templates", href: "/system/settings/templates", icon: "file-text" },
-          { id: "email-providers", label_key: "system.settings.tabs.emailProviders", href: "/system/settings/email-providers", icon: "mail" },
           { id: "migrations", label_key: "system.migrations.nav", href: "/system/settings/migrations", icon: "database-zap" },
         ],
         // Full route census — every FE path this module owns, including
         // detail/create/param routes not deducible from nav links.
         routes: [
-          { route: "/system/settings", kind: "page" },
           { route: "/system/settings/profile", kind: "page" },
           { route: "/system/settings/credentials", kind: "page" },
           { route: organizationsPaths.list, kind: "list", entity: "organization" },
@@ -91,9 +90,7 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
           { route: clientsPaths.list, kind: "list", entity: "client_registry" },
           { route: clientsPaths.detail, kind: "detail", entity: "client_registry" },
           { route: clientsPaths.create, kind: "create", entity: "client_registry" },
-          { route: "/system/settings/templates", kind: "list", entity: "template" },
           { route: "/system/settings/translations", kind: "page" },
-          { route: "/system/settings/email-providers", kind: "list", entity: "email_provider" },
           { route: "/system/settings/migrations", kind: "page" },
         ],
   },
@@ -134,7 +131,7 @@ export function navFromEndpoints(
   return {
     module: code,
     route_prefixes: decl["route_prefixes"] as string[],
-    access: decl["access"] as string | undefined,
+    access: decl["access"] as string,
     nav: decl["nav"] as ModuleNavLink[],
     routes: Array.isArray(decl["routes"]) ? (decl["routes"] as PageRouteDeclaration[]) : undefined,
     sheets: Array.isArray(decl["sheets"]) ? (decl["sheets"] as ModuleSheetDecl[]) : undefined,
@@ -152,4 +149,20 @@ export function resolveModuleNavMeta(
   partOf?: string,
 ): ModuleNavWithPrefixes | null {
   return buildModuleNavMeta(code) ?? (partOf ? navFromEndpoints(code, endpoints, partOf) : null);
+}
+
+/**
+ * The declared `route_prefixes` entry that owns `path` — longest strict
+ * prefix wins (R4: the bare prefix is a namespace, never a page, so
+ * ownership requires `path` to live strictly under the prefix).
+ * `undefined` when no declared prefix owns the path.
+ */
+export function owningRoutePrefix(path: string, prefixes: string[]): string | undefined {
+  let best: string | undefined;
+  for (const px of prefixes) {
+    if (path.startsWith(px + "/") && (best === undefined || px.length > best.length)) {
+      best = px;
+    }
+  }
+  return best;
 }

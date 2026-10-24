@@ -2,15 +2,17 @@ import { describe, it, expect, vi } from "vitest";
 
 /**
  * ModuleDiscoveryService — the access-axis contract, verified on the
- * filtering semantics the whole shell depends on:
+ * derived-leaf semantics the whole shell depends on:
  *
- *  - module-level `access` gate = all-or-nothing (`access.system.settings`)
- *  - page-level `access` = per-link filtering inside an open module
- *  - a page grant does NOT satisfy a module-level gate
- *  - a module grant covers the whole subtree (bare `access.system.job`)
- *  - `is_admin` inherits `access.system` ONLY — never `access.crm`
- *  - `home` is computed post-filter (first REACHABLE page per root)
- *  - undeclared modules stay open to any authenticated user
+ *  - leaf keys are DERIVED from routes (`access.{ns}.{leaf}`), never
+ *    declared — `create`/`[param]` collapse into their owning leaf
+ *  - coverage is exact-or-wildcard only: a bare namespace grant
+ *    (`access.system.job`) covers NOTHING — `access.system.job.*` covers
+ *    the module, `access.system.*` the whole app
+ *  - module visibility is derived: ≥1 accessible leaf ⇒ module exists
+ *  - no is_admin inheritance — access grants are always explicit
+ *  - `home` is dead — `default` rides the nav item as a flag
+ *  - undeclared (headless) services pass through unfiltered
  */
 
 // The registry feed — synthetic service rows.
@@ -48,38 +50,22 @@ const jobRow = svc({
   endpoints: {
     nav: {
       route_prefixes: ["/system/job"],
+      access: "access.system.job",
       nav: [
-        { id: "schedules", label_key: "job.jobs.nav", href: "/system/job/job-schedules", icon: "schedule" },
+        { id: "schedules", label_key: "job.jobs.nav", href: "/system/job/job-schedules", icon: "schedule", default: true },
         { id: "runs", label_key: "job.runs.nav", href: "/system/job/runs", icon: "list-checks" },
-        {
-          id: "rules",
-          label_key: "job.rules.nav",
-          href: "/system/job/rules",
-          icon: "list-todo",
-          access: "access.system.job.rules",
-        },
+        { id: "rules", label_key: "job.rules.nav", href: "/system/job/rules", icon: "list-todo" },
       ],
       routes: [
         { route: "/system/job/job-schedules", kind: "list", entity: "job_schedule" },
+        { route: "/system/job/job-schedules/create", kind: "create", entity: "job_schedule" },
         { route: "/system/job/runs", kind: "list", entity: "job_run" },
-        { route: "/system/job/rules", kind: "list", entity: "job_rule", access: "access.system.job.rules" },
+        { route: "/system/job/rules", kind: "list", entity: "job_rule" },
+        { route: "/system/job/rules/create", kind: "create", entity: "job_rule" },
       ],
-    },
-  },
-});
-
-/** Business-root module gated at module level: `access.shop` required. */
-const shopRow = svc({
-  code: "shop",
-  name: "Shop",
-  part_of: "shop",
-  icon: "shopping-bag",
-  endpoints: {
-    nav: {
-      route_prefixes: ["/shop"],
-      access: "access.shop",
-      nav: [{ id: "orders", label_key: "shop.orders.nav", href: "/shop/orders" }],
-      routes: [{ route: "/shop/orders", kind: "list", entity: "order" }],
+      sheets: [
+        { key: "job.runDetail", component_url: "/ws/job/api/v1/module-assets/jobs-page.js" },
+      ],
     },
   },
 });
@@ -92,8 +78,9 @@ const crmRow = svc({
   endpoints: {
     nav: {
       route_prefixes: ["/crm", "/system/crm"],
+      access: "access.crm",
       nav: [
-        { id: "customers", label_key: "crm.customers.nav", href: "/crm/customers" },
+        { id: "customers", label_key: "crm.customers.nav", href: "/crm/customers", default: true },
         { id: "pipeline", label_key: "crm.pipeline.nav", href: "/system/crm/pipeline" },
       ],
       routes: [
@@ -104,120 +91,194 @@ const crmRow = svc({
   },
 });
 
+/** A service that declared NO nav — passes through unfiltered. */
+const headlessRow = svc({ code: "emailsender", name: "Email Sender" });
+
 function setup(rows: Record<string, unknown>[]) {
   mockRegistry.findAll.mockResolvedValue(rows);
 }
 
-const list = (permissions: string[] = [], isAdmin = false) =>
-  new ModuleDiscoveryService().list({ permissions: new Set(permissions), isAdmin });
+const list = (permissions: string[] = []) =>
+  new ModuleDiscoveryService().list({ permissions: new Set(permissions) });
 
-describe("ModuleDiscoveryService — access filtering", () => {
-  it("admin inherits access.system: sees settings+job+crm, not business-gated shop", async () => {
-    setup([settingsRow, jobRow, shopRow, crmRow]);
-    const { modules } = await list([], true);
-    const ids = modules.map((m) => m.id);
-    expect(ids).toContain("settings"); // implied access.system covers it
-    expect(ids).toContain("job");
-    expect(ids).toContain("crm"); // undeclared → open
-    expect(ids).not.toContain("shop"); // access.crm-root NOT implied
-  });
-
-  it("non-admin without access.system.settings: settings absent, job open", async () => {
-    setup([settingsRow, jobRow, crmRow]);
-    const { modules } = await list(["access.system.job", "customer.read.all"]);
-    const ids = modules.map((m) => m.id);
-    expect(ids).not.toContain("settings");
-    expect(ids).toContain("job");
-    expect(ids).toContain("crm");
-  });
-
-  it("module grant covers the subtree — access.system.job ⇒ rules page visible", async () => {
+describe("ModuleDiscoveryService — derived-leaf access filtering", () => {
+  it("a module wildcard covers every leaf — nav, routes, sheets whole", async () => {
     setup([jobRow]);
-    const { modules } = await list(["access.system.job"]);
+    const { modules } = await list(["access.system.job.*"]);
     const job = modules[0];
     expect(job.nav?.map((l) => l.id)).toEqual(["schedules", "runs", "rules"]);
-    expect(job.routes?.map((r) => r.route)).toContain("/system/job/rules");
+    expect(job.routes?.map((r) => r.route)).toEqual([
+      "/system/job/job-schedules",
+      "/system/job/job-schedules/create",
+      "/system/job/runs",
+      "/system/job/rules",
+      "/system/job/rules/create",
+    ]);
+    expect(job.sheets?.map((s) => s.key)).toEqual(["job.runDetail"]);
+    // The default flag rides the nav item through the filter.
+    expect(job.nav?.[0].default).toBe(true);
   });
 
-  it("page-level gate filters one nav item — module stays, item drops", async () => {
+  it("an app wildcard covers every module under it — system AND nothing else", async () => {
+    setup([settingsRow, jobRow, crmRow]);
+    const { modules } = await list(["access.system.*"]);
+    const ids = modules.map((m) => m.id);
+    expect(ids).toContain("settings");
+    expect(ids).toContain("job");
+    // crm is a different app root — present only as an inaccessible
+    // reveal entry, never navigable.
+    const crm = modules.find((m) => m.id === "crm");
+    expect(crm?.accessible).toBe(false);
+  });
+
+  it("an exact leaf grant keeps only that leaf — module still visible", async () => {
     setup([jobRow]);
-    // User holds the bare module-less page set: job/runs but NOT rules.
-    const { modules } = await list(["access.system.job.runs"]);
+    const { modules } = await list(["access.system.job.rules"]);
+    expect(modules).toHaveLength(1);
     const job = modules[0];
-    expect(job).toBeTruthy();
-    // 'schedules'/'runs' are undeclared → open; 'rules' gated → filtered out.
-    expect(job.nav?.map((l) => l.id)).toEqual(["schedules", "runs"]);
-    expect(job.routes?.map((r) => r.route)).not.toContain("/system/job/rules");
-    // home = first REACHABLE page — still the schedules list.
-    expect(job.home?.["system"]).toBe("/system/job/job-schedules");
+    expect(job.nav?.map((l) => l.id)).toEqual(["rules"]);
+    expect(job.routes?.map((r) => r.route)).toEqual([
+      "/system/job/rules",
+      "/system/job/rules/create", // create collapses into the rules leaf
+    ]);
+    expect(job.sheets).toEqual([]); // sheet key is its own leaf
   });
 
-  it("a page grant does NOT satisfy a module-level gate", async () => {
+  it("a bare namespace grant covers NOTHING — the module stays only as an accessible:false reveal entry", async () => {
+    setup([jobRow]);
+    const { modules } = await list(["access.system.job"]);
+    expect(modules).toHaveLength(1);
+    const job = modules[0];
+    expect(job.accessible).toBe(false);
+    expect(job.nav).toEqual([]);
+    // Every dropped leaf rides nav_hidden — the launcher's reveal switch.
+    expect(job.nav_hidden?.map((l) => l.id)).toEqual(["schedules", "runs", "rules"]);
+  });
+
+  it("a leaf grant in a sibling module does NOT leak — the sibling stays accessible:false", async () => {
+    setup([settingsRow, jobRow]);
+    const { modules } = await list(["access.system.job.rules"]);
+    expect(modules.map((m) => m.id)).toEqual(["settings", "job"]);
+    expect(modules[0].accessible).toBe(false);
+    expect(modules[1].accessible).toBeUndefined();
+  });
+
+  it("settings leaves filter per-grant — only the granted tabs survive", async () => {
     setup([settingsRow]);
-    // access.system.settings.users is a PAGE key — the module gate is
-    // access.system.settings exactly.
-    const { modules } = await list(["access.system.settings.users"]);
-    expect(modules).toHaveLength(0);
+    const { modules } = await list(["access.system.settings.roles"]);
+    const settings = modules[0];
+    expect(settings.nav?.map((l) => l.id)).toEqual(["roles"]);
+    expect(settings.routes?.map((r) => r.route)).toEqual([
+      "/system/settings/roles",
+      "/system/settings/roles/[uuid]",
+      "/system/settings/roles/create",
+    ]);
+    // The other settings tabs surface in nav_hidden for the reveal switch.
+    expect(settings.nav_hidden?.some((l) => l.id === "users")).toBe(true);
+    expect(settings.nav_hidden?.some((l) => l.id === "roles")).toBe(false);
   });
 
-  it("home follows the post-filter nav — first reachable page wins", async () => {
-    const gated = svc({
-      code: "job",
-      name: "Job Handler",
-      endpoints: {
-        nav: {
-          route_prefixes: ["/system/job"],
-          nav: [
-            { id: "jobs", label_key: "job.jobs.nav", href: "/system/job/job-schedules", access: "access.system.job.list" },
-            { id: "runs", label_key: "job.runs.nav", href: "/system/job/runs" },
-          ],
-        },
-      },
-    });
-    setup([gated]);
-    const { modules } = await list([]);
-    // nav[0] (jobs) is gated out → home falls to the first visible page.
-    expect(modules[0].home?.["system"]).toBe("/system/job/runs");
-  });
-
-  it("parent with surviving children stays as the group header", async () => {
+  it("a leaf grant keeps the parent group header alive", async () => {
     const grouped = svc({
       code: "job",
       endpoints: {
         nav: {
           route_prefixes: ["/system/job"],
+          access: "access.system.job",
           nav: [
             {
               id: "admin",
               label_key: "job.admin.nav",
-              href: "/system/job/admin",
-              access: "access.system.job.admin",
+              href: "/system/job/admin/flags",
               children: [
-                { id: "flags", label_key: "job.flags.nav", href: "/system/job/admin/flags" },
+                { id: "flags", label_key: "job.flags.nav", href: "/system/job/admin/flags", default: true },
+                { id: "quotas", label_key: "job.quotas.nav", href: "/system/job/admin/quotas" },
               ],
             },
           ],
           routes: [
-            { route: "/system/job/admin", kind: "page" },
             { route: "/system/job/admin/flags", kind: "page" },
+            { route: "/system/job/admin/quotas", kind: "page" },
           ],
         },
       },
     });
     setup([grouped]);
-    const { modules } = await list([]);
+    const { modules } = await list(["access.system.job.admin.flags"]);
     const admin = modules[0].nav?.[0];
-    // Parent gated but has a visible child → kept as group header.
+    // The parent href IS a leaf (flags) — covered → kept with only the
+    // reachable child; the dropped sibling surfaces in nav_hidden.
     expect(admin?.id).toBe("admin");
     expect(admin?.children?.map((c) => c.id)).toEqual(["flags"]);
+    expect(modules[0].nav_hidden?.map((l) => l.id)).toEqual(["quotas"]);
   });
 
-  it("anonymous (no user) sees only undeclared modules — deny-first", async () => {
-    setup([settingsRow, jobRow, shopRow]);
+  it("a sub-namespace wildcard covers a whole subtree", async () => {
+    const grouped = svc({
+      code: "job",
+      endpoints: {
+        nav: {
+          route_prefixes: ["/system/job"],
+          access: "access.system.job",
+          nav: [
+            {
+              id: "admin",
+              label_key: "job.admin.nav",
+              href: "/system/job/admin/flags",
+              children: [
+                { id: "flags", label_key: "job.flags.nav", href: "/system/job/admin/flags", default: true },
+                { id: "quotas", label_key: "job.quotas.nav", href: "/system/job/admin/quotas" },
+              ],
+            },
+            { id: "runs", label_key: "job.runs.nav", href: "/system/job/runs" },
+          ],
+          routes: [
+            { route: "/system/job/admin/flags", kind: "page" },
+            { route: "/system/job/admin/quotas", kind: "page" },
+            { route: "/system/job/runs", kind: "list", entity: "job_run" },
+          ],
+        },
+      },
+    });
+    setup([grouped]);
+    const { modules } = await list(["access.system.job.admin.*"]);
+    const admin = modules[0].nav?.[0];
+    expect(admin?.children?.map((c) => c.id)).toEqual(["flags", "quotas"]);
+    expect(modules[0].nav?.map((l) => l.id)).toEqual(["admin"]);
+    expect(modules[0].nav_hidden?.map((l) => l.id)).toEqual(["runs"]);
+  });
+
+  it("crm leaves key on the collapsed namespace — access.crm.* covers both prefixes", async () => {
+    setup([crmRow]);
+    const { modules } = await list(["access.crm.*"]);
+    const crm = modules[0];
+    expect(crm.nav?.map((l) => l.id)).toEqual(["customers", "pipeline"]);
+    // The secondary /system/crm prefix still derives under access.crm —
+    // the access namespace follows the MODULE, not the URL root.
+    expect(crm.routes?.map((r) => r.route)).toEqual(["/crm/customers", "/system/crm/pipeline"]);
+  });
+
+  it("an exact crm leaf keeps only that page — pipeline drops", async () => {
+    setup([crmRow]);
+    const { modules } = await list(["access.crm.customers"]);
+    expect(modules[0].nav?.map((l) => l.id)).toEqual(["customers"]);
+  });
+
+  it("admin-ness buys nothing — no grants, declared modules stay inaccessible", async () => {
+    setup([settingsRow, jobRow, headlessRow]);
+    const { modules } = await list([]);
+    const byId = new Map(modules.map((m) => [m.id, m]));
+    expect(byId.get("emailsender")?.accessible).toBeUndefined(); // headless passes through
+    expect(byId.get("settings")?.accessible).toBe(false);
+    expect(byId.get("job")?.accessible).toBe(false);
+  });
+
+  it("anonymous (no user) — declared modules are inaccessible, headless passes through", async () => {
+    setup([settingsRow, jobRow, headlessRow]);
     const { modules } = await new ModuleDiscoveryService().list(undefined);
-    const ids = modules.map((m) => m.id);
-    expect(ids).toContain("job");
-    expect(ids).not.toContain("settings");
-    expect(ids).not.toContain("shop");
+    const byId = new Map(modules.map((m) => [m.id, m]));
+    expect(byId.get("emailsender")?.accessible).toBeUndefined();
+    expect(byId.get("settings")?.accessible).toBe(false);
+    expect(byId.get("job")?.accessible).toBe(false);
   });
 });

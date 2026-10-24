@@ -2,7 +2,7 @@
  * Module navigation metadata types — facades over the canonical contracts
  * in `@primebrick/core`.
  *
- * Shared between the /modules discovery payload (nav + routes + home),
+ * Shared between the /modules discovery payload (nav + routes + sheets),
  * the client-derived route census, and the service-registration
  * self-declaration (`service_registry.endpoints.nav`).
  * All field names are snake_case per the BE data-model convention.
