@@ -18,14 +18,12 @@ import { getAuthConfig, type AuthConfig } from "@primebrick/sdk";
 
 /**
  * Determine the public base URL of the BE.
- * In production this comes from the `PUBLIC_BASE_URL` env var.
- * In dev, we derive it from the request host or default to localhost:3001.
+ * Closed-set env contract: no PUBLIC_BASE_URL/PORT env var — derived from
+ * the request (proxy headers); the mount-time fallback is the fixed dev
+ * port. A `backend_base_url` config_entries key is the production source
+ * when introduced.
  */
 export function getPublicBaseUrl(req?: { protocol: string; get: (name: string) => string | undefined }): string {
-  if (process.env.PUBLIC_BASE_URL) {
-    return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
-  }
-
   if (req) {
     const forwardedProto = req.get("x-forwarded-proto");
     const forwardedHost = req.get("x-forwarded-host");
@@ -36,8 +34,7 @@ export function getPublicBaseUrl(req?: { protocol: string; get: (name: string) =
     }
   }
 
-  const port = process.env.PORT ?? "3001";
-  return `http://localhost:${port}`;
+  return "http://localhost:3001";
 }
 
 /**

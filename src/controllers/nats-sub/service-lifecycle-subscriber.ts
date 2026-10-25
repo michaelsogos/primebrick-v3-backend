@@ -62,9 +62,8 @@ export class ServiceLifecycleSubscriber {
           verify: this.verifier.asRouteVerify(undefined, { allowNewPrefix: true }),
           handler: async ({ request: payload }) => {
             if (!payload?.code || !payload?.base_url || !payload?.part_of) {
-              logger.warn(`service.register rejected — missing required field(s): ${[!payload?.code && "code", !payload?.base_url && "base_url", !payload?.part_of && "part_of"].filter(Boolean).join(", ")}`, {
-                tags: ["nats"],
-                received_code: payload?.code ?? null,
+              logger.warn(`service.register rejected for the brick '${payload?.code ?? "unknown"}' — missing required field(s): ${[!payload?.code && "code", !payload?.base_url && "base_url", !payload?.part_of && "part_of"].filter(Boolean).join(", ")}`, {
+                tags: ["nats", ...(payload?.code ? [`brick:${payload.code}`] : [])],
                 received_base_url: payload?.base_url ?? null,
               });
               return { registered: false, error: "service.register requires non-empty code, base_url and part_of" };
@@ -76,9 +75,8 @@ export class ServiceLifecycleSubscriber {
             // namespace and schema claim — rejected at enrollment.
             const codeError = this.checkServiceCodeIntegrity(payload);
             if (codeError) {
-              logger.warn(`service.register rejected — ${codeError}`, {
-                tags: ["nats"],
-                received_code: payload.code,
+              logger.warn(`service.register rejected for the brick '${payload.code}' — ${codeError}`, {
+                tags: ["nats", `brick:${payload.code}`],
                 received_pkg_name: payload.pkg_name ?? null,
                 received_code_source: payload.code_source ?? null,
               });
@@ -86,9 +84,8 @@ export class ServiceLifecycleSubscriber {
             }
             const ownershipError = await this.checkSchemaOwnership(payload);
             if (ownershipError) {
-              logger.warn(`service.register rejected — ${ownershipError}`, {
-                tags: ["nats"],
-                received_code: payload.code,
+              logger.warn(`service.register rejected for the brick '${payload.code}' — ${ownershipError}`, {
+                tags: ["nats", `brick:${payload.code}`],
                 received_schemas: payload.schemas ?? [],
               });
               return { registered: false, error: ownershipError };
@@ -99,9 +96,8 @@ export class ServiceLifecycleSubscriber {
             if (payload.endpoints?.["nav"] !== undefined) {
               const navError = validateNavDeclaration(payload.code, payload.endpoints["nav"], payload.part_of);
               if (navError) {
-                logger.warn(`service.register rejected — ${navError}`, {
-                  tags: ["nats"],
-                  received_code: payload.code,
+                logger.warn(`service.register rejected for the brick '${payload.code}' — ${navError}`, {
+                  tags: ["nats", `brick:${payload.code}`],
                 });
                 return { registered: false, error: navError };
               }
@@ -316,8 +312,8 @@ export class ServiceLifecycleSubscriber {
         const svc = new ClientShieldRegistryService();
         const valid = await svc.verifyDerivedClaim(uaPrefix, payload.key_generation, payload.client_key_hash);
         if (!valid) {
-          logger.warn(`service.register rejected — derived key material does not verify for ${uaPrefix} (generation ${payload.key_generation})`, {
-            tags: ["nats"],
+          logger.warn(`service.register rejected for the brick '${code}' — derived key material does not verify for ${uaPrefix} (generation ${payload.key_generation})`, {
+            tags: ["nats", `brick:${code}`],
           });
           return { registered: false, error: "derived key material does not verify" };
         }

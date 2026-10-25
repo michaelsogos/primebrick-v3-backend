@@ -5,6 +5,7 @@ import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
 import { extJsonMiddleware, extJsonBodyParser, extJsonParse, Permission, NatsClient, subscribeSharedConfig, logModuleStartup, logServiceStartup, type HealthResponse } from "@primebrick/sdk";
+import type { NatsConnection } from "@nats-io/transport-node";
 import { mountModules } from "./modules/index.js";
 import CasdoorSDK from "casdoor-nodejs-sdk";
 import { getConfigEntriesService, type AuthConfigDb } from "./modules/auth/services/config-entries.service.js";
@@ -48,7 +49,10 @@ assertDbEnv();
 let stopKeyspaceListener: (() => Promise<void>) | null = null;
 
 const app = express();
-const port = Number(process.env.PORT) || 3001;
+// Closed-set env contract (assertDbEnv above): only DATABASE_URL and
+// DATABASE_SCHEMA may be consumed — the API port is a fixed product constant,
+// not an env override.
+const port = 3001;
 
 app.use(cors({ origin: true }));
 // Use ext-json body parser instead of native express.json() to preserve
@@ -85,10 +89,12 @@ async function checkDb(): Promise<HealthCheckResult> {
 
 async function checkIdp(): Promise<HealthCheckResult> {
   try {
-    // Load configuration from database or fallback to environment variables
-    let casdoorEndpoint = process.env.CASDOOR_ENDPOINT || "http://localhost:8000";
-    let clientId = process.env.CASDOOR_BUILTIN_CLIENT_ID || "cb05577e2097c31af3c7";
-    let clientSecret = process.env.CASDOOR_BUILTIN_CLIENT_SECRET || "47b2e05673a5307ccf0552e32ba45a18f6627f21";
+    // Closed-set env contract: no env fallbacks — IDP configuration lives in
+    // config_entries only. A missing config is an honest "unhealthy", not a
+    // fake default pointing at a wrong IDP.
+    let casdoorEndpoint: string | undefined;
+    let clientId: string | undefined;
+    let clientSecret: string | undefined;
     let orgName = "admin";
 
     try {
@@ -98,7 +104,11 @@ async function checkIdp(): Promise<HealthCheckResult> {
       clientSecret = dbConfig.idp_client_secret || clientSecret;
       orgName = dbConfig.idp_organization || orgName;
     } catch (error) {
-      logger.warn("Could not load configuration from database, using fallback:", { tags: ["core"], error: error });
+      logger.warn("Could not load IDP configuration from database:", { tags: ["core"], error: error });
+    }
+
+    if (!casdoorEndpoint || !clientId || !clientSecret) {
+      return { ok: false, error: "idp config missing" };
     }
 
     // Call the correct version endpoint from Casdoor docs with authentication
@@ -159,8 +169,10 @@ function checkNats(): HealthCheckResult {
 }
 
 /**
- * LLM health check — calls the AI microservice health endpoint to get
- * LLM connectivity + model + version info for the version panel.
+ * LLM health check — reads checks.llm from the AI microservice's public
+ * /health probe (LLM connectivity + model + version for the version panel).
+ * The shielded /api/v1/ai/health domain route is NOT usable here — it
+ * requires client identity and 403s on unauthenticated probes.
  *
  * The AI microservice must be registered in service_registry with code='ai'.
  * If the AI microservice is not registered or not running, the LLM check
@@ -173,26 +185,34 @@ async function checkLlm(): Promise<HealthCheckResult> {
       return { ok: false, error: "AI microservice not registered in service_registry" };
     }
 
-    const healthUrl = `${service.base_url}/api/v1/ai/health`;
-    const res = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) {
+    // Public system probe (api-path-conventions: /health is always public,
+    // no client identity — mounted before the shield gate in the SDK).
+    // checks.llm carries { ok, model?, version?, error? } from the ai
+    // service's customHealthChecks.
+    const healthUrl = `${service.base_url}/health`;
+    // Bounded at 2.5s: the ai service is local — when healthy it answers in
+    // ms; the budget only burns while IT waits on its own upstream LLM probe.
+    // LLM must never gate the /health latency of the whole API.
+    const res = await fetch(healthUrl, { signal: AbortSignal.timeout(2500) });
+    if (!res.ok && res.status !== 503) {
       return { ok: false, error: `AI microservice health failed: HTTP ${res.status}` };
     }
 
     const json = (await res.json()) as {
       ok: boolean;
-      llm?: { ok: boolean; model?: string; version?: string; error?: string };
+      checks?: { llm?: { ok: boolean; model?: string; version?: string; error?: string } };
     };
 
-    if (!json.llm) {
+    if (!json.checks?.llm) {
       return { ok: false, error: "AI microservice did not return LLM health info" };
     }
+    const llmCheck = json.checks.llm;
 
     return {
-      ok: json.llm.ok,
-      model: json.llm.model,
-      version: json.llm.version,
-      ...(json.llm.ok ? {} : { error: json.llm.error ?? "LLM check failed" }),
+      ok: llmCheck.ok,
+      model: llmCheck.model,
+      version: llmCheck.version,
+      ...(llmCheck.ok ? {} : { error: llmCheck.error ?? "LLM check failed" }),
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "LLM check error" };
@@ -200,14 +220,22 @@ async function checkLlm(): Promise<HealthCheckResult> {
 }
 
 async function healthPayload(): Promise<HealthResponse> {
+  // Parallel: /health latency is bounded by the SLOWEST check, not the sum —
+  // the informational llm probe must not stack its wait on the critical path.
+  const [db, idp, redis, llm] = await Promise.all([
+    checkDb(),
+    checkIdp(),
+    checkRedis(),
+    checkLlm(),
+  ]);
   const checks: Record<string, HealthCheckResult> = {
-    db: await checkDb(),
-    idp: await checkIdp(),
-    redis: await checkRedis(),
+    db,
+    idp,
+    redis,
     nats: checkNats(),
     // LLM is optional infrastructure — included for the version panel but
     // does NOT affect the overall health status (BE stays 200 even if LLM is down).
-    llm: await checkLlm(),
+    llm,
   };
   // Only core infra (db, idp, redis, nats) determines overall health.
   // LLM is reported but does not cause 503.
@@ -248,7 +276,13 @@ apiRouter.get("/modules", rbacHandler([Permission.AUTHENTICATED_USER]), async (r
   // (is_admin ⇒ access.system only — business roots need explicit grants).
   // Disabled rows never surface: `is_enabled === false` is the admin's
   // "do not expose" decision.
-  res.json(await new ModuleDiscoveryService().list(req.user));
+  // ?lang selects the language the `labels` seed is resolved in — the FE
+  // passes the active uiLang; anything else falls back to en-GB.
+  const lang =
+    typeof req.query.lang === "string" && /^[a-z]{2,3}(-[a-zA-Z]{2,8}){1,2}$/i.test(req.query.lang)
+      ? req.query.lang
+      : "en-GB";
+  res.json(await new ModuleDiscoveryService().list(req.user, lang));
 });
 
 app.use("/api/v1", apiRouter);
@@ -399,10 +433,39 @@ async function refreshAuthConfig(): Promise<void> {
   }
 }
 
+/** One instance for the process — start() is interval-guarded, so
+ * re-running the lifecycle after a NATS outage must not leak timers. */
+const staleJob = new StaleDetectionJob();
+/** Suppresses the nc.closed() re-arm during graceful shutdown. */
+let serviceLifecycleStopping = false;
+/** Dedup: nc.closed() is hooked once per live connection, not once per init pass. */
+let natsCloseHooked: NatsConnection | null = null;
+
 async function startServiceLifecycle(): Promise<void> {
   try {
-    const natsUrl = process.env.NATS_URL ?? "nats://127.0.0.1:4222";
-    await NatsClient.getConnection(natsUrl);
+    // nats_url lives in config_entries (seeded by patch
+    // 20261022225000_seed_nats_url) — the env contract allows only
+    // DATABASE_URL + DATABASE_SCHEMA. Runs after initDal(); the row is
+    // mandatory — missing config means a misconfigured system, not a default.
+    const natsEntry = await getConfigEntriesService().findByKey("nats_url");
+    if (!natsEntry?.value) {
+      throw new Error('config_entries row "nats_url" missing — run pnpm db:migrate');
+    }
+    const nc = await NatsClient.getConnection(String(natsEntry.value));
+    // Permanent close (broker restart past the client's reconnect window)
+    // cannot be revived by nats.js — re-run this whole init to reconnect,
+    // re-enroll identity and re-subscribe every route. closed() resolves
+    // only on permanent close, never during reconnect attempts.
+    if (natsCloseHooked !== nc) {
+      natsCloseHooked = nc;
+      void nc.closed().then(() => {
+        if (serviceLifecycleStopping) return;
+        logger.warn("NATS connection closed permanently — re-running service lifecycle in 5s", {
+          tags: ["nats"],
+        });
+        setTimeout(() => void startServiceLifecycle().catch(() => {}), 5000);
+      });
+    }
     // config.get — governed correlation-reply serving the shared config
     // (redis_url, telemetry) to microservices at boot and on config.changed.
     const sharedConfigVerifier = createPublisherVerifier();
@@ -418,7 +481,6 @@ async function startServiceLifecycle(): Promise<void> {
     await subscriber.start();
     await startInternalRequestRoutes();
     await initSecretEngine();
-    const staleJob = new StaleDetectionJob();
     staleJob.start();
   } catch (err) {
     logger.warn(
@@ -446,6 +508,7 @@ async function enrollBackendIdentity(): Promise<void> {
 // quits cleanly (avoids "QUIT" errors in Redis logs on abrupt process exit).
 
 async function gracefulShutdown(): Promise<void> {
+  serviceLifecycleStopping = true;
   // Notify all SSE clients that the server is shutting down
   try {
     serviceEventsBus.emit({

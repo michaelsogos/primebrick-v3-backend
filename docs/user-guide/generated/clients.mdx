@@ -1,0 +1,99 @@
+---
+title: Clients List
+description: List, search and manage all clients.
+entity: client_registry
+---
+
+List, search and manage all clients.
+
+Each row shows the User-Agent prefix, the Source, the Key mode, the Created at, plus the status flags Enabled.
+
+## Pages routes
+
+- `/system/settings/clients` — List, search and manage all clients. *(this page)*
+- `/system/settings/clients/create` — Create a new client registry.
+- `/system/settings/clients/{uuid}` — View and edit an existing client registry.
+
+## What you can do here
+
+### How to create a new client
+1. Click **New** in the toolbar.
+2. Fill in the form — required fields are marked.
+3. Click **Save** — the new client is created.
+
+### How to edit a client
+1. Open the row actions menu on the client and click **Edit**.
+2. Update the fields — required: **ua prefix**.
+3. Click **Save** — the changes to the client are saved.
+
+### How to delete a client
+1. Open the row actions menu on the client and click **Delete**.
+2. Confirm the deletion in the dialog — the client is soft-deleted and can be restored.
+
+### How to restore a deleted client
+1. Set the deleted-records filter to **Deleted only** or **All records** to show recoverable records.
+2. Open the row actions menu on the client and click **Restore**.
+3. Confirm in the dialog — the client is active again.
+
+### How to view the change history of a client
+1. Open the row actions menu on the client and click **Audit history**.
+2. The version history of the client will appear on the right sheet panel.
+
+## Columns
+
+| Column | Visible | Sortable | Filterable | Notes |
+|--------|---------|----------|------------|-------|
+| **User-Agent prefix** | yes | yes | yes |  |
+| **UUID** | no | yes | yes |  |
+| **Source** | yes | yes | yes |  |
+| **Key mode** | yes | yes | yes |  |
+| **Key generation** | no | yes | yes |  |
+| **Enabled** | yes | yes | yes |  |
+
+- The User-Agent prefix column is shown by default and can be sorted and filtered.
+- The UUID column is hidden by default and can be sorted and filtered.
+- The Source column is shown by default and can be sorted and filtered.
+- The Key mode column is shown by default and can be sorted and filtered.
+- The Key generation column is hidden by default and can be sorted and filtered.
+- The Enabled column is shown by default and can be sorted and filtered.
+
+## Actions
+
+### Row actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **create** | ENABLED | `client_registry.create.single` | Creates a new client | no |
+| **update** | ENABLED | `client_registry.update.single` | Opens the client for editing | no |
+| **delete** | ENABLED | `client_registry.delete.single` | Marks the client as deleted but keeps it so it can be restored | no |
+| **restore** | ENABLED | `client_registry.restore.single` | Brings a soft-deleted client back | no |
+| **purge** | DISABLED | — | Removes the client forever | no |
+| **audit history** | ENABLED | `client_registry.read.audit` | Shows the change history of the client | no |
+
+- Creating a new client is available on this page — the create action opens the create form in a new browser tab and it requires the `client_registry.create.single` permission.
+- Editing a client is available on this page — the row action opens the record in a new browser tab and it requires the `client_registry.update.single` permission.
+- Soft-deleting a client is available on this page — marks the client as deleted but keeps it so it can be restored and it requires the `client_registry.delete.single` permission.
+- Restoring a soft-deleted client is available on this page — brings a soft-deleted client back and it requires the `client_registry.restore.single` permission.
+- Permanently deleting a client is not available on this page — no permission is declared for it on clients.
+- Viewing the change history of a client is available on this page — every client keeps a full version history and it requires the `client_registry.read.audit` permission.
+
+### Bulk actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **delete** | DISABLED | `client_registry.delete.bulk` | Marks the selected clients as deleted | no |
+| **restore** | DISABLED | `client_registry.restore.bulk` | Restores the selected clients | no |
+| **duplicate** | DISABLED | `client_registry.duplicate.bulk` | Duplicates the selected clients | no |
+| **export** | DISABLED | `client_registry.export` | Exports the list | no |
+
+- Soft-deleting the selected clients is not available on this page — if enabled, it would require the `client_registry.delete.bulk` permission.
+- Restoring the selected clients is not available on this page — if enabled, it would require the `client_registry.restore.bulk` permission.
+- Duplicating the selected clients is not available on this page — if enabled, it would require the `client_registry.duplicate.bulk` permission.
+- Exporting the list is not available on this page — if enabled, it would require the `client_registry.export` permission.
+
+## Doc references
+
+- [Clients Create](/docs/user-guide/generated/clients-create)
+- [Clients Edit](/docs/user-guide/generated/clients-edit)
+- [Entities Crud](/docs/dev-guide/entities-crud)
+

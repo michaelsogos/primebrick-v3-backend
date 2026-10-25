@@ -28,7 +28,8 @@ schema.
 ## The contract
 
 ```
-GET /api/v1/translations/{module}/{lang}  →  flat I18nDict (ETag/304 cached)
+GET /api/v1/system/translations/{module}/{lang}   →  flat I18nDict (ETag/304 cached)
+GET /api/v1/system/translations/public/{lang}     →  public (unauthenticated) subset
 ```
 
 `TranslationsService` (BE service) → SDK `TranslationsCache`

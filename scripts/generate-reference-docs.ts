@@ -458,11 +458,27 @@ export async function generateReferenceDocs(outDir: string): Promise<string[]> {
     console.log(`  wrote ${name}`);
   }
 
-  // Keep _order.json in sync — generated pages come after hand-written ones.
+  // Keep _order.json in sync — the files on disk are the ground truth:
+  // pages emitted by ANY generator (this script, the docs-render page
+  // manuals, future emitters) must appear; entries whose file no longer
+  // exists must drop. No manual curation step.
   const orderPath = join(outDir, "..", "_order.json");
-  const generated = pages.map(([name]) => `generated/${name.replace(/\.mdx$/, "")}`);
   const order = existsSync(orderPath) ? JSON.parse(readFileSync(orderPath, "utf-8")) : { pages: [] };
-  order.pages = [...order.pages.filter((p: string) => !generated.includes(p)), ...generated];
+  const onDisk = new Set(
+    readdirSync(outDir)
+      .filter((f) => f.endsWith(".mdx") && !f.startsWith("["))
+      .map((f) => `generated/${f.replace(/\.mdx$/, "")}`),
+  );
+  // 1. drop generated/* entries whose file is gone
+  const kept = (order.pages as string[]).filter(
+    (p) => !p.startsWith("generated/") || onDisk.has(p),
+  );
+  // 2. generated files missing from the manifest join at the end of the
+  //    generated cluster (right after the last generated entry), sorted
+  const missing = [...onDisk].filter((s) => !kept.includes(s)).sort();
+  const lastGen = kept.reduce((acc, p, i) => (p.startsWith("generated/") ? i : acc), -1);
+  order.pages =
+    lastGen === -1 ? [...kept, ...missing] : [...kept.slice(0, lastGen + 1), ...missing, ...kept.slice(lastGen + 1)];
   writeFileSync(orderPath, JSON.stringify(order, null, 2) + "\n", "utf-8");
 
   return pages.map(([name]) => name);

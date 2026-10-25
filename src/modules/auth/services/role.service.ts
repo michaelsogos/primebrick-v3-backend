@@ -25,7 +25,7 @@
  * can convert them to RFC 7807 JSON.
  */
 
-import { logger } from "@primebrick/sdk";
+import { isAccessGrantLegal, logger } from "@primebrick/sdk";
 import {
   type Repository,
   Project,
@@ -43,6 +43,7 @@ import { RoleMappingEntity } from "../role_mapping_entity.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { getAuthConfig } from "../config.js";
 import { ApiError, NotFoundError } from "../../../http/api-errors.js";
+import { collectAccessLeafKeys } from "../../system/access-inventory.js";
 
 const ROLE_MAPPINGS_CACHE_KEY = "be:role_mappings:all";
 export const ROLE_MAPPING_FILTERABLE_FIELDS = new Set(["idp_role", "idp_org", "label_key", "is_admin"]);
@@ -332,10 +333,41 @@ export class RoleService extends DomainService<RoleMappingDto> {
     }
   }
 
+  /**
+   * Access-axis guard — `access.*` grants carry illegality rules a plain
+   * permission string cannot express: `access`/`access.*` are banned
+   * outright, bare namespaces mean nothing, and an exact leaf must name
+   * a REAL leaf from the derived inventory. Enforced here — the single
+   * API write funnel — so an illegal grant can never be persisted.
+   */
+  private async assertAccessGrantsLegal(permissions: string[]): Promise<void> {
+    const accessGrants = permissions.filter(
+      (p) => p === "access" || p.startsWith("access."),
+    );
+    if (accessGrants.length === 0) return;
+    const leafKeys = await collectAccessLeafKeys();
+    const illegal = accessGrants.filter((g) => !isAccessGrantLegal(g, leafKeys));
+    if (illegal.length === 0) return;
+    throw new ApiError(
+      "/errors/validation",
+      "Illegal access grant",
+      422,
+      `Access grants must be an exact existing leaf or a scoped wildcard ('access.<path>.*') — rejected: ${illegal.join(", ")}`,
+      {
+        instance: "/api/v1/entities/role_mapping",
+        internal_code: "ILLEGAL_ACCESS_GRANT",
+        severity: "MEDIUM",
+      },
+    );
+  }
+
   // --- Create ---------------------------------------------------------------
 
   async createRole(input: CreateRoleInput, actor: string, tx?: Repository): Promise<RoleMappingDetailed> {
     const { idp_role, idp_org, label_key, is_admin, permissions } = input;
+
+    // 0. Access-axis grants must be legal before any side effect.
+    await this.assertAccessGrantsLegal(permissions);
 
     // 1. Casdoor must be configured.
     const cd = await this.getCasdoor().getClient();
@@ -435,6 +467,9 @@ export class RoleService extends DomainService<RoleMappingDto> {
   async updateRole(existing: RoleMappingDto, input: UpdateRoleInput, actor: string, tx?: Repository): Promise<RoleMappingDetailed> {
     const { label_key, is_admin, permissions } = input;
     const idpRole = existing.idp_role;
+
+    // 1. Access-axis grants must be legal before any side effect.
+    await this.assertAccessGrantsLegal(permissions ?? []);
 
     // 2. Casdoor must be configured.
     const cd = await this.getCasdoor().getClient();

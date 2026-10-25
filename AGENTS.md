@@ -1,5 +1,23 @@
 # AI AGENT INSTRUCTIONS - Primebrick Backend
 
+## Documentation is the contract — code is the proof
+
+- Docs (AGENTS.md, .devin/rules/, docs/ai/, docs/dev-guide/, docs/user-guide/)
+  are the source of truth for HOW things work. Source code is NEVER
+  documentation: pages are composed dynamically (mountPage, remote chunks,
+  layout.sections, runtime wiring) — reading a +page.svelte alone tells you
+  little about what actually renders.
+- Need to know how to do something (tests, auth, dev servers, conventions)?
+  Find it in the doc FIRST. Read code only as the "prova del 9" — to verify
+  the code behaves as the doc says. Never the reverse.
+- Doc and code disagree? Report the discrepancy — the doc is probably stale.
+  Do NOT fix docs silently and do NOT create new files in .devin/rules/,
+  docs/, or AGENTS.md on your own initiative: propose the text, write only
+  after approval.
+- Before claiming "a doc is missing", check the indexes:
+  docs/ai/README.md, .devin/rules/, docs/dev-guide/_order.json.
+  The missing doc is usually a doc you haven't read.
+
 ## ⚠️ CRITICAL: NEVER COMMIT AUTOMATICALLY
 
 **AI agents MUST NEVER commit changes without explicit user instruction.**
@@ -39,6 +57,21 @@ a version tag. There is no CI pipeline that auto-deploys on push.
 | **primebrick-v3-dal** (DAL) | GitHub™ Actions | GitFlow: create release → close → merge to `main` + tag → CI publishes to npm |
 | **primebrick-v3-docs** | Cloudflare® Worker CI | Push to `main` — auto-deploys |
 | **primebrick-v3-website** | Cloudflare® Worker CI | Push to `main` — auto-deploys |
+
+### Docker image build (pnpm deploy)
+
+The backend deploys as a self-contained image built over a `pnpm deploy` artifact:
+
+```bash
+pnpm deploy                             # = node scripts/deploy.mjs
+docker build -f primebrick-be-v3/Dockerfile <primebrick>/temp/deploy-out/be
+```
+
+`scripts/deploy.mjs` builds the package, runs `pnpm deploy --prod` with
+workspace-package injection, and pins `workspace:*` specifiers to real versions
+in the emitted `package.json`. The image copies only `package.json`, vendored
+`node_modules`, `dist`, `db-meta`, `scripts`, `docs` — `.env`, `src`, `test`
+never ship.
 
 ## Commands
 
@@ -299,6 +332,9 @@ All endpoints are admin-only (`AUTHENTICATED_ADMIN`):
 ## Further documentation
 
 See `docs/ai/` for skills selection and suggested workflows.
+DAL access: `.devin/rules/dal-usage.md` — governed `DomainService`/`svc` API;
+no consumer `*_dal.ts`/`*-repo.ts` layer; `getDal()`/`initDal()` are
+allowlist-restricted (`.devin/check-standards.json`).
 
 ## RBAC Permission System
 
@@ -369,7 +405,7 @@ invents operations.
 Entity ops that live **outside** `/api/v1/entities/:entity` (e.g. user
 management under `/api/v1/auth/users`) are included via the `extraScans`
 parameter of `deriveEntityActions` — pass the mounted router + its prefix
-(see `userProfilesRouter(users)` in `src/modules/auth/router.ts`).
+(see `userProfilesRouter(users)` in `src/controllers/http/auth/user-profiles.router.ts`).
 
 ### Wildcard Support
 
@@ -437,5 +473,5 @@ When testing RBAC changes, ensure the role mapping cache is reloaded by restarti
 
 - Use `logger` from `@primebrick/sdk` — never `console.*` in new code.
 - Telemetry/logging settings are `config_entries` rows (`telemetry_enabled`, `otel_*`, `log_*`) — the single point of configuration. No env vars besides `DATABASE_URL` + `DATABASE_SCHEMA` (the declared schema domain — `public,system,custom` for the BE; closed-set validated by `assertDbEnv()`).
-- `src/observability/logging-init.ts` installs the console bridge (first import in `src/index.ts`); `src/observability/telemetry.ts` loads config, inits/restarts OTel, and broadcasts `config.changed` on config writes (wired in `ConfigEntriesDal.reloadCache`).
+- `src/observability/logging-init.ts` installs the console bridge (first import in `src/index.ts`); `src/observability/telemetry.ts` loads config, inits/restarts OTel, and broadcasts `config.changed` on config writes (wired in `ConfigEntriesService.reloadCache`).
 - See [.devin/rules/logging-telemetry.md](./.devin/rules/logging-telemetry.md).

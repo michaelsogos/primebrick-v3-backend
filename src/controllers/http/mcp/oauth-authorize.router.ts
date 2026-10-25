@@ -20,6 +20,7 @@ import { logger } from "@primebrick/sdk";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { getAuthConfig, extJsonStringify, extJsonParse } from "@primebrick/sdk";
 import { OAuthClientService } from "../../../modules/mcp/oauth/oauth-client.service.js";
+import { getConfigEntriesService } from "../../../modules/auth/services/config-entries.service.js";
 
 /** Send a JSON response directly (raw write — bypasses the extJson middleware wrapper). */
 function sendJson(res: Response, status: number, data: unknown): void {
@@ -43,15 +44,17 @@ interface AuthorizeParams {
 
 /**
  * Determine the FE base URL.
- * In production, set `PUBLIC_FE_URL` env var (e.g. https://app.primebrick.com).
- * In dev, default to http://localhost:5173 (SvelteKit dev server).
+ * Closed-set env contract: no PUBLIC_FE_URL env var — the frontend URL is a
+ * `config_entries` row (`frontend_url`, seeded; same lookup as
+ * `invitation.service.ts`). Missing config is an error, not a fake
+ * localhost default.
  */
-function getFeBaseUrl(req: Request): string {
-  if (process.env.PUBLIC_FE_URL) {
-    return process.env.PUBLIC_FE_URL.replace(/\/$/, "");
+async function getFeBaseUrl(): Promise<string> {
+  const row = await getConfigEntriesService().findByKey("frontend_url");
+  if (!row?.value) {
+    throw new Error("[mcp] frontend_url is missing in config_entries table");
   }
-  // Dev default — SvelteKit dev server
-  return "http://localhost:5173";
+  return row.value.replace(/\/$/, "");
 }
 
 /**
@@ -108,7 +111,7 @@ export function authorizeRouter(): Router {
       // If consent_approved is NOT set, redirect to the FE consent screen.
       // The FE will show the consent UI and redirect back with consent_approved=true.
       if (params.consent_approved !== "true") {
-        const feBaseUrl = getFeBaseUrl(req);
+        const feBaseUrl = await getFeBaseUrl();
         const consentParams = new URLSearchParams({
           client_id: params.client_id,
           redirect_uri: params.redirect_uri,

@@ -12,6 +12,10 @@ These are guidelines, not strict rules. Adapt when the user asks for something d
 ## Database patch tooling
 
 1. Ensure `DATABASE_URL` is set (use `.env`, not committed).
-2. Generate meta diff: `pnpm run db:meta:compare` (writes gitignored `db-meta/`).
+2. Generate meta diff: `pnpm run db:meta:compare` — produces a new patch
+   under `db-meta/patches/` plus regenerated `diff-entities-vs-database.json`.
+   **Committed artifacts**: patches + `MANIFEST.json` + `keys.json` +
+   snapshots (signed provenance — the engine is fail-closed without them).
+   `diff-entities-vs-database.json` is a regenerable diagnostic.
 3. Review rename heuristics carefully when requested by tooling/user.
 4. Apply patch: `pnpm run db:migrate`.

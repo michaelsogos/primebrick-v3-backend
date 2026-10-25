@@ -331,70 +331,103 @@ async function main(): Promise<void> {
 
   // 7. SCRITTURA CONFIGURAZIONI VIVE SUL DB CORE APP (PRIMEBRICK)
   console.log("\n💾 [DB WRITE] Scrittura record definitivi nel DB Core...");
+
+  // config_entries writes go through the governed service path — audit rows +
+  // in-memory auth-config cache reload — never a raw UPDATE. initDal()
+  // bootstraps the dal-gateway exactly like src/index.ts (reads DATABASE_URL +
+  // DATABASE_SCHEMA from .env via assertDbEnv); runAsSystem() provides the ALS
+  // actor scope the service layer requires outside HTTP requests.
+  const { initDal } = await import("../src/db/dal-gateway.js");
+  const { runAsSystem } = await import("@primebrick/sdk");
+  const { getConfigEntriesService } = await import(
+    "../src/modules/auth/services/config-entries.service.js"
+  );
+  initDal();
+  const configService = getConfigEntriesService();
+
+  const configWrites: Array<[key: string, value: string]> = [
+    ["oidc_client_id", pbClientId],
+    ["oidc_client_secret", pbClientSecret],
+    ["idp_client_id", liveClientId],
+    ["idp_client_secret", liveClientSecret],
+    ["idp_organization", ORG_NAME],
+    ["enable_webauthn", "true"],
+    ["passkey_required", "true"],
+    ["enable_mfa", "true"],
+    ["mfa_challenge_token_ttl_seconds", "300"],
+  ];
+  await runAsSystem(async () => {
+    for (const [key, value] of configWrites) {
+      const row = await configService.findByKey(key);
+      if (!row) {
+        throw new Error(`config_entries row "${key}" missing — run pnpm db:migrate first`);
+      }
+      await configService.updateEntry(
+        row.uuid,
+        { value, version: row.version },
+        "setup-casdoor"
+      );
+    }
+  });
+  console.log("  ↳ ✅ Chiavi consolidate sul database Primebrick.");
+
+  // user_profiles + audit rows stay manual SQL — this is bootstrap code
+  // running before the app exists, not a governed entity write path.
   const pbPool = new Pool({ connectionString: BASE_DATABASE_URL });
   try {
-    // Import dinamico all'interno per evitare problemi di caricamento moduli prima delle env
-    const { updateAuthConfig } = await import("../src/modules/auth/config-repo.js");
-    
-    await updateAuthConfig(pbPool, "oidc_client_id", pbClientId, "setup-casdoor");
-    await updateAuthConfig(pbPool, "oidc_client_secret", pbClientSecret, "setup-casdoor");
-    await updateAuthConfig(pbPool, "idp_client_id", liveClientId, "setup-casdoor");
-    await updateAuthConfig(pbPool, "idp_client_secret", liveClientSecret, "setup-casdoor");
-    await updateAuthConfig(pbPool, "idp_organization", ORG_NAME, "setup-casdoor");
-    await updateAuthConfig(pbPool, "enable_webauthn", "true", "setup-casdoor");
-    await updateAuthConfig(pbPool, "passkey_required", "true", "setup-casdoor");
-    await updateAuthConfig(pbPool, "enable_mfa", "true", "setup-casdoor");
-    await updateAuthConfig(pbPool, "mfa_challenge_token_ttl_seconds", "300", "setup-casdoor");
-    console.log("  ↳ ✅ Chiavi consolidate sul database Primebrick.");
 
-    // Create user profile in Primebrick DB
+    // Create user profile in Primebrick DB — idempotent: idp_code is UNIQUE,
+    // so a re-run skips the insert (and the audit row) instead of crashing.
     const newUuid = crypto.randomUUID();
     const now = new Date();
-    await pbPool.query(
+    const insertRes = await pbPool.query(
       `INSERT INTO public.user_profiles
        (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials, is_active, is_admin, is_verified, email_verified, issuer, roles, last_synced_at, created_at, created_by, updated_at, updated_by, version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, true, true, true, $9, $10, $11, $12, $13, $14, 1)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, true, true, true, $9, $10, $11, $12, $13, $14, 1)
+       ON CONFLICT (idp_code) DO NOTHING
+       RETURNING id`,
       [newUuid, casdoorUserId, CASDOOR_ADMIN_EMAIL, "Primebrick Admin", casdoorOrg, casdoorUsername, defaultColor, initials,
        CASDOOR_ENDPOINT, JSON.stringify([ROLE_ADMINISTRATORS]), now, now, newUuid, now, newUuid]
     );
-    console.log("  ↳ ✅ User profile created in Primebrick DB.");
 
-    // Query the user ID for audit record
-    const userResult = await pbPool.query(
-      "SELECT id FROM public.user_profiles WHERE idp_code = $1",
-      [casdoorUserId]
-    );
-    const userId = userResult.rows[0].id;
+    if (insertRes.rows.length === 0) {
+      console.log("  ↳ ⚠️  User profile already present — skipped (idempotent re-run).");
+    } else {
+      console.log("  ↳ ✅ User profile created in Primebrick DB.");
+      const userId = insertRes.rows[0].id;
 
-    // Insert audit record for user creation
-    await pbPool.query(
-      `INSERT INTO public.user_profiles_audit
-       (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [
-        userId,
-        newUuid,
-        "INSERT",
-        now,
-        "setup-casdoor",
-        1,
-        JSON.stringify({
-          idp_code: { old: null, new: casdoorUserId },
-          email: { old: null, new: CASDOOR_ADMIN_EMAIL },
-          display_name: { old: null, new: "Primebrick Admin" },
-          idp_org: { old: null, new: casdoorOrg },
-          idp_username: { old: null, new: casdoorUsername },
-          avatar_color: { old: null, new: defaultColor },
-          avatar_initials: { old: null, new: initials },
-          is_admin: { old: null, new: true },
-          is_verified: { old: null, new: true },
-          email_verified: { old: null, new: true },
-        })
-      ]
-    );
-    console.log("  ↳ ✅ User profile audit record created.");
+      // Insert audit record for user creation — only when the row was
+      // actually inserted (a skipped conflict is not an INSERT event).
+      await pbPool.query(
+        `INSERT INTO public.user_profiles_audit
+         (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          userId,
+          newUuid,
+          "INSERT",
+          now,
+          "setup-casdoor",
+          1,
+          JSON.stringify({
+            idp_code: { old: null, new: casdoorUserId },
+            email: { old: null, new: CASDOOR_ADMIN_EMAIL },
+            display_name: { old: null, new: "Primebrick Admin" },
+            idp_org: { old: null, new: casdoorOrg },
+            idp_username: { old: null, new: casdoorUsername },
+            avatar_color: { old: null, new: defaultColor },
+            avatar_initials: { old: null, new: initials },
+            is_admin: { old: null, new: true },
+            is_verified: { old: null, new: true },
+            email_verified: { old: null, new: true },
+          })
+        ]
+      );
+      console.log("  ↳ ✅ User profile audit record created.");
+    }
   } catch (dbErr: any) {
     console.error("❌ Errore salvataggio DB Core:", dbErr.message);
+    throw dbErr; // a failed bootstrap write must not print [COMPLETATO]
   } finally {
     await pbPool.end();
   }

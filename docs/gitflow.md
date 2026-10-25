@@ -84,7 +84,7 @@ The script runs automatically as a `prebuild` hook and:
 
 ## Repository-Specific Rules
 
-- When working from meta-workspace root, use `cd backend && git <command>`
+- When working from meta-workspace root, use `cd primebrick-be-v3 && git <command>`
 
 ## Commit rules
 

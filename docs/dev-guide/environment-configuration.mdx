@@ -7,68 +7,69 @@ description: "Environment variables, .env setup, and configuration reference for
 
 The Primebrick Backend reads configuration from two sources:
 
-1. **Environment variables** (`.env` file) — connection strings, ports, URLs
+1. **Environment variables** — see the strict split below
 2. **`config_entries` database table** — runtime auth settings (OIDC, Redis, gateway)
 
 Environment variables are loaded once at startup via `dotenv/config`. The
 `config_entries` table is read at runtime and can be updated via the
 admin API without restarting.
 
+## The env contract — read this first (CRITICAL)
+
+The `.env` file is a **closed set**: it may contain ONLY the database
+bootstrap pair `DATABASE_URL` + `DATABASE_SCHEMA`. `assertDbEnv()`
+crashes the boot on ANY other key in the file — including a misspelled
+`DB_*`/`DATABASE_*` name (fail-loud, never silently ignored).
+
+A closed set of **platform variables** (`NODE_ENV`, E2E/debug knobs) is
+supplied at process launch or via Docker `ENV` — never in `.env`, never
+hardcoded, never in `config_entries`. Everything else — URLs, ports,
+secrets — lives in the `config_entries` table (`nats_url` included: the
+BE connects inside `startServiceLifecycle()`, after `initDal()`).
+
 ## Quick start
 
-Copy the example file and adjust the values for your environment:
+Create `.env` with ONLY the DB pair:
 
 ```bash
-cp .env.example .env
+# .env — the ONLY two keys allowed in this file
+DATABASE_URL=postgres://primebrick:primebrick_dev@127.0.0.1:5432/primebrick
+DATABASE_SCHEMA=public
 ```
 
-The defaults in `.env.example` work out-of-the-box with the dockerized
-infrastructure from `infra/docker-compose.postgres.yml`.
+The defaults work out-of-the-box with the dockerized infrastructure from
+`infra/docker-compose.postgres.yml`.
 
-## Required variables
+## Required variables (.env — closed set)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | **(none — required)** |
 | `DATABASE_SCHEMA` | Declared schema domain — CSV or JSON array (`public,system,custom`). `[0]` is the owned schema | **(none — required)** |
 
-The backend crashes on startup if either is missing or empty — the closed
-env contract (`assertDbEnv()`) also rejects unknown `DB_*`/`DATABASE_*`
-keys, so a misspelled bootstrap var fails loudly instead of silently.
+The backend crashes on startup if either is missing or empty, or if the
+`.env` file contains any other key.
 
-## Server variables
+## Platform variables (process env — never `.env`, never config)
 
-| Variable | Description | Default |
+| Variable | Description | Impacts |
 |----------|-------------|---------|
-| `PORT` | HTTP port for the API server | `3001` |
-| `NODE_ENV` | Set to `production` to enable secure cookies | `development` |
-| `PUBLIC_BASE_URL` | Public base URL of the backend (OAuth/MCP metadata) | Derived from request host |
-| `PUBLIC_FE_URL` | Public base URL of the frontend (OAuth consent redirect) | `http://localhost:5173` |
+| `NODE_ENV` | `production` via Docker `ENV` or process launch — never `.env`, never hardcoded, never `config_entries` | `production` → session cookies carry `Secure` (HTTPS-only); `allowedTrust` accepts only `release`-signed DB patches. Any other value (or unset) → plain-HTTP dev cookies + `dev`/`release` patch trust. |
 
-## Infrastructure variables
+The HTTP port is fixed (`3001`, `src/index.ts`) — not configurable.
+`nats_url`, `frontend_url`, OIDC/Casdoor values and every other runtime
+setting live in `config_entries` (table below). UUID columns always
+default to `gen_random_uuid()` (pgcrypto — hardcoded in the DAL entity
+decorator, no override).
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NATS_URL` | NATS message broker URL | `nats://127.0.0.1:4222` |
-| `CASDOOR_ENDPOINT` | Casdoor IDP endpoint URL (health check fallback) | `http://localhost:8000` |
-| `CASDOOR_BUILTIN_CLIENT_ID` | Casdoor client ID (health check auth) | `cb05577e2097c31af3c7` |
-| `CASDOOR_BUILTIN_CLIENT_SECRET` | Casdoor client secret (health check auth) | `47b2e05673a5307ccf0552e32ba45a18f6627f21` |
+## Debug toggles (process env only — dev/test only, never `.env`)
 
-## Database variables
+`PB_<MODULE>_FORCE_EMPTY` / `PB_<MODULE>_FORCE_ERROR` (`1` to enable) —
+consumed by `DomainService.list` to force empty/error states for E2E.
+`E2E_ADMIN_USERNAME` / `E2E_ADMIN_PASSWORD` carry the ephemeral test
+actor minted per run by the FE E2E harness. Do not enable in production.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PB_UUID_DEFAULT_PROVIDER` | UUID generation function: `pgcrypto` or `uuid-ossp` | `pgcrypto` |
-
-## Debug toggles
-
-These are development-only variables. Do not enable in production.
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PB_SEED_CUSTOMERS` | Seed demo customers on startup (`0` to disable) | `1` |
-| `PB_CUSTOMERS_FORCE_EMPTY` | Force empty customer list (`1` to enable) | `0` |
-| `PB_CUSTOMERS_FORCE_ERROR` | Force error on customer list (`1` to enable) | `0` |
+(Demo customers seed via `pnpm run db:seed:customers`, not an env flag.)
 
 ## Database-stored configuration
 
@@ -89,13 +90,21 @@ system. Non-reserved rows allow `value`, `type`, and `type_config` updates.
 
 | Config key | Description |
 |------------|-------------|
+| `auth_mode` | `STANDALONE` (API verifies JWTs via OIDC) or `GATEWAY` (trusted proxy injects identity headers) — validated at boot |
+| `auth_roles_path` | Dotted JWT path used to extract roles from any token shape (e.g. `roles`, `realm_access.roles`) — mandatory in all modes |
+| `idp_type`, `idp_endpoint`, `idp_organization`, `idp_client_id`, `idp_client_secret` | Casdoor™ IDP connection (login, org sync, user resolution) |
 | `redis_url` | Redis connection URL for caching and sessions |
 | `oidc_issuer_url` | OIDC issuer URL (defaults to Casdoor endpoint) |
 | `oidc_client_id` | OIDC client ID |
 | `oidc_client_secret` | OIDC client secret |
+| `oidc_audience` | Optional OIDC audience check (`STANDALONE` mode) |
 | `service_client_shield_secret` | Shared secret protecting service-to-service calls (client shield); value auto-rotated by the secret engine — this row is only the static fallback |
+| `service_client_shield_secret_header`, `gateway_public_secret`, `gateway_public_secret_header`, `gateway_header_*` | GATEWAY mode: shield secrets + the user-identity header names injected by the trusted proxy — all mandatory when `auth_mode=GATEWAY` |
+| `enable_mfa`, `enable_webauthn`, `passkey_required`, `enable_email_verification_check` | Auth feature flags (type: `boolean`) |
+| `password_policy` | Password policy rules for self-service changes |
 | `invitation_expiry_days` | Invitation expiry in days (type: `bigint`) |
 | `mfa_challenge_token_ttl_seconds` | MFA token TTL in seconds (type: `bigint`) |
+| `mfa_challenge_signing_secret` | HMAC secret signing MFA challenges — auto-generated if empty |
 
 To update a config value, use the admin API:
 
@@ -127,9 +136,10 @@ curl -X PUT http://localhost:3001/api/v1/entities/config_entry/<uuid> \
 
 ### Steps
 
-1. Copy `.env.example` to `.env`:
+1. Create `.env` with ONLY the DB pair (see "The env contract" above):
    ```bash
-   cp .env.example .env
+   DATABASE_URL=postgres://primebrick:primebrick_dev@127.0.0.1:5432/primebrick
+   DATABASE_SCHEMA=public
    ```
 
 2. Apply database migrations:
@@ -154,11 +164,7 @@ curl -X PUT http://localhost:3001/api/v1/entities/config_entry/<uuid> \
 
 ## Production checklist
 
-- [ ] Set `NODE_ENV=production`
-- [ ] Set `DATABASE_URL` to the production Postgres instance
-- [ ] Set `NATS_URL` to the production NATS cluster
-- [ ] Set `PUBLIC_BASE_URL` and `PUBLIC_FE_URL` to the public domains
-- [ ] Set `CASDOOR_*` variables to the production Casdoor instance
-- [ ] Update `config_entries` table with production Redis, OIDC, and gateway settings
-- [ ] Set `PB_SEED_CUSTOMERS=0` to disable demo data
+- [ ] `NODE_ENV=production` via Docker `ENV` (image) or process launch — never `.env`
+- [ ] Set `DATABASE_URL` + `DATABASE_SCHEMA` in `.env` (the only keys allowed there)
+- [ ] Update `config_entries` with production values: `nats_url`, `idp_*`/`oidc_*` (production Casdoor), `frontend_url`, Redis, and gateway settings
 - [ ] Remove or disable all debug toggles

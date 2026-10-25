@@ -11,7 +11,7 @@ the **Model Context Protocol**. It has two distinct surfaces:
 | Surface | Consumer | Purpose |
 |---|---|---|
 | `POST /mcp` | External AI clients (Claude, ChatGPT, Cursor, VS Code) | Full MCP server — JSON-RPC 2.0, OAuth 2.1 Bearer auth |
-| `GET /system/mcp/tools` + `POST /system/mcp/call` | The Primebrick Frontend | Lightweight tool catalog + single-call execution for the in-app assistant |
+| `GET /api/v1/system/mcp/tools` + `POST /api/v1/system/mcp/call` | The Primebrick Frontend | Lightweight tool catalog + single-call execution for the in-app assistant |
 
 Both surfaces expose the **same tool catalog** — one registry in
 `modules/mcp/tools/` — so an operation exists identically for external
@@ -35,10 +35,10 @@ decide whether a call needs user confirmation.
 The AI microservice is **inference-only** — it never calls application
 tools. The Frontend owns the agentic loop:
 
-1. `GET /system/mcp/tools` → OpenAI-style tool definitions (+ `read_only`).
+1. `GET /api/v1/system/mcp/tools` → OpenAI-style tool definitions (+ `read_only`).
 2. FE passes `tools[]` to `POST /api/v1/ai/chat`.
 3. LLM requests a tool → AI emits `client-tool-call` and stops.
-4. FE executes `POST /system/mcp/call` — read-only tools immediately,
+4. FE executes `POST /api/v1/system/mcp/call` — read-only tools immediately,
    write tools behind a user confirmation.
 5. FE resubmits `/api/v1/ai/chat` with `history` + `tool_results` — repeat
    until `finish` (FE bounds the loop at 8 steps).

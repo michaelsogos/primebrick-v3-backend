@@ -8,14 +8,15 @@ import { validateNavDeclaration } from "../module-nav-meta.js";
  * (`part_of === code`, e.g. crm) the segment collapses to `/{code}`.
  */
 
-const validLink = (href: string, label_key = "job.jobs.nav") => ({ id: "x", label_key, href });
+const validLink = (href: string, label_key = "job.jobs.nav", extra: Record<string, unknown> = {}) => ({ id: href, label_key, href, ...extra });
 
 describe("validateNavDeclaration — module route namespace", () => {
   it("accepts a declaration under /{part_of}/{code}", () => {
     expect(
       validateNavDeclaration("job", {
         route_prefixes: ["/system/job"],
-        nav: [validLink("/system/job/job-schedules"), validLink("/system/job/rules")],
+        access: "access.system.job",
+        nav: [validLink("/system/job/job-schedules", "job.jobs.nav", { default: true }), validLink("/system/job/rules")],
         routes: [
           { route: "/system/job/job-schedules", kind: "list", entity: "job_schedule" },
           { route: "/system/job/job-schedules/create", kind: "create", entity: "job_schedule" },
@@ -23,6 +24,15 @@ describe("validateNavDeclaration — module route namespace", () => {
         ],
       }, "system"),
     ).toBeNull();
+  });
+
+  it("requires the module-level access gate on every declaration", () => {
+    expect(
+      validateNavDeclaration("job", {
+        route_prefixes: ["/system/job"],
+        nav: [validLink("/system/job/job-schedules")],
+      }, "system"),
+    ).toMatch(/module-level access is required/);
   });
 
   it("rejects prefixes outside /{part_of}/{code}", () => {
@@ -38,16 +48,18 @@ describe("validateNavDeclaration — module route namespace", () => {
     expect(
       validateNavDeclaration("job", {
         route_prefixes: ["/system/job"],
-        nav: [validLink("/system/settings")],
+        access: "access.system.job",
+        nav: [validLink("/system/settings/profile")],
       }, "system"),
-    ).toMatch(/outside the module prefix/);
+    ).toMatch(/must live strictly under a declared route_prefix/);
   });
 
   it("collapses the prefix to /{code} when part_of === code (crm)", () => {
     expect(
       validateNavDeclaration("crm", {
         route_prefixes: ["/crm"],
-        nav: [validLink("/crm/customers", "crm.customers.nav"), validLink("/crm/pipeline", "crm.pipeline.nav")],
+        access: "access.crm",
+        nav: [validLink("/crm/customers", "crm.customers.nav", { default: true }), validLink("/crm/pipeline", "crm.pipeline.nav")],
         routes: [
           { route: "/crm/customers", kind: "list", entity: "customer" },
           { route: "/crm/pipeline", kind: "page" },
@@ -78,6 +90,7 @@ describe("validateNavDeclaration — module route namespace", () => {
     expect(
       validateNavDeclaration("job", {
         route_prefixes: ["/system/job"],
+        access: "access.system.job",
         nav: [{ id: "x", label_key: "other.ns.key", href: "/system/job" }],
       }, "system"),
     ).toMatch(/outside the module namespace/);
