@@ -68,6 +68,7 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
           { id: "modules", label_key: "system.settings.tabs.modules", href: modulesPaths.list, icon: "package" },
           { id: "clients", label_key: "system.settings.tabs.clients", href: clientsPaths.list, icon: "shield-check" },
           { id: "migrations", label_key: "system.migrations.nav", href: "/system/settings/migrations", icon: "database-zap" },
+          { id: "templates", label_key: "system.settings.tabs.templates", href: "/system/settings/templates", icon: "layout-template" },
         ],
         // Full route census — every FE path this module owns, including
         // detail/create/param routes not deducible from nav links.
@@ -92,6 +93,7 @@ const MODULE_NAV: Record<string, ModuleNavWithPrefixes> = {
           { route: clientsPaths.create, kind: "create", entity: "client_registry" },
           { route: "/system/settings/translations", kind: "page" },
           { route: "/system/settings/migrations", kind: "page" },
+          { route: "/system/settings/templates", kind: "page" },
         ],
   },
 };
