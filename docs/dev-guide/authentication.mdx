@@ -60,7 +60,7 @@ cookie automatically; the auth middleware also accepts an explicit
 # Login — cookies are set on the response
 curl -i -X POST http://localhost:3001/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"<password>"}'
+  -d '{"username":"<user>","password":"<password>"}'
 # Set-Cookie: access_token=eyJhbGciOi...; Path=/; HttpOnly
 # Set-Cookie: refresh_token=...; Path=/; HttpOnly
 
@@ -139,6 +139,55 @@ async function runStartupTasks() {
 app.listen(3001, () => console.log("API listening on http://localhost:3001"));
 void runStartupTasks().catch((err) => console.error("[startup]", err));
 ```
+
+## Auth configuration (`config_entries`)
+
+All auth runtime configuration lives in the `config_entries` table (see
+[Environment configuration](./environment-configuration#database-stored-configuration))
+— never in `.env`. The loader validates at boot and throws on missing
+mandatory keys: there are no fallback defaults.
+
+| Key | Required when | Purpose |
+|-----|---------------|---------|
+| `auth_mode` | always | `STANDALONE` (this API verifies the JWT itself via OIDC) or `GATEWAY` (trusted proxy injects identity headers) |
+| `auth_roles_path` | always | Dotted JWT path used to extract roles from any token shape (e.g. `roles`, `realm_access.roles`, `resource_access.<client>.roles`) |
+| `idp_type`, `idp_endpoint`, `idp_organization`, `idp_client_id`, `idp_client_secret` | IDP calls | Casdoor™ connection used by login, org sync, and user resolution |
+| `oidc_issuer_url`, `oidc_client_id`, `oidc_client_secret`, `oidc_audience` | `STANDALONE` | OIDC discovery + JWT signature/audience verification |
+| `service_client_shield_secret[_header]`, `gateway_public_secret[_header]`, `gateway_header_*` | `GATEWAY` | Shield secrets + the user-identity header names the gateway sets |
+| `enable_mfa`, `mfa_challenge_token_ttl_seconds`, `mfa_challenge_signing_secret` | MFA | TOTP enrollment + login/step-up challenge minting |
+| `enable_webauthn`, `passkey_required`, `password_policy`, `invitation_expiry_days` | feature flags | Public auth config surfaced via `GET /api/v1/auth/config` |
+| `redis_url` | optional | MFA challenge stash cache; falls back to in-memory when absent |
+
+### GATEWAY mode contract
+
+A trusted reverse proxy (Kong, Tyk, APISIX, Envoy) terminates the Bearer
+token and forwards identity via the `gateway_header_*` configured headers
+(user id, email, name, roles, idp code, idp org, idp username). Requests
+are gated by `service_client_shield_secret` on authenticated routes and
+`gateway_public_secret` on `PUBLIC` routes. The API MUST be
+network-isolated — reachable only from the gateway IP range (or mTLS):
+the shared secret is defense in depth, not a substitute for isolation.
+
+### Session context (AsyncLocalStorage)
+
+`requireActor()` / `runAsSystem()` are exported by `@primebrick/sdk`
+(`auth/session-context.ts`). The auth middleware mirrors the
+authenticated user into an AsyncLocalStorage store via `runWithSession()`
+so services and the DAL read the actor for audit columns without
+plumbing it through every signature. `requireActor()` throws outside a
+request/`runAsSystem()` scope — intentionally fail-closed, so user-facing
+code can never silently fall back to system. Non-HTTP callers (seed
+scripts, scheduled jobs, migrations) wrap their entry point:
+
+```typescript
+import { runAsSystem } from "@primebrick/sdk";
+
+await runAsSystem(() => repo.seedIfEmpty()); // actor = "system"
+```
+
+Only the internal `user_profiles.uuid` is ever written to audit columns;
+the IDP `sub` (`req.user.idp_code`) is kept for observability but must
+not appear in business records.
 
 ## RBAC middleware
 

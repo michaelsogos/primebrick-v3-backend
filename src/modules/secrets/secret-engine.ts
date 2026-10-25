@@ -29,6 +29,11 @@ import { createPublisherVerifier } from "../../controllers/nats-sub/publisher-id
 /** Secrets the engine owns and may serve — explicit, no wildcards. */
 const SERVED_SECRETS: readonly RotatingSecretRef[] = [CLIENT_SHIELD_SECRET_REF];
 
+/** One engine per process — the rotation timer is Redis-driven, not
+ * NATS-bound, so a lifecycle re-run after a NATS outage must reuse it,
+ * not stack a second rotation interval. */
+let engine: RotatingSecretEngine | null = null;
+
 export async function initSecretEngine(): Promise<void> {
   const redis = getRedisClient();
   if (!redis) {
@@ -38,7 +43,7 @@ export async function initSecretEngine(): Promise<void> {
     );
     return;
   }
-  const engine = new RotatingSecretEngine(redis);
+  const eng = (engine ??= new RotatingSecretEngine(redis));
   const verifier = createPublisherVerifier();
 
   await makeNatsRequestRoute(
@@ -54,7 +59,7 @@ export async function initSecretEngine(): Promise<void> {
             logger.error(`The secret engine refused to serve ${ref?.scope}/${ref?.name} — it is not a declared secret`, { tags: ["secret-engine"] });
             return { error: "secret not servable" };
           }
-          return engine.get(ref);
+          return eng.get(ref);
         },
       },
     ],
@@ -63,8 +68,9 @@ export async function initSecretEngine(): Promise<void> {
 
   // Provision now (cold start ⇒ generates), keep the local slot warm for
   // this process's outbound headers, then rotate on the cadence.
-  await engine.get(SERVED_SECRETS[0]);
-  engine.startAutoRotation(SERVED_SECRETS[0]);
+  // startAutoRotation is idempotent per ref — safe on lifecycle re-runs.
+  await eng.get(SERVED_SECRETS[0]);
+  eng.startAutoRotation(SERVED_SECRETS[0]);
   logger.done(
     `The secret engine is ready — the service client-shield secret rotates every ${humanizeMs(SECRET_DEFAULTS.rotationMs)} with ${humanizeMs(SECRET_DEFAULTS.graceMs)} of grace`,
     { tags: ["secret-engine"] },

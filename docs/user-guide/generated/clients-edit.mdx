@@ -1,0 +1,50 @@
+---
+title: Edit Client
+description: View and edit an existing client.
+entity: client_registry
+---
+
+View and edit an existing client.
+
+## Pages routes
+
+- `/system/settings/clients` — List, search and manage all clients.
+- `/system/settings/clients/create` — Create a new client registry.
+- `/system/settings/clients/{uuid}` — View and edit an existing client registry. *(this page)*
+
+## What you can do here
+
+### How to edit a client
+1. On the **Clients** list page, open the row actions menu on the client you want to edit and click **Edit**.
+2. Update the fields below — required: **ua prefix**.
+3. Click **Save** — the changes to the client are saved.
+
+
+## Fields
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **User-Agent prefix** | required | text input — custom format; max 120; min 2 |
+| **client key** | optional | text input — max 256 |
+| **Enabled** | optional | button |
+
+- The **User-Agent prefix** field is a required text input that must match a custom format and allows up to 120 characters and requires at least 2 characters.
+- The **client key** field is an optional text input that allows up to 256 characters.
+- The **Enabled** field is an optional button.
+
+## Actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **Save** | ENABLED | `client_registry.update.single` | Validates the form and saves changes to the client | no |
+| **Cancel** | ENABLED | — | Discards changes and returns to the previous page | no |
+
+- The **Save** action is available on this page — validates the form and saves changes to the client and it requires the `client_registry.update.single` permission.
+- The **Cancel** action is available on this page — discards changes and returns to the previous page.
+
+## Doc references
+
+- [Clients](/docs/user-guide/generated/clients)
+- [Clients Create](/docs/user-guide/generated/clients-create)
+- [Entities Crud](/docs/dev-guide/entities-crud)
+

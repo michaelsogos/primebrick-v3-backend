@@ -4,5 +4,11 @@
     "algo": "ed25519",
     "public_key": "MCowBQYDK2VwAyEAUzzT+vzgkbJuDMb3xwp9SXs+UvUMQU7SfPv3L7nuqCU=",
     "trust": "dev"
+  },
+  {
+    "key_id": "dev-micha-2",
+    "algo": "ed25519",
+    "public_key": "MCowBQYDK2VwAyEAPedH2672xeMfg/qU0YNss2sMPmtQYw/SOn+7PFUiX8E=",
+    "trust": "dev"
   }
 ]

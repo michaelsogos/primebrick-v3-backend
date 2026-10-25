@@ -167,7 +167,7 @@ cookies.
 # Login (Casdoor password grant) — cookies are set on the response
 curl -i -X POST http://localhost:3001/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"<your-password>"}'
+  -d '{"username":"<user>","password":"<your-password>"}'
 # Set-Cookie: access_token=eyJhbGciOi...; Path=/; HttpOnly
 # Set-Cookie: refresh_token=...; Path=/; HttpOnly
 
@@ -182,8 +182,8 @@ The OpenAPI JSON is served publicly (no auth) so clients can introspect the API
 during integration:
 
 ```bash
-curl http://localhost:3001/api/v1/openapi/system.json
-curl http://localhost:3001/api/v1/openapi/mcp.json
+curl http://localhost:3001/api/v1/openapi.json
+curl http://localhost:3001/api/v1/openapi/aggregated.json
 ```
 
 The aggregated router (`/api/v1/openapi/aggregated.json`) merges the backend

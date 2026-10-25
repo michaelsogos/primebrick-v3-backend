@@ -1,6 +1,9 @@
 # Detecting Port Conflicts
 
-When a dev server fails to start because a port is already in use, diagnose and resolve it.
+When a dev server fails to start because a port is already in use, diagnose
+and resolve it — **per the canonical lifecycle doc `docs/ai/dev-server.md`**
+(this page only covers the diagnosis mechanics; the kill/no-kill policy
+lives there, not here).
 
 ## Detection
 
@@ -13,57 +16,38 @@ Scan terminal output for these patterns:
 
 Extract the port number from the error message.
 
-## Diagnosis
+## Diagnosis (Windows)
 
 Find what's using the port:
 
-```bash
-lsof -i :<PORT> -P -n
+```powershell
+netstat -ano | findstr "LISTENING" | findstr ":<PORT>"
+Get-CimInstance Win32_Process -Filter 'ProcessId=<pid>' |
+  Select-Object ProcessId, ParentProcessId, CommandLine | Format-List
 ```
 
-This shows the PID, process name, and user. Common culprits:
-- A previous dev server that didn't shut down cleanly
-- Another project's dev server
-- A Docker® container
-- A system service
+Then walk the **parent chain** on `ParentProcessId` until the root — this
+is the empirical owner test from `docs/ai/dev-server.md`. Common culprits:
+- A previous dev server that didn't shut down cleanly (orphan)
+- The user's own dev server running in an IDE terminal (user-started —
+  NEVER kill without permission)
+- A Docker container (`docker ps`)
+- A different project's dev server (wrong-app conflict)
 
-## Resolution Options
+## Resolution — per the canonical doc
 
-### Option 1: Kill the blocking process
-
-```bash
-kill <PID>
-# If it doesn't stop:
-kill -9 <PID>
-```
-
-Then restart the original server.
-
-### Option 2: Use a different port
-
-Suggest the next available port:
-
-```bash
-# Check if port+1 is free
-lsof -i :<PORT+1> -P -n
-```
-
-Update the dev server config or start command:
-- Next.js: `next dev -p <PORT>`
-- Vite: `vite --port <PORT>`
-- Express: set `PORT` env var
-- Django: `python manage.py runserver <PORT>`
-
-### Option 3: Kill all node processes (nuclear option)
-
-```bash
-killall node
-```
-
-Only suggest this if the user confirms — it kills everything.
+- **User-started** → reuse the server; never kill, never duplicate, never
+  a different port. Need its output? Ask for terminal access.
+- **Orphan** (no live terminal ancestor) → agent-owned; kill it and
+  restart on the SAME port. For this repo, `pnpm run dev:kill` is the
+  sanctioned cleanup for port 3001.
+- **Wrong project** → same owner test; ask which project owns the port.
+- **Never** "just use a different port" and never `killall node` — both
+  are forbidden by the lifecycle doc.
 
 ## Tips
 
-- On macOS, ports below 1024 require root
-- Docker® containers bind ports that persist even if the container is stopped — check `docker ps`
-- If `lsof` shows nothing, the port may be in TIME_WAIT state — just wait 30 seconds or use a different port
+- Docker containers bind ports that persist even if the container is
+  stopped — check `docker ps`.
+- If nothing listens but bind fails, the port may be in TIME_WAIT — wait
+  ~30s and retry; do not hop ports.

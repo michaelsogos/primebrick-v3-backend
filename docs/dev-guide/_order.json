@@ -5,6 +5,7 @@
     "api-conventions",
     "entity-metadata",
     "entity-crud-pipeline",
+    "entities-crud",
     "module-navigation",
     "service-registry",
     "mcp",
