@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-10-24T23:52:02.318Z",
+  "issued_at": "2026-10-25T19:09:05.925Z",
   "patches": {
     "00000000000000_init_database": "05761ee7f89f3a6518779ac1fee25ed83a90c0d8d11a5aff1da28a61db2d1efa",
     "00000000000001_seed_translations_en_gb": "52492d182cbd158744a14a93d4234f56552a73abe8d7a0af39047dc05eeb2654",
@@ -45,7 +45,8 @@
     "20261022225000_seed_nats_url": "5450a7d42e8bc30bbe76b3c3e6cccbc35405da6db65c3b21dc0f1ec7e0e90005",
     "20261022225100_seed_service_client_shield_key": "d725680cd9427a8b0bd27a36472c264a4e8dd522edcebe9e7bc4c47da565d818",
     "20261024180000_access_axis_admin_seed": "53120f75f5bf6ddc870bb7086f3a5906807b0871317a763798b3fe963404addf",
-    "20261025020000_emailsender_error_scope_keys": "0c197cbd64df9a6b8ce45a3690b956093967223f95c91783e6e59d7370e91806"
+    "20261025020000_emailsender_error_scope_keys": "0c197cbd64df9a6b8ce45a3690b956093967223f95c91783e6e59d7370e91806",
+    "20261025210000_enduser_leaf_names": "066e1dbfa7b2763fb225ad4fffdf0752c599c15952d1b8ff4ad071d3cd553ab0"
   },
-  "signature": "zV1FnQndKBV45CHRQihONWIboE1Q1gLMNseP+ICRKiCYSneqr2PB3kyj6SJXhUTaAJnFnowU+VcA7zM9TANmAA=="
+  "signature": "DFIzzDWaPZD+lrvPo09dXuIRAU/cRp+VQHK5K9sydtrKCZ9rEC54wkWrfpRdMAeBeXVt5H7Cns5tgIJjaZCyDw=="
 }

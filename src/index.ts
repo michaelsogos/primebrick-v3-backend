@@ -276,7 +276,13 @@ apiRouter.get("/modules", rbacHandler([Permission.AUTHENTICATED_USER]), async (r
   // (is_admin ⇒ access.system only — business roots need explicit grants).
   // Disabled rows never surface: `is_enabled === false` is the admin's
   // "do not expose" decision.
-  res.json(await new ModuleDiscoveryService().list(req.user));
+  // ?lang selects the language the `labels` seed is resolved in — the FE
+  // passes the active uiLang; anything else falls back to en-GB.
+  const lang =
+    typeof req.query.lang === "string" && /^[a-z]{2,3}(-[a-zA-Z]{2,8}){1,2}$/i.test(req.query.lang)
+      ? req.query.lang
+      : "en-GB";
+  res.json(await new ModuleDiscoveryService().list(req.user, lang));
 });
 
 app.use("/api/v1", apiRouter);

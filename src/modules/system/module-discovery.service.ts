@@ -34,6 +34,8 @@ import {
   accessLeafKey,
   accessSheetKey,
   isAccessGranted,
+  keyNamespaceOf,
+  type I18nDict,
 } from "@primebrick/sdk";
 
 import { owningRoutePrefix, resolveModuleNavMeta } from "../module-nav-meta.js";
@@ -43,6 +45,7 @@ import type {
   PageRouteDeclaration,
 } from "../module-nav-types.js";
 import { ServiceRegistryService } from "./service-registry.service.js";
+import { TranslationsService } from "./translations.service.js";
 
 export interface DiscoveryUser {
   permissions?: Set<string> | string[];
@@ -108,13 +111,45 @@ function filterNavLinks(
   return out;
 }
 
+/**
+ * Collect every `label_key` declared by a module's nav meta — nav links
+ * (recursive, pre-filter so `nav_hidden` reveal entries resolve too),
+ * routes and sheets. The module's own `label_key` is collected by the
+ * caller.
+ */
+function collectLabelKeys(
+  meta: { nav?: ModuleNavLink[]; routes?: PageRouteDeclaration[]; sheets?: ModuleSheetDecl[] } | null | undefined,
+  keys: Set<string>,
+): void {
+  const walk = (links?: ModuleNavLink[]) => {
+    for (const l of links ?? []) {
+      if (l.label_key) keys.add(l.label_key);
+      walk(l.children);
+    }
+  };
+  walk(meta?.nav);
+  for (const r of meta?.routes ?? []) if (r.label_key) keys.add(r.label_key);
+  for (const s of meta?.sheets ?? []) if (s.label_key) keys.add(s.label_key);
+}
+
 export class ModuleDiscoveryService {
   /**
    * The access-filtered discovery document for one authenticated user.
    * `perms` is the role-expanded permission set (same set RBAC uses) —
    * access grants live inside it like any other permission string.
+   *
+   * `labels` is the flat key→value graph for every `label_key` the
+   * payload declares, resolved for `lang` from the owning translations
+   * schemas — the FE merges it into the SAME dict store `$t` reads, so
+   * nav labels resolve deterministically before any module dictionary
+   * is route-loaded. A scope that fails to resolve contributes nothing:
+   * its keys echo raw, which is the designed missing-translation
+   * visibility channel.
    */
-  async list(user?: DiscoveryUser): Promise<{ modules: DiscoveredModule[] }> {
+  async list(
+    user?: DiscoveryUser,
+    lang = "en-GB",
+  ): Promise<{ modules: DiscoveredModule[]; labels: Record<string, string> }> {
     const perms = user?.permissions ?? new Set<string>();
 
     const services = (await new ServiceRegistryService().findAll()).filter(
@@ -122,8 +157,11 @@ export class ModuleDiscoveryService {
     );
 
     const modules: DiscoveredModule[] = [];
+    const labelKeys = new Set<string>();
     for (const s of services) {
       const meta = resolveModuleNavMeta(s.code, s.endpoints, s.part_of);
+      if (s.label_key) labelKeys.add(s.label_key);
+      collectLabelKeys(meta, labelKeys);
       const prefixes = meta?.route_prefixes ?? [];
       const ns = meta?.access;
 
@@ -169,6 +207,38 @@ export class ModuleDiscoveryService {
         sheets,
       });
     }
-    return { modules };
+    return { modules, labels: await this.resolveLabels(labelKeys, lang) };
+  }
+
+  /**
+   * Resolve the declared label keys against the owning translations
+   * schemas — one dict fetch per distinct key namespace (`ai.*` → the
+   * `ai` service schema, `app.*`/`system.*` → the BE-owned dicts),
+   * Redis/ETag-cached inside TranslationsService. Per-scope failures are
+   * contained: an unresolvable scope's keys stay absent from the map and
+   * the FE echoes them raw — the same visible signal as any missing
+   * translation, never a census-wide 500.
+   */
+  private async resolveLabels(
+    keys: ReadonlySet<string>,
+    lang: string,
+  ): Promise<Record<string, string>> {
+    const translations = new TranslationsService();
+    const dicts = new Map<string, I18nDict | null>();
+    const labels: Record<string, string> = {};
+    for (const key of keys) {
+      const scope = keyNamespaceOf(key);
+      if (!scope) continue;
+      if (!dicts.has(scope)) {
+        try {
+          dicts.set(scope, (await translations.getI18nDict(scope, lang)).data);
+        } catch {
+          dicts.set(scope, null);
+        }
+      }
+      const value = dicts.get(scope)?.[key];
+      if (value !== undefined) labels[key] = value;
+    }
+    return labels;
   }
 }

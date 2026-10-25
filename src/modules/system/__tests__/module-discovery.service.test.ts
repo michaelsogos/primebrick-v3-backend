@@ -18,9 +18,19 @@ import { describe, it, expect, vi } from "vitest";
 // The registry feed — synthetic service rows.
 const mockRegistry = { findAll: vi.fn() };
 
+// The translations feed — the labels seed resolves through the same
+// service the i18n dict endpoint uses; tests stub it per scope.
+const mockTranslations = { getI18nDict: vi.fn() };
+
 vi.mock("../service-registry.service.js", () => ({
   ServiceRegistryService: vi.fn().mockImplementation(function () {
     return mockRegistry;
+  }),
+}));
+
+vi.mock("../translations.service.js", () => ({
+  TranslationsService: vi.fn().mockImplementation(function () {
+    return mockTranslations;
   }),
 }));
 
@@ -96,6 +106,15 @@ const headlessRow = svc({ code: "emailsender", name: "Email Sender" });
 
 function setup(rows: Record<string, unknown>[]) {
   mockRegistry.findAll.mockResolvedValue(rows);
+  mockTranslations.getI18nDict.mockClear();
+  mockTranslations.getI18nDict.mockResolvedValue({ data: {}, etag: "e", cached_at: 0 });
+}
+
+/** Stub the translations feed per scope — `{ scope: { key: value } }`. */
+function setupDicts(dictsByScope: Record<string, Record<string, string>>) {
+  mockTranslations.getI18nDict.mockImplementation((scope: string) =>
+    Promise.resolve({ data: dictsByScope[scope] ?? {}, etag: "e", cached_at: 0 }),
+  );
 }
 
 const list = (permissions: string[] = []) =>
@@ -280,5 +299,130 @@ describe("ModuleDiscoveryService — derived-leaf access filtering", () => {
     expect(byId.get("emailsender")?.accessible).toBeUndefined();
     expect(byId.get("settings")?.accessible).toBe(false);
     expect(byId.get("job")?.accessible).toBe(false);
+  });
+});
+
+describe("ModuleDiscoveryService — labels seed", () => {
+  it("resolves every declared label_key — module, nav, hidden leaves, routes, sheets", async () => {
+    const row = svc({
+      code: "job",
+      name: "Process Manager",
+      label_key: "job.module.name",
+      endpoints: {
+        nav: {
+          route_prefixes: ["/system/job"],
+          access: "access.system.job",
+          nav: [
+            { id: "schedules", label_key: "job.jobs.nav", href: "/system/job/job-schedules", default: true },
+            { id: "rules", label_key: "job.rules.nav", href: "/system/job/rules" },
+          ],
+          routes: [
+            { route: "/system/job/job-schedules", kind: "list", label_key: "job.jobs.nav" },
+            { route: "/system/job/rules", kind: "list", label_key: "job.rules.nav" },
+            { route: "/system/job/rules/create", kind: "create", label_key: "job.rules.new" },
+          ],
+          sheets: [
+            { key: "job.runDetail", component_url: "/ws/job/api/v1/module-assets/jobs-page.js", label_key: "job.run.sheet" },
+          ],
+        },
+      },
+    });
+    setup([row]);
+    setupDicts({
+      job: {
+        "job.module.name": "Process Manager",
+        "job.jobs.nav": "Schedules",
+        "job.rules.nav": "Rules",
+        "job.rules.new": "New rule",
+        "job.run.sheet": "Run detail",
+      },
+    });
+    const { labels } = await list(["access.system.job.rules"]); // only 'rules' survives the filter
+    expect(labels).toEqual({
+      "job.module.name": "Process Manager",
+      "job.jobs.nav": "Schedules",
+      "job.rules.nav": "Rules",
+      "job.rules.new": "New rule",
+      "job.run.sheet": "Run detail",
+    });
+    // One dict fetch per scope regardless of key count.
+    expect(mockTranslations.getI18nDict).toHaveBeenCalledTimes(1);
+    expect(mockTranslations.getI18nDict).toHaveBeenCalledWith("job", "en-GB");
+  });
+
+  it("resolves cross-scope references — app.*/system.* cited by service nav", async () => {
+    const row = svc({
+      code: "crm",
+      part_of: "crm",
+      endpoints: {
+        nav: {
+          route_prefixes: ["/crm"],
+          access: "access.crm",
+          nav: [{ id: "customers", label_key: "crm.customers.nav", href: "/crm/customers", default: true }],
+          routes: [
+            { route: "/crm/customers", kind: "list" },
+            { route: "/crm/customers/create", kind: "create", label_key: "app.common.new" },
+          ],
+        },
+      },
+    });
+    setup([row]);
+    setupDicts({
+      crm: { "crm.customers.nav": "Customers" },
+      app: { "app.common.new": "New" },
+    });
+    const { labels } = await list(["access.crm.*"]);
+    expect(labels["crm.customers.nav"]).toBe("Customers");
+    expect(labels["app.common.new"]).toBe("New");
+    expect(mockTranslations.getI18nDict).toHaveBeenCalledWith("crm", "en-GB");
+    expect(mockTranslations.getI18nDict).toHaveBeenCalledWith("app", "en-GB");
+  });
+
+  it("passes the requested language through to every dict fetch", async () => {
+    setup([jobRow]);
+    setupDicts({ job: { "job.jobs.nav": "Pianificazioni" } });
+    const { labels } = await new ModuleDiscoveryService().list(
+      { permissions: new Set(["access.system.job.*"]) },
+      "it-IT",
+    );
+    expect(labels["job.jobs.nav"]).toBe("Pianificazioni");
+    expect(mockTranslations.getI18nDict).toHaveBeenCalledWith("job", "it-IT");
+  });
+
+  it("a missing key is omitted — the FE falls back (raw key / module name)", async () => {
+    setup([jobRow]);
+    setupDicts({ job: { "job.jobs.nav": "Schedules" } }); // runs/rules keys absent
+    const { labels } = await list(["access.system.job.*"]);
+    expect(labels["job.jobs.nav"]).toBe("Schedules");
+    expect(labels).not.toHaveProperty("job.runs.nav");
+    expect(labels).not.toHaveProperty("job.rules.nav");
+  });
+
+  it("a scope that fails to resolve is contained — other scopes still resolve", async () => {
+    const row = svc({
+      code: "crm",
+      part_of: "crm",
+      label_key: "crm.module.name",
+      endpoints: {
+        nav: {
+          route_prefixes: ["/crm"],
+          access: "access.crm",
+          nav: [{ id: "customers", label_key: "crm.customers.nav", href: "/crm/customers", default: true }],
+          routes: [
+            { route: "/crm/customers", kind: "list" },
+            { route: "/crm/customers/create", kind: "create", label_key: "app.common.new" },
+          ],
+        },
+      },
+    });
+    setup([row]);
+    mockTranslations.getI18nDict.mockImplementation((scope: string) =>
+      scope === "crm"
+        ? Promise.reject(new Error("translations table missing"))
+        : Promise.resolve({ data: { "app.common.new": "New" }, etag: "e", cached_at: 0 }),
+    );
+    const { modules, labels } = await list(["access.crm.*"]);
+    expect(modules).toHaveLength(1); // census survives the scope failure
+    expect(labels).toEqual({ "app.common.new": "New" });
   });
 });
