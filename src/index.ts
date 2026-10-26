@@ -286,7 +286,7 @@ apiRouter.get("/modules", rbacHandler([Permission.AUTHENTICATED_USER]), async (r
 });
 
 app.use("/api/v1", apiRouter);
-// Mount all feature routers (customers / organizations / system / auth).
+// Mount all feature routers (organizations / system / auth).
 mountModules(app);
 
 // Mount the MCP endpoint at /mcp (Streamable HTTP transport, stateless mode).

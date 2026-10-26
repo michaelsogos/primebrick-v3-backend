@@ -13,7 +13,6 @@
     "generated/organizations",
     "generated/organizations-create",
     "generated/organizations-edit",
-    "generated/customers",
     "generated/configurations",
     "generated/configurations-create",
     "generated/modules",

@@ -14,7 +14,6 @@
  *                    entity-changed markers (Redis presence + NATS publish)
  *                    that drive SSE invalidation on other BE instances
  *   - `actor`      — ALS `requireActor`
- *   - `userEntity` — `UserProfileEntity` for `created_by_name` etc. joins
  *   - `debugCode`  — `PB_<CODE>_FORCE_EMPTY`/`FORCE_ERROR` dev toggles on
  *                    `list` (BE-only: the library bans env reads)
  *
@@ -39,8 +38,6 @@ import {
   type EntityServiceConfig as DalEntityServiceConfig,
 } from "@primebrick/dal-pg";
 import { requireActor } from "@primebrick/sdk";
-
-import { UserProfileEntity } from "../modules/auth/user_profile_entity.js";
 import { EntityAuditPort } from "../db/entity-audit-port.js";
 import {getDal} from "../db/dal-gateway.js";
 import { NotFoundError } from "./api-errors.js";
@@ -57,13 +54,13 @@ export type {
 
 /**
  * BE entity-service config — the dal-pg `EntityServiceConfig` minus the
- * dependencies this module injects (`auditPort`, `actor`, `userEntity`)
+ * dependencies this module injects (`auditPort`, `actor`)
  * and minus `repo` (the gateway's decorated repo is the only legal one),
  * plus the BE-only `debugCode` dev toggle.
  */
 export type EntityServiceConfig<TEntity> = Omit<
   DalEntityServiceConfig<TEntity>,
-  "repo" | "auditPort" | "actor" | "userEntity"
+  "repo" | "auditPort" | "actor"
 > & {
   /**
    * Entity code for list debug toggles: `PB_<CODE>_FORCE_EMPTY=1` /
@@ -88,7 +85,6 @@ export function makeEntityService<TEntity extends Record<string, unknown>>(
         ...cfg,
         auditPort: new EntityAuditPort(dal),
         actor: requireActor,
-        userEntity: UserProfileEntity,
       });
     }
     return inner;

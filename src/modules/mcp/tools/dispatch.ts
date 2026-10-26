@@ -18,10 +18,8 @@ import type { AuthInfo } from "@modelcontextprotocol/server";
 import { authInfoToUser } from "../token-verifier.js";
 import { entityRegistry, type Operation } from "./entity-registry.js";
 import { getAuthEventsService } from "../../auth/services/auth-events.service.js";
-import { CustomersService } from "../../customers/customers.service.js";
 import { OrganizationsService } from "../../auth/services/organizations.service.js";
 import { SystemService } from "../../system/system.service.js";
-import { customerMeta } from "../../customers/customers.meta.js";
 import { organizationMeta } from "../../auth/organizations.meta.js";
 import { userProfileMeta } from "../../auth/user-profiles.meta.js";
 import { getUserService } from "../../auth/services/user.service.js";
@@ -91,10 +89,6 @@ export class OperationNotSupportedError extends Error {
 
 // ─── BE In-Process Dispatch ──────────────────────────────────────────────────
 
-function getCustomerService(): CustomersService {
-  return new CustomersService();
-}
-
 function getOrganizationService(): OrganizationsService {
   return new OrganizationsService();
 }
@@ -127,8 +121,6 @@ export async function dispatchLocalList(
   };
 
   switch (entity) {
-    case "customer":
-      return getCustomerService().listCustomers(query as never);
     case "organization":
       return getOrganizationService().listOrganizations(query as never);
     case "user_profile":
@@ -145,8 +137,6 @@ export async function dispatchLocalList(
  */
 export async function dispatchLocalGet(entity: string, uuid: string): Promise<unknown> {
   switch (entity) {
-    case "customer":
-      return getCustomerService().getCustomer(uuid);
     case "organization":
       return getOrganizationService().getOrganization(uuid);
     case "user_profile":
@@ -164,8 +154,6 @@ export async function dispatchLocalCreate(
   data: Record<string, unknown>,
 ): Promise<unknown> {
   switch (entity) {
-    case "customer":
-      return getCustomerService().createCustomer(data as never);
     case "organization":
       return getOrganizationService().createOrganization(data as never);
     case "user_profile":
@@ -184,9 +172,6 @@ export async function dispatchLocalUpdate(
   data: Record<string, unknown>,
 ): Promise<unknown> {
   switch (entity) {
-    case "customer":
-      await getCustomerService().updateCustomer(uuid, data as never);
-      return { success: true };
     case "organization":
       await getOrganizationService().updateOrganization(uuid, data as never);
       return { success: true };
@@ -202,9 +187,6 @@ export async function dispatchLocalUpdate(
  */
 export async function dispatchLocalDelete(entity: string, uuid: string, version: number): Promise<unknown> {
   switch (entity) {
-    case "customer":
-      await getCustomerService().deleteCustomer(uuid, version);
-      return { success: true };
     case "organization":
       await getOrganizationService().deleteOrganization(uuid, version);
       return { success: true };
@@ -221,9 +203,6 @@ export async function dispatchLocalDelete(entity: string, uuid: string, version:
  */
 export async function dispatchLocalRestore(entity: string, uuid: string, version: number): Promise<unknown> {
   switch (entity) {
-    case "customer":
-      await getCustomerService().restoreCustomer(uuid, version);
-      return { success: true };
     case "organization":
       await getOrganizationService().restoreOrganization(uuid, version);
       return { success: true };
@@ -245,8 +224,6 @@ export async function dispatchLocalAudit(
   limit: number,
 ): Promise<unknown> {
   switch (entity) {
-    case "customer":
-      return getCustomerService().getCustomerAudit(uuid, page, limit);
     case "organization":
       return getOrganizationService().getOrganizationAudit(uuid, page, limit);
     case "user_profile":
@@ -261,8 +238,6 @@ export async function dispatchLocalAudit(
  */
 export async function dispatchLocalMeta(entity: string): Promise<unknown> {
   switch (entity) {
-    case "customer":
-      return customerMeta;
     case "organization":
       return organizationMeta;
     case "user_profile":

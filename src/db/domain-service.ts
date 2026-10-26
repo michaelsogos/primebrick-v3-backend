@@ -17,7 +17,6 @@
  *   - `auditPort`  — `EntityAuditPort`: `{table}_audit` writer PLUS the
  *                    entity-changed markers (Redis presence + NATS publish)
  *   - `actor`      — ALS `requireActor`
- *   - `userEntity` — `UserProfileEntity` for `created_by_name` etc. joins
  *   - `debugCode`  — `PB_<CODE>_FORCE_EMPTY`/`FORCE_ERROR` dev toggles on
  *                    `list` (BE-only: the library bans env reads)
  *
@@ -33,18 +32,17 @@ import {
 } from "@primebrick/dal-pg";
 import { requireActor } from "@primebrick/sdk";
 
-import { UserProfileEntity } from "../modules/auth/user_profile_entity.js";
 import { EntityAuditPort } from "./entity-audit-port.js";
 import { NotFoundError } from "../http/api-errors.js";
 
 /**
  * Worker-service config — the dal-pg `EntityServiceConfig` minus the
- * dependencies this base injects (`repo`, `auditPort`, `actor`,
- * `userEntity`), plus the BE-only `debugCode` dev toggle.
+ * dependencies this base injects (`repo`, `auditPort`, `actor`),
+ * plus the BE-only `debugCode` dev toggle.
  */
 export type DomainServiceConfig<TEntity> = Omit<
   DalEntityServiceConfig<TEntity>,
-  "repo" | "auditPort" | "actor" | "userEntity"
+  "repo" | "auditPort" | "actor"
 > & {
   /**
    * Entity code for list debug toggles: `PB_<CODE>_FORCE_EMPTY=1` /
@@ -76,16 +74,17 @@ export abstract class DomainService<
   }
 
   /**
-   * BE binding — injects auditPort/actor/userEntity into the composed
-   * service. Runs lazily inside `svc` resolution, so `this.dal` is valid
+   * BE binding — injects auditPort/actor into the composed service.
+   * Runs lazily inside `svc` resolution, so `this.dal` is valid
    * here (post-bootstrap) and the constructor stays I/O-free.
+   * (`userEntity` is gone — the library hardwires `public.user_profiles`
+   * joins on every auditable read.)
    */
   protected override buildConfig(): DalEntityServiceConfig<TEntity> {
     return {
       ...this.cfg,
       auditPort: new EntityAuditPort(this.dal),
       actor: requireActor,
-      userEntity: UserProfileEntity,
     };
   }
 

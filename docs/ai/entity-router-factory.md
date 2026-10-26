@@ -40,7 +40,6 @@ order:
 |---|---|---|
 | `meta` | `GET /meta` | `permissions.meta` |
 | `list` | `GET /list` | `permissions.list` + `schemas.listQuery` |
-| `export` | `GET /export` (streaming) | `permissions.export` + `export` config |
 | `create` | `POST /` | `permissions.create` + `schemas.createBody` |
 | `duplicate` | `POST /duplicate` | **ON BY DEFAULT** — `duplicate: false` opts out |
 | `bulkDelete` | `POST /bulk-delete` | `permissions.bulkDelete` |
@@ -86,18 +85,16 @@ column = source uuid. **Every clone writes an audit row with action
 label/color. Input is `uuid[]` only — composite-identity lookup is
 deliberately unsupported until a clonable entity needs it.
 
-### `export` — meta-derived pipeline (E.7)
+### `export` — moved to the SDK (E.7)
 
-Set `export: {}` (or `EntityExportConfig` overrides) on the router config and
-the default handler runs `streamEntityExport` (`src/http/entity-export.ts`):
-headers/filename are router-owned, the `ExportConfig` is DERIVED from
-`meta.columns` (fieldMapping identity map, `col_*` labels resolved via the
-translations service, field types from the column `type` —
-`datetime`+`datetime_iana_toggle` → `date`+`timezoneField`), and rows come
-from `service.stream(query)` — the SAME filter builder as `list`. Templates
-resolve by convention at `templates/<entity>_export_template.{xlsx,html}`.
-Without `export` config the handler calls `service.export(query, res)`
-(legacy contract). The service NEVER touches `res` itself.
+Export is **not** a `makeEntityRouter` capability anymore. It is a first-class
+standard op of the SDK entity pipeline: US services declare it on
+`EntityRouteDecl` (`export: { dictResolver, templatesDir, ... }`) and
+`makeServiceRoutes` wires `streamEntityExport` (`@primebrick/sdk`
+`src/http/entity-export.ts`) — headers/filename handler-owned, `ExportConfig`
+DERIVED from `meta.columns`, rows from `service.stream(query)`, templates by
+convention at `templates/<entity>_export_template.{xlsx,html}`. Live example:
+`crm`'s `customer` entity (primebrick-us-v3).
 
 ## Write response standard
 
@@ -168,9 +165,9 @@ Notes on the read path:
 
 ```ts
 makeEntityRouter({
-  entityName: 'customer',              // URL segment — snake_case SINGULAR
-  entity: CustomerEntity,              // entity class (meta assembly)
-  meta: customerMeta,                  // static EntityMeta object
+  entityName: 'organization',          // URL segment — snake_case SINGULAR
+  entity: OrganizationEntity,          // entity class (meta assembly)
+  meta: organizationMeta,              // static EntityMeta object
   metaExtraScans?: ExtraActionScan[],  // routers with entity ops outside
                                        // the canonical prefix (e.g.
                                        // /api/v1/auth/users lifecycle for
@@ -179,25 +176,22 @@ makeEntityRouter({
   permissions: { ... },                // Partial<Record<EntityAction, Permission[]>>
                                        // — presence registers the route
   schemas: {                           // zod schemas → validateBody/Query
-    listQuery, createBody, updateBody, auditQuery, exportQuery, duplicateBody
+    listQuery, createBody, updateBody, auditQuery, duplicateBody
   },
   methods: {                           // service method name overrides
-    list: 'listCustomers',             // (default: same as action name)
-    get: 'getCustomerByUuid',
+    list: 'listOrganizations',         // (default: same as action name)
+    get: 'getOrganization',
   },
   hooks: {
     afterWrite: () => service.invalidateCache(),  // runs inside runEntityWrite
-    actionMiddlewares: {                          // extra middlewares per action
-      delete: [requireMfaStepUp('delete', 'customer')],  // MFA on delete —
-      purge:  [requireMfaStepUp('delete', 'customer')],  // system entities only
+    actionMiddlewares: {                            // extra middlewares per action
+      delete: [requireMfaStepUp('delete', 'organization')],  // MFA on delete —
+      purge:  [requireMfaStepUp('delete', 'organization')],  // system entities only
     },
   },
   duplicate: false,                    // E.8 — opt OUT of the default-on
                                        // duplicate route (IdP-synced or
                                        // domain-lifecycle entities)
-  export: {},                          // E.7 — meta-derived export pipeline
-                                       // ({columns?, templates?,
-                                       //   entityLabels?, translationModule?})
   handlers: {                          // override handler BODIES only
     create: customCreateHandler,       // mandatory chain still applies
     purge: customPurgeHandler,         // (e.g. role_mapping: actor + Casdoor)
@@ -209,29 +203,30 @@ makeEntityRouter({
 
 ## Examples
 
-### Canonical entity (customer)
+### Canonical entity (organization)
 
 ```ts
-export function customersRouter() {
-  const service = new CustomersService();
+export function organizationsRouter() {
+  const service = new OrganizationsService();
   return makeEntityRouter({
-    entityName: 'customer',
-    entity: CustomerEntity,
-    meta: customerMeta,
+    entityName: 'organization',
+    entity: OrganizationEntity,
+    meta: organizationMeta,
     service,
     permissions: {
-      meta: [Permission.CUSTOMER_READ_ALL, Permission.CUSTOMER_READ_SINGLE],
-      list: [Permission.CUSTOMER_READ_ALL],
-      get: [Permission.CUSTOMER_READ_SINGLE],
-      create: [Permission.CUSTOMER_CREATE_SINGLE],
-      update: [Permission.CUSTOMER_UPDATE_SINGLE],
-      delete: [Permission.CUSTOMER_DELETE_SINGLE],
-      restore: [Permission.CUSTOMER_RESTORE_SINGLE],
-      audit: [Permission.CUSTOMER_READ_AUDIT],
+      meta: [Permission.ORGANIZATION_READ_ALL, Permission.ORGANIZATION_READ_SINGLE],
+      list: [Permission.ORGANIZATION_READ_ALL],
+      get: [Permission.ORGANIZATION_READ_SINGLE],
+      create: [Permission.ORGANIZATION_CREATE_SINGLE],
+      update: [Permission.ORGANIZATION_UPDATE_SINGLE],
+      delete: [Permission.ORGANIZATION_DELETE_SINGLE],
+      restore: [Permission.ORGANIZATION_RESTORE_SINGLE],
+      audit: [Permission.ORGANIZATION_READ_AUDIT],
     },
+    duplicate: false,                  // IdP-synced — cloning is meaningless
     schemas: { listQuery, createBody, updateBody, auditQuery },
     hooks: {
-      actionMiddlewares: { delete: [requireMfaStepUp('delete', 'customer')] },
+      actionMiddlewares: { delete: [requireMfaStepUp('delete', 'organization')] },
     },
   });
 }

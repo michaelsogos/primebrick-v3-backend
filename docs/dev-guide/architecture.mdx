@@ -24,7 +24,7 @@ src/
   http/         HTTP infrastructure: error handling, validation, route helpers
   i18n/         Internationalization
   lib/          Shared library utilities
-  modules/      Domain modules (auth, customers, mcp, proxy, system)
+  modules/      Domain modules (auth, collaboration, docs-pack, mcp, proxy, secrets, system)
   openapi/      OpenAPI spec generation and aggregated router
 ```
 
@@ -41,7 +41,7 @@ Each module under `src/modules/` follows the same pattern:
 | **Middleware** | Auth and RBAC middleware (`*.middleware.ts`) |
 
 Controllers do **not** live inside modules. An HTTP endpoint for the
-`customers` domain lives in `src/controllers/http/customers.router.ts`;
+`organizations` domain lives in `src/controllers/http/auth/organizations.router.ts`;
 a NATS subscriber for the `proxy` domain lives in
 `src/controllers/nats-sub/service-lifecycle-subscriber.ts`. The directory
 name encodes the transport, the file name encodes the domain.
@@ -96,16 +96,16 @@ the AI MCP client.
   `nats-req/`, and `nats-sub/` controllers
 
 ```typescript
-// Controller (src/controllers/http/customers.router.ts) — transport only
+// Controller (src/controllers/http/auth/organizations.router.ts) — transport only
 const get = asyncHandler(async (req, res) => {
-  const customer = await customersService.getCustomer(uuidParam(req));
-  res.json(customer); // NotFoundError → errorHandler → RFC 7807
+  const organization = await organizationsService.getOrganization(uuidParam(req));
+  res.json(organization); // NotFoundError → errorHandler → RFC 7807
 });
 
-// Service (src/modules/customers/customers.service.ts) — business logic
-async getCustomer(uuid: string) {
-  const found = await this.getDal().findByUUID(CustomerEntity, uuid);
-  if (!found) throw new NotFoundError(`Customer ${uuid} not found`);
+// Service (src/modules/auth/services/organizations.service.ts) — business logic
+async getOrganization(uuid: string) {
+  const found = await this.getDal().findByUUID(OrganizationEntity, uuid);
+  if (!found) throw new NotFoundError(`Organization ${uuid} not found`);
   return found;
 }
 ```
@@ -140,7 +140,7 @@ declare its permission is never accidentally exposed.
   participant S as Service + DAL
   participant DB as PostgreSQL
   participant EH as errorHandler
-  C->>R: GET /api/v1/entities/customer/list
+  C->>R: GET /api/v1/entities/organization/list
   Note over R: secure-first: no rbacHandler?<br/>→ 403 ROUTE_PERMISSION_NOT_DECLARED
   R->>RBAC: declared handler runs first
   alt GATEWAY mode
@@ -159,8 +159,8 @@ declare its permission is never accidentally exposed.
   else allowed
     SDK-->>RBAC: { allowed: true }
     RBAC->>H: next()
-    H->>S: service.listCustomers(query)
-    S->>DB: SELECT ... FROM customers
+    H->>S: service.listOrganizations(query)
+    S->>DB: SELECT ... FROM organizations
     DB-->>S: rows
     S-->>H: { rows, page, total }
     H-->>C: 200 res.json(result)
@@ -205,16 +205,16 @@ import { z } from "zod";
 registerRoutes(router, [
   {
     method: "get",
-    path: "/api/v1/entities/customer/list",
-    permission: rbacHandler([Permission.CUSTOMER_READ_ALL]),
-    middlewares: [validateQuery(CustomerListQuerySchema)],
+    path: "/api/v1/entities/organization/list",
+    permission: rbacHandler([Permission.ORGANIZATION_READ_ALL]),
+    middlewares: [validateQuery(OrganizationListQuerySchema)],
     handler: list,
   },
   {
     method: "post",
-    path: "/api/v1/entities/customer",
-    permission: rbacHandler([Permission.CUSTOMER_CREATE_SINGLE]),
-    middlewares: [validateBody(CustomerCreateBodySchema)],
+    path: "/api/v1/entities/organization",
+    permission: rbacHandler([Permission.ORGANIZATION_CREATE_SINGLE]),
+    middlewares: [validateBody(OrganizationCreateBodySchema)],
     handler: create,
   },
 ]);
@@ -230,7 +230,7 @@ wraps the handler so a rejected promise (or a thrown `ApiError`) is forwarded to
 import { asyncHandler } from "../../http/async-handler.js";
 
 const list = asyncHandler(async (req, res) => {
-  const result = await service.listCustomers(req.query);
+  const result = await service.listOrganizations(req.query);
   res.json(result);
 });
 ```
@@ -246,14 +246,14 @@ with the parsed (and coerced) value.
 import { z } from "zod";
 import { validateBody } from "../../http/validation.js";
 
-const CustomerCreateBodySchema = z.object({
+const OrganizationCreateBodySchema = z.object({
   code: z.string().min(1).max(20),
   email: z.string().email().optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]),
 });
 
 // In the route definition:
-//   middlewares: [validateBody(CustomerCreateBodySchema)]
+//   middlewares: [validateBody(OrganizationCreateBodySchema)]
 ```
 
 ### `ApiError` — RFC 7807 error base class
@@ -267,7 +267,7 @@ branches on; `severity` drives the toast style.
 import { NotFoundError, ValidationError, ForbiddenError, UnauthorizedError } from "../../http/api-errors.js";
 
 // 404 — Resource not found
-throw new NotFoundError(`Customer ${uuid} not found`);
+throw new NotFoundError(`Organization ${uuid} not found`);
 
 // 400 — Validation error (with a custom internal_code)
 throw new ValidationError("Request validation failed", { internal_code: "VALIDATION_ERROR" });
@@ -275,7 +275,7 @@ throw new ValidationError("Request validation failed", { internal_code: "VALIDAT
 // 403 — Forbidden (extra.issues is read by the FE)
 throw new ForbiddenError("Insufficient permissions", {
   internal_code: "RBAC_PERMISSION_DENIED",
-  extra: { issues: [{ kind: "missing_any_of_permissions", required: ["customer.read.all"] }] },
+  extra: { issues: [{ kind: "missing_any_of_permissions", required: ["organization.read.all"] }] },
 });
 
 // 401 — Unauthorized
@@ -298,20 +298,20 @@ other uncaught error to 500 with `severity: HIGH`.
 
 ## A complete module walkthrough
 
-The `customers` module is the canonical reference for a domain module. It owns
+The `organizations` domain (inside the `auth` module) is the canonical reference for a domain module. It owns
 its entity, DAL, service, DTOs, and metadata — while its HTTP router lives in
 `src/controllers/http/` as a thin transport adapter. Every layer has a single
 responsibility.
 
 <Mermaid chart={`flowchart LR
   subgraph "src/controllers/http/"
-    R[customers.router.ts<br/>thin controller]
+    R[organizations.router.ts<br/>thin controller]
   end
-  subgraph "src/modules/customers/"
-    E[customer_entity.ts<br/>@Entity + decorators]
-    M[customers.meta.ts<br/>entity metadata for FE]
-    DAL[customers_dal.ts<br/>Repository wrappers]
-    S[customers.service.ts<br/>business logic]
+  subgraph "src/modules/auth/"
+    E[organization_entity.ts<br/>@Entity + decorators]
+    M[organizations.meta.ts<br/>entity metadata for FE]
+    DAL[entity-service.ts<br/>makeEntityService<br/>Repository wrappers]
+    S[services/organizations.service.ts<br/>business logic]
     DTO[dto.ts<br/>Zod schemas]
   end
   subgraph "src/http/"
@@ -338,7 +338,7 @@ responsibility.
   R --> EH
 `} />
 
-### 1. Entity (`customer_entity.ts`)
+### 1. Entity (`organization_entity.ts`)
 
 A plain TypeScript class decorated with `@Entity`, `@Key`, `@Unique`,
 `@CloneField`, and `@AuditTrail`, composed on the DAL capability mixins
@@ -354,18 +354,17 @@ import {
   EntityBase, Auditable, Deletable,
 } from "@primebrick/dal-pg";
 
-@Entity("customers")
+@Entity("organizations")
 @AuditTrail()
-export class CustomerEntity
+export class OrganizationEntity
   extends Deletable(Auditable(EntityBase))   // audit + soft-delete columns
   implements IExposableEntity, IClonableEntity {
   @Key() id: bigint;
   @Unique() uuid: string;
-  @Column({ length: 20, nullable: false }) code: string;
-  first_name?: string;
-  last_name?: string;
-  @Column({ length: 320 }) email?: string;
-  @Column({ nullable: false }) status: "ACTIVE" | "INACTIVE";
+  @Column({ length: 255, nullable: false }) idp_code: string;
+  @Column({ length: 255 }) idp_owner?: string;
+  @Column({ length: 255 }) idp_name?: string;
+  @Column({ length: 255 }) display_name?: string;
 
   @CloneField() cloned_from?: string;
 }
@@ -374,7 +373,7 @@ export class CustomerEntity
 Hard-delete entities compose `Auditable(EntityBase)` only; `AuditTrail()` stays
 an opt-in on the concrete class.
 
-### 2. Service (`customers.service.ts`)
+### 2. Service (`services/organizations.service.ts`)
 
 The service owns the business logic. It is **request-context-free**: it takes
 plain parameters and reads the actor from `AsyncLocalStorage` (`requireActor()`
@@ -390,40 +389,39 @@ subclasses so the centralized `errorHandler` can convert them to RFC 7807.
 > instead.)
 
 ```typescript
-// infra-internal — services use makeEntityService; module DALs call initDal()
-import { CustomersDal } from "./customers_dal.js";
-import { NotFoundError } from "../../http/api-errors.js";
+// DB access delegated to makeEntityService (Part E) — the generic owns the
+// governed read/write paths; the service adds domain rules on top.
+import { makeEntityService, type EntityService } from "../../../http/entity-service.js";
+import { NotFoundError } from "../../../http/api-errors.js";
 
-export class CustomersService {
-  private dal: CustomersDal | null = null;
+export class OrganizationsService {
+  private svc: EntityService<OrganizationDetailDto>;
 
-  private getDal(): CustomersDal {
-    if (this.dal) return this.dal;
-    this.dal = new CustomersDal(getPool());
-    return this.dal;
+  constructor() {
+    this.svc = makeEntityService<OrganizationDetailDto>({
+      entity: OrganizationEntity,
+      list: { /* searchableKeys / filterableKeys / defaultSort */ },
+    });
   }
 
-  async getCustomer(uuid: string) {
-    const found = await this.getDal().findByUUID(CustomerEntity, uuid);
-    if (!found) throw new NotFoundError(`Customer ${uuid} not found`);
-    return found;
-  }
-
-  async createCustomer(body: CustomerCreateBody) {
-    // The actor is read from ALS inside the DAL — no need to pass req.user.
-    return await this.getDal().add(CustomerEntity, body, { actor: requireActor() });
+  async getOrganization(uuid: string) {
+    try {
+      return await this.svc.get(uuid);
+    } catch {
+      throw new NotFoundError(`Organization ${uuid} not found`);
+    }
   }
 }
 ```
 
-### 3. Controller (`src/controllers/http/customers.router.ts`)
+### 3. Controller (`src/controllers/http/auth/organizations.router.ts`)
 
 The controller is a thin transport adapter. It contains NO business logic —
 it wires Zod-validated request data into the service and shapes the HTTP
 response. Every route declares its permission via `rbacHandler(...)`; the
 secure-first `makeProtectedRouter()` would otherwise inject a 403
-default-deny. Note that it never imports `customers_dal.ts` — the DAL is
-reachable only through the service.
+default-deny. Standard entity CRUD goes through `makeEntityRouter` (see
+`entity-router-factory.md`) — the DAL is reachable only through the service.
 
 ```typescript
 import { makeProtectedRouter } from "../../http/protected-router.js";
@@ -432,36 +430,36 @@ import { asyncHandler } from "../../http/async-handler.js";
 import { validateBody, validateQuery } from "../../http/validation.js";
 import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
 import { Permission } from "@primebrick/sdk";
-import { CustomersService } from "../../modules/customers/customers.service.js";
-import { CustomerCreateBodySchema, CustomerListQuerySchema } from "../../modules/customers/dto.js";
+import { OrganizationsService } from "../../modules/auth/services/organizations.service.js";
+import { OrganizationCreateBodySchema, OrganizationListQuerySchema } from "../../modules/auth/dto.js";
 
-export function customersRouter() {
+export function organizationsRouter() {
   const router = makeProtectedRouter();
-  const service = new CustomersService();
+  const service = new OrganizationsService();
 
   const list = asyncHandler(async (req, res) => {
-    const result = await service.listCustomers(req.query as any);
+    const result = await service.listOrganizations(req.query as any);
     res.json(result);
   });
 
   const create = asyncHandler(async (req, res) => {
-    const created = await service.createCustomer(req.body as any);
+    const created = await service.createOrganization(req.body as any);
     res.status(201).json(created);
   });
 
   registerRoutes(router, [
     {
       method: "get",
-      path: "/api/v1/entities/customer/list",
-      permission: rbacHandler([Permission.CUSTOMER_READ_ALL]),
-      middlewares: [validateQuery(CustomerListQuerySchema)],
+      path: "/api/v1/entities/organization/list",
+      permission: rbacHandler([Permission.ORGANIZATION_READ_ALL]),
+      middlewares: [validateQuery(OrganizationListQuerySchema)],
       handler: list,
     },
     {
       method: "post",
-      path: "/api/v1/entities/customer",
-      permission: rbacHandler([Permission.CUSTOMER_CREATE_SINGLE]),
-      middlewares: [validateBody(CustomerCreateBodySchema)],
+      path: "/api/v1/entities/organization",
+      permission: rbacHandler([Permission.ORGANIZATION_CREATE_SINGLE]),
+      middlewares: [validateBody(OrganizationCreateBodySchema)],
       handler: create,
     },
   ]);

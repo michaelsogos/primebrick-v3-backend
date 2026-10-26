@@ -120,7 +120,7 @@ caller-observed row `version` as a query parameter:
 
 ```bash
 curl -X DELETE -H "Authorization: Bearer <jwt>" \
-  "http://localhost:3001/api/v1/entities/customer/<uuid>?version=3"
+  "http://localhost:3001/api/v1/entities/organization/<uuid>?version=3"
 ```
 
 - Missing or non-integer `version` → `400` with `internal_code:
@@ -174,7 +174,7 @@ Single-entity `POST`/`PUT` bodies MUST wrap the entity fields under `entity`
 {
   "entity": { "code": "ACME", "name": "Acme Corp" },
   "translations": [
-    { "key": "entities.customer.name", "language": "it-IT", "value": "Nome" }
+    { "key": "entities.organization.name", "language": "it-IT", "value": "Nome" }
   ]
 }
 ```
@@ -203,20 +203,20 @@ Single-entity `POST`/`PUT` bodies MUST wrap the entity fields under `entity`
 ```bash
 # List with search + pagination
 curl -H "Authorization: Bearer <jwt>" \
-  "http://localhost:3001/api/v1/entities/customer/list?search=acme&page=1&page_size=20"
+  "http://localhost:3001/api/v1/entities/organization/list?search=acme&page=1&page_size=20"
 
 # Get entity metadata (field schema for dynamic forms)
 curl -H "Authorization: Bearer <jwt>" \
-  http://localhost:3001/api/v1/entities/customer/meta
+  http://localhost:3001/api/v1/entities/organization/meta
 
-# Create a customer ({entity} envelope)
+# Create an organization ({entity} envelope)
 curl -X POST -H "Authorization: Bearer <jwt>" -H "Content-Type: application/json" \
-  http://localhost:3001/api/v1/entities/customer \
+  http://localhost:3001/api/v1/entities/organization \
   -d '{"entity":{"code":"ACME","name":"Acme Corp"}}'
 
 # Soft-delete by UUID (caller-observed version required)
 curl -X DELETE -H "Authorization: Bearer <jwt>" \
-  "http://localhost:3001/api/v1/entities/customer/550e8400-e29b-41d4-a716-446655440000?version=3"
+  "http://localhost:3001/api/v1/entities/organization/550e8400-e29b-41d4-a716-446655440000?version=3"
 
 # Hard-delete (purge capability — role_mapping example)
 curl -X DELETE -H "Authorization: Bearer <jwt>" \
@@ -224,7 +224,7 @@ curl -X DELETE -H "Authorization: Bearer <jwt>" \
 
 # Restore a soft-deleted record
 curl -X POST -H "Authorization: Bearer <jwt>" \
-  "http://localhost:3001/api/v1/entities/customer/550e8400-e29b-41d4-a716-446655440000/restore?version=4"
+  "http://localhost:3001/api/v1/entities/organization/550e8400-e29b-41d4-a716-446655440000/restore?version=4"
 ```
 
 ## Auth RPC

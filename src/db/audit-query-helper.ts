@@ -1,5 +1,5 @@
 import type { Repository } from "@primebrick/dal-pg";
-import { AuditLogEntity, Project, Filter, Sort, field, buildAuditTrailJoins } from "@primebrick/dal-pg";
+import { AuditLogEntity, Project, Filter, Sort, field, buildAuditTrailJoins, type FieldProjector } from "@primebrick/dal-pg";
 
 /** Structural minimum the audit queries need — satisfied by both the
  *  gateway `Dal` and a tx-scoped `Repository`. Callers pass `getDal()`;
@@ -42,8 +42,6 @@ function entityDateToApiIso(date: Date): string {
   return date.toISOString();
 }
 
-const { joins, projections: joinProjections } = buildAuditTrailJoins(AuditLogEntity, UserProfileEntity);
-
 const AUDIT_PROJECTIONS = [
   Project.field(field(AuditLogEntity, "id")),
   Project.field(field(AuditLogEntity, "entity_id")),
@@ -53,8 +51,13 @@ const AUDIT_PROJECTIONS = [
   Project.field(field(AuditLogEntity, "changed_by")),
   Project.field(field(AuditLogEntity, "version")),
   Project.field(field(AuditLogEntity, "delta")),
-  ...joinProjections,  // changed_by_display_name, changed_by_idp_code
 ];
+
+/** Joins + display-name projections bound to the audit table actually
+ *  queried (the COALESCE fallback qualifies `changed_by` on it). */
+function auditJoinsFor(tableName: string): { joins: ReturnType<typeof buildAuditTrailJoins>["joins"]; projections: FieldProjector[] } {
+  return buildAuditTrailJoins(AuditLogEntity, UserProfileEntity, tableName);
+}
 
 /**
  * Fetch a paginated audit trail for a specific entity UUID.
@@ -74,11 +77,12 @@ export async function findAuditPage(repo: AuditQueryable, opts: AuditPageOptions
   const total = countResult?.total ?? 0n;
 
   // Data query
+  const { joins, projections } = auditJoinsFor(opts.tableName);
   const page = await repo.findByPage<AuditLogEntity>(
     AuditLogEntity,
     opts.page,
     opts.limit,
-    AUDIT_PROJECTIONS,
+    [...AUDIT_PROJECTIONS, ...projections],
     {
       tableName: opts.tableName,
       joins,
@@ -124,9 +128,10 @@ export async function findAuditById(
   tableName: string,
   auditLogId: bigint,
 ): Promise<AuditRow | null> {
+  const { joins, projections } = auditJoinsFor(tableName);
   const row = await repo.find<AuditLogEntity>(
     AuditLogEntity,
-    AUDIT_PROJECTIONS,
+    [...AUDIT_PROJECTIONS, ...projections],
     {
       tableName,
       joins,

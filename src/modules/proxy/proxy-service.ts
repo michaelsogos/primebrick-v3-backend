@@ -60,7 +60,7 @@ const FORWARDED_REQUEST_HEADERS = [
 ] as const;
 
 /** Response headers forwarded US→FE (in addition to status + body). */
-const FORWARDED_RESPONSE_HEADERS = ["content-type", "etag"] as const;
+const FORWARDED_RESPONSE_HEADERS = ["content-type", "etag", "content-disposition"] as const;
 
 /**
  * Build the outbound headers for a proxied request:
