@@ -1,6 +1,6 @@
 ---
 title: The Service Proxy
-description: "How /ws/:serviceCode/* forwards requests to registered microservices — registry lookup, verbatim path forwarding, GATEWAY-RESOLVED auth headers, and the strict header allowlist."
+description: "How /svc/:serviceCode/* forwards requests to registered microservices — registry lookup, verbatim path forwarding, GATEWAY-RESOLVED auth headers, and the strict header allowlist."
 ---
 
 # The service proxy
@@ -10,11 +10,11 @@ microservices. Microservices never expose public HTTP — they sit behind the
 BE, which forwards:
 
 ```
-FE → GET /ws/ai/api/v1/conversations
+FE → GET /svc/ai/api/v1/conversations
 BE → GET {ai.base_url}/api/v1/conversations   (path forwarded verbatim)
 ```
 
-`/ws/:serviceCode/...` → `{base_url}/...`: everything after the service
+`/svc/:serviceCode/...` → `{base_url}/...`: everything after the service
 code is passed through untouched — no path rewriting, no BE-side business
 logic added.
 

@@ -2,7 +2,7 @@
  * Dispatch logic for MCP tool handlers.
  *
  * For `module="be"`: calls the BE service layer directly (in-process).
- * For `module="<microservice>"`: proxies HTTP via the existing `/ws/:serviceCode/...`
+ * For `module="<microservice>"`: proxies HTTP via the existing `/svc/:serviceCode/...`
  * proxy, forwarding the user's raw access token.
  *
  * The dispatch layer is the bridge between the generic tool handlers and
@@ -284,23 +284,23 @@ export async function dispatchLocalBulk(
 function buildProxyPath(module: string, entity: string, operation: Operation, uuid?: string): string {
   switch (operation) {
     case "list":
-      return `/ws/${module}/api/v1/entities/${entity}/list`;
+      return `/svc/${module}/api/v1/entities/${entity}/list`;
     case "get":
-      return `/ws/${module}/api/v1/entities/${entity}/${uuid}`;
+      return `/svc/${module}/api/v1/entities/${entity}/${uuid}`;
     case "create":
-      return `/ws/${module}/api/v1/entities/${entity}`;
+      return `/svc/${module}/api/v1/entities/${entity}`;
     case "update":
-      return `/ws/${module}/api/v1/entities/${entity}/${uuid}`;
+      return `/svc/${module}/api/v1/entities/${entity}/${uuid}`;
     case "delete":
-      return `/ws/${module}/api/v1/entities/${entity}/${uuid}`;
+      return `/svc/${module}/api/v1/entities/${entity}/${uuid}`;
     case "restore":
-      return `/ws/${module}/api/v1/entities/${entity}/${uuid}/restore`;
+      return `/svc/${module}/api/v1/entities/${entity}/${uuid}/restore`;
     case "audit":
-      return `/ws/${module}/api/v1/entities/${entity}/${uuid}/audit`;
+      return `/svc/${module}/api/v1/entities/${entity}/${uuid}/audit`;
     case "meta":
-      return `/ws/${module}/api/v1/entities/${entity}/meta`;
+      return `/svc/${module}/api/v1/entities/${entity}/meta`;
     case "aggregate":
-      return `/ws/${module}/api/v1/entities/${entity}/aggregate`;
+      return `/svc/${module}/api/v1/entities/${entity}/aggregate`;
   }
 }
 

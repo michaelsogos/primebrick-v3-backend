@@ -31,7 +31,7 @@ export function mountModules(app: Express): void {
   app.use(translationsRouter());
   // Auth router (public login endpoint + protected user/organization surface).
   app.use(authRouter());
-  // Generic microservice proxy (/ws/:serviceCode/* → microservice /api/*).
+  // Generic microservice proxy (/svc/:serviceCode/* → microservice /api/*).
   app.use(proxyRouter());
   // Collaboration (presence + entity-changed awareness for shared entities).
   app.use(collaborationRouter());

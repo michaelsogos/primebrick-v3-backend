@@ -71,7 +71,7 @@ export class ServiceLifecycleSubscriber {
             // Static service identity: `code` must derive from `pkg_name`
             // (primebrick-<code>) unless the payload declares an explicit
             // package.json `service_code` override. A drifting code
-            // re-identifies the service — different /ws proxy path, i18n
+            // re-identifies the service — different /svc proxy path, i18n
             // namespace and schema claim — rejected at enrollment.
             const codeError = this.checkServiceCodeIntegrity(payload);
             if (codeError) {

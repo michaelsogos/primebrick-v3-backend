@@ -4,7 +4,7 @@
  *
  * Merges the BE's own OpenAPI spec with specs from all online microservices
  * registered in the service_registry. Microservice paths are prefixed with
- * /ws/:serviceCode so they match the existing proxy.
+ * /svc/:serviceCode so they match the existing proxy.
  *
  * Public endpoint (no auth) — mounted before the auth guard, same as the
  * existing /api/v1/openapi.json endpoint.
@@ -94,9 +94,9 @@ export function aggregatedOpenApiRouter() {
           }
         }
 
-        // Prefix microservice paths with /ws/:serviceCode
+        // Prefix microservice paths with /svc/:serviceCode
         for (const [path, methods] of Object.entries(svcSpec.paths || {})) {
-          const proxiedPath = `/ws/${svc.code}${path}`;
+          const proxiedPath = `/svc/${svc.code}${path}`;
           aggregated.paths[proxiedPath] = methods;
 
           // Add tag for this service
@@ -120,7 +120,7 @@ export function aggregatedOpenApiRouter() {
       ...aggregated.info,
       title: "Primebrick Aggregated API",
       description:
-        "Combined API spec for the Primebrick backend and all online microservices. Microservice paths are prefixed with /ws/:serviceCode and accessible via the gateway proxy.",
+        "Combined API spec for the Primebrick backend and all online microservices. Microservice paths are prefixed with /svc/:serviceCode and accessible via the gateway proxy.",
     };
 
     // Cache the result

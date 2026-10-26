@@ -170,7 +170,7 @@ export function systemRouter() {
   // ── db_patch system module (admin remediation) ─────────────────────────
   // BE's own migration registry lives in public.primebrick_database_patches;
   // per-service registries are reachable through the generic proxy
-  // (/ws/<code>/api/v1/system/db-migration/*), which exempts that prefix for
+  // (/svc/<code>/api/v1/system/db-migration/*), which exempts that prefix for
   // `migration_failed` instances.
   const dbMigration = new DbMigrationService();
   const actorUuid = (req: Parameters<RequestHandler>[0]) => req.user?.id ?? "unknown";

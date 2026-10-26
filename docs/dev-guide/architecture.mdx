@@ -57,7 +57,7 @@ workflows — only the controller file changes, the service is untouched.
 | Direction | Transport | Pattern |
 |---|---|---|
 | FE → BE | HTTP | req/res + SSE — the ONLY public attack surface |
-| BE → US | HTTP via `/ws/:code/*` proxy | req/res, no BE logic added |
+| BE → US | HTTP via `/svc/:code/*` proxy | req/res, no BE logic added |
 | BE → US | NATS pub/sub | fire-and-forget (e.g. `emailsender.send`) |
 | US → BE / US → US | NATS pub/sub | fire-and-forget ONLY; sync-looking needs use correlation replies (`x.call` → `x.response.<requestId>`) |
 | any → any | NATS event bus | choreography: `entity.<entity>.<action>` subjects; identical replicas share a queue group (one copy, round-robin), different services each get a copy |

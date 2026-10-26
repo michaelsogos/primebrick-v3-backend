@@ -2,7 +2,7 @@
  * Generic microservice proxy — forwards HTTP requests to any registered
  * microservice via the service registry.
  *
- * URL pattern: /ws/:serviceCode/api/v1/... → {base_url}/api/v1/... (path forwarded verbatim)
+ * URL pattern: /svc/:serviceCode/api/v1/... → {base_url}/api/v1/... (path forwarded verbatim)
  *
  * The proxy:
  *   1. Authenticates the caller (via rbacHandler([AUTHENTICATED_USER]) on the route)
@@ -134,7 +134,7 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
   // the gateway for remediation. Only the migration prefix is forwarded —
   // everything else stays walled off.
   if (onlineInstances.length === 0) {
-    const path = req.url.replace(/^\/ws\/[^/]+/, "");
+    const path = req.url.replace(/^\/svc\/[^/]+/, "");
     if (path.startsWith("/api/v1/system/db-migration")) {
       const degraded = allInstances.find((i) => i.status === "migration_failed");
       if (degraded) onlineInstances.push(degraded);
@@ -172,8 +172,8 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
 
   // Build the target URL: {base_url}{path_after_serviceCode} — every US
   // exposes its governed routes under /api/v1/*, so the path after
-  // /ws/:serviceCode is forwarded verbatim (no prefix rewriting).
-  const pathAfterService = req.url.replace(/^\/ws\/[^/]+/, "");
+  // /svc/:serviceCode is forwarded verbatim (no prefix rewriting).
+  const pathAfterService = req.url.replace(/^\/svc\/[^/]+/, "");
   const targetPath = pathAfterService;
   const targetUrl = new URL(targetPath, instance.base_url).toString();
 
@@ -282,7 +282,7 @@ async function resolveServiceInstance(
 
   // Same migration-failed exemption as proxyRequest — remediation surface only.
   if (onlineInstances.length === 0) {
-    const path = (requestPath ?? "").replace(/^\/ws\/[^/]+/, "");
+    const path = (requestPath ?? "").replace(/^\/svc\/[^/]+/, "");
     if (path.startsWith("/api/v1/system/db-migration")) {
       const degraded = allInstances.find((i) => i.status === "migration_failed");
       if (degraded) onlineInstances.push(degraded);

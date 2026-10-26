@@ -74,7 +74,7 @@ const jobRow = svc({
         { route: "/system/job/rules/create", kind: "create", entity: "job_rule" },
       ],
       sheets: [
-        { key: "job.runDetail", component_url: "/ws/job/api/v1/module-assets/jobs-page.js" },
+        { key: "job.runDetail", component_url: "/svc/job/api/v1/module-assets/jobs-page.js" },
       ],
     },
   },
@@ -322,7 +322,7 @@ describe("ModuleDiscoveryService — labels seed", () => {
             { route: "/system/job/rules/create", kind: "create", label_key: "job.rules.new" },
           ],
           sheets: [
-            { key: "job.runDetail", component_url: "/ws/job/api/v1/module-assets/jobs-page.js", label_key: "job.run.sheet" },
+            { key: "job.runDetail", component_url: "/svc/job/api/v1/module-assets/jobs-page.js", label_key: "job.run.sheet" },
           ],
         },
       },

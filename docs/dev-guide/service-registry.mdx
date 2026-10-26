@@ -19,7 +19,7 @@ a registered service before any handler runs):
 |---|---|
 | `service.register` | upsert the registry row — code, base_url, version, capabilities, endpoints; then MCP `discoverEntitiesFromService` learns the service's entities and `serviceEventsBus` fans out to dependents |
 | `service.heartbeat` | refresh `last_health_check_at` + health flags |
-| `service.unregister` | mark the service gone — proxy closes its `/ws/<code>` routes, dependents (e.g. AI docs ingest) drop its data |
+| `service.unregister` | mark the service gone — proxy closes its `/svc/<code>` routes, dependents (e.g. AI docs ingest) drop its data |
 | `service.stale` | self-reported degradation |
 
 ## Status derivation
@@ -50,7 +50,7 @@ US services use for the same gate.
 
 ## Consumers
 
-- **Proxy** — `/ws/:code/*` forwards only to registered, enabled,
+- **Proxy** — `/svc/:code/*` forwards only to registered, enabled,
   routable services.
 - **MCP** — entity discovery per registered service; the tool catalog
   grows/shrinks with the registry.

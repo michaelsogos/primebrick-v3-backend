@@ -1,5 +1,5 @@
 /**
- * Generic proxy router — mounts /ws/:serviceCode/* and forwards to microservices.
+ * Generic proxy router — mounts /svc/:serviceCode/* and forwards to microservices.
  *
  * All proxied routes require AUTHENTICATED_USER (the microservice enforces
  * specific permissions via RBAC).
@@ -13,10 +13,10 @@ import { proxyRequest, proxyRequestSse } from "../../modules/proxy/proxy-service
 export function proxyRouter(): Router {
   const router = Router();
 
-  // All /ws/:serviceCode/* routes require authentication.
+  // All /svc/:serviceCode/* routes require authentication.
   // The microservice enforces specific permissions (e.g., EMAILSENDER_PROVIDERS_CREATE).
   router.all(
-    "/ws/:serviceCode/*",
+    "/svc/:serviceCode/*",
     rbacHandler([Permission.AUTHENTICATED_USER]),
     proxyRequest,
   );
