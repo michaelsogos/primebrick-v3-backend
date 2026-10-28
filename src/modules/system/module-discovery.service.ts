@@ -40,6 +40,7 @@ import {
 
 import { owningRoutePrefix, resolveModuleNavMeta } from "../module-nav-meta.js";
 import type {
+  ModuleEventsDecl,
   ModuleNavLink,
   ModuleSheetDecl,
   PageRouteDeclaration,
@@ -79,6 +80,13 @@ export interface DiscoveredModule {
   routes?: PageRouteDeclaration[];
   /** Remote sheet panels declared by the module — access-filtered like routes. */
   sheets?: ModuleSheetDecl[];
+  /**
+   * The module's emitted-event vocabulary (`endpoints.events.emits`) —
+   * module metadata, NOT an access surface: served verbatim like
+   * `route_prefixes`. Subject pickers (job rules, triggers) resolve their
+   * options from the union across modules.
+   */
+  events?: ModuleEventsDecl;
 }
 
 function filterNavLinks(
@@ -205,6 +213,9 @@ export class ModuleDiscoveryService {
         nav_hidden: hidden.length > 0 ? hidden : undefined,
         routes,
         sheets,
+        // Module-domain event vocabulary — verbatim from the registry row
+        // (enrollment already validated the shape), never access-filtered.
+        events: s.endpoints?.["events"] as ModuleEventsDecl | undefined,
       });
     }
     return { modules, labels: await this.resolveLabels(labelKeys, lang) };

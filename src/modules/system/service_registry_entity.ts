@@ -44,7 +44,7 @@ export class ServiceRegistryEntity
   @Column({ nullable: false })
   part_of: string;
 
-  @Column({ nullable: false })
+  @Column({ pgType: "jsonb", nullable: false })
   endpoints: Record<string, unknown>;
 
   @Column({ nullable: true })

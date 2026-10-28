@@ -16,6 +16,7 @@ import { NatsClient, SERVICE_SUBJECTS, CLIENT_SHIELD_REGISTRY_SUBJECTS, makeNats
 import { createPublisherVerifier } from "./publisher-identity.js";
 import { ServiceRegistryService } from "../../modules/system/service-registry.service.js";
 import { validateNavDeclaration } from "../../modules/module-nav-meta.js";
+import { validateEventsDeclaration } from "@primebrick/sdk";
 import { ClientShieldRegistryService } from "../../modules/system/client-shield-registry.service.js";
 import { entityRegistry } from "../../modules/mcp/tools/entity-registry.js";
 import { discoverEntitiesFromService } from "../../modules/mcp/tools/openapi-discovery.js";
@@ -101,6 +102,15 @@ export class ServiceLifecycleSubscriber {
                 });
                 return { registered: false, error: navError };
               }
+            }
+            // Same enrollment gate for endpoints.events — a malformed
+            // emits declaration must never reach service_registry.
+            const eventsError = validateEventsDeclaration(payload.code, payload.endpoints?.["events"]);
+            if (eventsError) {
+              logger.warn(`service.register rejected for the brick '${payload.code}' — ${eventsError}`, {
+                tags: ["nats", `brick:${payload.code}`],
+              });
+              return { registered: false, error: eventsError };
             }
             return this.handleRegister(payload);
           },
