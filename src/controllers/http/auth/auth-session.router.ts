@@ -241,6 +241,15 @@ export function authSessionRouter() {
     res.json((res.locals.cacheEntry as CacheEntry<{ preferences: UserPreferencesMap }>).data);
   });
 
+  const getPreference: RequestHandler = asyncHandler(async (req, res, next) => {
+    res.locals.cacheEntry = await prefService.getOne(requireUserId(req), req.params.key as string);
+    next();
+  });
+
+  const sendPreference: RequestHandler = asyncHandler(async (_req, res) => {
+    res.json((res.locals.cacheEntry as CacheEntry<{ key: string; value: unknown }>).data);
+  });
+
   const setPreference: RequestHandler = asyncHandler(async (req, res) => {
     const userId = requireUserId(req);
     const body = req.body as z.infer<typeof PreferenceSetSchema>;
@@ -323,6 +332,13 @@ export function authSessionRouter() {
       permission: rbacHandler([Permission.AUTHENTICATED_USER]),
       middlewares: [getPreferences, etagMiddleware()],
       handler: sendPreferences,
+    },
+    {
+      method: "get",
+      path: "/api/v1/auth/me/preferences/:key",
+      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
+      middlewares: [validatePreferenceKey, getPreference, etagMiddleware()],
+      handler: sendPreference,
     },
     {
       method: "put",

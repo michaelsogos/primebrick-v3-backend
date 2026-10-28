@@ -62,6 +62,20 @@ export class UserPreferencesService extends DomainService<Record<string, unknown
     return wrapCacheEntry({ preferences });
   }
 
+  /**
+   * One preference as `{key, value}` — the GET `/me/preferences/:key`
+   * payload, ETag-carried. 404 when the caller owns no row for `key`.
+   */
+  async getOne(userUuid: string, key: string): Promise<CacheEntry<{ key: string; value: unknown }>> {
+    const row = await this.findByKey(userUuid, key);
+    if (!row) {
+      throw new NotFoundError(`Preference "${key}" not found`, {
+        internal_code: "USER_PREFERENCE_NOT_FOUND",
+      });
+    }
+    return wrapCacheEntry({ key: row.key, value: row.value });
+  }
+
   /** One preference row for the caller, or null. */
   async findByKey(userUuid: string, key: string): Promise<UserPreferenceEntity | null> {
     return this.dal.find<UserPreferenceEntity, UserPreferenceEntity>(

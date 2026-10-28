@@ -57,6 +57,22 @@ describe("UserPreferencesService", () => {
     });
   });
 
+  describe("getOne", () => {
+    it("returns {key, value} for an owned row", async () => {
+      mockRepo.find.mockResolvedValue(prefRow());
+      const entry = await svc.getOne(USER_UUID, "favorite_pages");
+      expect(entry.data).toEqual({
+        key: "favorite_pages",
+        value: ["/system/job/rules/create"],
+      });
+    });
+
+    it("throws NotFoundError when the caller owns no row for key", async () => {
+      mockRepo.find.mockResolvedValue(null);
+      await expect(svc.getOne(USER_UUID, "missing")).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
+
   describe("findByKey", () => {
     it("returns the row scoped by user_uuid + key", async () => {
       mockRepo.find.mockResolvedValue(prefRow());
