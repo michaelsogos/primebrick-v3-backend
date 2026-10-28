@@ -29,18 +29,35 @@ import {
   clearRefreshCookie,
   buildUserFromClaims,
 } from "../../../modules/auth/services/auth-session.service.js";
-import { makeAuthSessionService, makeUserService } from "./wiring.js";
+import { makeAuthSessionService, makeUserPreferencesService, makeUserService } from "./wiring.js";
 import { LoginBodySchema, ProfileUpdateSchema, makeChangeOwnPasswordSchema } from "../../../modules/auth/dto.js";
 import { PasswordPolicy, DEFAULT_PASSWORD_POLICY } from "../../../modules/auth/password-policy.js";
-import { UnauthorizedError, ApiError } from "../../../http/api-errors.js";
+import { UnauthorizedError, ApiError, ValidationError } from "../../../http/api-errors.js";
 import type { EntityMeta } from "../../../http/entity-meta.types.js";
 import { assembleMeta } from "../../../http/meta-assembler.js";
 import { UserProfileEntity } from "../../../modules/auth/user_profile_entity.js";
+import { etagMiddleware } from "../../../http/etag-middleware.js";
+import type { CacheEntry } from "@primebrick/sdk";
+import type { UserPreferencesMap } from "../../../modules/auth/services/user-preferences.service.js";
 
 
 
 // Schema for self-service password change — requires current_password + newPassword
 const ChangeMyPasswordSchema = makeChangeOwnPasswordSchema(DEFAULT_PASSWORD_POLICY);
+
+/**
+ * Preference-write body — `{ value: <any json> }`. `z.unknown()` accepts
+ * `undefined`, so the handler additionally requires the key to be present
+ * (`null` is a legitimate preference value; absent `value` is a 400).
+ */
+const PreferenceSetSchema = z.object({ value: z.unknown() }).strict();
+
+/** Preference key — snake_case family name, bounded by the entity column. */
+const PreferenceKeySchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[a-z0-9_]+$/, "Preference key must be snake_case");
 
 /** Metadata for the self-service profile form (`GET /api/v1/auth/me/meta`).
  *  Canonical `EntityMeta` shape — no `table` (form-only meta). */
@@ -193,6 +210,55 @@ export function authSessionRouter() {
     });
   });
 
+  // ─── User preferences (self-service KV — AUTHENTICATED_USER) ────────────
+  //
+  //   GET    /api/v1/auth/me/preferences        → { preferences: {key: value} }
+  //   PUT    /api/v1/auth/me/preferences/:key   → set {value}
+  //   DELETE /api/v1/auth/me/preferences/:key   → remove
+  //
+  // The GET runs the consolidated cache chain: Redis (`@Cached` on the
+  // entity) → ETag (`etagMiddleware` + `res.locals.cacheEntry` → 304 on
+  // unchanged re-polls) → the FE sessionStorage mirror.
+  const prefService = makeUserPreferencesService();
+
+  const validatePreferenceKey: RequestHandler = (req, _res, next) => {
+    const parsed = PreferenceKeySchema.safeParse(req.params.key);
+    if (!parsed.success) {
+      throw new ValidationError("Invalid preference key", {
+        internal_code: "USER_PREFERENCE_KEY_INVALID",
+      });
+    }
+    req.params.key = parsed.data;
+    next();
+  };
+
+  const getPreferences: RequestHandler = asyncHandler(async (req, res, next) => {
+    res.locals.cacheEntry = await prefService.getAll(requireUserId(req));
+    next();
+  });
+
+  const sendPreferences: RequestHandler = asyncHandler(async (_req, res) => {
+    res.json((res.locals.cacheEntry as CacheEntry<{ preferences: UserPreferencesMap }>).data);
+  });
+
+  const setPreference: RequestHandler = asyncHandler(async (req, res) => {
+    const userId = requireUserId(req);
+    const body = req.body as z.infer<typeof PreferenceSetSchema>;
+    if (!("value" in body)) {
+      throw new ValidationError("Missing 'value' in request body", {
+        internal_code: "USER_PREFERENCE_VALUE_REQUIRED",
+      });
+    }
+    await prefService.set(userId, req.params.key as string, body.value, userId);
+    res.json({ success: true });
+  });
+
+  const deletePreference: RequestHandler = asyncHandler(async (req, res) => {
+    const userId = requireUserId(req);
+    await prefService.remove(userId, req.params.key as string, userId);
+    res.json({ success: true });
+  });
+
   registerRoutes(router, [
     {
       method: "post",
@@ -250,6 +316,27 @@ export function authSessionRouter() {
       permission: rbacHandler([Permission.AUTHENTICATED_USER]),
       middlewares: [validateBody(ChangeMyPasswordSchema)],
       handler: changeMyPassword,
+    },
+    {
+      method: "get",
+      path: "/api/v1/auth/me/preferences",
+      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
+      middlewares: [getPreferences, etagMiddleware()],
+      handler: sendPreferences,
+    },
+    {
+      method: "put",
+      path: "/api/v1/auth/me/preferences/:key",
+      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
+      middlewares: [validatePreferenceKey, validateBody(PreferenceSetSchema)],
+      handler: setPreference,
+    },
+    {
+      method: "delete",
+      path: "/api/v1/auth/me/preferences/:key",
+      permission: rbacHandler([Permission.AUTHENTICATED_USER]),
+      middlewares: [validatePreferenceKey],
+      handler: deletePreference,
     },
   ]);
 
