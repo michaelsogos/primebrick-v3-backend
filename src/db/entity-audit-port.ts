@@ -68,11 +68,15 @@ export class EntityAuditPort implements AuditPort {
         changed_at: params.changedAt.getTime(),
       };
 
-      // 1. Redis — store the marker with a 5-minute TTL
+      // 1. Redis — store the marker with a 5-minute TTL, and stamp `edited_at`
+      //    on the saver's presence entry (drives the FE "recently saved"
+      //    affordance; no-op when the saver has no live presence entry, e.g.
+      //    `changed_by: "system"` or a non-FE writer).
       try {
         const store = getPresenceStore();
         if (store) {
           await store.setChanged(marker, 300_000);
+          await store.markEdited(params.tableName, params.entityUuid, params.changedBy, marker.changed_at);
         }
       } catch {
         // best-effort: Redis unavailable
