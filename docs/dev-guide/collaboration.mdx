@@ -28,6 +28,24 @@ The module provides four capabilities:
 
 No WebSockets are required. The entire transport layer is HTTP-based.
 
+### Presence identity: sessions, not users
+
+Presence entries are keyed **`user_uuid:session_id`** — one entry per browser
+tab, not per account. This matters for the same-user case: an admin who
+accidentally opens the same record in two tabs sees the second tab in their
+avatar stack, labeled "you — other tab", and a save from that second tab
+merges + conflicts on the first exactly like a foreign writer's.
+
+- The FE sends `session_id` on every presence signal (a `sessionStorage`
+  tab id) and `?session_id=` on the SSE stream so only *its own* echoes
+  are filtered.
+- Writes carry the same id as `X-Client-Session`; the service stamps it on
+  the change marker (`changed_by_session`). A save counts as "self" only
+  when **both** `changed_by` and `changed_by_session` match the viewing
+  client — a marker without the field falls back to the `changed_by` rule.
+- The `/svc` gateway forwards `x-client-session` (allowlisted) so
+  service-owned entities get the same semantics as BE-owned ones.
+
 ## Architecture
 
 The collaboration module uses three transports, each with a clear role:
@@ -64,20 +82,37 @@ stream on instance 2. Each BE instance bridges the NATS subject for an entity
 into its local SSE bus only while at least one SSE client is subscribed
 (refcounted via `collaborationBusRegistry`).
 
-## How it's automatic
+## How it's enabled
 
-Any entity decorated with `@AuditTrail()` gets collaboration automatically.
-There is no separate registration, no per-entity wiring, and no feature flag to
-flip.
+Collaboration activates per entity when two conditions hold:
 
-The audit hook (`EntityAuditPort`) fires after every `UPDATE`, `SOFT_DELETE`,
-`RESTORE`, and `HARD_DELETE` on an auditable entity. It publishes the
-`EntityChangedMarker` that drives the `entity-changed` SSE event. Because the
-hook is part of the audit port — which only runs for `@AuditTrail()` entities —
-collaboration is implicitly enabled for exactly those entities.
+1. **The entity is auditable** (`@AuditTrail()` / `Auditable(EntityBase)`).
+   The SDK's `assembleMeta()` injects `collaboration.enabled: true` into the
+   entity meta — the FE mounts presence only on `kind:"detail"` routes whose
+   meta carries it. `auditable` is the *declaration* that enables it.
+2. **Audit writes publish the `EntityChangedMarker`.** This is the wiring
+   part and it differs by ownership:
+   - **BE-owned entities** use `EntityAuditPort` — writes the `{table}_audit`
+     row AND publishes the marker (Redis `setChanged`/`markEdited` + NATS).
+   - **Service-owned entities** (e.g. job-handler's `job_rule`) install the
+     SDK's `makeMarkerAuditPort(dal.tableAuditPort(), "<api_name>")` as their
+     `auditPort` in the `entityService` config. It writes the audit row and
+     publishes the marker on NATS — the gateway's `marker-persister`
+     subscriber (`entity.*.*.changed`) is the sole Redis writer, because
+     services own no Redis client.
 
-The frontend discovers this via the entity meta response. `assembleMeta()`
-injects a `collaboration` fragment into every entity's meta payload:
+An `@AuditTrail()` entity with the default table audit port writes audit rows
+but publishes **no** marker — presence renders but no `entity-changed` event
+ever fires. That is the "auditable but not collaborative" state: valid for
+services that have not installed the marker port yet.
+
+The marker's `entity_type` is the **API entity name** (the singular
+`/entities/:entity` segment, e.g. `job_rule`, `user_profile`) — never the
+physical table name. Presence keys, NATS subjects and FE fetches are all
+namespaced by the API name; `makeEntityRouter` registers the
+`entityClassName → entityName` mapping at mount.
+
+The frontend discovers enablement via the entity meta response:
 
 ```json
 {
@@ -118,7 +153,7 @@ Send a presence signal. Returns `204 No Content`.
 | `field` | `string` | No | The field the user is focused on (sent with `EDITING`) |
 | `value` | `unknown` | No | The in-progress value being typed (sent with `EDITING`) |
 | `loaded_version` | `integer` | No | The entity version the user loaded (for stale-check) |
-| `session_id` | `string` (UUID) | No | Tab session identifier for multi-tab heartbeats |
+| `session_id` | `string` (UUID) | No | Tab session identifier — presence is keyed `user_uuid:session_id`, so two tabs of the same user are distinct entries |
 
 The four actions:
 
@@ -166,6 +201,7 @@ Returns the current presence snapshot.
     "version": 43,
     "audit_log_id": 99,
     "changed_by": "def-456",
+    "changed_by_session": "9f1c-...",
     "changed_at": 1718000002000
   },
   "current_version": 43
@@ -187,32 +223,46 @@ are sent as named SSE events with JSON data payloads.
 | `entity-changed` | Sent when another user saves the entity. Contains the `EntityChangedMarker`. |
 | `error` | Sent when the initial snapshot could not be loaded. The stream stays open. |
 
-The stream excludes `presence-update` events that originate from the same user
-(no self-echo). A keep-alive comment (`: keep-alive`) is sent every 15 seconds.
+The stream excludes `presence-update` echoes of the **connecting tab's own
+session**: pass `?session_id=<tab-session>` so the server drops only deltas
+emitted by that same session. Another tab of the same user is a different
+session and IS echoed — same-user multi-tab awareness is the point (the FE
+labels it "you — other tab"). A keep-alive comment (`: keep-alive`) is sent
+every 15 seconds.
 
-### GET `/api/v1/entities/:entity/:uuid/audit/:auditLogId`
+### Field-level diffs — the owning service's paged audit endpoint
 
-Returns the field-level diff for a specific audit log entry. The frontend uses
-this after receiving an `entity-changed` event to fetch the exact `{ old, new }`
-delta per field and decide whether to silently merge or surface a conflict.
+There is no gateway-side audit-diff endpoint: the gateway never reads another
+service's `{table}_audit` (persistence boundary). After receiving
+`entity-changed`, the frontend fetches the newest audit row from the **owning
+service** — `GET {svc}/api/v1/entities/:entity/:uuid/audit?page=1&limit=1`
+(e.g. `/svc/job/...` for `job_rule`, `/api/v1/...` for BE-owned). Every
+entity router exposes it for auditable entities; rows are sorted
+`changed_at DESC` and carry `delta` + `changed_by_name`:
 
 ```json
 {
-  "audit_log_id": 99,
-  "entity_type": "organizations",
-  "entity_uuid": "550e8400-e29b-41d4-a716-446655440000",
-  "version": 43,
-  "changed_by": "def-456",
-  "changed_at": 1718000002000,
-  "delta": {
-    "company_name": { "old": "Acme Inc", "new": "Acme Corp" },
-    "email": { "old": "old@acme.com", "new": "new@acme.com" }
-  }
+  "data": [
+    {
+      "id": 99,
+      "entity_uuid": "550e8400-e29b-41d4-a716-446655440000",
+      "action": "UPDATE",
+      "changed_by": "def-456",
+      "changed_by_name": "Mario",
+      "changed_at": "2026-10-29T10:00:02.000Z",
+      "version": 43,
+      "delta": {
+        "company_name": { "old": "Acme Inc", "new": "Acme Corp" },
+        "email": { "old": "old@acme.com", "new": "new@acme.com" }
+      }
+    }
+  ],
+  "pagination": { "page": 1, "limit": 1, "total": 42, "hasMore": true }
 }
 ```
 
-Returns `404` if the audit log entry does not exist or does not belong to the
-requested entity UUID.
+The `delta` drives the FE decision per field: locally-untouched → silent
+merge; locally-tainted → conflict surfaced in the presence-zone chip.
 
 ## The audit hook
 
@@ -239,8 +289,12 @@ published — the audit log row itself is always written, because that is the
 primary responsibility of the adapter.
 
 ```ts
+// `entity_type` is the API entity name (singular `/entities/:entity`
+// segment), resolved from the router-mounted registry — never the
+// physical table name. Unmapped entities skip the marker (audit row kept).
+const entityType = resolveEntityName(params.entityClassName, params.tableName);
 const marker: EntityChangedMarker = {
-  entity_type: params.tableName,
+  entity_type: entityType,
   entity_uuid: params.entityUuid,
   version: params.version,
   audit_log_id: Number(inserted.id),
@@ -391,8 +445,8 @@ instance 1 until they refresh.
 
 PostgreSQL is required. The audit tables (`{entity}_audit`) are created by the
 standard migration flow and store every `INSERT`, `UPDATE`, `SOFT_DELETE`,
-`RESTORE`, and `HARD_DELETE` with a field-level `delta` JSON column. The audit
-diff endpoint reads from these tables.
+`RESTORE`, and `HARD_DELETE` with a field-level `delta` JSON column. The
+owning service's paged audit endpoint reads from these tables.
 
 ## End-to-end flow
 
@@ -416,8 +470,8 @@ sequenceDiagram
     BE->>NATS: publish entity.organizations.:uuid.changed
     NATS->>BE: Fanout to all instances
     BE->>FE_B: SSE event: entity-changed (marker)
-    FE_B->>BE: GET /api/v1/entities/organization/:uuid/audit/:auditLogId
-    BE->>FE_B: 200 OK (field-level delta)
+    FE_B->>BE: GET /api/v1/entities/organization/:uuid/audit?page=1&limit=1
+    BE->>FE_B: 200 OK (latest field-level delta)
     FE_B->>FE_B: Compare delta with local edits
 
     alt Non-overlapping fields

@@ -11,10 +11,6 @@ import { NatsClient } from "@primebrick/sdk";
 import type { PresencePort, PresenceEntry, PresenceSignal, PresenceSnapshot } from "@primebrick/sdk";
 import { publishPresence } from "@primebrick/sdk";
 import { getPresenceStore } from "./presence-store-holder.js";
-import {getDal} from "../../db/dal-gateway.js";
-import { findAuditById } from "../../db/audit-query-helper.js";
-import { NotFoundError } from "../../http/api-errors.js";
-import type { AuditDiffResponse } from "./dto.js";
 
 /**
  * Build a `PresenceEntry` from the authenticated user + signal.
@@ -36,6 +32,7 @@ function buildEntry(
     value: signal.value,
     last_seen_at: Date.now(),
     tab_count: tabCount,
+    session_id: signal.session_id,
   };
 }
 
@@ -62,6 +59,7 @@ export const collaborationService = {
         await store.upsertReading(entityType, entityUuid, entry);
         await this.publishDelta(entityType, entityUuid, {
           user_uuid: user.id,
+          session_id: signal.session_id,
           action: "READING",
           entry,
           emitted_at: Date.now(),
@@ -73,6 +71,7 @@ export const collaborationService = {
         await store.upsertEditing(entityType, entityUuid, entry);
         await this.publishDelta(entityType, entityUuid, {
           user_uuid: user.id,
+          session_id: signal.session_id,
           action: "EDITING",
           entry,
           emitted_at: Date.now(),
@@ -80,9 +79,10 @@ export const collaborationService = {
         break;
       }
       case "LEAVE": {
-        await store.remove(entityType, entityUuid, user.id);
+        await store.remove(entityType, entityUuid, user.id, signal.session_id);
         await this.publishDelta(entityType, entityUuid, {
           user_uuid: user.id,
+          session_id: signal.session_id,
           action: "LEAVE",
           entry: null,
           emitted_at: Date.now(),
@@ -118,6 +118,7 @@ export const collaborationService = {
     entityUuid: string,
     delta: {
       user_uuid: string;
+      session_id?: string;
       action: string;
       entry: PresenceEntry | null;
       emitted_at: number;
@@ -130,39 +131,5 @@ export const collaborationService = {
     } catch {
       // best-effort: NATS publish failure is non-fatal
     }
-  },
-
-  /**
-   * Field-level audit diff for a single audit_log row, verified to belong
-   * to the requested entity UUID. Returns the response shape ready for
-   * serialization (controllers do not reshape).
-   */
-  async getAuditLogDiff(
-    entityType: string,
-    entityUuid: string,
-    auditLogId: bigint,
-  ): Promise<AuditDiffResponse> {
-    const row = await findAuditById(getDal(), `${entityType}_audit`, auditLogId);
-    if (!row) {
-      throw new NotFoundError(
-        `Audit log entry ${auditLogId} not found in ${entityType}_audit`,
-        { internal_code: "AUDIT_LOG_NOT_FOUND" },
-      );
-    }
-    if (row.entity_uuid !== entityUuid) {
-      throw new NotFoundError(
-        `Audit log entry ${auditLogId} does not belong to entity ${entityUuid}`,
-        { internal_code: "AUDIT_LOG_ENTITY_MISMATCH" },
-      );
-    }
-    return {
-      audit_log_id: Number(row.id),
-      entity_type: entityType,
-      entity_uuid: row.entity_uuid,
-      version: row.version,
-      changed_by: row.changed_by,
-      changed_at: new Date(row.changed_at).getTime(),
-      delta: row.delta as Record<string, { old: unknown; new: unknown }>,
-    };
   },
 };

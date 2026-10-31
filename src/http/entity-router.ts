@@ -49,6 +49,7 @@ import { validateBody, validateQuery } from "./validation.js";
 import { ValidationError } from "./api-errors.js";
 import { rbacHandler } from "../modules/auth/rbac.middleware.js";
 import { entityCrudSpec, type Permission } from "@primebrick/sdk";
+import { registerEntityName } from "../db/entity-name-registry.js";
 import type { EntityMeta } from "./entity-meta.types.js";
 import { assembleMeta } from "./meta-assembler.js";
 import { deriveEntityActions, type ExtraActionScan } from "./entity-actions.js";
@@ -164,6 +165,9 @@ export function makeEntityRouter<TEntity, S extends object>(
   const router = makeProtectedRouter();
   const service = config.service;
   const base = `/api/v1/entities/${config.entityName}`;
+  // Link the entity class to its API name so the audit port can publish
+  // collaboration markers under the API namespace (not the physical table).
+  registerEntityName(config.entity, config.entityName);
   const method = (a: EntityAction) => (config.methods?.[a] ?? a) as keyof S & string;
   const call = (a: EntityAction, ...args: unknown[]) =>
     (service as Record<string, (...x: unknown[]) => Promise<unknown>>)[method(a)](...args);

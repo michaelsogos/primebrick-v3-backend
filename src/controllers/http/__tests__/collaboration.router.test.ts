@@ -1,7 +1,8 @@
 /**
  * HTTP-level tests for `controllers/http/collaboration.router.ts` —
- * presence POST/GET + audit diff (SSE stream endpoint excluded: it is
- * long-lived by design).
+ * presence POST/GET (SSE stream endpoint excluded: it is long-lived by
+ * design). Field-level diffs are served by the OWNING service's paged
+ * audit endpoint, not by this gateway router.
  */
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 
@@ -10,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   service: {
     handleSignal: vi.fn(async () => {}),
     getSnapshot: vi.fn(),
-    getAuditLogDiff: vi.fn(),
     publishDelta: vi.fn(),
   },
   busRegistry: {
@@ -42,7 +42,6 @@ vi.mock("../../../modules/auth/rbac.middleware.js", () => ({
 
 import { collaborationRouter } from "../collaboration.router.js";
 import { mountRouter, type TestApp } from "./harness.js";
-import { NotFoundError } from "../../../http/api-errors.js";
 
 let app: TestApp;
 beforeAll(async () => {
@@ -83,32 +82,5 @@ describe("collaboration router", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.current_version).toBe(3);
-  });
-
-  it("GET audit diff → service.getAuditLogDiff", async () => {
-    mocks.service.getAuditLogDiff.mockResolvedValue({
-      audit_log_id: 9,
-      entity_type: "customers",
-      entity_uuid: "u-1",
-      version: 2,
-      changed_by: "a",
-      changed_at: 1,
-      delta: {},
-    });
-    const res = await fetch(`${app.baseUrl}${E}/audit/9`);
-    expect(res.status).toBe(200);
-    expect(mocks.service.getAuditLogDiff).toHaveBeenCalledWith("customers", "u-1", 9n);
-    const body = await res.json();
-    expect(body.audit_log_id).toBe(9);
-  });
-
-  it("GET audit diff not found → 404 RFC7807", async () => {
-    mocks.service.getAuditLogDiff.mockRejectedValue(
-      new NotFoundError("Audit log entry 42 not found", { internal_code: "AUDIT_LOG_NOT_FOUND" }),
-    );
-    const res = await fetch(`${app.baseUrl}${E}/audit/42`);
-    expect(res.status).toBe(404);
-    const body = await res.json();
-    expect(body.internal_code).toBe("AUDIT_LOG_NOT_FOUND");
   });
 });

@@ -1,11 +1,14 @@
 /**
- * Collaboration router — presence endpoints (POST/GET) + SSE events + audit diff.
+ * Collaboration router — presence endpoints (POST/GET) + SSE events.
  *
  * Endpoints:
  * - `POST /api/v1/entities/:entity/:uuid/presence` — send a presence signal.
  * - `GET  /api/v1/entities/:entity/:uuid/presence` — get the presence snapshot.
  * - `GET  /api/v1/entities/:entity/:uuid/presence/events` — SSE stream.
- * - `GET  /api/v1/entities/:entity/:uuid/audit/:auditLogId` — field-level diff.
+ *
+ * Field-level diffs come from the OWNING service's paged audit endpoint
+ * (`GET {svc}/api/v1/entities/:entity/:uuid/audit?page=1&limit=1`) — this
+ * gateway never queries another service's audit tables.
  *
  * Auth via `rbacHandler([Permission.AUTHENTICATED_USER])` (cookie-based;
  * `createSseConnection` sends `credentials:'include'`).
@@ -89,12 +92,13 @@ export function collaborationRouter() {
         });
       }
 
-      // 3. Subscribe to the per-entity bus (exclude events from this user)
-      const userId = req.user?.id;
+      // 3. Subscribe to the per-entity bus — exclude echoes of THIS TAB's
+      //    session only. Another tab of the same user is a different session
+      //    and MUST be echoed (same-user multi-tab awareness).
+      const connSession = typeof req.query.session_id === "string" ? req.query.session_id : undefined;
       const sub = bus.subscribe((ev) => {
-        // Exclude sender from presence-update echoes
         const data = ev.data as Record<string, unknown> | null;
-        if (ev.event === "presence-update" && data?.user_uuid === userId) return;
+        if (ev.event === "presence-update" && connSession && data?.session_id === connSession) return;
         writer.send(ev);
       });
 
@@ -108,21 +112,6 @@ export function collaborationRouter() {
         writer.close();
         collaborationBusRegistry.release(entity, uuid);
       });
-    }),
-  );
-
-  // GET /api/v1/entities/:entity/:uuid/audit/:auditLogId — field-level diff
-  // Returns the audit log entry's delta for the FE merge / conflict UI.
-  router.get(
-    "/api/v1/entities/:entity/:uuid/audit/:auditLogId",
-    rbacHandler([Permission.AUTHENTICATED_USER]),
-    asyncHandler(async (req, res) => {
-      const entity = String(req.params.entity);
-      const uuid = String(req.params.uuid);
-      const auditLogId = BigInt(String(req.params.auditLogId));
-
-      const response = await collaborationService.getAuditLogDiff(entity, uuid, auditLogId);
-      res.json(response);
     }),
   );
 

@@ -46,6 +46,9 @@ const rrCounters = new Map<string, number>();
  * - if-none-match / if-match:   conditional requests (ETag caching)
  * - x-request-id:               E2E correlation (generated here if absent)
  * - accept-language:            client locale hint
+ * - x-client-session:           FE tab session — stamped on change markers
+ *                               (`changed_by_session`) so another tab of the
+ *                               same user is treated as a foreign writer
  * - x-forwarded-*:              client network context for US audit logs
  * - x-forwarded-user-agent:     original client UA (the outbound User-Agent
  *                               is the BE's own service identity, not the
@@ -57,6 +60,7 @@ const FORWARDED_REQUEST_HEADERS = [
   "if-match",
   "x-request-id",
   "accept-language",
+  "x-client-session",
 ] as const;
 
 /** Response headers forwarded US→FE (in addition to status + body). */
