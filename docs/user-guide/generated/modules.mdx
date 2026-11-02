@@ -1,14 +1,58 @@
 ---
-title: Modules List
-description: List, search and manage all modules.
+title: Services List
+description: List, search and manage all services.
+entity: service_registry
 ---
 
-List, search and manage all modules.
+List, search and manage all services.
+
+The page is visible with the `access.system.settings.modules` grant.
 
 ## Pages routes
 
-- `/system/settings/modules` — List, search and manage all modules. *(this page)*
-- `/system/settings/modules/{code}` — View and edit an existing module.
+- `/system/settings/modules` — List, search and manage all services. *(this page)*
+- `/system/settings/modules/{code}` — View and edit an existing service registry.
+
+## What you can do here
+
+### How to edit a service
+1. Open the row actions menu on the service and click **Edit**.
+2. Update the fields — required: **service**, **config Entries**, **config Error**, **active Tab**.
+3. Click **Save** — the changes to the service are saved.
+
+## Actions
+
+### Row actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **create** | DISABLED | — | Creates a new service | no |
+| **update** | ENABLED | — | Opens the service for editing | no |
+| **delete** | DISABLED | — | Marks the service as deleted but keeps it so it can be restored | no |
+| **restore** | DISABLED | — | Brings a soft-deleted service back | no |
+| **purge** | DISABLED | — | Removes the service forever | no |
+| **audit history** | DISABLED | — | Shows the change history of the service | no |
+
+- Creating a new service is not available on this page — no permission is declared for it on services.
+- Editing a service is available on this page — the row action opens the record in a new browser tab.
+- Soft-deleting a service is not available on this page — no permission is declared for it on services.
+- Restoring a soft-deleted service is not available on this page — no permission is declared for it on services.
+- Permanently deleting a service is not available on this page — no permission is declared for it on services.
+- Viewing the change history of a service is not available on this page — no permission is declared for it on services.
+
+### Bulk actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **delete** | DISABLED | — | Marks the selected services as deleted | no |
+| **restore** | DISABLED | — | Restores the selected services | no |
+| **duplicate** | DISABLED | — | Duplicates the selected services | no |
+| **export** | DISABLED | — | Exports the list | no |
+
+- Soft-deleting the selected services is not available on this page — no permission is declared for it on services.
+- Restoring the selected services is not available on this page — no permission is declared for it on services.
+- Duplicating the selected services is not available on this page — no permission is declared for it on services.
+- Exporting the list is not available on this page — no permission is declared for it on services.
 
 ## Doc references
 

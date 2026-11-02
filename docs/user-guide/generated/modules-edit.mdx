@@ -1,21 +1,24 @@
 ---
-title: Edit Module
-description: View and edit an existing module.
+title: Edit Service
+description: View and edit an existing service.
+entity: service_registry
 ---
 
-View and edit an existing module.
+View and edit an existing service.
+
+The page is visible with the `access.system.settings.modules` grant.
 
 ## Pages routes
 
-- `/system/settings/modules` — List, search and manage all modules.
-- `/system/settings/modules/{code}` — View and edit an existing module. *(this page)*
+- `/system/settings/modules` — List, search and manage all services.
+- `/system/settings/modules/{code}` — View and edit an existing service registry. *(this page)*
 
 ## What you can do here
 
-### How to edit a module
-1. On the **Modules** list page, open the row actions menu on the module you want to edit and click **Edit**.
+### How to edit a service
+1. On the **Modules** list page, open the row actions menu on the service you want to edit and click **Edit**.
 2. Update the fields below — required: **service**, **config Entries**, **config Error**, **active Tab**.
-3. Click **Save** — the changes to the module are saved.
+3. Click **Save** — the changes to the service are saved.
 
 
 ## Fields
@@ -42,9 +45,11 @@ View and edit an existing module.
 
 | Action | Status | Permission | What it does | Require Step-Up Auth |
 |--------|--------|------------|--------------|----------------------|
-| **Save** | ENABLED | — | Validates the form and saves changes to the module | no |
+| **Save** | ENABLED | — | Validates the form and saves changes to the service | no |
+| **Cancel** | ENABLED | — | Discards changes and returns to the previous page | no |
 
-- The **Save** action is available on this page — validates the form and saves changes to the module.
+- The **Save** action is available on this page — validates the form and saves changes to the service.
+- The **Cancel** action is available on this page — discards changes and returns to the previous page.
 
 ## Doc references
 
