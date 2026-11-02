@@ -70,6 +70,7 @@ export function getAuthPorts(): AuthPorts | null {
   return {
     resolveInternalUuid: (input) => userResolverPort!.resolveInternalUuid(input),
     getRoleMapping: (role) => roleMappingPort!.getRoleMapping(role),
+    resolveUserLocale: async (uuid) => (await userResolverPort!.resolveUserLocale?.(uuid)) ?? null,
   };
 }
 
@@ -92,6 +93,7 @@ export function authMiddleware(): RequestHandler {
       const ports: AuthPorts = {
         resolveInternalUuid: (input) => userResolverPort!.resolveInternalUuid(input),
         getRoleMapping: (role) => roleMappingPort!.getRoleMapping(role),
+        resolveUserLocale: async (uuid) => (await userResolverPort!.resolveUserLocale?.(uuid)) ?? null,
       };
 
       const headers = new HttpHeaderProvider(req);

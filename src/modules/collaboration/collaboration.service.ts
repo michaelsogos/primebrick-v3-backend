@@ -11,22 +11,52 @@ import { NatsClient } from "@primebrick/sdk";
 import type { PresencePort, PresenceEntry, PresenceSignal, PresenceSnapshot } from "@primebrick/sdk";
 import { publishPresence } from "@primebrick/sdk";
 import { getPresenceStore } from "./presence-store-holder.js";
+import { getUserService } from "../auth/services/user.service.js";
 
 /**
- * Build a `PresenceEntry` from the authenticated user + signal.
+ * Resolve the presence identity from `user_profiles` — the canonical,
+ * live display source (same as `/auth/me` and the audit
+ * `changed_by_display_name` join). The token claim (`user.name`) is only
+ * a login-time snapshot and goes stale when the user edits their
+ * profile; it stays as the fallback when the lookup fails — presence is
+ * best-effort and must never break on a profile read error.
+ */
+async function resolveIdentity(user: { id: string; name: string | null }): Promise<{
+  name: string;
+  avatar_color: string | null;
+  avatar_initials: string | null;
+}> {
+  try {
+    const profile = await getUserService().getByUuid(user.id);
+    if (profile) {
+      return {
+        name: profile.display_name ?? user.name ?? user.id,
+        avatar_color: profile.avatar_color ?? null,
+        avatar_initials: profile.avatar_initials ?? null,
+      };
+    }
+  } catch {
+    // best-effort: fall back to the token claim
+  }
+  return { name: user.name ?? user.id, avatar_color: null, avatar_initials: null };
+}
+
+/**
+ * Build a `PresenceEntry` from the resolved identity + signal.
  * The entry is what gets stored in Redis and sent to other clients.
  */
 function buildEntry(
-  user: { id: string; name: string | null },
+  identity: { name: string; avatar_color: string | null; avatar_initials: string | null },
+  userId: string,
   signal: PresenceSignal,
   status: "READING" | "EDITING",
   tabCount: number,
 ): PresenceEntry {
   return {
-    user_uuid: user.id,
-    user_name: user.name ?? user.id,
-    avatar_color: null,
-    avatar_initials: null,
+    user_uuid: userId,
+    user_name: identity.name,
+    avatar_color: identity.avatar_color,
+    avatar_initials: identity.avatar_initials,
     status,
     field: signal.field,
     value: signal.value,
@@ -52,10 +82,11 @@ export const collaborationService = {
     if (!store) return; // best-effort: presence disabled
 
     const sessionId = signal.session_id ?? "default";
+    const identity = await resolveIdentity(user);
 
     switch (signal.action) {
       case "READING": {
-        const entry = buildEntry(user, signal, "READING", 1);
+        const entry = buildEntry(identity, user.id, signal, "READING", 1);
         await store.upsertReading(entityType, entityUuid, entry);
         await this.publishDelta(entityType, entityUuid, {
           user_uuid: user.id,
@@ -67,7 +98,7 @@ export const collaborationService = {
         break;
       }
       case "EDITING": {
-        const entry = buildEntry(user, signal, "EDITING", 1);
+        const entry = buildEntry(identity, user.id, signal, "EDITING", 1);
         await store.upsertEditing(entityType, entityUuid, entry);
         await this.publishDelta(entityType, entityUuid, {
           user_uuid: user.id,

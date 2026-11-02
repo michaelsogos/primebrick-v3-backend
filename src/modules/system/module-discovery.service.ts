@@ -40,6 +40,7 @@ import {
 
 import { owningRoutePrefix, resolveModuleNavMeta } from "../module-nav-meta.js";
 import type {
+  ModuleCallablesDecl,
   ModuleEventsDecl,
   ModuleNavLink,
   ModuleSheetDecl,
@@ -87,6 +88,13 @@ export interface DiscoveredModule {
    * options from the union across modules.
    */
   events?: ModuleEventsDecl;
+  /**
+   * The module's callable destinations (`endpoints.callables.callables`)
+   * — governed LISTEN subjects auto-collected from route declarations
+   * carrying `payload_schema`. Served verbatim like `events`: a rule's
+   * target picker resolves options AND request contracts from the union.
+   */
+  callables?: ModuleCallablesDecl;
 }
 
 function filterNavLinks(
@@ -216,6 +224,8 @@ export class ModuleDiscoveryService {
         // Module-domain event vocabulary — verbatim from the registry row
         // (enrollment already validated the shape), never access-filtered.
         events: s.endpoints?.["events"] as ModuleEventsDecl | undefined,
+        // Callable destinations — same verbatim contract as `events`.
+        callables: s.endpoints?.["callables"] as ModuleCallablesDecl | undefined,
       });
     }
     return { modules, labels: await this.resolveLabels(labelKeys, lang) };
