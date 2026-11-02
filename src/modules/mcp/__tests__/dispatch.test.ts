@@ -4,15 +4,6 @@ import type { AuthInfo } from "@modelcontextprotocol/server";
 
 
 // Mock BE services so we can spy on dispatch calls
-const mockCustomersService = {
-  listCustomers: vi.fn(),
-  getCustomer: vi.fn(),
-  createCustomer: vi.fn(),
-  updateCustomer: vi.fn(),
-  deleteCustomer: vi.fn(),
-  restoreCustomer: vi.fn(),
-  getCustomerAudit: vi.fn(),
-};
 const mockOrganizationsService = {
   listOrganizations: vi.fn(),
   getOrganization: vi.fn(),
@@ -32,9 +23,6 @@ const mockUserService = {
   getUserProfileAudit: vi.fn(),
 };
 
-vi.mock("../../customers/customers.service.js", () => ({
-  CustomersService: vi.fn().mockImplementation(function () { return mockCustomersService; }),
-}));
 vi.mock("../../auth/services/organizations.service.js", () => ({
   OrganizationsService: vi.fn().mockImplementation(function () { return mockOrganizationsService; }),
 }));
@@ -47,9 +35,6 @@ vi.mock("../../auth/services/casdoor.service.js", () => ({
 }));
 
 // Mock meta files
-vi.mock("../../customers/customers.meta.js", () => ({
-  customerMeta: { entity: "customer", fields: [] },
-}));
 vi.mock("../../auth/organizations.meta.js", () => ({
   organizationMeta: { entity: "organization", fields: [] },
 }));
@@ -158,9 +143,9 @@ function makeAuthInfoWithPermissions(perms: string[]): AuthInfo {
 
 describe("MCP Dispatch — Error classes", () => {
   it("RbacDeniedError has correct name and message", () => {
-    const err = new RbacDeniedError("Permission denied: requires customers.read.all");
+    const err = new RbacDeniedError("Permission denied: requires organizations.read.all");
     expect(err.name).toBe("RbacDeniedError");
-    expect(err.message).toBe("Permission denied: requires customers.read.all");
+    expect(err.message).toBe("Permission denied: requires organizations.read.all");
     expect(err instanceof Error).toBe(true);
   });
 
@@ -188,29 +173,29 @@ describe("MCP Dispatch — checkRbac", () => {
   it("admin user bypasses all permission checks", () => {
     const adminAuth = makeAdminAuthInfo();
     // Should not throw for any operation
-    expect(() => checkRbac(adminAuth, "be", "customer", "list")).not.toThrow();
-    expect(() => checkRbac(adminAuth, "be", "customer", "delete")).not.toThrow();
+    expect(() => checkRbac(adminAuth, "be", "organization", "list")).not.toThrow();
+    expect(() => checkRbac(adminAuth, "be", "organization", "delete")).not.toThrow();
     expect(() => checkRbac(adminAuth, "be", "organization", "create")).not.toThrow();
   });
 
   it("throws RbacDeniedError when user lacks required permissions", () => {
     const userAuth = makeAuthInfoWithPermissions([]); // no permissions
-    expect(() => checkRbac(userAuth, "be", "customer", "list")).toThrow(RbacDeniedError);
-    expect(() => checkRbac(userAuth, "be", "customer", "create")).toThrow(RbacDeniedError);
+    expect(() => checkRbac(userAuth, "be", "organization", "list")).toThrow(RbacDeniedError);
+    expect(() => checkRbac(userAuth, "be", "organization", "create")).toThrow(RbacDeniedError);
   });
 
   it("passes when user has the required permission (any-of semantics)", () => {
-    const userAuth = makeAuthInfoWithPermissions([Permission.CUSTOMER_READ_ALL]);
-    expect(() => checkRbac(userAuth, "be", "customer", "list")).not.toThrow();
-    // get requires CUSTOMER_READ_SINGLE OR CUSTOMER_READ_ALL
-    expect(() => checkRbac(userAuth, "be", "customer", "get")).not.toThrow();
+    const userAuth = makeAuthInfoWithPermissions([Permission.ORGANIZATION_READ_ALL]);
+    expect(() => checkRbac(userAuth, "be", "organization", "list")).not.toThrow();
+    // get requires ORGANIZATION_READ_SINGLE OR ORGANIZATION_READ_ALL
+    expect(() => checkRbac(userAuth, "be", "organization", "get")).not.toThrow();
   });
 
   it("passes when user has wildcard permission", () => {
-    const userAuth = makeAuthInfoWithPermissions(["customer.*"]);
-    expect(() => checkRbac(userAuth, "be", "customer", "list")).not.toThrow();
-    expect(() => checkRbac(userAuth, "be", "customer", "create")).not.toThrow();
-    expect(() => checkRbac(userAuth, "be", "customer", "delete")).not.toThrow();
+    const userAuth = makeAuthInfoWithPermissions(["organization.*"]);
+    expect(() => checkRbac(userAuth, "be", "organization", "list")).not.toThrow();
+    expect(() => checkRbac(userAuth, "be", "organization", "create")).not.toThrow();
+    expect(() => checkRbac(userAuth, "be", "organization", "delete")).not.toThrow();
   });
 
   it("throws EntityNotFoundError for unknown entity", () => {
@@ -237,15 +222,6 @@ describe("MCP Dispatch — BE in-process dispatch", () => {
     vi.clearAllMocks();
   });
 
-  it("dispatchLocalList calls CustomersService.listCustomers for customer", async () => {
-    mockCustomersService.listCustomers.mockResolvedValue({ rows: [], total: 0 });
-    const result = await dispatchLocalList("customer", { page: 1, page_size: 10 });
-    expect(mockCustomersService.listCustomers).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, page_size: 10 }),
-    );
-    expect(result).toEqual({ rows: [], total: 0 });
-  });
-
   it("dispatchLocalList calls OrganizationsService for organization", async () => {
     mockOrganizationsService.listOrganizations.mockResolvedValue({ rows: [], total: 0 });
     await dispatchLocalList("organization", { page: 2, page_size: 5 });
@@ -265,55 +241,50 @@ describe("MCP Dispatch — BE in-process dispatch", () => {
   });
 
   it("dispatchLocalList applies default pagination", async () => {
-    mockCustomersService.listCustomers.mockResolvedValue({ rows: [], total: 0 });
-    await dispatchLocalList("customer", {});
-    expect(mockCustomersService.listCustomers).toHaveBeenCalledWith(
+    mockOrganizationsService.listOrganizations.mockResolvedValue({ rows: [], total: 0 });
+    await dispatchLocalList("organization", {});
+    expect(mockOrganizationsService.listOrganizations).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, page_size: 25, deleted_records: "EXCLUDED" }),
     );
   });
 
-  it("dispatchLocalGet calls getCustomer with uuid", async () => {
-    mockCustomersService.getCustomer.mockResolvedValue({ uuid: "abc" });
-    await dispatchLocalGet("customer", "abc");
-    expect(mockCustomersService.getCustomer).toHaveBeenCalledWith("abc");
+  it("dispatchLocalGet calls getOrganization with uuid", async () => {
+    mockOrganizationsService.getOrganization.mockResolvedValue({ uuid: "abc" });
+    await dispatchLocalGet("organization", "abc");
+    expect(mockOrganizationsService.getOrganization).toHaveBeenCalledWith("abc");
   });
 
-  it("dispatchLocalCreate calls createCustomer with data", async () => {
-    mockCustomersService.createCustomer.mockResolvedValue({ uuid: "new" });
-    await dispatchLocalCreate("customer", { first_name: "John" });
-    expect(mockCustomersService.createCustomer).toHaveBeenCalledWith({ first_name: "John" });
+  it("dispatchLocalCreate calls createOrganization with data", async () => {
+    mockOrganizationsService.createOrganization.mockResolvedValue({ uuid: "new" });
+    await dispatchLocalCreate("organization", { display_name: "Acme" });
+    expect(mockOrganizationsService.createOrganization).toHaveBeenCalledWith({ display_name: "Acme" });
   });
 
-  it("dispatchLocalUpdate calls updateCustomer and returns success", async () => {
-    mockCustomersService.updateCustomer.mockResolvedValue(undefined);
-    const result = await dispatchLocalUpdate("customer", "abc", { first_name: "Jane" });
-    expect(mockCustomersService.updateCustomer).toHaveBeenCalledWith("abc", { first_name: "Jane" });
+  it("dispatchLocalUpdate calls updateOrganization and returns success", async () => {
+    mockOrganizationsService.updateOrganization.mockResolvedValue(undefined);
+    const result = await dispatchLocalUpdate("organization", "abc", { display_name: "Acme2" });
+    expect(mockOrganizationsService.updateOrganization).toHaveBeenCalledWith("abc", { display_name: "Acme2" });
     expect(result).toEqual({ success: true });
   });
 
-  it("dispatchLocalDelete calls deleteCustomer and returns success", async () => {
-    mockCustomersService.deleteCustomer.mockResolvedValue(undefined);
-    const result = await dispatchLocalDelete("customer", "abc", 3);
-    expect(mockCustomersService.deleteCustomer).toHaveBeenCalledWith("abc", 3);
+  it("dispatchLocalDelete calls deleteOrganization and returns success", async () => {
+    mockOrganizationsService.deleteOrganization.mockResolvedValue(undefined);
+    const result = await dispatchLocalDelete("organization", "abc", 3);
+    expect(mockOrganizationsService.deleteOrganization).toHaveBeenCalledWith("abc", 3);
     expect(result).toEqual({ success: true });
   });
 
-  it("dispatchLocalRestore calls restoreCustomer and returns success", async () => {
-    mockCustomersService.restoreCustomer.mockResolvedValue(undefined);
-    const result = await dispatchLocalRestore("customer", "abc", 3);
-    expect(mockCustomersService.restoreCustomer).toHaveBeenCalledWith("abc", 3);
+  it("dispatchLocalRestore calls restoreOrganization and returns success", async () => {
+    mockOrganizationsService.restoreOrganization.mockResolvedValue(undefined);
+    const result = await dispatchLocalRestore("organization", "abc", 3);
+    expect(mockOrganizationsService.restoreOrganization).toHaveBeenCalledWith("abc", 3);
     expect(result).toEqual({ success: true });
   });
 
-  it("dispatchLocalAudit calls getCustomerAudit with uuid, page, limit", async () => {
-    mockCustomersService.getCustomerAudit.mockResolvedValue({ rows: [], total: 0 });
-    await dispatchLocalAudit("customer", "abc", 2, 50);
-    expect(mockCustomersService.getCustomerAudit).toHaveBeenCalledWith("abc", 2, 50);
-  });
-
-  it("dispatchLocalMeta returns customerMeta for customer", async () => {
-    const result = await dispatchLocalMeta("customer");
-    expect(result).toEqual({ entity: "customer", fields: [] });
+  it("dispatchLocalAudit calls getOrganizationAudit with uuid, page, limit", async () => {
+    mockOrganizationsService.getOrganizationAudit.mockResolvedValue({ rows: [], total: 0 });
+    await dispatchLocalAudit("organization", "abc", 2, 50);
+    expect(mockOrganizationsService.getOrganizationAudit).toHaveBeenCalledWith("abc", 2, 50);
   });
 
   it("dispatchLocalMeta returns organizationMeta for organization", async () => {
@@ -334,9 +305,9 @@ describe("MCP Dispatch — BE bulk dispatch", () => {
   });
 
   it("dispatchLocalBulk delete processes all UUIDs and returns per-UUID results", async () => {
-    mockCustomersService.deleteCustomer.mockResolvedValue(undefined);
-    const result = await dispatchLocalBulk("customer", "delete", [{ uuid: "uuid-1", version: 1 }, { uuid: "uuid-2", version: 1 }, { uuid: "uuid-3", version: 1 }]);
-    expect(mockCustomersService.deleteCustomer).toHaveBeenCalledTimes(3);
+    mockOrganizationsService.deleteOrganization.mockResolvedValue(undefined);
+    const result = await dispatchLocalBulk("organization", "delete", [{ uuid: "uuid-1", version: 1 }, { uuid: "uuid-2", version: 1 }, { uuid: "uuid-3", version: 1 }]);
+    expect(mockOrganizationsService.deleteOrganization).toHaveBeenCalledTimes(3);
     expect(result).toEqual({
       results: [
         { uuid: "uuid-1", success: true },
@@ -347,18 +318,18 @@ describe("MCP Dispatch — BE bulk dispatch", () => {
   });
 
   it("dispatchLocalBulk restore processes all UUIDs", async () => {
-    mockCustomersService.restoreCustomer.mockResolvedValue(undefined);
-    const result = await dispatchLocalBulk("customer", "restore", [{ uuid: "uuid-1", version: 2 }]);
-    expect(mockCustomersService.restoreCustomer).toHaveBeenCalledWith("uuid-1", 2);
+    mockOrganizationsService.restoreOrganization.mockResolvedValue(undefined);
+    const result = await dispatchLocalBulk("organization", "restore", [{ uuid: "uuid-1", version: 2 }]);
+    expect(mockOrganizationsService.restoreOrganization).toHaveBeenCalledWith("uuid-1", 2);
     expect(result).toEqual({ results: [{ uuid: "uuid-1", success: true }] });
   });
 
   it("dispatchLocalBulk records errors for failed operations", async () => {
-    mockCustomersService.deleteCustomer
+    mockOrganizationsService.deleteOrganization
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("Not found"));
 
-    const result = await dispatchLocalBulk("customer", "delete", [{ uuid: "ok-uuid", version: 1 }, { uuid: "bad-uuid", version: 1 }]);
+    const result = await dispatchLocalBulk("organization", "delete", [{ uuid: "ok-uuid", version: 1 }, { uuid: "bad-uuid", version: 1 }]);
     const results = result as { results: Array<{ uuid: string; success: boolean; error?: string }> };
     expect(results.results).toHaveLength(2);
     expect(results.results[0]).toEqual({ uuid: "ok-uuid", success: true });

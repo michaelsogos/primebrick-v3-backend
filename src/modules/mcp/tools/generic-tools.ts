@@ -767,7 +767,7 @@ export function registerGenericTools(server: McpServer): void {
       const results = await proxyToMicroservice(
         authInfo,
         "POST",
-        "/ws/ai/api/v1/system/docs/search",
+        "/svc/ai/api/v1/system/docs/search",
         {
           embedding: args.embedding,
           keywords: args.keywords,

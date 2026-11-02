@@ -11,31 +11,58 @@ import { NatsClient } from "@primebrick/sdk";
 import type { PresencePort, PresenceEntry, PresenceSignal, PresenceSnapshot } from "@primebrick/sdk";
 import { publishPresence } from "@primebrick/sdk";
 import { getPresenceStore } from "./presence-store-holder.js";
-import {getDal} from "../../db/dal-gateway.js";
-import { findAuditById } from "../../db/audit-query-helper.js";
-import { NotFoundError } from "../../http/api-errors.js";
-import type { AuditDiffResponse } from "./dto.js";
+import { getUserService } from "../auth/services/user.service.js";
 
 /**
- * Build a `PresenceEntry` from the authenticated user + signal.
+ * Resolve the presence identity from `user_profiles` — the canonical,
+ * live display source (same as `/auth/me` and the audit
+ * `changed_by_display_name` join). The token claim (`user.name`) is only
+ * a login-time snapshot and goes stale when the user edits their
+ * profile; it stays as the fallback when the lookup fails — presence is
+ * best-effort and must never break on a profile read error.
+ */
+async function resolveIdentity(user: { id: string; name: string | null }): Promise<{
+  name: string;
+  avatar_color: string | null;
+  avatar_initials: string | null;
+}> {
+  try {
+    const profile = await getUserService().getByUuid(user.id);
+    if (profile) {
+      return {
+        name: profile.display_name ?? user.name ?? user.id,
+        avatar_color: profile.avatar_color ?? null,
+        avatar_initials: profile.avatar_initials ?? null,
+      };
+    }
+  } catch {
+    // best-effort: fall back to the token claim
+  }
+  return { name: user.name ?? user.id, avatar_color: null, avatar_initials: null };
+}
+
+/**
+ * Build a `PresenceEntry` from the resolved identity + signal.
  * The entry is what gets stored in Redis and sent to other clients.
  */
 function buildEntry(
-  user: { id: string; name: string | null },
+  identity: { name: string; avatar_color: string | null; avatar_initials: string | null },
+  userId: string,
   signal: PresenceSignal,
   status: "READING" | "EDITING",
   tabCount: number,
 ): PresenceEntry {
   return {
-    user_uuid: user.id,
-    user_name: user.name ?? user.id,
-    avatar_color: null,
-    avatar_initials: null,
+    user_uuid: userId,
+    user_name: identity.name,
+    avatar_color: identity.avatar_color,
+    avatar_initials: identity.avatar_initials,
     status,
     field: signal.field,
     value: signal.value,
     last_seen_at: Date.now(),
     tab_count: tabCount,
+    session_id: signal.session_id,
   };
 }
 
@@ -58,10 +85,11 @@ export const collaborationService = {
 
     switch (signal.action) {
       case "READING": {
-        const entry = buildEntry(user, signal, "READING", 1);
+        const entry = buildEntry(await resolveIdentity(user), user.id, signal, "READING", 1);
         await store.upsertReading(entityType, entityUuid, entry);
         await this.publishDelta(entityType, entityUuid, {
           user_uuid: user.id,
+          session_id: signal.session_id,
           action: "READING",
           entry,
           emitted_at: Date.now(),
@@ -69,10 +97,11 @@ export const collaborationService = {
         break;
       }
       case "EDITING": {
-        const entry = buildEntry(user, signal, "EDITING", 1);
+        const entry = buildEntry(await resolveIdentity(user), user.id, signal, "EDITING", 1);
         await store.upsertEditing(entityType, entityUuid, entry);
         await this.publishDelta(entityType, entityUuid, {
           user_uuid: user.id,
+          session_id: signal.session_id,
           action: "EDITING",
           entry,
           emitted_at: Date.now(),
@@ -80,9 +109,10 @@ export const collaborationService = {
         break;
       }
       case "LEAVE": {
-        await store.remove(entityType, entityUuid, user.id);
+        await store.remove(entityType, entityUuid, user.id, signal.session_id);
         await this.publishDelta(entityType, entityUuid, {
           user_uuid: user.id,
+          session_id: signal.session_id,
           action: "LEAVE",
           entry: null,
           emitted_at: Date.now(),
@@ -94,6 +124,28 @@ export const collaborationService = {
         // Heartbeats don't publish a NATS delta (no state change for other clients)
         break;
       }
+    }
+  },
+
+  /**
+   * SSE-driven liveness — refresh one session's presence TTL without going
+   * through the signal pipeline (no identity resolution, no NATS publish).
+   * Called by the SSE router on every keep-alive tick while the stream is
+   * open; an open stream already proves the tab is alive, so the client's
+   * periodic HEARTBEAT post is only a fallback for when SSE is down.
+   */
+  async refreshPresence(
+    entityType: string,
+    entityUuid: string,
+    userId: string,
+    sessionId?: string,
+  ): Promise<void> {
+    const store = getPresenceStore();
+    if (!store) return;
+    try {
+      await store.heartbeat(entityType, entityUuid, userId, sessionId ?? "default");
+    } catch {
+      // best-effort: a failed TTL refresh only shortens ghost lifetime
     }
   },
 
@@ -118,6 +170,7 @@ export const collaborationService = {
     entityUuid: string,
     delta: {
       user_uuid: string;
+      session_id?: string;
       action: string;
       entry: PresenceEntry | null;
       emitted_at: number;
@@ -130,39 +183,5 @@ export const collaborationService = {
     } catch {
       // best-effort: NATS publish failure is non-fatal
     }
-  },
-
-  /**
-   * Field-level audit diff for a single audit_log row, verified to belong
-   * to the requested entity UUID. Returns the response shape ready for
-   * serialization (controllers do not reshape).
-   */
-  async getAuditLogDiff(
-    entityType: string,
-    entityUuid: string,
-    auditLogId: bigint,
-  ): Promise<AuditDiffResponse> {
-    const row = await findAuditById(getDal(), `${entityType}_audit`, auditLogId);
-    if (!row) {
-      throw new NotFoundError(
-        `Audit log entry ${auditLogId} not found in ${entityType}_audit`,
-        { internal_code: "AUDIT_LOG_NOT_FOUND" },
-      );
-    }
-    if (row.entity_uuid !== entityUuid) {
-      throw new NotFoundError(
-        `Audit log entry ${auditLogId} does not belong to entity ${entityUuid}`,
-        { internal_code: "AUDIT_LOG_ENTITY_MISMATCH" },
-      );
-    }
-    return {
-      audit_log_id: Number(row.id),
-      entity_type: entityType,
-      entity_uuid: row.entity_uuid,
-      version: row.version,
-      changed_by: row.changed_by,
-      changed_at: new Date(row.changed_at).getTime(),
-      delta: row.delta as Record<string, { old: unknown; new: unknown }>,
-    };
   },
 };

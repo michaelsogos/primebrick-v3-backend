@@ -88,6 +88,16 @@ export class DomainUserResolverPort implements UserResolverPort {
     const { getUserService } = await import("./services/user.service.js");
     return getUserService().resolveInternalUuid(input);
   }
+
+  /**
+   * `ui_locale` preference → `AuthUser.locale` → `x-user-locale` downstream.
+   * The entity-level `@Cached` repo keeps this one-row read off the hot path.
+   */
+  async resolveUserLocale(internalUuid: string): Promise<string | null> {
+    const { UserPreferencesService } = await import("./services/user-preferences.service.js");
+    const row = await new UserPreferencesService().findByKey(internalUuid, "ui_locale");
+    return typeof row?.value === "string" ? row.value : null;
+  }
 }
 
 // ─── RoleMappingPort ──────────────────────────────────────────────────────────

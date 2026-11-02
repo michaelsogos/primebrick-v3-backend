@@ -22,15 +22,3 @@ export const PresenceSignalSchema = z.object({
   session_id: z.string().uuid().optional(),
 });
 export type PresenceSignalBody = z.infer<typeof PresenceSignalSchema>;
-
-// --- Audit diff response (GET audit/:auditLogId) -------------------------
-
-export interface AuditDiffResponse {
-  audit_log_id: number;
-  entity_type: string;
-  entity_uuid: string;
-  version: number;
-  changed_by: string;
-  changed_at: number;
-  delta: Record<string, { old: unknown; new: unknown }>;
-}

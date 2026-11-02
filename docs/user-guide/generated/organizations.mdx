@@ -70,8 +70,8 @@ This organization is backed by the identity provider (Casdoor) — its identity 
 | **purge** | DISABLED | — | Removes the organization forever | no |
 | **audit history** | ENABLED | `organization.read.audit` | Shows the change history of the organization | no |
 
-- Creating a new organization is available on this page — the create action opens the create form in a new browser tab and it requires the `organization.create.single` permission.
-- Editing an organization is available on this page — the row action opens the record in a new browser tab and it requires the `organization.update.single` permission.
+- Creating a new organization is available on this page — the create action opens the create form in the same tab and it requires the `organization.create.single` permission.
+- Editing an organization is available on this page — the row action opens the record in the same tab and it requires the `organization.update.single` permission.
 - Soft-deleting an organization is available on this page — marks the organization as deleted but keeps it so it can be restored and it requires the `organization.delete.single` permission, and step-up authentication is required.
 - Restoring a soft-deleted organization is available on this page — brings a soft-deleted organization back and it requires the `organization.restore.single` permission.
 - Permanently deleting an organization is not available on this page — no permission is declared for it on organizations.

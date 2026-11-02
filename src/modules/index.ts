@@ -16,7 +16,6 @@
 import type { Express } from "express";
 
 import { clientRegistryRouter } from "../controllers/http/client-registry.router.js";
-import { customersRouter } from "../controllers/http/customers.router.js";
 import { organizationsRouter } from "../controllers/http/auth/organizations.router.js";
 import { systemRouter } from "../controllers/http/system.router.js";
 import { translationsRouter } from "../controllers/http/translations.router.js";
@@ -26,14 +25,13 @@ import { collaborationRouter } from "../controllers/http/collaboration.router.js
 
 export function mountModules(app: Express): void {
   app.use(clientRegistryRouter());
-  app.use(customersRouter());
   app.use(organizationsRouter());
   app.use(systemRouter());
   // Translations — central CRUD gateway for all translation schemas.
   app.use(translationsRouter());
   // Auth router (public login endpoint + protected user/organization surface).
   app.use(authRouter());
-  // Generic microservice proxy (/ws/:serviceCode/* → microservice /api/*).
+  // Generic microservice proxy (/svc/:serviceCode/* → microservice /api/*).
   app.use(proxyRouter());
   // Collaboration (presence + entity-changed awareness for shared entities).
   app.use(collaborationRouter());

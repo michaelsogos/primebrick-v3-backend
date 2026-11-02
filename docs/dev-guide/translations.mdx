@@ -43,8 +43,8 @@ Values may embed `{name}` placeholders; the FE's `t(key, params)` fills
 them:
 
 ```ts
-t("system.entities.customer.delete.confirm", { name: "ACME" })
-// "Delete customer ACME?"
+t("system.entities.organization.delete.confirm", { name: "ACME" })
+// "Delete organization ACME?"
 ```
 
 Templates are **single-brace** `{param}` — not `{{}}` Handlebars (that's
@@ -56,8 +56,8 @@ Every entity carries two keys used everywhere (titles, buttons, bulk
 confirmations, assistant answers):
 
 ```
-system.entities.customer.singular  → "customer"
-system.entities.customer.plural    → "customers"
+system.entities.organization.singular  → "Organization"
+system.entities.organization.plural    → "Organizations"
 system.entities.user_profile.singular → "User"
 system.entities.user_profile.plural   → "Users"
 ```

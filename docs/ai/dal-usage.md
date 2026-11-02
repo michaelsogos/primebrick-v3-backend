@@ -101,7 +101,7 @@ review-visible in git diff.
 `audit` on a write call is **opt-in and silently skipped** when absent — a
 `repo.add/update/delete/restore` without `audit:` writes NO `{table}_audit`
 row and fails no check. Module DALs for audited entities (`config_entries`,
-`role_mappings`, `user_profiles`, `customers`, `organizations`, …) MUST pass
+`role_mappings`, `user_profiles`, `api_keys`, `organizations`, …) MUST pass
 `audit:` on every single-row write:
 
 - non-tx site: `audit: this.auditPort` (the repo-root adapter);

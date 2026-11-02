@@ -103,8 +103,8 @@ This user is backed by the identity provider (Casdoor) — its identity fields a
 | **audit history** | ENABLED | `user_profile.read.audit` | Shows the change history of the user | no |
 | **Change Password** | ENABLED | `AUTHENTICATED_ADMIN` | Set a new password for this user. They will need to use the new password on next login. | no |
 
-- Creating a new user is available on this page — the create action opens the create form in a new browser tab and it requires the `user_profile.create.single` permission.
-- Editing a user is available on this page — the row action opens the record in a new browser tab and it requires the `user_profile.update.single` permission.
+- Creating a new user is available on this page — the create action opens the create form in the same tab and it requires the `user_profile.create.single` permission.
+- Editing a user is available on this page — the row action opens the record in the same tab and it requires the `user_profile.update.single` permission.
 - Soft-deleting a user is available on this page — marks the user as deleted but keeps it so it can be restored and it requires the `user_profile.delete.single` permission.
 - Restoring a soft-deleted user is available on this page — brings a soft-deleted user back and it requires the `user_profile.restore.single` permission.
 - Permanently deleting a user is not available on this page — no permission is declared for it on users.

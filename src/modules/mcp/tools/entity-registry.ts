@@ -189,25 +189,6 @@ export const entityRegistry = new EntityRegistry();
  * Called once from the MCP module initialization.
  */
 export function registerBeEntities(): void {
-  // Customer
-  entityRegistry.registerLocalEntity("be", {
-    entity: "customer",
-    label: "Customer",
-    impl: "CustomerEntity->customers",
-    supported_operations: ["list", "get", "create", "update", "delete", "restore", "audit", "meta"],
-    supported_bulk_operations: ["bulk_delete", "bulk_restore"],
-    permissions: {
-      list: [Permission.CUSTOMER_READ_ALL],
-      get: [Permission.CUSTOMER_READ_SINGLE, Permission.CUSTOMER_READ_ALL],
-      create: [Permission.CUSTOMER_CREATE_SINGLE],
-      update: [Permission.CUSTOMER_UPDATE_SINGLE],
-      delete: [Permission.CUSTOMER_DELETE_SINGLE],
-      restore: [Permission.CUSTOMER_RESTORE_SINGLE],
-      audit: [Permission.CUSTOMER_READ_AUDIT],
-      meta: [Permission.CUSTOMER_READ_ALL, Permission.CUSTOMER_READ_SINGLE],
-    },
-  });
-
   // Organization
   entityRegistry.registerLocalEntity("be", {
     entity: "organization",
