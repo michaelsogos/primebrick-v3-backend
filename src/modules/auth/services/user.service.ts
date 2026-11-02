@@ -853,7 +853,9 @@ export class UserService extends DomainService<UserProfileDetailDto> {
       }
     }
 
-    return await this.softDeleteProfile(uuid, version);
+    const deleted = await this.softDeleteProfile(uuid, version);
+    await this.bumpUserAuthEpoch(uuid);
+    return deleted;
   }
 
   // --- Restore (un-soft-delete) --------------------------------------------
@@ -911,6 +913,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
       }
     }
 
+    await this.bumpUserAuthEpoch(uuid);
     return restored;
   }
 
@@ -929,6 +932,17 @@ export class UserService extends DomainService<UserProfileDetailDto> {
    * Syncs display_name / email / avatar / roles to Casdoor first (non-best-
    * effort), then updates the local DB.
    */
+  /** Best-effort per-user auth epoch bump — direct user/grant writes stale any cached AuthUser snapshot for that uuid. */
+  private async bumpUserAuthEpoch(uuid: string): Promise<void> {
+    const port = getCachePort();
+    if (!port) return;
+    try {
+      await port.set(`auth:user_epoch:${uuid}`, Date.now(), 30 * 24 * 60 * 60 * 1000);
+    } catch (e) {
+      logger.warn(`auth user_epoch set failed: ${e}`, { tags: ["auth"] });
+    }
+  }
+
   async updateUserProfile(uuid: string, body: UserUpdateBody, tx?: Repository): Promise<UserProfileDetailDto> {
     const profile = await this.getByUuid(uuid);
     if (!profile) {
@@ -984,7 +998,9 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     if (body.roles !== undefined) updateBody.roles = extJsonStringify(body.roles);
 
     // The write response IS the new observation — no follow-up GET.
-    return await this.updateProfile(uuid, updateBody as any, tx);
+    const updated = await this.updateProfile(uuid, updateBody as any, tx);
+    await this.bumpUserAuthEpoch(uuid);
+    return updated;
   }
 
   // --- Password change ------------------------------------------------------

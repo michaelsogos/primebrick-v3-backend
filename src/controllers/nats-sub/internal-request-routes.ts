@@ -9,10 +9,10 @@
  * verbatim, no business rules.
  */
 
-import { logger, makeNatsRequestRoute, setNatsShieldRegistry, CLIENT_SHIELD_REGISTRY_SUBJECTS, AUTH_MFA_CONSUME_SUBJECT, CachingApiKeyPort, type ClientShieldRegistryRow, type MfaConsumeResult } from "@primebrick/sdk";
+import { logger, makeNatsRequestRoute, setNatsShieldRegistry, CLIENT_SHIELD_REGISTRY_SUBJECTS, AUTH_MFA_CONSUME_SUBJECT, CachingApiKeyPort, buildAuthUser, expandPermissions, type ClientShieldRegistryRow, type MfaConsumeResult } from "@primebrick/sdk";
 import type { Msg } from "@nats-io/transport-node";
 import { ApiError } from "../../http/api-errors.js";
-import { DomainApiKeyPort } from "../../modules/auth/sdk-auth-ports.js";
+import { DomainApiKeyPort, DomainRoleMappingPort } from "../../modules/auth/sdk-auth-ports.js";
 import { CasdoorService } from "../../modules/auth/services/casdoor.service.js";
 import { MfaService } from "../../modules/auth/services/mfa.service.js";
 import { ClientShieldRegistryService } from "../../modules/system/client-shield-registry.service.js";
@@ -21,6 +21,7 @@ import { createPublisherVerifier } from "./publisher-identity.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
 
 export const AUTH_APIKEY_BY_HASH_SUBJECT = "auth.apikey.byHash";
+export const AUTH_RESOLVE_USER_SUBJECT = "auth.ctl.resolve_user";
 export const SERVICE_REGISTRY_GET_SUBJECT = "service.registry.get";
 
 export async function startInternalRequestRoutes(): Promise<void> {
@@ -133,11 +134,46 @@ export async function startInternalRequestRoutes(): Promise<void> {
           }
         },
       },
+      {
+        // Resolve a FRESH AuthUser by internal uuid for scheduled/triggered
+        // dispatch — job-handler calls this at arm time (`me` lane, author
+        // identity) and at fire time when the Redis auth checkpoint misses
+        // or is epoch-stale. `null` is data, not an error: a deleted or
+        // disabled user must fail the fire closed.
+        subject: AUTH_RESOLVE_USER_SUBJECT,
+        permissions: [],
+        verify,
+        handler: async ({ request }): Promise<unknown> => {
+          const { user_uuid } = (request ?? {}) as { user_uuid?: string };
+          if (!user_uuid || typeof user_uuid !== "string") return null;
+          const { getUserService } = await import("../../modules/auth/services/user.service.js");
+          const user = await getUserService().getByUuid(user_uuid);
+          if (!user || user.is_active === false) return null;
+          const rolePort = new DomainRoleMappingPort();
+          const { patterns, isAdmin } = await expandPermissions(
+            user.roles ?? [],
+            (role) => rolePort.getRoleMapping(role),
+          );
+          return buildAuthUser(
+            user.uuid,
+            {
+              idp_code: user.idp_code,
+              email: user.email ?? null,
+              name: user.display_name ?? null,
+              roles: user.roles ?? [],
+              idp_org: user.idp_org ?? null,
+              idp_username: user.idp_username ?? null,
+            },
+            new Set(patterns),
+            isAdmin,
+          );
+        },
+      },
     ],
     { serviceCode: "primebrick-api" },
   );
   logger.done(
-    `Subscribed to ${AUTH_APIKEY_BY_HASH_SUBJECT}, ${CLIENT_SHIELD_REGISTRY_SUBJECTS.GET}, ${SERVICE_REGISTRY_GET_SUBJECT} (governed correlation-reply)`,
+    `Subscribed to ${AUTH_APIKEY_BY_HASH_SUBJECT}, ${AUTH_RESOLVE_USER_SUBJECT}, ${CLIENT_SHIELD_REGISTRY_SUBJECTS.GET}, ${SERVICE_REGISTRY_GET_SUBJECT} (governed correlation-reply)`,
     { tags: ["nats"] },
   );
 }

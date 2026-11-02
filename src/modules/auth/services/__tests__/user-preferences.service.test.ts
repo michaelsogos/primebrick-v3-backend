@@ -22,7 +22,7 @@ function prefRow(overrides: Record<string, unknown> = {}) {
     uuid: "row-uuid-1",
     user_uuid: USER_UUID,
     key: "favorite_pages",
-    value: ["/system/job/rules/create"],
+    value: ["/system/job/triggers/create"],
     version: 3,
     ...overrides,
   };
@@ -45,7 +45,7 @@ describe("UserPreferencesService", () => {
       ]);
       const entry = await svc.getAll(USER_UUID);
       expect(entry.data.preferences).toEqual({
-        favorite_pages: ["/system/job/rules/create"],
+        favorite_pages: ["/system/job/triggers/create"],
         ui_locale: "it-IT",
       });
     });
@@ -63,7 +63,7 @@ describe("UserPreferencesService", () => {
       const entry = await svc.getOne(USER_UUID, "favorite_pages");
       expect(entry.data).toEqual({
         key: "favorite_pages",
-        value: ["/system/job/rules/create"],
+        value: ["/system/job/triggers/create"],
       });
     });
 

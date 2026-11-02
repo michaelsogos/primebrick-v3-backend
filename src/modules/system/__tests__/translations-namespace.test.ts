@@ -37,7 +37,7 @@ describe("assertKeyNamespace — schema → key-namespace write boundary", () =>
     [SystemTranslationEntity, "system.entities.customer.title"],
     [SystemTranslationEntity, "system.settings.tabs.profile"],
     [CustomTranslationEntity, "custom.my_label"],
-    [serviceEntity("job"), "job.entities.job_rule.title"],
+    [serviceEntity("job"), "job.entities.job_trigger.title"],
     [serviceEntity("emailsender"), "emailsender.mail.subject"],
   ])("accepts %s keys inside its own namespace", (entity: any, key: string) => {
     expect(() => assertKeyNamespace(entity, key)).not.toThrow();
@@ -45,10 +45,10 @@ describe("assertKeyNamespace — schema → key-namespace write boundary", () =>
 
   it.each([
     // the historical drift class: module schema seeding CORE namespaces
-    [serviceEntity("job"), "system.entities.job_rule.title"],
+    [serviceEntity("job"), "system.entities.job_trigger.title"],
     [serviceEntity("job"), "app.common.save"],
     // core schemas accepting foreign module keys
-    [SystemTranslationEntity, "job.entities.job_rule.title"],
+    [SystemTranslationEntity, "job.entities.job_trigger.title"],
     [AppTranslationEntity, "system.entities.customer.title"],
     [AppTranslationEntity, "job.anything"],
     // user keys outside custom
