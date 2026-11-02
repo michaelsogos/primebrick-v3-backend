@@ -18,7 +18,11 @@
  * - Initial snapshot on connect
  * - Subscribe to per-entity bus (refcounted NATS bridge via
  *   `collaborationBusRegistry`)
- * - Keep-alive 15s
+ * - Keep-alive 45s — each tick ALSO refreshes the connecting session's
+ *   presence TTL (Redis TTL 60s): an open stream already proves the tab is
+ *   alive, so client HEARTBEAT posts are only a fallback for a broken SSE.
+ *   On disconnect we do NOT publish LEAVE — reconnects are transient, so the
+ *   60s TTL expiry handles real departures.
  * - Cleanup on `req.on("close")`
  */
 
@@ -32,7 +36,7 @@ import { collaborationService } from "../../modules/collaboration/collaboration.
 import { collaborationBusRegistry } from "../../modules/collaboration/collaboration-bus-registry.js";
 
 
-const KEEPALIVE_MS = 15_000;
+const KEEPALIVE_MS = 45_000;
 
 export function collaborationRouter() {
   const router = makeProtectedRouter();
@@ -102,8 +106,12 @@ export function collaborationRouter() {
         writer.send(ev);
       });
 
-      // 4. Keep-alive every 15s (comment line, not an event)
-      const keepAlive = setInterval(() => writer.comment("keep-alive"), KEEPALIVE_MS);
+      // 4. Keep-alive every 45s (comment line, not an event) — doubles as the
+      //    liveness tick: refresh THIS session's presence TTL server-side.
+      const keepAlive = setInterval(() => {
+        writer.comment("keep-alive");
+        void collaborationService.refreshPresence(entity, uuid, req.user!.id, connSession);
+      }, KEEPALIVE_MS);
 
       // 5. Cleanup on client disconnect
       req.on("close", () => {

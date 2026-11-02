@@ -3,7 +3,7 @@
  * publishes LEAVE events on NATS.
  *
  * When a presence hash (`presence:{entityType}:{entityUuid}:users`) expires
- * (TTL 30s, no heartbeat), the user has gone away. This listener detects
+ * (TTL 60s, no heartbeat), the user has gone away. This listener detects
  * that expiry via Redis keyspace notifications and publishes a LEAVE delta
  * on NATS so connected SSE clients on all BE instances remove the user from
  * their presence UI.

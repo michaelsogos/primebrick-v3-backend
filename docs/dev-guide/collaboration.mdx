@@ -68,7 +68,10 @@ Browser ──HTTP──▶ BE instance ──SSE──▶ Browser
 SSE works over standard HTTP/1.1 or HTTP/2. The browser opens a long-lived
 `GET` connection to `/presence/events` and receives a stream of named events
 (`snapshot`, `presence-update`, `entity-changed`, `error`). A keep-alive comment
-is sent every 15 seconds to keep proxies from closing the connection.
+is sent every 45 seconds — it keeps proxies from closing the connection AND
+refreshes the connecting session's presence TTL server-side (SSE-driven
+liveness: while the stream is open, clients don't need to POST heartbeats).
+See `sse-standard.mdx` §6 for the approved TTL → keep-alive scale table.
 
 Redis stores the presence state (who is reading, who is editing, which field)
 and the most recent entity-changed marker. The marker has a 5-minute TTL so that
@@ -164,8 +167,10 @@ The four actions:
   clients show the editing avatar and field focus indicator.
 - **`LEAVE`** — user closed the tab or navigated away. Removes the user from both
   lists and publishes a `LEAVE` delta.
-- **`HEARTBEAT`** — keep the user's presence alive. Resets the Redis TTL. Does
-  not publish a NATS delta (no state change for other clients).
+- **`HEARTBEAT`** — fallback liveness, sent only while the SSE stream is down
+  (when SSE is open, the server-side keep-alive tick already refreshes the
+  TTL). Resets the Redis TTL. Does not publish a NATS delta (no state change
+  for other clients).
 
 ### GET `/api/v1/entities/:entity/:uuid/presence`
 
@@ -228,7 +233,9 @@ session**: pass `?session_id=<tab-session>` so the server drops only deltas
 emitted by that same session. Another tab of the same user is a different
 session and IS echoed — same-user multi-tab awareness is the point (the FE
 labels it "you — other tab"). A keep-alive comment (`: keep-alive`) is sent
-every 15 seconds.
+every 45 seconds; each tick also refreshes the connecting session's presence
+TTL (60s). On disconnect no `LEAVE` is published — reconnects are transient,
+so the TTL expiry handles real departures.
 
 ### Field-level diffs — the owning service's paged audit endpoint
 
@@ -306,8 +313,8 @@ const marker: EntityChangedMarker = {
 ## Keyspace notifications
 
 When a user closes their browser without sending an explicit `LEAVE` signal,
-their presence entry in Redis expires after the TTL (30 seconds without a
-heartbeat). The keyspace listener detects this expiry and publishes a `LEAVE`
+their presence entry in Redis expires after the TTL (60 seconds without a
+liveness refresh). The keyspace listener detects this expiry and publishes a `LEAVE`
 delta on NATS so connected SSE clients remove the stale user from their presence
 UI.
 

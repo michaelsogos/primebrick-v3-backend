@@ -82,11 +82,10 @@ export const collaborationService = {
     if (!store) return; // best-effort: presence disabled
 
     const sessionId = signal.session_id ?? "default";
-    const identity = await resolveIdentity(user);
 
     switch (signal.action) {
       case "READING": {
-        const entry = buildEntry(identity, user.id, signal, "READING", 1);
+        const entry = buildEntry(await resolveIdentity(user), user.id, signal, "READING", 1);
         await store.upsertReading(entityType, entityUuid, entry);
         await this.publishDelta(entityType, entityUuid, {
           user_uuid: user.id,
@@ -98,7 +97,7 @@ export const collaborationService = {
         break;
       }
       case "EDITING": {
-        const entry = buildEntry(identity, user.id, signal, "EDITING", 1);
+        const entry = buildEntry(await resolveIdentity(user), user.id, signal, "EDITING", 1);
         await store.upsertEditing(entityType, entityUuid, entry);
         await this.publishDelta(entityType, entityUuid, {
           user_uuid: user.id,
@@ -125,6 +124,28 @@ export const collaborationService = {
         // Heartbeats don't publish a NATS delta (no state change for other clients)
         break;
       }
+    }
+  },
+
+  /**
+   * SSE-driven liveness — refresh one session's presence TTL without going
+   * through the signal pipeline (no identity resolution, no NATS publish).
+   * Called by the SSE router on every keep-alive tick while the stream is
+   * open; an open stream already proves the tab is alive, so the client's
+   * periodic HEARTBEAT post is only a fallback for when SSE is down.
+   */
+  async refreshPresence(
+    entityType: string,
+    entityUuid: string,
+    userId: string,
+    sessionId?: string,
+  ): Promise<void> {
+    const store = getPresenceStore();
+    if (!store) return;
+    try {
+      await store.heartbeat(entityType, entityUuid, userId, sessionId ?? "default");
+    } catch {
+      // best-effort: a failed TTL refresh only shortens ghost lifetime
     }
   },
 
