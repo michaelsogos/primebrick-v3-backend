@@ -13,6 +13,7 @@ import { getUserService, UserService } from "../../../modules/auth/services/user
 import { AuthSessionService } from "../../../modules/auth/services/auth-session.service.js";
 import { InvitationService } from "../../../modules/auth/services/invitation.service.js";
 import { MfaService } from "../../../modules/auth/services/mfa.service.js";
+import { UserPreferencesService } from "../../../modules/auth/services/user-preferences.service.js";
 import { WebauthnService } from "../../../modules/auth/services/webauthn.service.js";
 
 export function makeUserService(): UserService {
@@ -33,4 +34,8 @@ export function makeMfaService(): MfaService {
 
 export function makeWebauthnService(): WebauthnService {
   return new WebauthnService(new CasdoorService());
+}
+
+export function makeUserPreferencesService(): UserPreferencesService {
+  return new UserPreferencesService();
 }

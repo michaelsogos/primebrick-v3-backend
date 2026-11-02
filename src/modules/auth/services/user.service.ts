@@ -1037,7 +1037,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
         );
         await sendEmail({
           template_code: "password_changed",
-          language_iso: "en",
+          language_iso: "en-US",
           to: [existing.email],
           variables: {
             display_name: existing.display_name ?? "",
@@ -1122,7 +1122,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
         );
         await sendEmail({
           template_code: "password_changed",
-          language_iso: "en",
+          language_iso: "en-US",
           to: [existing.email],
           variables: {
             display_name: existing.display_name ?? "",

@@ -10,12 +10,14 @@
 
 import type {
   ModuleNavDeclaration as CoreModuleNavDeclaration,
+  ModuleCallablesDecl,
+  ModuleEventsDecl,
   ModuleNavLink,
   ModuleSheetDecl,
   PageRouteDeclaration,
 } from "@primebrick/sdk";
 
-export type { ModuleNavLink, PageRouteDeclaration, ModuleSheetDecl };
+export type { ModuleNavLink, PageRouteDeclaration, ModuleSheetDecl, ModuleEventsDecl, ModuleCallablesDecl };
 
 export type ModuleNav = {
   module: string;

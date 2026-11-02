@@ -248,18 +248,8 @@ describe("EntityRegistry", () => {
   });
 
   describe("registerBeEntities (static registration)", () => {
-    it("registers customer, organization, and user_profile", () => {
+    it("registers organization and user_profile", () => {
       registerBeEntities();
-
-      const customer = entityRegistry.get("be", "customer");
-      expect(customer).toBeDefined();
-      expect(customer?.label).toBe("Customer");
-      expect(customer?.handler_type).toBe("in-process");
-      expect(customer?.supported_operations).toContain("list");
-      expect(customer?.supported_operations).toContain("create");
-      expect(customer?.supported_operations).toContain("delete");
-      expect(customer?.supported_bulk_operations).toContain("bulk_delete");
-      expect(customer?.permissions?.list).toBeDefined();
 
       const organization = entityRegistry.get("be", "organization");
       expect(organization).toBeDefined();
@@ -295,7 +285,7 @@ describe("EntityRegistry", () => {
       registerBeEntities();
 
       const beEntries = entityRegistry.listByModule("be");
-      expect(beEntries).toHaveLength(4);
+      expect(beEntries).toHaveLength(3);
     });
   });
 });

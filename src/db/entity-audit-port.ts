@@ -1,7 +1,8 @@
 import type { AuditPort, AuditParams, Repository } from "@primebrick/dal-pg";
 import { AuditLogEntity, AuditAction } from "@primebrick/dal-pg";
-import { NatsClient, publishEntityChanged, type EntityChangedMarker } from "@primebrick/sdk";
+import { NatsClient, publishEntityChanged, getClientSessionId, type EntityChangedMarker } from "@primebrick/sdk";
 import { getPresenceStore } from "../modules/collaboration/presence-store-holder.js";
+import { resolveEntityName } from "./entity-name-registry.js";
 
 /**
  * BE-side audit port adapter.
@@ -28,7 +29,7 @@ type AuditWriter = Pick<Repository, "add">;
 export class EntityAuditPort implements AuditPort {
   constructor(private repo: AuditWriter) {}
 
-  async writeAudit(params: AuditParams): Promise<void> {
+  async writeAudit(params: AuditParams): Promise<bigint> {
     // AuditParams contains: entityClassName, tableName (e.g. "customers"),
     //   entityId, entityUuid, action, changedAt, version, changedBy, delta
     //
@@ -59,33 +60,48 @@ export class EntityAuditPort implements AuditPort {
       params.action === AuditAction.RESTORE ||
       params.action === AuditAction.HARD_DELETE
     ) {
-      const marker: EntityChangedMarker = {
-        entity_type: params.tableName, // e.g. "customers"
-        entity_uuid: params.entityUuid,
-        version: params.version,
-        audit_log_id: Number(inserted.id),
-        changed_by: params.changedBy,
-        changed_at: params.changedAt.getTime(),
-      };
+      // The marker's entity_type is the API entity name (singular — the
+      // /entities/:entity segment), NOT the physical table name: presence
+      // keys, NATS subjects and the FE all use the API namespace.
+      const entityType = resolveEntityName(params.entityClassName, params.tableName);
+      if (entityType) {
+        const marker: EntityChangedMarker = {
+          entity_type: entityType,
+          entity_uuid: params.entityUuid,
+          version: params.version,
+          audit_log_id: Number(inserted.id),
+          changed_by: params.changedBy,
+          // The writer's tab session (X-Client-Session header → ALS): lets the
+          // FE tell "my own tab saved" (silent realign) from "my OTHER tab
+          // saved" (foreign change → merge/conflict).
+          changed_by_session: getClientSessionId(),
+          changed_at: params.changedAt.getTime(),
+        };
 
-      // 1. Redis — store the marker with a 5-minute TTL
-      try {
-        const store = getPresenceStore();
-        if (store) {
-          await store.setChanged(marker, 300_000);
+        // 1. Redis — store the marker with a 5-minute TTL, and stamp `edited_at`
+        //    on the saver's presence entry (drives the FE "recently saved"
+        //    affordance; no-op when the saver has no live presence entry, e.g.
+        //    `changed_by: "system"` or a non-FE writer).
+        try {
+          const store = getPresenceStore();
+          if (store) {
+            await store.setChanged(marker, 300_000);
+            await store.markEdited(entityType, params.entityUuid, params.changedBy, marker.changed_at);
+          }
+        } catch {
+          // best-effort: Redis unavailable
         }
-      } catch {
-        // best-effort: Redis unavailable
-      }
 
-      // 2. NATS — publish to entity.{entityType}.{entityUuid}.changed
-      try {
-        if (NatsClient.isConnected()) {
-          await publishEntityChanged(NatsClient, marker);
+        // 2. NATS — publish to entity.{entityType}.{entityUuid}.changed
+        try {
+          if (NatsClient.isConnected()) {
+            await publishEntityChanged(NatsClient, marker);
+          }
+        } catch {
+          // best-effort: NATS unavailable
         }
-      } catch {
-        // best-effort: NATS unavailable
       }
     }
+    return inserted.id;
   }
 }

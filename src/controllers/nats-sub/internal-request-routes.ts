@@ -16,7 +16,7 @@ import { DomainApiKeyPort } from "../../modules/auth/sdk-auth-ports.js";
 import { CasdoorService } from "../../modules/auth/services/casdoor.service.js";
 import { MfaService } from "../../modules/auth/services/mfa.service.js";
 import { ClientShieldRegistryService } from "../../modules/system/client-shield-registry.service.js";
-import { ServiceRegistryService, type ServiceRegistryEntry } from "../../modules/system/service-registry.service.js";
+import { ServiceRegistryService } from "../../modules/system/service-registry.service.js";
 import { createPublisherVerifier } from "./publisher-identity.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
 
@@ -67,11 +67,24 @@ export async function startInternalRequestRoutes(): Promise<void> {
         // exposing that capability (e.g. docs_pack discovery by ai) — this
         // is the sanctioned replacement for direct public.service_registry
         // reads, which no US may perform under schema sovereignty.
+        // `{ census: "callables" }` returns the flattened callable catalog
+        // (each service's endpoints.callables + its code) for services that
+        // validate work destinations — e.g. job-handler checking a rule's
+        // target_subject against census.callables at write time.
         subject: SERVICE_REGISTRY_GET_SUBJECT,
         permissions: [],
         verify,
-        handler: async ({ request }): Promise<ServiceRegistryEntry | ServiceRegistryEntry[] | null> => {
-          const { code, capability } = (request ?? {}) as { code?: string; capability?: string };
+        handler: async ({ request }): Promise<unknown> => {
+          const { code, capability, census } = (request ?? {}) as { code?: string; capability?: string; census?: string };
+          if (census === "callables") {
+            const rows = await serviceSvc.findAll();
+            return rows
+              .filter((r) => r.status === "online" && r.is_enabled !== false)
+              .map((r) => ({
+                service_code: r.code,
+                callables: (r.endpoints?.["callables"] as { callables?: unknown[] } | undefined)?.callables ?? [],
+              }));
+          }
           if (capability && typeof capability === "string") {
             const rows = await serviceSvc.findAll();
             return rows.filter(

@@ -1,11 +1,14 @@
 /**
- * Collaboration router — presence endpoints (POST/GET) + SSE events + audit diff.
+ * Collaboration router — presence endpoints (POST/GET) + SSE events.
  *
  * Endpoints:
  * - `POST /api/v1/entities/:entity/:uuid/presence` — send a presence signal.
  * - `GET  /api/v1/entities/:entity/:uuid/presence` — get the presence snapshot.
  * - `GET  /api/v1/entities/:entity/:uuid/presence/events` — SSE stream.
- * - `GET  /api/v1/entities/:entity/:uuid/audit/:auditLogId` — field-level diff.
+ *
+ * Field-level diffs come from the OWNING service's paged audit endpoint
+ * (`GET {svc}/api/v1/entities/:entity/:uuid/audit?page=1&limit=1`) — this
+ * gateway never queries another service's audit tables.
  *
  * Auth via `rbacHandler([Permission.AUTHENTICATED_USER])` (cookie-based;
  * `createSseConnection` sends `credentials:'include'`).
@@ -15,7 +18,11 @@
  * - Initial snapshot on connect
  * - Subscribe to per-entity bus (refcounted NATS bridge via
  *   `collaborationBusRegistry`)
- * - Keep-alive 15s
+ * - Keep-alive 45s — each tick ALSO refreshes the connecting session's
+ *   presence TTL (Redis TTL 60s): an open stream already proves the tab is
+ *   alive, so client HEARTBEAT posts are only a fallback for a broken SSE.
+ *   On disconnect we do NOT publish LEAVE — reconnects are transient, so the
+ *   60s TTL expiry handles real departures.
  * - Cleanup on `req.on("close")`
  */
 
@@ -29,7 +36,7 @@ import { collaborationService } from "../../modules/collaboration/collaboration.
 import { collaborationBusRegistry } from "../../modules/collaboration/collaboration-bus-registry.js";
 
 
-const KEEPALIVE_MS = 15_000;
+const KEEPALIVE_MS = 45_000;
 
 export function collaborationRouter() {
   const router = makeProtectedRouter();
@@ -89,17 +96,22 @@ export function collaborationRouter() {
         });
       }
 
-      // 3. Subscribe to the per-entity bus (exclude events from this user)
-      const userId = req.user?.id;
+      // 3. Subscribe to the per-entity bus — exclude echoes of THIS TAB's
+      //    session only. Another tab of the same user is a different session
+      //    and MUST be echoed (same-user multi-tab awareness).
+      const connSession = typeof req.query.session_id === "string" ? req.query.session_id : undefined;
       const sub = bus.subscribe((ev) => {
-        // Exclude sender from presence-update echoes
         const data = ev.data as Record<string, unknown> | null;
-        if (ev.event === "presence-update" && data?.user_uuid === userId) return;
+        if (ev.event === "presence-update" && connSession && data?.session_id === connSession) return;
         writer.send(ev);
       });
 
-      // 4. Keep-alive every 15s (comment line, not an event)
-      const keepAlive = setInterval(() => writer.comment("keep-alive"), KEEPALIVE_MS);
+      // 4. Keep-alive every 45s (comment line, not an event) — doubles as the
+      //    liveness tick: refresh THIS session's presence TTL server-side.
+      const keepAlive = setInterval(() => {
+        writer.comment("keep-alive");
+        void collaborationService.refreshPresence(entity, uuid, req.user!.id, connSession);
+      }, KEEPALIVE_MS);
 
       // 5. Cleanup on client disconnect
       req.on("close", () => {
@@ -108,21 +120,6 @@ export function collaborationRouter() {
         writer.close();
         collaborationBusRegistry.release(entity, uuid);
       });
-    }),
-  );
-
-  // GET /api/v1/entities/:entity/:uuid/audit/:auditLogId — field-level diff
-  // Returns the audit log entry's delta for the FE merge / conflict UI.
-  router.get(
-    "/api/v1/entities/:entity/:uuid/audit/:auditLogId",
-    rbacHandler([Permission.AUTHENTICATED_USER]),
-    asyncHandler(async (req, res) => {
-      const entity = String(req.params.entity);
-      const uuid = String(req.params.uuid);
-      const auditLogId = BigInt(String(req.params.auditLogId));
-
-      const response = await collaborationService.getAuditLogDiff(entity, uuid, auditLogId);
-      res.json(response);
     }),
   );
 

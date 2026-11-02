@@ -22,6 +22,7 @@ import { initCache, closeCache, getRedisHealth, getCachePort } from "./cache/cac
 import { initPresenceStore, closePresenceStore } from "./modules/collaboration/presence-store-holder.js";
 import { collaborationBusRegistry } from "./modules/collaboration/collaboration-bus-registry.js";
 import { startKeyspaceListener } from "./modules/collaboration/keyspace-listener.js";
+import { startMarkerPersister } from "./modules/collaboration/marker-persister.js";
 import { initMcpModule } from "./modules/mcp/index.js";
 import { mountMcp } from "./controllers/http/mcp/index.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
@@ -286,7 +287,7 @@ apiRouter.get("/modules", rbacHandler([Permission.AUTHENTICATED_USER]), async (r
 });
 
 app.use("/api/v1", apiRouter);
-// Mount all feature routers (customers / organizations / system / auth).
+// Mount all feature routers (organizations / system / auth).
 mountModules(app);
 
 // Mount the MCP endpoint at /mcp (Streamable HTTP transport, stateless mode).
@@ -380,6 +381,13 @@ async function initPresenceStoreFromConfig(): Promise<void> {
       } catch (err) {
         logger.warn("keyspace listener failed (best-effort):", { tags: ["core"], error: err });
       }
+    }
+    // NATS→Redis marker persister for service-owned entities (best-effort;
+    // independent of Redis — it no-ops when the store is unavailable).
+    try {
+      startMarkerPersister(logger);
+    } catch (err) {
+      logger.warn("marker persister failed (best-effort):", { tags: ["core"], error: err });
     }
   } catch (err) {
     logger.warn(

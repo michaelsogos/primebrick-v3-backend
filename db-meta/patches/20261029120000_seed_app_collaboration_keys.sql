@@ -1,0 +1,76 @@
+-- app.collaboration.* — presence-zone status chip + conflict popover keys
+-- (F11 visual merge: silent-merge badge, conflict count, per-field
+-- keep-mine/use-new resolution). Same seed pattern as app.favorites.*.
+INSERT INTO public.translations (key, language, value, created_at, created_by, updated_at, updated_by, version) VALUES
+  ('app.collaboration.updated_automatically', 'en-GB', 'Updated automatically', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_automatically', 'en-US', 'Updated automatically', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_automatically', 'it-IT', 'Aggiornato automaticamente', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_automatically', 'fr-FR', 'Mis à jour automatiquement', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_automatically', 'es-ES', 'Actualizado automáticamente', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_automatically', 'pt-PT', 'Atualizado automaticamente', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_automatically', 'de-DE', 'Automatisch aktualisiert', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+
+  ('app.collaboration.updated_by', 'en-GB', 'Updated by {name}', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_by', 'en-US', 'Updated by {name}', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_by', 'it-IT', 'Aggiornato da {name}', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_by', 'fr-FR', 'Mis à jour par {name}', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_by', 'es-ES', 'Actualizado por {name}', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_by', 'pt-PT', 'Atualizado por {name}', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_by', 'de-DE', 'Aktualisiert von {name}', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+
+  ('app.collaboration.updated_automatically_desc', 'en-GB', 'Fields you had not touched were updated with the latest saved values. Reload to see the full record.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_automatically_desc', 'en-US', 'Fields you had not touched were updated with the latest saved values. Reload to see the full record.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_automatically_desc', 'it-IT', 'I campi che non avevi toccato sono stati aggiornati con gli ultimi valori salvati. Ricarica per vedere il record completo.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_automatically_desc', 'fr-FR', 'Les champs que vous n''aviez pas modifiés ont été mis à jour avec les dernières valeurs enregistrées. Rechargez pour voir l''enregistrement complet.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_automatically_desc', 'es-ES', 'Los campos que no había tocado se actualizaron con los últimos valores guardados. Recargue para ver el registro completo.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_automatically_desc', 'pt-PT', 'Os campos que você não tinha tocado foram atualizados com os últimos valores salvos. Recarregue para ver o registro completo.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_automatically_desc', 'de-DE', 'Felder, die Sie nicht geändert hatten, wurden mit den zuletzt gespeicherten Werten aktualisiert. Neu laden, um den vollständigen Datensatz zu sehen.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+
+  ('app.collaboration.updated_by_desc', 'en-GB', '{name} saved changes — fields you had not touched were updated automatically.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_by_desc', 'en-US', '{name} saved changes — fields you had not touched were updated automatically.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_by_desc', 'it-IT', '{name} ha salvato delle modifiche — i campi che non avevi toccato sono stati aggiornati automaticamente.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_by_desc', 'fr-FR', '{name} a enregistré des modifications — les champs que vous n''aviez pas touchés ont été mis à jour automatiquement.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_by_desc', 'es-ES', '{name} guardó cambios — los campos que no había tocado se actualizaron automáticamente.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_by_desc', 'pt-PT', '{name} salvou alterações — os campos que você não tinha tocado foram atualizados automaticamente.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.updated_by_desc', 'de-DE', '{name} hat Änderungen gespeichert — Felder, die Sie nicht geändert hatten, wurden automatisch aktualisiert.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+
+  ('app.collaboration.conflict_count', 'en-GB', '{count} changes need your attention', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_count', 'en-US', '{count} changes need your attention', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_count', 'it-IT', '{count} modifiche richiedono attenzione', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_count', 'fr-FR', '{count} modifications nécessitent votre attention', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_count', 'es-ES', '{count} cambios requieren su atención', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_count', 'pt-PT', '{count} alterações precisam da sua atenção', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_count', 'de-DE', '{count} Änderungen erfordern Ihre Aufmerksamkeit', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+
+  ('app.collaboration.conflict_title', 'en-GB', '{count} field(s) changed elsewhere while you were editing', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_title', 'en-US', '{count} field(s) changed elsewhere while you were editing', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_title', 'it-IT', '{count} campi modificati altrove mentre stavi editando', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_title', 'fr-FR', '{count} champ(s) modifié(s) ailleurs pendant votre édition', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_title', 'es-ES', '{count} campo(s) modificado(s) en otro lugar mientras editaba', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_title', 'pt-PT', '{count} campo(s) alterado(s) noutro local enquanto editava', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_title', 'de-DE', '{count} Feld(er) wurde(n) während Ihrer Bearbeitung anderweitig geändert', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+
+  ('app.collaboration.conflict_hint', 'en-GB', 'Choose for each field whether to keep your edit or take the new value.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_hint', 'en-US', 'Choose for each field whether to keep your edit or take the new value.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_hint', 'it-IT', 'Scegli per ogni campo se tenere la tua modifica o usare il nuovo valore.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_hint', 'fr-FR', 'Choisissez pour chaque champ de garder votre modification ou de prendre la nouvelle valeur.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_hint', 'es-ES', 'Elija para cada campo si mantener su edición o tomar el nuevo valor.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_hint', 'pt-PT', 'Escolha para cada campo se mantém a sua edição ou usa o novo valor.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.conflict_hint', 'de-DE', 'Wählen Sie für jedes Feld, ob Ihre Änderung oder der neue Wert übernommen wird.', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+
+  ('app.collaboration.keep_mine', 'en-GB', 'Keep mine', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.keep_mine', 'en-US', 'Keep mine', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.keep_mine', 'it-IT', 'Tieni il mio', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.keep_mine', 'fr-FR', 'Garder le mien', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.keep_mine', 'es-ES', 'Conservar el mío', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.keep_mine', 'pt-PT', 'Manter o meu', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.keep_mine', 'de-DE', 'Meine behalten', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+
+  ('app.collaboration.use_new', 'en-GB', 'Use new', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.use_new', 'en-US', 'Use new', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.use_new', 'it-IT', 'Usa il nuovo', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.use_new', 'fr-FR', 'Utiliser le nouveau', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.use_new', 'es-ES', 'Usar el nuevo', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.use_new', 'pt-PT', 'Usar o novo', now(), 'migration-collaboration', now(), 'migration-collaboration', 1),
+  ('app.collaboration.use_new', 'de-DE', 'Neuen übernehmen', now(), 'migration-collaboration', now(), 'migration-collaboration', 1)
+ON CONFLICT (key, language) WHERE deleted_at IS NULL DO NOTHING;

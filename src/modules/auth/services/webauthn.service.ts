@@ -883,7 +883,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
             );
             await sendEmail({
               template_code: "passkey_activated",
-              language_iso: "en",
+              language_iso: "en-US",
               to: [profile.email ?? ""].filter((e) => e.length > 0),
               variables: {
                 display_name: profile.display_name ?? "",
@@ -1221,7 +1221,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
         );
         await sendEmail({
           template_code: "passkey_removed",
-          language_iso: "en",
+          language_iso: "en-US",
           to: [profile.email],
           variables: {
             display_name: profile.display_name ?? "",

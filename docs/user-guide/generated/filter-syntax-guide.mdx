@@ -106,21 +106,6 @@ With `connector=OR` query parameter, matches rows where status is ACTIVE **or** 
 | `created_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
 | `updated_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
 
-### customer
-
-| Field | Type | Example |
-|-------|------|---------|
-| `code` | text | `{ "op": "ILIKE", "value": "%search%" }` |
-| `first_name` | text | `{ "op": "ILIKE", "value": "%search%" }` |
-| `last_name` | text | `{ "op": "ILIKE", "value": "%search%" }` |
-| `company_name` | text | `{ "op": "ILIKE", "value": "%search%" }` |
-| `email` | text | `{ "op": "ILIKE", "value": "%search%" }` |
-| `status` | badge | `{ "op": "=", "value": "ACTIVE" }` |
-| `onboarding_at` | datetime | `{ "op": "BETWEEN", "value": { "start": "2026-01-01", "end": "2026-12-31" } }` |
-| `local_city` | text | `{ "op": "ILIKE", "value": "%search%" }` |
-| `local_state` | text | `{ "op": "ILIKE", "value": "%search%" }` |
-| `local_country` | text | `{ "op": "ILIKE", "value": "%search%" }` |
-
 ### client_registry
 
 | Field | Type | Example |

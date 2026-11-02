@@ -62,7 +62,6 @@ connected via NATS.
 | Module | Description |
 |--------|-------------|
 | **auth** | Casdoor integration, JWT/OIDC verification, user profiles, passkeys, organizations, role mappings, password policy |
-| **customers** | Customer entity CRUD, audit trail, bulk operations, duplicate/restore |
 | **mcp** | Model Context Protocol server exposing Primebrick tools to AI agents |
 | **proxy** | Reverse proxy to registered microservices via NATS |
 | **system** | System configuration, module registry, health checks, version info |
@@ -83,10 +82,10 @@ provider (IDP). The authentication flow is:
 
 Permissions follow the pattern `module.action.granularity`:
 
-- `customer.read.all` — list all customers
-- `customer.read.single` — read a single customer
-- `customer.create.bulk` — bulk create customers
-- `customer.*` — wildcard matching all customer permissions
+- `organization.read.all` — list all organizations
+- `organization.read.single` — read a single organization
+- `organization.create.bulk` — bulk create organizations
+- `organization.*` — wildcard matching all organization permissions
 - `*` — admin bypass (matches everything)
 
 Role mappings are stored in the `role_mappings` table and linked to Casdoor
@@ -110,7 +109,6 @@ The backend uses PostgreSQL with a patch-based migration system:
 | Build | `pnpm run build` |
 | DB schema compare | `pnpm run db:meta:compare` |
 | Apply DB patches | `pnpm run db:migrate` |
-| Seed demo customers | `pnpm run db:seed:customers` |
 | Postgres up | `docker compose -f infra/docker-compose.postgres.yml up -d` |
 | Postgres down | `docker compose -f infra/docker-compose.postgres.yml down` |
 
@@ -122,7 +120,6 @@ The backend uses PostgreSQL with a patch-based migration system:
 docker compose -f infra/docker-compose.postgres.yml up -d
 pnpm install
 pnpm run db:migrate          # applies pending .sql patches in order
-pnpm run db:seed:customers   # optional: load demo customers
 ```
 
 ### 2. Configure Casdoor
@@ -172,7 +169,7 @@ curl -i -X POST http://localhost:3001/api/v1/auth/login \
 # Set-Cookie: refresh_token=...; Path=/; HttpOnly
 
 # Call a protected endpoint with the access token
-curl http://localhost:3001/api/v1/entities/customer/list \
+curl http://localhost:3001/api/v1/entities/organization/list \
   -H "Authorization: Bearer eyJhbGciOi..."
 ```
 
@@ -197,7 +194,7 @@ style. Validation errors include a `ZodError`-shaped `issues` array.
 
 ```bash
 # Missing Bearer token → 401
-curl -i http://localhost:3001/api/v1/entities/customer/list
+curl -i http://localhost:3001/api/v1/entities/organization/list
 ```
 
 ```json
@@ -206,7 +203,7 @@ curl -i http://localhost:3001/api/v1/entities/customer/list
   "title": "Unauthorized",
   "status": 401,
   "detail": "Missing or invalid Authorization header",
-  "instance": "/api/v1/entities/customer/list",
+  "instance": "/api/v1/entities/organization/list",
   "internal_code": "UNAUTHORIZED",
   "severity": "MEDIUM"
 }
@@ -214,7 +211,7 @@ curl -i http://localhost:3001/api/v1/entities/customer/list
 
 ```bash
 # Insufficient permissions → 403 with the missing permissions in extra.issues
-curl -i http://localhost:3001/api/v1/entities/customer/list \
+curl -i http://localhost:3001/api/v1/entities/organization/list \
   -H "Authorization: Bearer <token-of-a-guest-user>"
 ```
 
@@ -224,14 +221,14 @@ curl -i http://localhost:3001/api/v1/entities/customer/list \
   "title": "Forbidden",
   "status": 403,
   "detail": "Insufficient permissions to perform this action",
-  "instance": "/api/v1/entities/customer/list",
+  "instance": "/api/v1/entities/organization/list",
   "internal_code": "RBAC_PERMISSION_DENIED",
   "severity": "MEDIUM",
   "extra": {
     "issues": [{
       "kind": "missing_any_of_permissions",
-      "required": ["customer.read.all"],
-      "missing": ["customer.read.all"],
+      "required": ["organization.read.all"],
+      "missing": ["organization.read.all"],
       "mode": "any",
       "user_roles": ["guest"]
     }]

@@ -28,3 +28,6 @@ dist
 
 # Excel temporary files
 ~$*
+
+# Tool session artifacts (Playwright MCP page snapshots/console logs)
+.playwright-mcp/

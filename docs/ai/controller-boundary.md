@@ -82,21 +82,21 @@ and identical auth code-flow when done correctly.)
 
 ```ts
 // BAD — controller reaches into the DAL and applies domain rules
-const dal = new CustomersDal(getPool());
-const found = await dal.findByUUID(CustomerEntity, uuid);
+const dal = new OrganizationsDal(getPool());
+const found = await dal.findByUUID(OrganizationEntity, uuid);
 if (!found) return res.status(404).json({ detail: "not found" });
 if (found.status === "INACTIVE") return res.status(422).json({ detail: "inactive" });
 
 // GOOD — one service call; the service owns lookup, existence policy,
 // and ApiError mapping; the controller only serializes the result
-const result = await customersService.getCustomer(uuid); // throws NotFoundError → errorHandler → RFC7807
+const result = await organizationsService.getOrganization(uuid); // throws NotFoundError → errorHandler → RFC7807
 res.json(result);
 ```
 
 ```ts
 // BAD — post-write cache invalidation orchestrated in the controller
-await service.createCustomer(body);
-await new CustomersDal(getPool()).invalidateCache();
+await service.createOrganization(body);
+await new OrganizationsDal(getPool()).invalidateCache();
 
 // GOOD — the service exposes the whole operation; the hook is an
 // implementation detail of the service

@@ -49,10 +49,10 @@ import { validateBody, validateQuery } from "./validation.js";
 import { ValidationError } from "./api-errors.js";
 import { rbacHandler } from "../modules/auth/rbac.middleware.js";
 import { entityCrudSpec, type Permission } from "@primebrick/sdk";
+import { registerEntityName } from "../db/entity-name-registry.js";
 import type { EntityMeta } from "./entity-meta.types.js";
 import { assembleMeta } from "./meta-assembler.js";
 import { deriveEntityActions, type ExtraActionScan } from "./entity-actions.js";
-import { streamEntityExport, type EntityExportConfig } from "./entity-export.js";
 import {
   assertTranslationsPermission,
   runEntityWrite,
@@ -64,7 +64,6 @@ import type { EntityService } from "./entity-service.js";
 export type EntityAction =
   | "meta"
   | "list"
-  | "export"
   | "create"
   | "duplicate"
   | "bulkDelete"
@@ -132,7 +131,6 @@ export interface EntityRouterConfig<TEntity = unknown, S extends object = object
     createBody?: z.ZodTypeAny;
     updateBody?: z.ZodTypeAny;
     auditQuery?: z.ZodTypeAny;
-    exportQuery?: z.ZodTypeAny;
     duplicateBody?: z.ZodTypeAny;
   };
 
@@ -157,14 +155,6 @@ export interface EntityRouterConfig<TEntity = unknown, S extends object = object
   /** Override an action's handler body; the mandatory chain still applies. */
   handlers?: Partial<Record<EntityAction, RequestHandler>>;
 
-  /** Entity-wide export declaration (Part E.7). When present, the default
-   *  `export` handler runs `streamEntityExport`: headers, template selection,
-   *  and the whole `ExportConfig` (fieldMapping, col labels, field types)
-   *  are DERIVED from `meta` + the translations service; data comes from
-   *  `service.stream` (same filter builder as `list`). Without it, the
-   *  handler calls `service.export(query, res)` (legacy contract). */
-  export?: EntityExportConfig;
-
   /** Additional routes registered AFTER literal routes, BEFORE :uuid routes. */
   extraRoutes?: RouteDef[];
 }
@@ -175,6 +165,9 @@ export function makeEntityRouter<TEntity, S extends object>(
   const router = makeProtectedRouter();
   const service = config.service;
   const base = `/api/v1/entities/${config.entityName}`;
+  // Link the entity class to its API name so the audit port can publish
+  // collaboration markers under the API namespace (not the physical table).
+  registerEntityName(config.entity, config.entityName);
   const method = (a: EntityAction) => (config.methods?.[a] ?? a) as keyof S & string;
   const call = (a: EntityAction, ...args: unknown[]) =>
     (service as Record<string, (...x: unknown[]) => Promise<unknown>>)[method(a)](...args);
@@ -193,23 +186,6 @@ export function makeEntityRouter<TEntity, S extends object>(
     },
     list: asyncHandler(async (req, res) => {
       res.json(await call("list", req.query));
-    }),
-    export: asyncHandler(async (req, res) => {
-      if (config.export !== undefined) {
-        await streamEntityExport(
-          {
-            entityName: config.entityName,
-            meta: assembleMeta(config.meta, config.entity),
-            stream: (q) =>
-              (service as Record<string, (x: unknown) => unknown>).stream(q) as AsyncIterable<Record<string, unknown>>,
-            export: config.export,
-          },
-          req.query as never,
-          res,
-        );
-        return;
-      }
-      await call("export", req.query, res);
     }),
     create: asyncHandler(async (req, res) => {
       const body = req.body as { entity: unknown; translations?: PendingTranslation[] };
@@ -288,11 +264,6 @@ export function makeEntityRouter<TEntity, S extends object>(
     path: `${base}/list`,
     middlewares: [...(config.schemas.listQuery ? [validateQuery(config.schemas.listQuery)] : []), ...extraMw("list")],
   });
-  push(literalDefs, "export", {
-    method: "get",
-    path: `${base}/export`,
-    middlewares: [...(config.schemas.exportQuery ? [validateQuery(config.schemas.exportQuery)] : []), ...extraMw("export")],
-  });
   push(literalDefs, "create", {
     method: "post",
     path: base,
@@ -359,7 +330,7 @@ export function makeEntityRouter<TEntity, S extends object>(
 // always in sync with the routes that exist.
 
 const ACTION_TO_CRUD_OP = {
-  meta: "meta", list: "list", export: "export", get: "get", create: "create",
+  meta: "meta", list: "list", get: "get", create: "create",
   update: "update", delete: "delete", purge: "purge", restore: "restore",
   audit: "audit", duplicate: "duplicate",
   bulkDelete: "bulk_delete", bulkRestore: "bulk_restore",

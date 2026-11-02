@@ -2,7 +2,7 @@
  * Generic microservice proxy — forwards HTTP requests to any registered
  * microservice via the service registry.
  *
- * URL pattern: /ws/:serviceCode/api/v1/... → {base_url}/api/v1/... (path forwarded verbatim)
+ * URL pattern: /svc/:serviceCode/api/v1/... → {base_url}/api/v1/... (path forwarded verbatim)
  *
  * The proxy:
  *   1. Authenticates the caller (via rbacHandler([AUTHENTICATED_USER]) on the route)
@@ -46,6 +46,9 @@ const rrCounters = new Map<string, number>();
  * - if-none-match / if-match:   conditional requests (ETag caching)
  * - x-request-id:               E2E correlation (generated here if absent)
  * - accept-language:            client locale hint
+ * - x-client-session:           FE tab session — stamped on change markers
+ *                               (`changed_by_session`) so another tab of the
+ *                               same user is treated as a foreign writer
  * - x-forwarded-*:              client network context for US audit logs
  * - x-forwarded-user-agent:     original client UA (the outbound User-Agent
  *                               is the BE's own service identity, not the
@@ -57,10 +60,11 @@ const FORWARDED_REQUEST_HEADERS = [
   "if-match",
   "x-request-id",
   "accept-language",
+  "x-client-session",
 ] as const;
 
 /** Response headers forwarded US→FE (in addition to status + body). */
-const FORWARDED_RESPONSE_HEADERS = ["content-type", "etag"] as const;
+const FORWARDED_RESPONSE_HEADERS = ["content-type", "etag", "content-disposition"] as const;
 
 /**
  * Build the outbound headers for a proxied request:
@@ -134,7 +138,7 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
   // the gateway for remediation. Only the migration prefix is forwarded —
   // everything else stays walled off.
   if (onlineInstances.length === 0) {
-    const path = req.url.replace(/^\/ws\/[^/]+/, "");
+    const path = req.url.replace(/^\/svc\/[^/]+/, "");
     if (path.startsWith("/api/v1/system/db-migration")) {
       const degraded = allInstances.find((i) => i.status === "migration_failed");
       if (degraded) onlineInstances.push(degraded);
@@ -172,8 +176,8 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
 
   // Build the target URL: {base_url}{path_after_serviceCode} — every US
   // exposes its governed routes under /api/v1/*, so the path after
-  // /ws/:serviceCode is forwarded verbatim (no prefix rewriting).
-  const pathAfterService = req.url.replace(/^\/ws\/[^/]+/, "");
+  // /svc/:serviceCode is forwarded verbatim (no prefix rewriting).
+  const pathAfterService = req.url.replace(/^\/svc\/[^/]+/, "");
   const targetPath = pathAfterService;
   const targetUrl = new URL(targetPath, instance.base_url).toString();
 
@@ -282,7 +286,7 @@ async function resolveServiceInstance(
 
   // Same migration-failed exemption as proxyRequest — remediation surface only.
   if (onlineInstances.length === 0) {
-    const path = (requestPath ?? "").replace(/^\/ws\/[^/]+/, "");
+    const path = (requestPath ?? "").replace(/^\/svc\/[^/]+/, "");
     if (path.startsWith("/api/v1/system/db-migration")) {
       const degraded = allInstances.find((i) => i.status === "migration_failed");
       if (degraded) onlineInstances.push(degraded);

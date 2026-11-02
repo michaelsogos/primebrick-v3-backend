@@ -449,7 +449,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
 
     await sendEmail({
       template_code: "invitation_welcome",
-      language_iso: "en",
+      language_iso: "en-US",
       to: [email],
       variables: {
         display_name: displayName,
@@ -544,7 +544,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
     // Send OTP email via NATS → emailsender
     await sendEmail({
       template_code: "otp_verification",
-      language_iso: "en",
+      language_iso: "en-US",
       to: [invitation.email],
       variables: {
         display_name: profile?.display_name ?? "",
@@ -722,7 +722,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
 
     await sendEmail({
       template_code: "password_changed",
-      language_iso: "en",
+      language_iso: "en-US",
       to: [invitation.email],
       variables: {
         display_name: profile.display_name ?? "",
@@ -792,7 +792,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
 
     await sendEmail({
       template_code: "invitation_welcome",
-      language_iso: "en",
+      language_iso: "en-US",
       to: [invitation.email],
       variables: {
         display_name: profile.display_name ?? "",
@@ -848,7 +848,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
     // Send alert email to admin
     await sendEmail({
       template_code: "admin_unauthorized_alert",
-      language_iso: "en",
+      language_iso: "en-US",
       to: [adminEmail],
       variables: {
         user_display_name: profile.display_name ?? "",
