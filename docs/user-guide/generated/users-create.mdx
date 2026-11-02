@@ -30,12 +30,12 @@ The page is visible with the `access.system.settings.users.create` grant.
 | Field | Required | Notes |
 |-------|----------|-------|
 | **IDP Username** | required | validated input — checked for availability in the selected organization while you type |
-| **Password** | optional | checkbox — validated against the active password policy (live checklist); required unless *Send invitation* is enabled; max 64 |
+| **Password** | optional | password input — validated against the active password policy (live checklist); required unless *Send invitation* is enabled; max 64 |
 | **Send invitation email** | optional | checkbox — When enabled, an invitation email will be sent to the user. They will set their own password via a secure welcome page. The password field above becomes optional — if left blank, a random placeholder is set in the identity provider and the user sets it on first access |
 | **Display Name** | required | text input |
 | **Email** | required | text input — also used for the invitation email; max 320; must be a valid email; min 1 |
 | **Application Roles** | optional | select — administrator roles show a System Administrator badge; min 1 |
-| **Avatar Color** | optional | text input — shown when no avatar image is set; hex color |
+| **Avatar Color** | optional | shown when no avatar image is set; hex color |
 | **Organization** | required | select — only organizations backed by a real identity-provider organization are listed; min 1 |
 | **Enable** | optional | checkbox |
 | **Admin** | optional | checkbox — The Identity Administrator flag allows the user to access the IDP system to make administrative-level changes, but does not grant administration rights to this application. To grant application administration access, set the application roles |
@@ -43,12 +43,12 @@ The page is visible with the `access.system.settings.users.create` grant.
 | **Email Verified** | optional | checkbox — Indicates whether the email has been verified, typically via a link sent to the email inbox that is presumed to be readable only by the user whose profile we are configuring |
 
 - The **IDP Username** field is a required validated input — checked for availability in the selected organization while you type.
-- The **Password** field is an optional checkbox that allows up to 64 characters — validated against the active password policy (live checklist); required unless *Send invitation* is enabled.
+- The **Password** field is an optional password input that allows up to 64 characters — validated against the active password policy (live checklist); required unless *Send invitation* is enabled.
 - The **Send invitation email** field is an optional checkbox — when enabled, an invitation email will be sent to the user. They will set their own password via a secure welcome page. The password field above becomes optional — if left blank, a random placeholder is set in the identity provider and the user sets it on first access.
 - The **Display Name** field is a required text input.
 - The **Email** field is a required text input that allows up to 320 characters and must be a valid email and requires at least 1 character — also used for the invitation email.
 - The **Application Roles** field is an optional select that requires at least 1 selection — administrator roles show a System Administrator badge.
-- The **Avatar Color** field is an optional text input that must be a hex color — shown when no avatar image is set.
+- The **Avatar Color** field is an optional field that must be a hex color — shown when no avatar image is set.
 - The **Organization** field is a required select that requires at least 1 selection — only organizations backed by a real identity-provider organization are listed.
 - The **Enable** field is an optional checkbox.
 - The **Admin** field is an optional checkbox — the Identity Administrator flag allows the user to access the IDP system to make administrative-level changes, but does not grant administration rights to this application. To grant application administration access, set the application roles.
