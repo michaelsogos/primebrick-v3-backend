@@ -7,9 +7,11 @@
  * `table` options. `display_name` is omitted — `assembleMeta` materializes
  * it as `"${display_name}"` from `display_field`.
  */
+import { withColumnConstraints } from "@primebrick/dal-pg";
 import type { EntityMeta } from "../../http/entity-meta.types.js";
+import { UserProfileEntity } from "./user_profile_entity.js";
 
-export const userProfileMeta: EntityMeta = {
+export const userProfileMeta: EntityMeta = withColumnConstraints({
   entity: "user_profile",
   translation_key: "user_profile",
   uid: "uuid",
@@ -54,4 +56,4 @@ export const userProfileMeta: EntityMeta = {
       },
     ],
   },
-};
+}, UserProfileEntity);

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-01T16:11:19.490Z",
+  "issued_at": "2026-11-02T23:15:28.952Z",
   "patches": {
     "00000000000000_init_database": "05761ee7f89f3a6518779ac1fee25ed83a90c0d8d11a5aff1da28a61db2d1efa",
     "00000000000001_seed_translations_en_gb": "52492d182cbd158744a14a93d4234f56552a73abe8d7a0af39047dc05eeb2654",
@@ -68,7 +68,9 @@
     "20261106220000_payload_map_permissions_bold": "be6b3c09b1bd79c4fe1ffc8faea21745a928a0c0d7969d1c6af602abe5d130fc",
     "20261106230000_payload_map_fallback_lead_no_comma": "a4b0952febd156a8663b2397881621c228d8b333e9256b37670464a0fc4ef062",
     "20261106231000_payload_map_blocked_hint": "60462f69537cf04a0baf4bd4b28da7431b8133c3159c5018a48042da59b0ed8b",
-    "20261106233000_schedule_spec_i18n_desc": "a46076cbe7cdb8b3abba46ab328a5f23bc732b819848adeb071bbfa7ca2b0cca"
+    "20261106233000_schedule_spec_i18n_desc": "a46076cbe7cdb8b3abba46ab328a5f23bc732b819848adeb071bbfa7ca2b0cca",
+    "20261107000000_payload_map_conformance_hint": "2a02ab4c138f4b49b2c926674aea9b2d7950cbb7b4fea3149682267e331821c1",
+    "20261108000000_identifier_format_tokens": "458154a40f41b2e2721dd8935a1b5310e796c3e4bc65c30f2b92986384c30923"
   },
-  "signature": "mK4BMLtkpwC4Bggg/oJU2G2guEjOHBoXP5xiocncm9+1KyJhYYJo6IcpnwEm1W+Epgavz5jh3hLurg+ZbzMDCg=="
+  "signature": "zpxN+V1HKXRgaq/W9fBj5HaI5t4ccZU+ClG1Ku6IJ/UVdyE/Fq40a+WCEW26vCd2yExmbuo+qNp0mF5D8yVOBw=="
 }

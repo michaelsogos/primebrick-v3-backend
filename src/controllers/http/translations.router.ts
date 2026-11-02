@@ -25,7 +25,7 @@ import { zBoundedInt } from "../../http/validation.js";
 import { makeProtectedRouter } from "../../http/protected-router.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
-import { Permission, type CacheEntry, type I18nDict } from "@primebrick/sdk";
+import { Permission, isSlug, type CacheEntry, type I18nDict } from "@primebrick/sdk";
 import { ValidationError } from "../../http/api-errors.js";
 import { etagMiddleware } from "../../http/etag-middleware.js";
 import { entityOnlyWriteBody } from "../../http/entity-write.js";
@@ -35,7 +35,7 @@ const ModuleCodeSchema = z
   .string()
   .min(1)
   .max(50)
-  .regex(/^[a-z][a-z0-9_-]*$/, { message: "Module code must be snake_case" });
+  .refine(isSlug, { message: "app.common.validation.slug" });
 
 const LanguageSchema = z
   .string()

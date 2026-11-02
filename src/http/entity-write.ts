@@ -23,7 +23,7 @@
 import type { Request } from "express";
 import { z } from "zod";
 
-import { Permission, checkRbac } from "@primebrick/sdk";
+import { Permission, checkRbac, checkEntityFields, type EntityMeta } from "@primebrick/sdk";
 import type { Repository } from "@primebrick/dal-pg";
 import {getDal} from "../db/dal-gateway.js";
 
@@ -77,6 +77,28 @@ export function entityWriteBody<S extends z.ZodTypeAny>(entitySchema: S) {
  */
 export function entityOnlyWriteBody<S extends z.ZodTypeAny>(entitySchema: S) {
   return z.object({ entity: entitySchema }).strict();
+}
+
+/**
+ * Meta-derived entity body — the wire twin of the form's
+ * `fieldSpecToZod` binder. Field semantics are evaluated by the SHARED
+ * core predicate `checkEntityFields` (the same rules the FE form and the
+ * US entity routers run), so a BE-owned entity cannot accept a value its
+ * own form would reject. `partial: true` is update semantics — only
+ * present keys constrain the outcome.
+ *
+ * `config.meta` is the STATIC meta (nullable is injected at serve time),
+ * so this enforces value rules on present fields; NOT NULL remains the
+ * persistence contract.
+ */
+export function entityFieldsBody(meta: EntityMeta, opts: { partial?: boolean } = {}) {
+  return entityWriteBody(
+    z.record(z.string(), z.unknown()).superRefine((entity, ctx) => {
+      for (const i of checkEntityFields(meta, entity, { partial: opts.partial ?? false })) {
+        ctx.addIssue({ code: "custom", path: ["entity", i.path], message: i.message });
+      }
+    }),
+  );
 }
 
 /**
