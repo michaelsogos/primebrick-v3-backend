@@ -72,6 +72,8 @@ export async function startInternalRequestRoutes(): Promise<void> {
         // (each service's endpoints.callables + its code) for services that
         // validate work destinations — e.g. job-handler checking a rule's
         // target_subject against census.callables at write time.
+        // `{ census: "events" }` returns the flattened emits catalog — the
+        // SOURCE side a `payload_map` `kind:"path"` reads at fire time.
         subject: SERVICE_REGISTRY_GET_SUBJECT,
         permissions: [],
         verify,
@@ -84,6 +86,15 @@ export async function startInternalRequestRoutes(): Promise<void> {
               .map((r) => ({
                 service_code: r.code,
                 callables: (r.endpoints?.["callables"] as { callables?: unknown[] } | undefined)?.callables ?? [],
+              }));
+          }
+          if (census === "events") {
+            const rows = await serviceSvc.findAll();
+            return rows
+              .filter((r) => r.status === "online" && r.is_enabled !== false)
+              .map((r) => ({
+                service_code: r.code,
+                emits: (r.endpoints?.["events"] as { emits?: unknown[] } | undefined)?.emits ?? [],
               }));
           }
           if (capability && typeof capability === "string") {
