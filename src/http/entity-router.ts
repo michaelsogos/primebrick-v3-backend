@@ -57,6 +57,7 @@ import {
   assertTranslationsPermission,
   runEntityWrite,
   requireVersionQuery,
+  entityFieldsBody,
   type PendingTranslation,
 } from "./entity-write.js";
 import type { EntityService } from "./entity-service.js";
@@ -258,6 +259,13 @@ export function makeEntityRouter<TEntity, S extends object>(
     defs.push({ permission, handler: handler(action), ...def });
   };
 
+  // Meta-derived field validation is the DEFAULT for entity writes — the
+  // same core `checkEntityFields` the form and the US routers run. A
+  // route may still pass a stricter hand-authored schema; `config.meta`
+  // (static columns) supplies the value rules on present fields.
+  const createBody = config.schemas.createBody ?? entityFieldsBody(config.meta);
+  const updateBody = config.schemas.updateBody ?? entityFieldsBody(config.meta, { partial: true });
+
   push(literalDefs, "meta", { method: "get", path: `${base}/meta` });
   push(literalDefs, "list", {
     method: "get",
@@ -267,7 +275,7 @@ export function makeEntityRouter<TEntity, S extends object>(
   push(literalDefs, "create", {
     method: "post",
     path: base,
-    middlewares: [...(config.schemas.createBody ? [validateBody(config.schemas.createBody)] : []), ...extraMw("create")],
+    middlewares: [validateBody(createBody), ...extraMw("create")],
   });
   push(literalDefs, "duplicate", {
     method: "post",
@@ -289,7 +297,7 @@ export function makeEntityRouter<TEntity, S extends object>(
   push(paramDefs, "update", {
     method: "put",
     path: `${base}/:uuid`,
-    middlewares: [validateUuidParam, ...(config.schemas.updateBody ? [validateBody(config.schemas.updateBody)] : []), ...extraMw("update")],
+    middlewares: [validateUuidParam, validateBody(updateBody), ...extraMw("update")],
   });
   push(paramDefs, "purge", {
     method: "delete",

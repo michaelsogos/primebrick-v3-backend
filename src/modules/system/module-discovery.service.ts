@@ -15,7 +15,7 @@
  * page exist for this user". Access keys are never declared by hand — the
  * module declaration carries its NAMESPACE (`endpoints.nav.access`, e.g.
  * `access.system.job`) and every leaf key is DERIVED from the owning
- * route (`/system/job/rules` ⇒ `access.system.job.rules`; `create` and
+ * route (`/system/job/triggers` ⇒ `access.system.job.triggers`; `create` and
  * `[param]` subroutes collapse into their leaf; sheets key on
  * `access.{ns}.{name}`).
  *

@@ -6,11 +6,13 @@ entity: role_mapping
 
 Update role permissions and display label.
 
+The page is visible with the `access.system.settings.roles` grant.
+
 ## Pages routes
 
 - `/system/settings/roles` — List, search and manage all role mappings.
-- `/system/settings/roles/create` — Create a new role.
 - `/system/settings/roles/{uuid}` — View and edit an existing role. *(this page)*
+- `/system/settings/roles/create` — Create a new role.
 
 ## What you can do here
 
@@ -21,6 +23,8 @@ Update role permissions and display label.
 
 - The **is admin** flag on this role mapping marks it as an administrator role mapping — assign the role mapping to a profile via **Edit Profile** → **roles**.
 - The **is admin** flag on this role mapping marks it as an administrator role mapping — assign the role mapping to a user via **Edit User** → **Application Roles**.
+
+The record opens in read mode first — click **Edit** to modify it. Concurrent edits are protected by optimistic locking: if someone else saves the role mapping while you are editing it, the page tells you before overwriting their changes. The form warns before discarding unsaved changes.
 
 ## Fields
 

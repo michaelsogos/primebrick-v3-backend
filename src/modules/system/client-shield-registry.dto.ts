@@ -9,6 +9,7 @@
 
 import { z } from "zod";
 
+import { isNoSpace } from "@primebrick/sdk";
 import { zBoundedInt } from "../../http/validation.js";
 import { ListQueryBaseSchema } from "../../http/list-query.js";
 
@@ -38,7 +39,7 @@ const uaPrefixSchema = z
   .string()
   .min(2)
   .max(120)
-  .regex(/^\S+$/, "ua_prefix must not contain whitespace");
+  .refine(isNoSpace, { message: "app.common.validation.no_space" });
 
 /** Raw client key — write-only field, never persisted as-is. */
 const clientKeySchema = z.string().min(16).max(256);

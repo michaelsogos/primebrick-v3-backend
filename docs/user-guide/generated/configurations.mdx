@@ -1,14 +1,76 @@
 ---
-title: Configurations List
-description: List, search and manage all configurations.
+title: Configuration Entries List
+description: List, search and manage all configuration entries.
+entity: config_entry
 ---
 
-List, search and manage all configurations.
+List, search and manage all configuration entries.
+
+Each row shows the Key, the Value, the Type, plus the status flags Reserved.
+
+The page is visible with the `access.system.settings.configurations` grant.
 
 ## Pages routes
 
-- `/system/settings/configurations` — List, search and manage all configurations. *(this page)*
-- `/system/settings/configurations/create` — Create a new configuration.
+- `/system/settings/configurations` — List, search and manage all configuration entries. *(this page)*
+- `/system/settings/configurations/create` — Create a new config entry.
+
+## What you can do here
+
+### How to create a new configuration entry
+1. Click **New** in the toolbar.
+2. Fill in the form — required fields are marked.
+3. Click **Save** — the new configuration entry is created.
+
+## Columns
+
+| Column | Visible | Sortable | Filterable | Notes |
+|--------|---------|----------|------------|-------|
+| **UUID** | no | yes | yes |  |
+| **Key** | yes | yes | yes |  |
+| **Value** | yes | no | no |  |
+| **Type** | yes | yes | yes |  |
+| **Reserved** | yes | yes | yes |  |
+
+- The UUID column is hidden by default and can be sorted and filtered.
+- The Key column is shown by default and can be sorted and filtered.
+- The Value column is shown by default and cannot be sorted or filtered.
+- The Type column is shown by default and can be sorted and filtered.
+- The Reserved column is shown by default and can be sorted and filtered.
+
+## Actions
+
+### Row actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **create** | ENABLED | — | Creates a new configuration entry | no |
+| **update** | DISABLED | — | Opens the configuration entry for editing | no |
+| **delete** | DISABLED | — | Marks the configuration entry as deleted but keeps it so it can be restored | no |
+| **restore** | DISABLED | — | Brings a soft-deleted configuration entry back | no |
+| **purge** | DISABLED | — | Removes the configuration entry forever | no |
+| **audit history** | DISABLED | — | Shows the change history of the configuration entry | no |
+
+- Creating a new configuration entry is available on this page — the create action opens the create form in a new browser tab.
+- Editing a configuration entry is not available on this page — no permission is declared for it on configuration entries.
+- Soft-deleting a configuration entry is not available on this page — no permission is declared for it on configuration entries.
+- Restoring a soft-deleted configuration entry is not available on this page — no permission is declared for it on configuration entries.
+- Permanently deleting a configuration entry is not available on this page — no permission is declared for it on configuration entries.
+- Viewing the change history of a configuration entry is not available on this page — no permission is declared for it on configuration entries.
+
+### Bulk actions
+
+| Action | Status | Permission | What it does | Require Step-Up Auth |
+|--------|--------|------------|--------------|----------------------|
+| **delete** | DISABLED | — | Marks the selected configuration entries as deleted | no |
+| **restore** | DISABLED | — | Restores the selected configuration entries | no |
+| **duplicate** | DISABLED | — | Duplicates the selected configuration entries | no |
+| **export** | DISABLED | — | Exports the list | no |
+
+- Soft-deleting the selected configuration entries is not available on this page — no permission is declared for it on configuration entries.
+- Restoring the selected configuration entries is not available on this page — no permission is declared for it on configuration entries.
+- Duplicating the selected configuration entries is not available on this page — no permission is declared for it on configuration entries.
+- Exporting the list is not available on this page — no permission is declared for it on configuration entries.
 
 ## Doc references
 

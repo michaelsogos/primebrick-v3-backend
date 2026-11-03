@@ -6,11 +6,13 @@ entity: role_mapping
 
 Define a new role mapping with IDP role and permissions.
 
+The page is visible with the `access.system.settings.roles.create` grant.
+
 ## Pages routes
 
 - `/system/settings/roles` — List, search and manage all role mappings.
-- `/system/settings/roles/create` — Create a new role. *(this page)*
 - `/system/settings/roles/{uuid}` — View and edit an existing role.
+- `/system/settings/roles/create` — Create a new role. *(this page)*
 
 ## What you can do here
 
@@ -24,12 +26,12 @@ Define a new role mapping with IDP role and permissions.
 | Field | Required | Notes |
 |-------|----------|-------|
 | **IDP Role** | required | text input |
-| **Organization** | required | text input — only organizations backed by a real identity-provider organization are listed |
+| **Organization** | required | only organizations backed by a real identity-provider organization are listed |
 | **Label Key** | required | text input |
 | **Admin** | optional | checkbox |
 
 - The **IDP Role** field is a required text input.
-- The **Organization** field is a required text input — only organizations backed by a real identity-provider organization are listed.
+- The **Organization** field is a required field — only organizations backed by a real identity-provider organization are listed.
 - The **Label Key** field is a required text input.
 - The **Admin** field is an optional checkbox.
 

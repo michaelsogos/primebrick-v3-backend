@@ -19,13 +19,17 @@
     "generated/modules-edit",
     "generated/profile",
     "manual/migrations",
+    "generated/clients-create",
+    "generated/clients-edit",
+    "generated/clients",
+    "generated/credentials",
+    "generated/migrations",
+    "generated/templates",
+    "generated/translations",
+    "generated/entity-api-catalog",
     "generated/entity-field-reference",
     "generated/filter-operator-reference",
     "generated/filter-syntax-guide",
-    "generated/navigation-map",
-    "generated/entity-api-catalog",
-    "generated/clients-create",
-    "generated/clients-edit",
-    "generated/clients"
+    "generated/navigation-map"
   ]
 }

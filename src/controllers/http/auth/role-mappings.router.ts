@@ -38,7 +38,7 @@ import { validateBody } from "../../../http/validation.js";
 import { makeEntityRouter } from "../../../http/entity-router.js";
 import { ListAuditQuerySchema } from "../../../http/list-query.js";
 import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
-import { Permission, isPermissionSentinel } from "@primebrick/sdk";
+import { Permission, isPermissionSentinel, isSlug, isDottedGlob } from "@primebrick/sdk";
 import { requireMfaStepUp } from "../../../modules/auth/mfa-step-up.middleware.js";
 import { getRoleService } from "../../../modules/auth/services/role.service.js";
 import { RoleMappingListQuerySchema } from "../../../modules/auth/dto.js";
@@ -51,12 +51,12 @@ import {
   runEntityWrite,
 } from "../../../http/entity-write.js";
 
-// idp_role: snake_case, lowercase letters / digits / underscores, 1-255 chars.
+// idp_role: slug — letter-leading, digits/underscore/hyphen, 1-255 chars.
 const idpRoleSchema = z
   .string()
   .min(1, { message: "system.settings.roles.validation.idpRoleRequired" })
   .max(255)
-  .regex(/^[a-z0-9_]+$/, { message: "system.settings.roles.validation.idpRoleFormat" });
+  .refine(isSlug, { message: "app.common.validation.slug" });
 
 // idp_org: the Casdoor organization name (owner). Required on create.
 const idpOrgSchema = z
@@ -68,7 +68,7 @@ const idpOrgSchema = z
 // Sentinels (_public, _authenticated_user, _authenticated_admin) are rejected.
 const permissionStringSchema = z
   .string()
-  .regex(/^[a-z_]+\.[a-z_]+(\.[a-z_]+)*$/, { message: "system.settings.roles.validation.permissionFormat" })
+  .refine(isDottedGlob, { message: "app.common.validation.dotted_glob" })
   .refine((p) => !isPermissionSentinel(p), { message: "system.settings.roles.validation.permissionSentinelRejected" });
 
 // Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)

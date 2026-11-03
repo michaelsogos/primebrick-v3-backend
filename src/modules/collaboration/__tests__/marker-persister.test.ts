@@ -54,7 +54,7 @@ describe("marker persister", () => {
     const handler = mocks.subscribe.mock.calls[0]![1] as (m: unknown) => Promise<void>;
 
     const marker = {
-      entity_type: "job_rule",
+      entity_type: "job_trigger",
       entity_uuid: "u-9",
       version: 7,
       audit_log_id: 42,
@@ -65,7 +65,7 @@ describe("marker persister", () => {
 
     expect(mocks.store.setChanged).toHaveBeenCalledWith(marker, 300_000);
     expect(mocks.store.markEdited).toHaveBeenCalledWith(
-      "job_rule",
+      "job_trigger",
       "u-9",
       "user-uuid-b",
       1700000000000,

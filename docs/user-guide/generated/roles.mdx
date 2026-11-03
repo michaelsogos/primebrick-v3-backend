@@ -10,11 +10,13 @@ Each row shows the IDP Role, the Organization, the Label Key, the Admin, the Per
 
 This role mapping is backed by the identity provider (Casdoor) — its identity fields are managed there.
 
+The page is visible with the `access.system.settings.roles` grant.
+
 ## Pages routes
 
 - `/system/settings/roles` — List, search and manage all role mappings. *(this page)*
-- `/system/settings/roles/create` — Create a new role.
 - `/system/settings/roles/{uuid}` — View and edit an existing role.
+- `/system/settings/roles/create` — Create a new role.
 
 ## What you can do here
 
@@ -41,14 +43,14 @@ This role mapping is backed by the identity provider (Casdoor) — its identity 
 | **Organization** | yes | yes | yes | the Casdoor organization this row belongs to |
 | **Label Key** | yes | yes | yes |  |
 | **Admin** | yes | yes | yes |  |
-| **Permissions** | yes | no | no |  |
+| **Permissions** | yes | no | yes |  |
 
 - The IDP Role column is shown by default and can be sorted and filtered.
 - The UUID column is hidden by default and can be sorted and filtered.
 - The Organization column is shown by default and can be sorted and filtered — the Casdoor organization this row belongs to.
 - The Label Key column is shown by default and can be sorted and filtered.
 - The Admin column is shown by default and can be sorted and filtered.
-- The Permissions column is shown by default and cannot be sorted or filtered.
+- The Permissions column is shown by default and can be filtered but not sorted.
 
 ## Related entities
 
