@@ -5,15 +5,17 @@
  * `client_key_hash` is intentionally NOT a column: it is a write-only
  * secret derivative — it must never be displayed or edited directly.
  */
+import { withColumnConstraints } from "@primebrick/dal-pg";
 import type { EntityMeta } from "../../http/entity-meta.types.js";
+import { ClientShieldRegistryEntity } from "./client_shield_registry_entity.js";
 
-export const clientRegistryMeta: EntityMeta = {
+export const clientRegistryMeta: EntityMeta = withColumnConstraints({
   entity: "client_registry",
   translation_key: "client_registry",
   uid: "uuid",
   display_field: "ua_prefix",
   columns: [
-    { key: "ua_prefix", label_key: "system.entities.client_registry.fields.ua_prefix", type: "text", order: 0, sortable: true, default_visible: true, sticky: true, hideable: false, filterable: true, searchable: true },
+    { key: "ua_prefix", label_key: "system.entities.client_registry.fields.ua_prefix", type: "text", format: "no_space", order: 0, sortable: true, default_visible: true, sticky: true, hideable: false, filterable: true, searchable: true },
     { key: "uuid", label_key: "system.entities.client_registry.fields.uuid", type: "text", order: -1, sortable: true, default_visible: false, sticky: true, filterable: true },
     { key: "source", label_key: "system.entities.client_registry.fields.source", type: "text", order: 2, sortable: true, default_visible: true, filterable: true },
     { key: "key_mode", label_key: "system.entities.client_registry.fields.key_mode", type: "text", order: 2.5, sortable: true, default_visible: true, filterable: true },
@@ -34,4 +36,4 @@ export const clientRegistryMeta: EntityMeta = {
     default_page_size: 25,
     page_size_options: [10, 25, 50, 100],
   },
-};
+}, ClientShieldRegistryEntity);

@@ -13,6 +13,7 @@
  */
 
 import { getEntityPersistenceMeta, type EntityClass } from "@primebrick/dal-pg";
+import { searchableTextColumns } from "@primebrick/sdk";
 import type { EntityMeta } from "../http/entity-meta.types.js";
 
 const TEXTLIKE_PG_TYPES = new Set([
@@ -33,8 +34,7 @@ export function deriveSearchableKeys(meta: EntityMeta, entityClass: EntityClass)
     pgTypeByProp.set(col.propertyKey, (col.pgType ?? col.inferredPgType).toLowerCase());
   }
 
-  return meta.columns
-    .filter((c) => c.searchable !== false && c.type === "text")
+  return searchableTextColumns(meta.columns)
     .map((c) => c.key)
     .filter((key) => {
       const t = pgTypeByProp.get(key);

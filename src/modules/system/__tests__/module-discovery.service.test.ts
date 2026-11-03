@@ -64,14 +64,14 @@ const jobRow = svc({
       nav: [
         { id: "schedules", label_key: "job.jobs.nav", href: "/system/job/job-schedules", icon: "schedule", default: true },
         { id: "runs", label_key: "job.runs.nav", href: "/system/job/runs", icon: "list-checks" },
-        { id: "rules", label_key: "job.rules.nav", href: "/system/job/rules", icon: "list-todo" },
+        { id: "rules", label_key: "job.rules.nav", href: "/system/job/triggers", icon: "list-todo" },
       ],
       routes: [
         { route: "/system/job/job-schedules", kind: "list", entity: "job_schedule" },
         { route: "/system/job/job-schedules/create", kind: "create", entity: "job_schedule" },
         { route: "/system/job/runs", kind: "list", entity: "job_run" },
-        { route: "/system/job/rules", kind: "list", entity: "job_rule" },
-        { route: "/system/job/rules/create", kind: "create", entity: "job_rule" },
+        { route: "/system/job/triggers", kind: "list", entity: "job_trigger" },
+        { route: "/system/job/triggers/create", kind: "create", entity: "job_trigger" },
       ],
       sheets: [
         { key: "job.runDetail", component_url: "/svc/job/api/v1/module-assets/jobs-page.js" },
@@ -130,8 +130,8 @@ describe("ModuleDiscoveryService — derived-leaf access filtering", () => {
       "/system/job/job-schedules",
       "/system/job/job-schedules/create",
       "/system/job/runs",
-      "/system/job/rules",
-      "/system/job/rules/create",
+      "/system/job/triggers",
+      "/system/job/triggers/create",
     ]);
     expect(job.sheets?.map((s) => s.key)).toEqual(["job.runDetail"]);
     // The default flag rides the nav item through the filter.
@@ -157,8 +157,8 @@ describe("ModuleDiscoveryService — derived-leaf access filtering", () => {
     const job = modules[0];
     expect(job.nav?.map((l) => l.id)).toEqual(["rules"]);
     expect(job.routes?.map((r) => r.route)).toEqual([
-      "/system/job/rules",
-      "/system/job/rules/create", // create collapses into the rules leaf
+      "/system/job/triggers",
+      "/system/job/triggers/create", // create collapses into the rules leaf
     ]);
     expect(job.sheets).toEqual([]); // sheet key is its own leaf
   });
@@ -314,12 +314,12 @@ describe("ModuleDiscoveryService — labels seed", () => {
           access: "access.system.job",
           nav: [
             { id: "schedules", label_key: "job.jobs.nav", href: "/system/job/job-schedules", default: true },
-            { id: "rules", label_key: "job.rules.nav", href: "/system/job/rules" },
+            { id: "rules", label_key: "job.rules.nav", href: "/system/job/triggers" },
           ],
           routes: [
             { route: "/system/job/job-schedules", kind: "list", label_key: "job.jobs.nav" },
-            { route: "/system/job/rules", kind: "list", label_key: "job.rules.nav" },
-            { route: "/system/job/rules/create", kind: "create", label_key: "job.rules.new" },
+            { route: "/system/job/triggers", kind: "list", label_key: "job.rules.nav" },
+            { route: "/system/job/triggers/create", kind: "create", label_key: "job.rules.new" },
           ],
           sheets: [
             { key: "job.runDetail", component_url: "/svc/job/api/v1/module-assets/jobs-page.js", label_key: "job.run.sheet" },

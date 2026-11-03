@@ -6,11 +6,13 @@ entity: organization
 
 Fill out the form to create a new organization
 
+The page is visible with the `access.system.settings.organizations.create` grant.
+
 ## Pages routes
 
 - `/system/settings/organizations` — List, search and manage all organizations.
-- `/system/settings/organizations/create` — Create a new organization. *(this page)*
 - `/system/settings/organizations/{uuid}` — View and edit an existing organization.
+- `/system/settings/organizations/create` — Create a new organization. *(this page)*
 
 ## What you can do here
 
@@ -25,12 +27,12 @@ Fill out the form to create a new organization
 |-------|----------|-------|
 | **Display name** | required | text input |
 | **Website URL** | optional | text input — max 2048; must be a valid URL |
-| **Identity Owner** | optional | text input — max 255; min 1 |
+| **Identity Owner** | optional | max 255; min 1 |
 | **Identity Name** | required | validated input |
 
 - The **Display name** field is a required text input.
 - The **Website URL** field is an optional text input that allows up to 2048 characters and must be a valid URL.
-- The **Identity Owner** field is an optional text input that allows up to 255 characters and requires at least 1 character.
+- The **Identity Owner** field is an optional field that allows up to 255 characters and requires at least 1 character.
 - The **Identity Name** field is a required validated input.
 
 ## Actions

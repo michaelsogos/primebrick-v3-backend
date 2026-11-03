@@ -13,9 +13,11 @@
  * form dynamically and to scope the Smart JSON config assistant topics.
  */
 import { TYPE_CAPABILITIES } from "@primebrick/sdk";
+import { withColumnConstraints } from "@primebrick/dal-pg";
 import type { ConfigEntryMeta } from "../../http/entity-meta.types.js";
+import { ConfigEntryEntity } from "./config_entry_entity.js";
 
-export const configEntriesMeta: ConfigEntryMeta = {
+export const configEntriesMeta: ConfigEntryMeta = withColumnConstraints({
   entity: "config_entry",
   translation_key: "config_entry",
   title_key: "system.settings.configurations.title",
@@ -25,11 +27,11 @@ export const configEntriesMeta: ConfigEntryMeta = {
   columns: [
     // uuid is the canonical first sticky column (order -1), hidden but selectable
     { key: "uuid", label_key: "system.entities.config_entry.fields.uuid", type: "text", order: -1, sortable: true, default_visible: false, sticky: true, filterable: true },
-    { key: "key", label_key: "system.entities.config_entry.fields.key", type: "text", order: 0, sortable: true, default_visible: true, filterable: true },
+    { key: "key", label_key: "system.entities.config_entry.fields.key", type: "text", format: "snake_key", order: 0, sortable: true, default_visible: true, filterable: true },
     { key: "value", label_key: "system.entities.config_entry.fields.value", type: "text", order: 1, sortable: false, default_visible: true, filterable: false, searchable: false },
     { key: "type", label_key: "system.entities.config_entry.fields.type", type: "text", order: 2, sortable: true, default_visible: true, filterable: true },
     { key: "reserved", label_key: "system.entities.config_entry.fields.reserved", type: "boolean", order: 3, sortable: true, default_visible: true, filterable: true },
     { key: "updated_at", label_key: "system.entities.config_entry.fields.updated_at", type: "datetime", order: 4, sortable: true, default_visible: false, filterable: true, audited: true },
     { key: "updated_by", label_key: "system.entities.config_entry.fields.updated_by", type: "text", order: 5, sortable: false, default_visible: false, searchable: false, audited: true },
   ],
-};
+}, ConfigEntryEntity);

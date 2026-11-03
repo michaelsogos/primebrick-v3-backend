@@ -10,11 +10,13 @@ Each row shows the Display Name, the Website URL, the User Count.
 
 This organization is backed by the identity provider (Casdoor) — its identity fields are managed there.
 
+The page is visible with the `access.system.settings.organizations` grant.
+
 ## Pages routes
 
 - `/system/settings/organizations` — List, search and manage all organizations. *(this page)*
-- `/system/settings/organizations/create` — Create a new organization.
 - `/system/settings/organizations/{uuid}` — View and edit an existing organization.
+- `/system/settings/organizations/create` — Create a new organization.
 
 ## What you can do here
 
@@ -49,13 +51,13 @@ This organization is backed by the identity provider (Casdoor) — its identity 
 | **UUID** | no | yes | yes |  |
 | **IDP Code** | no | yes | yes | the record's identifier code in Casdoor — the link between this row and the IDP record |
 | **Website URL** | yes | yes | yes |  |
-| **User Count** | yes | no | no |  |
+| **User Count** | yes | no | yes |  |
 
 - The Display Name column is shown by default and can be sorted and filtered.
 - The UUID column is hidden by default and can be sorted and filtered.
 - The IDP Code column is hidden by default and can be sorted and filtered — the record's identifier code in Casdoor — the link between this row and the IDP record.
 - The Website URL column is shown by default and can be sorted and filtered.
-- The User Count column is shown by default and cannot be sorted or filtered.
+- The User Count column is shown by default and can be filtered but not sorted.
 
 ## Actions
 

@@ -6,11 +6,13 @@ entity: user_profile
 
 View and edit an existing user.
 
+The page is visible with the `access.system.settings.users` grant.
+
 ## Pages routes
 
 - `/system/settings/users` — List, search and manage all users.
-- `/system/settings/users/create` — Create a new user.
 - `/system/settings/users/{uuid}` — View and edit an existing user. *(this page)*
+- `/system/settings/users/create` — Create a new user.
 
 ## What you can do here
 
@@ -24,6 +26,8 @@ View and edit an existing user.
 2. Click **Save** — the user now has the permissions granted by the assigned roles.
 
 
+The record opens in read mode first — click **Edit** to modify it. Concurrent edits are protected by optimistic locking: if someone else saves the user while you are editing it, the page tells you before overwriting their changes. The form warns before discarding unsaved changes.
+
 ## Fields
 
 | Field | Required | Notes |
@@ -31,12 +35,12 @@ View and edit an existing user.
 | **Display Name** | required | text input |
 | **Email** | optional | text input — max 320; must be a valid email |
 | **Application Roles** | optional | select — administrator roles show a System Administrator badge; min 1 |
-| **Avatar Color** | optional | text input — shown when no avatar image is set; hex color |
+| **Avatar Color** | optional | shown when no avatar image is set; hex color |
 
 - The **Display Name** field is a required text input.
 - The **Email** field is an optional text input that allows up to 320 characters and must be a valid email.
 - The **Application Roles** field is an optional select that requires at least 1 selection — administrator roles show a System Administrator badge.
-- The **Avatar Color** field is an optional text input that must be a hex color — shown when no avatar image is set.
+- The **Avatar Color** field is an optional field that must be a hex color — shown when no avatar image is set.
 
 ## Related entities
 

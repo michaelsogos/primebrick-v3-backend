@@ -6,11 +6,13 @@ entity: client_registry
 
 Create a new client.
 
+The page is visible with the `access.system.settings.clients.create` grant.
+
 ## Pages routes
 
 - `/system/settings/clients` — List, search and manage all clients.
-- `/system/settings/clients/create` — Create a new client registry. *(this page)*
 - `/system/settings/clients/{uuid}` — View and edit an existing client registry.
+- `/system/settings/clients/create` — Create a new client registry. *(this page)*
 
 ## What you can do here
 
@@ -23,11 +25,11 @@ Create a new client.
 
 | Field | Required | Notes |
 |-------|----------|-------|
-| **User-Agent prefix** | optional | text input — custom format; max 120; min 2 |
+| **User-Agent prefix** | optional | text input — max 120; min 2 |
 | **client key** | optional | text input — max 256 |
 | **Enabled** | optional | button |
 
-- The **User-Agent prefix** field is an optional text input that must match a custom format and allows up to 120 characters and requires at least 2 characters.
+- The **User-Agent prefix** field is an optional text input that allows up to 120 characters and requires at least 2 characters.
 - The **client key** field is an optional text input that allows up to 256 characters.
 - The **Enabled** field is an optional button.
 

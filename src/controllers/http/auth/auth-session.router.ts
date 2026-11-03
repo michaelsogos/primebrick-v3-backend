@@ -23,7 +23,7 @@ import { registerRoutes } from "../../../http/define-route.js";
 import { asyncHandler } from "../../../http/async-handler.js";
 import { validateBody } from "../../../http/validation.js";
 import { rbacHandler } from "../../../modules/auth/rbac.middleware.js";
-import { Permission, getAuthConfig } from "@primebrick/sdk";
+import { Permission, getAuthConfig, isSnakeKey } from "@primebrick/sdk";
 import {
   setAuthCookies,
   clearRefreshCookie,
@@ -35,6 +35,7 @@ import { PasswordPolicy, DEFAULT_PASSWORD_POLICY } from "../../../modules/auth/p
 import { UnauthorizedError, ApiError, ValidationError } from "../../../http/api-errors.js";
 import type { EntityMeta } from "../../../http/entity-meta.types.js";
 import { assembleMeta } from "../../../http/meta-assembler.js";
+import { withColumnConstraints } from "@primebrick/dal-pg";
 import { UserProfileEntity } from "../../../modules/auth/user_profile_entity.js";
 import { etagMiddleware } from "../../../http/etag-middleware.js";
 import type { CacheEntry } from "@primebrick/sdk";
@@ -57,11 +58,11 @@ const PreferenceKeySchema = z
   .string()
   .min(1)
   .max(128)
-  .regex(/^[a-z0-9_]+$/, "Preference key must be snake_case");
+  .refine(isSnakeKey, { message: "app.common.validation.snake_key" });
 
 /** Metadata for the self-service profile form (`GET /api/v1/auth/me/meta`).
  *  Canonical `EntityMeta` shape — no `table` (form-only meta). */
-const meMeta: EntityMeta = {
+const meMeta: EntityMeta = withColumnConstraints({
   entity: "user_profile",
   translation_key: "user_profile",
   uid: "uuid",
@@ -82,7 +83,7 @@ const meMeta: EntityMeta = {
     { key: "created_by", label_key: "system.entities.user_profile.fields.created_by", type: "text", order: 9, sortable: false, default_visible: false, searchable: false, audited: true },
     { key: "version", label_key: "system.entities.user_profile.fields.version", type: "text", order: 10, sortable: false, default_visible: false, searchable: false, audited: true },
   ],
-};
+}, UserProfileEntity);
 
 function requireUserId(req: { user?: { id?: string } }): string {
   const userId = (req as any).user?.id;

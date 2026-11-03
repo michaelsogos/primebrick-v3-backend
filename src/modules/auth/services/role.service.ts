@@ -46,6 +46,9 @@ import { ApiError, NotFoundError } from "../../../http/api-errors.js";
 import { collectAccessLeafKeys } from "../../system/access-inventory.js";
 
 const ROLE_MAPPINGS_CACHE_KEY = "be:role_mappings:all";
+/** Global auth epoch — bumped on role/permission writes; fire-time auth checkpoints compare cached snapshot timestamps against it. */
+const AUTH_EPOCH_KEY = "auth:epoch";
+const AUTH_EPOCH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const ROLE_MAPPING_FILTERABLE_FIELDS = new Set(["idp_role", "idp_org", "label_key", "is_admin"]);
 
 interface RoleMappingRow {
@@ -327,6 +330,10 @@ export class RoleService extends DomainService<RoleMappingDto> {
     if (port) {
       try {
         await port.del(ROLE_MAPPINGS_CACHE_KEY);
+        // Bump the global auth epoch — role/permission changes invalidate
+        // every cached AuthUser snapshot (job-handler fire-time checkpoint
+        // compares snapshot.taken_at against this value).
+        await port.set(AUTH_EPOCH_KEY, Date.now(), AUTH_EPOCH_TTL_MS);
       } catch (e) {
         logger.warn(`role_mappings invalidate failed: ${e}`, { tags: ["auth"] });
       }

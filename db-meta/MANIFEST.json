@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-01T16:11:19.490Z",
+  "issued_at": "2026-11-03T15:17:22.913Z",
   "patches": {
     "00000000000000_init_database": "05761ee7f89f3a6518779ac1fee25ed83a90c0d8d11a5aff1da28a61db2d1efa",
     "00000000000001_seed_translations_en_gb": "52492d182cbd158744a14a93d4234f56552a73abe8d7a0af39047dc05eeb2654",
@@ -68,7 +68,16 @@
     "20261106220000_payload_map_permissions_bold": "be6b3c09b1bd79c4fe1ffc8faea21745a928a0c0d7969d1c6af602abe5d130fc",
     "20261106230000_payload_map_fallback_lead_no_comma": "a4b0952febd156a8663b2397881621c228d8b333e9256b37670464a0fc4ef062",
     "20261106231000_payload_map_blocked_hint": "60462f69537cf04a0baf4bd4b28da7431b8133c3159c5018a48042da59b0ed8b",
-    "20261106233000_schedule_spec_i18n_desc": "a46076cbe7cdb8b3abba46ab328a5f23bc732b819848adeb071bbfa7ca2b0cca"
+    "20261106233000_schedule_spec_i18n_desc": "a46076cbe7cdb8b3abba46ab328a5f23bc732b819848adeb071bbfa7ca2b0cca",
+    "20261107000000_payload_map_conformance_hint": "2a02ab4c138f4b49b2c926674aea9b2d7950cbb7b4fea3149682267e331821c1",
+    "20261108000000_identifier_format_tokens": "458154a40f41b2e2721dd8935a1b5310e796c3e4bc65c30f2b92986384c30923",
+    "20261109000000_lang_format_and_disabled_toggle": "919918123f040a3cad289716d410644308618061d8f2704f3809b577ae907f5d",
+    "20261116000000_payload_map_meta_trigger_id_and_emails": "749c318044922011fde1226aac098c5801cbd9cf08301e96b32f6ce803578c65",
+    "20261116010000_draft_restored_translation": "80b703f0f8b7b4d2606a680c56912f9ca0c4898e5d9a29698fe85070bc9148a0",
+    "20261116020000_validation_message_i18n_keys": "5c667c729640826b35094cb1e7b7cb20646ded618d2906005cbdce688399e688",
+    "20261116030000_draft_restored_title": "146d8fd3734a131aa5076a30102a2bfba0a188d92b18e0f1fd3702e64883c2a8",
+    "20261116040000_emailsender_callable_help_keys": "2b8056f1ef76055485886ac42d5f2af08143794d803b2234cf548b87f7528c1e",
+    "20261116050000_payload_map_optional_keys": "3c2c37f99dc30af0e5ba9e7884939515f17aa9c8f8c8320ccb38debd152174db"
   },
-  "signature": "mK4BMLtkpwC4Bggg/oJU2G2guEjOHBoXP5xiocncm9+1KyJhYYJo6IcpnwEm1W+Epgavz5jh3hLurg+ZbzMDCg=="
+  "signature": "qY/hOHdh61NMQBJGt1UrLkM1ZMBq7WSokqgkAD2NTH/eS0Fj/AELwbkpRw3QazaBidYV0GujaG7MBF5CCDFoCQ=="
 }

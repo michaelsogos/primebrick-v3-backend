@@ -16,11 +16,11 @@ describe("validateNavDeclaration — module route namespace", () => {
       validateNavDeclaration("job", {
         route_prefixes: ["/system/job"],
         access: "access.system.job",
-        nav: [validLink("/system/job/job-schedules", "job.jobs.nav", { default: true }), validLink("/system/job/rules")],
+        nav: [validLink("/system/job/job-schedules", "job.jobs.nav", { default: true }), validLink("/system/job/triggers")],
         routes: [
           { route: "/system/job/job-schedules", kind: "list", entity: "job_schedule" },
           { route: "/system/job/job-schedules/create", kind: "create", entity: "job_schedule" },
-          { route: "/system/job/rules", kind: "list", entity: "job_rule" },
+          { route: "/system/job/triggers", kind: "list", entity: "job_trigger" },
         ],
       }, "system"),
     ).toBeNull();

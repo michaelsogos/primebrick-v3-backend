@@ -6,11 +6,13 @@ entity: organization
 
 View and edit an existing organization.
 
+The page is visible with the `access.system.settings.organizations` grant.
+
 ## Pages routes
 
 - `/system/settings/organizations` — List, search and manage all organizations.
-- `/system/settings/organizations/create` — Create a new organization.
 - `/system/settings/organizations/{uuid}` — View and edit an existing organization. *(this page)*
+- `/system/settings/organizations/create` — Create a new organization.
 
 ## What you can do here
 
@@ -19,6 +21,8 @@ View and edit an existing organization.
 2. Update the fields below — required: **Display name**, **Identity Owner**, **Identity Name**.
 3. Click **Save** — the changes to the organization are saved.
 
+
+The record opens in read mode first — click **Edit** to modify it. Concurrent edits are protected by optimistic locking: if someone else saves the organization while you are editing it, the page tells you before overwriting their changes. The form warns before discarding unsaved changes.
 
 ## Fields
 

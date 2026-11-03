@@ -2,7 +2,7 @@
  * marker-persister — persists `EntityChangedMarker`s arriving on NATS into
  * the Redis presence store.
  *
- * Service-owned entities (job-handler `job_rule`, crm `customer`, …) publish
+ * Service-owned entities (job-handler `job_trigger`, crm `customer`, …) publish
  * markers via the SDK's `makeMarkerAuditPort` — services have no Redis
  * client, so the gateway owns ALL Redis writes: this unqueued subscriber on
  * `entity.*.*.changed` applies `setChanged` (5-min stale marker for late

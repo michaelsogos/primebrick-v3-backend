@@ -6,11 +6,13 @@ entity: client_registry
 
 View and edit an existing client.
 
+The page is visible with the `access.system.settings.clients` grant.
+
 ## Pages routes
 
 - `/system/settings/clients` — List, search and manage all clients.
-- `/system/settings/clients/create` — Create a new client registry.
 - `/system/settings/clients/{uuid}` — View and edit an existing client registry. *(this page)*
+- `/system/settings/clients/create` — Create a new client registry.
 
 ## What you can do here
 
@@ -20,15 +22,17 @@ View and edit an existing client.
 3. Click **Save** — the changes to the client are saved.
 
 
+The record opens in read mode first — click **Edit** to modify it. Concurrent edits are protected by optimistic locking: if someone else saves the client while you are editing it, the page tells you before overwriting their changes. The form warns before discarding unsaved changes.
+
 ## Fields
 
 | Field | Required | Notes |
 |-------|----------|-------|
-| **User-Agent prefix** | required | text input — custom format; max 120; min 2 |
+| **User-Agent prefix** | required | text input — max 120; min 2 |
 | **client key** | optional | text input — max 256 |
 | **Enabled** | optional | button |
 
-- The **User-Agent prefix** field is a required text input that must match a custom format and allows up to 120 characters and requires at least 2 characters.
+- The **User-Agent prefix** field is a required text input that allows up to 120 characters and requires at least 2 characters.
 - The **client key** field is an optional text input that allows up to 256 characters.
 - The **Enabled** field is an optional button.
 
