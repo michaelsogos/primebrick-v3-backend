@@ -22,5 +22,8 @@
       ]
     }
   },
-  "i18n_namespaces": ["app", "system", "custom"]
+  "i18n_namespaces": ["app", "system", "custom"],
+  "i18n_sql_exempt": [
+    "20261116040000_emailsender_callable_help_keys.sql"
+  ]
 }
