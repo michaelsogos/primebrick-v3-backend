@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-04T11:13:40.292Z",
+  "issued_at": "2026-11-04T11:49:43.575Z",
   "patches": {
     "00000000000000_init_database": "05761ee7f89f3a6518779ac1fee25ed83a90c0d8d11a5aff1da28a61db2d1efa",
     "00000000000001_seed_translations_en_gb": "52492d182cbd158744a14a93d4234f56552a73abe8d7a0af39047dc05eeb2654",
@@ -92,7 +92,8 @@
     "20261117200000_cron_input_token_meaning": "11bd06ba27c464fbd3ee001279acb4c2a48c5ee2ea242748725e73e4b0cfd02b",
     "20261117210000_cron_input_purge_next": "768cabcf9ad2739e3593ed3f2dae8ac1597f0c225be4946a1156f6508843df1d",
     "20261117220000_cron_input_legend": "beec66c5d45294557dc2036d00cbc996378d641d9e8596902ccc4ae55118d6b5",
-    "20261118000000_evict_emailsender_keys_from_public": "5316731cd2fc060dd4a04dc799869b13c987f59a6c2614b1ae9ee3c9901cbf92"
+    "20261118000000_evict_emailsender_keys_from_public": "5316731cd2fc060dd4a04dc799869b13c987f59a6c2614b1ae9ee3c9901cbf92",
+    "20261118010000_kbd_legend_and_favorites_other": "0d70dc9f86d8f33974c60e5c6206f316187a2973b4d46a9144114850c319ab68"
   },
-  "signature": "Wf5AvN7Gjq76VBUAHVWTf49lbhwCz/hqVqTzyhcO48ubjDknB6BNZcDBkNDRLHz3zkr1uzjXsSy330WU2dOACw=="
+  "signature": "9oFSSi6RDT43kx14+5iGcCITaGpyOV9cpWrpSDCDxw94bzBhYlN+QXL7raUlxmzu1wsrX/37udL+7rz51kEYDA=="
 }
