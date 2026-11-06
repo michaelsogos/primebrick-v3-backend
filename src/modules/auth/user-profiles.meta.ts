@@ -50,7 +50,6 @@ export const userProfileMeta: EntityMeta = withColumnConstraints({
         action_name: "change_password",
         translation_key: "system.settings.users.changePassword",
         icon: "key-round",
-        text_color: "",
         disabled_when_deleted: true,
         required_permission: "AUTHENTICATED_ADMIN",
       },

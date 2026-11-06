@@ -24,6 +24,7 @@ import {
   SynchronizableField,
   SynchronizableFieldType,
   AuditTrail,
+  Calculated,
   EntityBase,
   Auditable,
   Deletable,
@@ -63,6 +64,14 @@ export class OrganizationEntity
   @SynchronizableField(SynchronizableFieldType.LAST_SYNCED_AT)
   @Column({ nullable: true })
   last_synced_at?: Date;
+
+  /** Active member count — SQL projection over `user_profiles.idp_org`
+   *  (the same correlation the old `aggregates` JOIN+COUNT expressed,
+   *  minus the join/group-by cost). */
+  @Calculated(
+    `(SELECT count(*)::int FROM public.user_profiles u WHERE u.idp_org = {self}.idp_code AND u.deleted_at IS NULL AND u.is_active = true)`,
+  )
+  user_count?: number;
 
   // Audit fields (NOT synced to Casdoor)
 

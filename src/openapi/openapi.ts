@@ -879,7 +879,11 @@ export const openapi = {
                     action_name: { type: "string" },
                     translation_key: { type: "string" },
                     icon: { type: "string" },
-                    text_color: { type: "string" },
+                    color: {
+                      type: "string",
+                      enum: ["neutral", "primary", "info", "success", "warning", "destructive"],
+                      description: "Semantic color for icon + label together (closed vocabulary — never a raw CSS class)",
+                    },
                     disabled_when_deleted: { type: "boolean" },
                     required_permission: { type: "string" },
                   },
@@ -898,6 +902,13 @@ export const openapi = {
                 enabled: { type: "boolean" },
                 permissions: { type: "array", items: { type: "string" } },
                 sentinel: { type: "string", enum: ["_public", "_authenticated_user", "_authenticated_admin"] },
+                label_key: { type: "string", description: "Chrome override — translation key for the CTA label" },
+                icon: { type: "string", description: "Chrome override — icon name (lucide, composed, or a semantic exec-* icon bound to its color)" },
+                color: {
+                  type: "string",
+                  enum: ["neutral", "primary", "info", "success", "warning", "destructive"],
+                  description: "Semantic color for icon + label together (closed vocabulary — never a raw CSS class)",
+                },
                 endpoint: {
                   type: "object",
                   required: ["method", "path"],

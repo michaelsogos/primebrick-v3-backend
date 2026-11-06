@@ -20,7 +20,7 @@ export const organizationMeta: EntityMeta = withColumnConstraints({
     { key: "uuid", label_key: "system.entities.organization.fields.uuid", type: "text", order: -1, sortable: true, default_visible: false, sticky: true, filterable: true },
     { key: "idp_code", label_key: "system.entities.organization.fields.idp_code", type: "text", order: 2, sortable: true, default_visible: false, filterable: true },
     { key: "website_url", label_key: "system.entities.organization.fields.website_url", type: "text", order: 3, sortable: true, default_visible: true, filterable: true },
-    { key: "user_count", label_key: "system.entities.organization.fields.user_count", type: "number", order: 4, sortable: false, default_visible: true, virtual: true },
+    { key: "user_count", label_key: "system.entities.organization.fields.user_count", type: "number", order: 4, sortable: false, default_visible: true, kind: "calculated" },
     { key: "created_at", label_key: "system.entities.organization.fields.created_at", type: "datetime", order: 5, sortable: true, default_visible: false, filterable: true, audited: true },
     { key: "created_by", label_key: "system.entities.organization.fields.created_by", type: "text", order: 6, sortable: false, default_visible: false, searchable: false, audited: true },
     { key: "updated_at", label_key: "system.entities.organization.fields.updated_at", type: "datetime", order: 7, sortable: true, default_visible: false, filterable: true, audited: true },
