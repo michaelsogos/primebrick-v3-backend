@@ -49,7 +49,11 @@ import type { CreateUserBody, UserUpdateBody } from "../dto.js";
 
 const DEFAULT_SEARCH_KEYS = deriveSearchableKeys(userProfileMeta, UserProfileEntity);
 const SEARCH_IN_ALLOWED = new Set([...DEFAULT_SEARCH_KEYS, "uuid"]);
-const USER_PROFILE_FILTERABLE_FIELDS = new Set(["display_name", "email", "idp_code", "idp_username", "idp_org", "is_active", "is_admin", "is_verified"]);
+// uid + `*_by` audit columns are wire-filterable on top of the domain
+// fields — the uid powers ref/actor label `IN` lookups and the `*_by`
+// columns feed `options_source:"audit.actors"` (same contract the
+// generic entity-service merges via `wireAlwaysFilterable`).
+const USER_PROFILE_FILTERABLE_FIELDS = new Set(["display_name", "email", "idp_code", "idp_username", "idp_org", "is_active", "is_admin", "is_verified", "uuid", "created_by", "updated_by", "deleted_by"]);
 
 const USER_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
 
