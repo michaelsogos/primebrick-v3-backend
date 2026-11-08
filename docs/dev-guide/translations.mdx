@@ -65,12 +65,41 @@ system.entities.user_profile.plural   → "Users"
 Field labels follow `system.entities.<entity>.<field>` — the generated
 entity-field-reference doc lists each `label_key` alongside its column.
 
+## Dict-row keys — the `rows.*` composition
+
+Dictionary rows are keyed by address, not by column: a dict entity's
+`label_key` column stores the full key of its i18n **stem**:
+
+```
+<ns>.entities.<tk>.rows.<code>   e.g. crm.entities.customer_type.rows.private
+```
+
+Descriptions and tooltips are **suffixes on that stem** — the same
+composition used everywhere for descendants of a label:
+
+```
+<label-stem>.description   e.g. entities.ai_model.qwen3_4b.description
+<label-stem>.tooltip
+```
+
+For keyed dicts this means **no `description_key`/`tooltip_key` columns at
+all** — the FE derives the keys from the row's own `label_key` and renders
+desc/tooltip only when the translation resolves (`$t(k) !== k`; absent →
+absent element). Non-keyed dicts (the `name_local` family) may still carry
+raw `description`/`tooltip` text columns, which win over derivation.
+Because derivation rides the live `label_key`, re-pointing a row to a
+`custom.*` key keeps its derived descendants inside `custom.*` — the write
+boundary is preserved automatically.
+
 ## Typical key families
 
 | Pattern | Meaning |
 |---|---|
 | `app.auth.*` | login/auth chrome |
+| `app.common.lastUpdated{Prefix,ByMid}` | list-item audit sentence — `Last updated {when} by {who}` |
 | `system.entities.<e>.{singular,plural,<field>}` | entity names + field labels |
+| `<ns>.entities.<tk>.rows.<code>` | dict-row label stem (desc/tooltip hang on it) |
+| `<ns>.entities.<tk>.hints.<name>[_title]` | field hint body (+ optional title) |
 | `system.settings.*` | settings pages, config labels/descriptions |
 | `system.entities.<e>.actions.*` | action buttons and confirmations |
 | `config.<key>.{label,description}` | config_entries row labels |

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-06T23:38:07.776Z",
+  "issued_at": "2026-11-08T12:22:28.760Z",
   "patches": {
     "00000000000000_init_database": "05761ee7f89f3a6518779ac1fee25ed83a90c0d8d11a5aff1da28a61db2d1efa",
     "00000000000001_seed_translations_en_gb": "52492d182cbd158744a14a93d4234f56552a73abe8d7a0af39047dc05eeb2654",
@@ -108,7 +108,11 @@
     "20261121000000_filter_boolean_tristate": "bf9473240563f852da20315cfb3bf5a59195ad3a9d796a6c9b2306ad1ca5fd64",
     "20261122000000_filter_value_hint": "1a3a84da80fde92361b2cec23ef46bef7436e927e2a4303c613335f30166d65e",
     "20261123000000_numeric_input_stepper_aria": "f5a3d0849ef9e2289be9731f0231f26509387e085f2ac3a89d898d9792c1f95e",
-    "20261124000000_system_common_fields_it_masculine": "890f44e683441020ef953346193542e5750c1267340fb617763a8b77566304ed"
+    "20261124000000_system_common_fields_it_masculine": "890f44e683441020ef953346193542e5750c1267340fb617763a8b77566304ed",
+    "20261128000000_dict_error_scope_key": "393fbd3424c0cf6bb4fd06c90b210c2881da32783ba0e9f7b4fe7f17bbad9c6a",
+    "20261129000000_dict_translation_editor_keys": "fc09d8b23d88c4cfa418c7d1ca94ff7727dac4ea38e6df97fe27e07f9910e05a",
+    "20261130000000_dict_row_action_keys": "64ab3bda19f22febbd6c5e59cc746bb2944ead0470b51d08e7b9586d6e13c360",
+    "20261201000000_audit_line_keys_app_common": "b99d7b746c5718ef69c17ee325ba2788a82aab3fd1731e2fa52c0f6f62cf198c"
   },
-  "signature": "4Kw4BO8y/pT4Y+IKlaFwqLuLLFKe6A+o5BcuDbmhHcdSs+04Wm8Sty8wj4SdTLdseIW74cenrX4uLasM/ql7Bg=="
+  "signature": "vMzlfP9OTP04L9M0HDz4rKZ0Ooov8X4q/40RjRPclFmjA6FFgxKp0BM3FyFWp2gj34GGkWCTPvIjgbQ9lca3Bw=="
 }

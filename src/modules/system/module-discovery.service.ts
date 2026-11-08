@@ -38,6 +38,7 @@ import {
   type I18nDict,
 } from "@primebrick/sdk";
 
+import { DEFAULT_PAGE_ICON, defaultRouteIcon } from "@primebrick/sdk";
 import { owningRoutePrefix, resolveModuleNavMeta } from "../module-nav-meta.js";
 import type {
   ModuleCallablesDecl,
@@ -81,6 +82,15 @@ export interface DiscoveredModule {
   routes?: PageRouteDeclaration[];
   /** Remote sheet panels declared by the module — access-filtered like routes. */
   sheets?: ModuleSheetDecl[];
+  /**
+   * The translations module serving this module's runtime dict
+   * (`/api/v1/system/translations/<module>/<lang>`). Absent = self (the
+   * module id IS its translations module). Sibling modules (`<code>-<id>`)
+   * are virtual — their keys live in the DECLARING service's schema — so
+   * they carry the owner's code here (same shape as the reserved
+   * `settings` module whose dict lives in `system.translations`).
+   */
+  translations_module?: string;
   /**
    * The module's emitted-event vocabulary (`endpoints.events.emits`) —
    * module metadata, NOT an access surface: served verbatim like
@@ -128,6 +138,38 @@ function filterNavLinks(
 }
 
 /**
+ * Icon materialization — `icon` is OPTIONAL in the declaration: a dev
+ * authors one only to override the convention. Emission fills nulls from
+ * the kind map ({@link defaultRouteIcon}): dict→list, list→table-2,
+ * forms→text-cursor-input, everything else→file-box. An authored `icon`
+ * always wins — this never overrides.
+ */
+function materializeRouteIcons(
+  routes: PageRouteDeclaration[] | undefined,
+): PageRouteDeclaration[] | undefined {
+  return routes?.map((r) => ({
+    ...r,
+    icon: r.icon ?? defaultRouteIcon(r.kind),
+  }));
+}
+
+/**
+ * Nav leaves resolve to the icon of the route they point at (the SAME
+ * declaration's route census) — a leaf whose href owns no decl falls back
+ * to `file-box`. Parents (children) are groups, not pages: untouched.
+ */
+function materializeNavIcons(
+  links: ModuleNavLink[],
+  iconByHref: ReadonlyMap<string, string>,
+): ModuleNavLink[] {
+  return links.map((l) =>
+    l.children?.length
+      ? { ...l, children: materializeNavIcons(l.children, iconByHref) }
+      : { ...l, icon: l.icon ?? iconByHref.get(l.href) ?? DEFAULT_PAGE_ICON },
+  );
+}
+
+/**
  * Collect every `label_key` declared by a module's nav meta — nav links
  * (recursive, pre-filter so `nav_hidden` reveal entries resolve too),
  * routes and sheets. The module's own `label_key` is collected by the
@@ -146,6 +188,16 @@ function collectLabelKeys(
   walk(meta?.nav);
   for (const r of meta?.routes ?? []) if (r.label_key) keys.add(r.label_key);
   for (const s of meta?.sheets ?? []) if (s.label_key) keys.add(s.label_key);
+}
+
+/** A sibling block inside `endpoints.nav.siblings` (enrollment-validated). */
+interface NavSiblingDecl {
+  id: string;
+  label_key: string;
+  icon?: string;
+  route_prefixes: string[];
+  nav: ModuleNavLink[];
+  routes?: PageRouteDeclaration[];
 }
 
 export class ModuleDiscoveryService {
@@ -191,11 +243,28 @@ export class ModuleDiscoveryService {
       };
 
       const hidden: ModuleNavLink[] = [];
-      const nav = meta?.nav ? filterNavLinks(meta.nav, perms, keyOf, hidden) : undefined;
-      const routes = meta?.routes?.filter((r) => {
-        const key = keyOf(r.route);
-        return key === undefined || isAccessGranted(perms, key);
-      });
+      const navFiltered = meta?.nav
+        ? filterNavLinks(meta.nav, perms, keyOf, hidden)
+        : undefined;
+      const routes = materializeRouteIcons(
+        meta?.routes?.filter((r) => {
+          const key = keyOf(r.route);
+          return key === undefined || isAccessGranted(perms, key);
+        }),
+      );
+      // Leaf icons resolve through the module's DECLARED route census —
+      // the icon is declaration metadata, not access-filtered surface: a
+      // leaf hidden by grants still carries its route's kind icon.
+      const iconByHref = new Map(
+        (materializeRouteIcons(meta?.routes) ?? []).map((r) => [
+          r.route,
+          r.icon ?? DEFAULT_PAGE_ICON,
+        ]),
+      );
+      const nav = navFiltered
+        ? materializeNavIcons(navFiltered, iconByHref)
+        : undefined;
+      const navHidden = materializeNavIcons(hidden, iconByHref);
       const sheets = meta?.sheets?.filter((sh) =>
         isAccessGranted(perms, accessSheetKey(ns ?? "", s.code, sh.key)),
       );
@@ -218,7 +287,7 @@ export class ModuleDiscoveryService {
         label_key: s.label_key,
         ...(meta && !hasSurface ? { accessible: false as const } : {}),
         nav,
-        nav_hidden: hidden.length > 0 ? hidden : undefined,
+        nav_hidden: navHidden.length > 0 ? navHidden : undefined,
         routes,
         sheets,
         // Module-domain event vocabulary — verbatim from the registry row
@@ -227,6 +296,60 @@ export class ModuleDiscoveryService {
         // Callable destinations — same verbatim contract as `events`.
         callables: s.endpoints?.["callables"] as ModuleCallablesDecl | undefined,
       });
+
+      // Siblings — second module nodes next to this service's module under
+      // the same root (e.g. CRM's "Impostazioni"). Declared inside
+      // `endpoints.nav.siblings` (validated at enrollment): each sibling is
+      // emitted as its own module `<code>-<id>` with `part_of` inherited,
+      // prefixes nested under the module's, and access keys derived under
+      // the `<moduleNs>.<id>` namespace (`access.crm.settings.*`).
+      const sibs =
+        ((s.endpoints?.["nav"] as Record<string, unknown> | undefined)?.[
+          "siblings"
+        ] as NavSiblingDecl[] | undefined) ?? [];
+      for (const sib of sibs) {
+        if (sib.label_key) labelKeys.add(sib.label_key);
+        collectLabelKeys(sib, labelKeys);
+        const sibNs = ns ? `${ns}.${sib.id}` : undefined;
+        const sibKeyOf = (path: string): string | undefined => {
+          if (!sibNs) return undefined;
+          const px = owningRoutePrefix(path, sib.route_prefixes);
+          return px ? accessLeafKey(sibNs, path.slice(px.length)) : undefined;
+        };
+        const sibHidden: ModuleNavLink[] = [];
+        const sibNavFiltered = filterNavLinks(sib.nav, perms, sibKeyOf, sibHidden);
+        const sibRoutes = materializeRouteIcons(
+          sib.routes?.filter((r) => {
+            const key = sibKeyOf(r.route);
+            return key === undefined || isAccessGranted(perms, key);
+          }),
+        );
+        const sibIconByHref = new Map(
+          (materializeRouteIcons(sib.routes) ?? []).map((r) => [
+            r.route,
+            r.icon ?? DEFAULT_PAGE_ICON,
+          ]),
+        );
+        const sibNav = materializeNavIcons(sibNavFiltered, sibIconByHref);
+        const sibNavHidden = materializeNavIcons(sibHidden, sibIconByHref);
+        const sibHasSurface = sibNav.length + (sibRoutes?.length ?? 0) > 0;
+        modules.push({
+          id: `${s.code.toLowerCase()}-${sib.id}`,
+          name: sib.id,
+          enabled: s.is_enabled,
+          icon: sib.icon ?? s.icon,
+          part_of: s.part_of,
+          route_prefixes: sib.route_prefixes,
+          label_key: sib.label_key,
+          // Virtual module — its i18n dict lives in the declaring service's
+          // translations schema (`crm.settings.*` → crm.translations).
+          translations_module: s.code.toLowerCase(),
+          ...(!sibHasSurface ? { accessible: false as const } : {}),
+          nav: sibNav,
+          nav_hidden: sibNavHidden.length > 0 ? sibNavHidden : undefined,
+          routes: sibRoutes,
+        });
+      }
     }
     return { modules, labels: await this.resolveLabels(labelKeys, lang) };
   }
