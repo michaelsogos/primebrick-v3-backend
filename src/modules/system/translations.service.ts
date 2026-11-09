@@ -35,6 +35,7 @@ import {
   TranslationsCache,
   translationKeyNamespace,
   keyNamespaceOf,
+  translationKeyGrammarError,
   type I18nDict,
   type CacheEntry,
   wrapCacheEntry,
@@ -88,6 +89,12 @@ export const MODULE_ENTITIES: Record<string, TranslationEntityCtor> = {
  */
 export function assertKeyNamespace(entity: TranslationEntityCtor, key?: string): void {
   if (key === undefined) return;
+  const bad = translationKeyGrammarError(key);
+  if (bad !== null) {
+    throw new ValidationError(`Key '${key}': ${bad}`, {
+      internal_code: "TRANSLATION_KEY_GRAMMAR",
+    });
+  }
   const ns = translationKeyNamespace(schemaOf(entity));
   if (keyNamespaceOf(key) !== ns) {
     throw new ValidationError(

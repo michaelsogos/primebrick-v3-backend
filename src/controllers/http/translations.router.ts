@@ -25,7 +25,7 @@ import { zBoundedInt } from "../../http/validation.js";
 import { makeProtectedRouter } from "../../http/protected-router.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
-import { Permission, isSlug, type CacheEntry, type I18nDict } from "@primebrick/sdk";
+import { Permission, isSlug, isValidTranslationKey, type CacheEntry, type I18nDict } from "@primebrick/sdk";
 import { ValidationError } from "../../http/api-errors.js";
 import { etagMiddleware } from "../../http/etag-middleware.js";
 import { entityOnlyWriteBody } from "../../http/entity-write.js";
@@ -46,14 +46,21 @@ const LanguageSchema = z
 
 const UuidSchema = z.string().uuid();
 
+/** `[a-z0-9_]+` dot-separated segments, ≥2 — the ONE key grammar (core). */
+const TranslationKeySchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine(isValidTranslationKey, { message: "app.common.validation.dotted_key" });
+
 const TranslationCreateSchema = z.object({
-  key: z.string().min(1).max(255),
+  key: TranslationKeySchema,
   language: LanguageSchema,
   value: z.string(),
 });
 
 const TranslationUpdateSchema = z.object({
-  key: z.string().min(1).max(255).optional(),
+  key: TranslationKeySchema.optional(),
   language: LanguageSchema.optional(),
   value: z.string().optional(),
   version: zBoundedInt(0, Number.MAX_SAFE_INTEGER),
