@@ -23,12 +23,12 @@ import {
   field,
   Filter,
   Project,
-  Sort,
   getEntityPersistenceMeta,
   TranslationEntityBase,
   type Repository,
   type EntityClass,
-  type FilterExpr,
+  type EntityListQuery,
+  type EntityService,
 } from "@primebrick/dal-pg";
 import {
   requireActor,
@@ -103,14 +103,32 @@ function schemaOf(entity: TranslationEntityCtor): string {
   return meta.tableSchema;
 }
 
-export interface TranslationListQuery {
-  page?: number;
-  page_size?: number;
+/**
+ * Canonical `EntityListQuery` (filters/search/search_in/connector/sort/
+ * paging/deleted_records) plus the dedicated `language` convenience param,
+ * merged into the WHERE through `extraFilters` — never a bespoke query.
+ */
+export type TranslationListQuery = Omit<EntityListQuery, "sort_key"> & {
+  /** Zod `sort_key` parses nullable — normalized to `undefined` on entry. */
+  sort_key?: string | null;
   language?: string;
-  sort_key?: string;
-  sort_dir?: "asc" | "desc";
-  deleted_records?: "EXCLUDED" | "ONLY" | "INCLUDED";
-}
+};
+
+/** Every row column is filterable/searchable — the translation list honors
+ *  the same "no limits" contract as every other entity list. */
+const TRANSLATION_FILTERABLE_KEYS = new Set([
+  "key",
+  "language",
+  "value",
+  "uuid",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+  "created_by",
+  "updated_by",
+  "deleted_by",
+]);
+const TRANSLATION_SEARCHABLE_KEYS = ["key", "value"] as const;
 
 export interface TranslationCreateBody {
   key: string;
@@ -235,27 +253,41 @@ export class TranslationsService {
     return entry;
   }
 
-  /** Paginated list of translation rows for a module. */
+  /**
+   * Per-module list service — `dal.entityService` over the resolved entity
+   * (cached alongside `serviceEntities`: one instance per translation schema).
+   * This is the SAME canonical list path every entity uses: filters[],
+   * search/search_in, connector, sort validation, paging, deleted_records.
+   * `language` arrives as a dedicated param and joins via `extraFilters`.
+   */
+  private listServices = new Map<string, EntityService<Record<string, unknown>>>();
+
+  private listServiceFor(entity: TranslationEntityCtor): EntityService<Record<string, unknown>> {
+    const schema = schemaOf(entity);
+    let svc = this.listServices.get(schema);
+    if (!svc) {
+      svc = getDal().entityService<Record<string, unknown>>({
+        entity,
+        list: {
+          searchableKeys: TRANSLATION_SEARCHABLE_KEYS,
+          filterableKeys: TRANSLATION_FILTERABLE_KEYS,
+          defaultSort: { key: "key", dir: "asc" },
+          extraFilters: (q) =>
+            (q as TranslationListQuery).language
+              ? [Filter.fieldValue(field(entity, "language"), "=", (q as TranslationListQuery).language)]
+              : [],
+        },
+      });
+      this.listServices.set(schema, svc);
+    }
+    return svc;
+  }
+
+  /** Paginated list of translation rows for a module — standard
+   *  `EntityListResult { rows, page, page_size, total }` envelope. */
   async list(moduleCode: string, query: TranslationListQuery) {
     const entity = await this.resolveEntity(moduleCode);
-    const filters: FilterExpr[] = [];
-    if (query.language) {
-      filters.push(Filter.fieldValue(field(entity, "language"), "=", query.language));
-    }
-
-    return getDal().findByPage(
-      entity,
-      query.page ?? 1,
-      query.page_size ?? 25,
-      null,
-      {
-        filters: filters.length > 0 ? filters : undefined,
-        sorting: query.sort_key
-          ? [Sort.by(field(entity, query.sort_key as "key"), (query.sort_dir ?? "asc").toUpperCase() as "ASC" | "DESC")]
-          : undefined,
-        deletedRecords: query.deleted_records ?? "EXCLUDED",
-      },
-    );
+    return this.listServiceFor(entity).list({ ...query, sort_key: query.sort_key ?? undefined });
   }
 
   /**

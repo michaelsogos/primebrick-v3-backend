@@ -29,6 +29,7 @@ import { Permission, isSlug, type CacheEntry, type I18nDict } from "@primebrick/
 import { ValidationError } from "../../http/api-errors.js";
 import { etagMiddleware } from "../../http/etag-middleware.js";
 import { entityOnlyWriteBody } from "../../http/entity-write.js";
+import { ListQueryBaseSchema } from "../../http/list-query.js";
 import { TranslationsService } from "../../modules/system/translations.service.js";
 
 const ModuleCodeSchema = z
@@ -63,14 +64,13 @@ const TranslationUpdateSchema = z.object({
 const TranslationCreateWriteSchema = entityOnlyWriteBody(TranslationCreateSchema);
 const TranslationUpdateWriteSchema = entityOnlyWriteBody(TranslationUpdateSchema);
 
-const ListQuerySchema = z.object({
+// Canonical entity list contract — `filters[i][field|op|value]` WHERE
+// terms, `search`/`search_in`, `connector`, sort, paging, deleted_records
+// all come from the shared base. `module` selects the schema and
+// `language` stays a dedicated convenience param (merged via extraFilters).
+const ListQuerySchema = ListQueryBaseSchema.extend({
   module: ModuleCodeSchema,
-  page: z.coerce.number().int().min(1).default(1),
-  page_size: z.coerce.number().int().min(1).max(100).default(25),
   language: LanguageSchema.optional(),
-  sort_key: z.string().optional(),
-  sort_dir: z.enum(["asc", "desc"]).optional(),
-  deleted_records: z.enum(["EXCLUDED", "ONLY", "INCLUDED"]).optional(),
 });
 
 const ModuleQuerySchema = z.object({
