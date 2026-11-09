@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-09T13:24:55.098Z",
+  "issued_at": "2026-11-09T14:08:05.792Z",
   "patches": {
     "00000000000000_init_database": "05761ee7f89f3a6518779ac1fee25ed83a90c0d8d11a5aff1da28a61db2d1efa",
     "00000000000001_seed_translations_en_gb": "52492d182cbd158744a14a93d4234f56552a73abe8d7a0af39047dc05eeb2654",
@@ -116,7 +116,9 @@
     "20261202000000_translation_editor_v2_keys": "546bec4f1a0a0ccfef2832823bb57c9c3a174d1a8c878a67693e3c88195b010f",
     "20261205000000_i18n_key_snake_cleanup": "fd5052df4a9c5e5bf42fc0b29af793d6bbcf00493592e8a7a964ca21982c8e90",
     "20261209000000_translations_missing_count_keys": "926d42562bcdb1eaf0993f3436a4881f7583c7c7f2bd36551857cf6a6684251a",
-    "20261210000000_translation_preview_swap_keys": "67393cce81df45a2e25791a33e801a9e1019867b3851198562c38ef0f05b7543"
+    "20261210000000_translation_preview_swap_keys": "67393cce81df45a2e25791a33e801a9e1019867b3851198562c38ef0f05b7543",
+    "20261211000000_translations_manage_title": "ff40ce313a43ddd6a1b6fb6f6e627b3e1752125cd369292361b30ef470f72dcc",
+    "20261212000000_translations_manage_title_system": "d6297f6c0c4c7431d93df416fccaa25e0b0351aaf7d1e3a99a6a06b076eab4e1"
   },
-  "signature": "1rmw0zCElcGgg4B2YCDsQOWPfk7nQyL2FjHX1b1tt7PFDISt/X3TuKEFJW4ecBHM4VwwauZ60OGuc5zvJwp0CQ=="
+  "signature": "cdL3MSoA4l4wBPxCqEuaPSJoGvk1sH72unDhFCfFD85otSwvCn5GbOlVBYlU/itC2EF+tG8/5ZIK3J08uu36DQ=="
 }
