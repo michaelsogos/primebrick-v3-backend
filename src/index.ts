@@ -4,7 +4,7 @@ import "./observability/logging-init.js"; // must stay first import — async co
 import cors from "cors";
 import express, { type Response } from "express";
 import cookieParser from "cookie-parser";
-import { extJsonMiddleware, extJsonBodyParser, extJsonParse, Permission, NatsClient, subscribeSharedConfig, logModuleStartup, logServiceStartup, type HealthResponse } from "@primebrick/sdk";
+import { extJsonMiddleware, extJsonBodyParser, extJsonParse, Permission, NatsClient, subscribeSharedConfig, logModuleStartup, logServiceStartup, resolveHttpBindHost, type HealthResponse } from "@primebrick/sdk";
 import type { NatsConnection } from "@nats-io/transport-node";
 import { mountModules } from "./modules/index.js";
 import CasdoorSDK from "casdoor-nodejs-sdk";
@@ -305,7 +305,10 @@ app.use(errorHandler);
 // that resets on every res.write(). SSE connections with 15s keep-alive never
 // hit it. It only fires on zombie connections (no data for 5 min), allowing the
 // server to reclaim resources. Never set to 0 (zombie accumulation).
-const server = app.listen(port, () => {
+// Bind host comes from the same platform policy as the US services
+// (resolveHttpBindHost): 127.0.0.1 in dev, 0.0.0.0 under NODE_ENV=production.
+// config_entries can't feed it — the bind must precede DB-dependent startup.
+const server = app.listen(port, resolveHttpBindHost(), () => {
   logServiceStartup(`http://localhost:${port}`);
 });
 server.timeout = 300_000;
