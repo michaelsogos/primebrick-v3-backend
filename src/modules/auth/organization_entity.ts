@@ -71,6 +71,7 @@ export class OrganizationEntity
    *  minus the join/group-by cost). */
   @Calculated(
     `(SELECT count(*)::int FROM public.user_profiles u WHERE u.idp_org = {self}.idp_code AND u.deleted_at IS NULL AND u.is_active = true)`,
+    { pgType: "int4" },
   )
   user_count?: number;
 
