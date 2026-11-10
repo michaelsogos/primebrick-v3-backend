@@ -41,7 +41,7 @@ export class UserMfaFactorEntity
   uuid: UUID;
 
   /** FK to user_profiles.id. */
-  @Column({ nullable: false })
+  @Column({ jsType: "bigint", nullable: false })
   user_profile_id: bigint;
 
   /** Factor type: "totp" (v1 only). */
@@ -74,7 +74,7 @@ export class UserMfaFactorEntity
   is_preferred: boolean;
 
   /** When the factor was last used for verification. */
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   last_used_at?: Date;
 
 

@@ -38,7 +38,7 @@ export class UserPasskeyEntity
   uuid: UUID;
 
   /** FK to user_profiles.id. */
-  @Column({ nullable: false })
+  @Column({ jsType: "bigint", nullable: false })
   user_profile_id: bigint;
 
   /** base64url credential ID from WebAuthn. */
@@ -59,7 +59,7 @@ export class UserPasskeyEntity
   label?: string;
 
   /** Last time this credential was used to sign in (null until first signin after this feature ships). */
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   last_used_at?: Date;
 
   /** WebAuthn AuthenticatorAttachment: "platform" | "cross-platform". */
