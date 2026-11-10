@@ -72,7 +72,7 @@ export class ServiceRegistryEntity
   capabilities: string[];
 
   /** PG schema ownership claim from the service's DATABASE_SCHEMA env contract (first = owned schema). The BE rejects registration when a claimed schema is owned by a different code or is a platform schema. Claim persists while the row exists — released by unregister or admin purge only. */
-  @Column({ nullable: false, defaultSql: "'{}'" })
+  @Column({ pgType: "text[]", nullable: false, defaultSql: "'{}'" })
   schemas: string[];
 
   @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
