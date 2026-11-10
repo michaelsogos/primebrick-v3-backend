@@ -49,7 +49,7 @@ export class AuthEventEntity {
   user_agent?: string;
 
   /** Whether the auth attempt succeeded. */
-  @Column({ nullable: false })
+  @Column({ pgType: "boolean", nullable: false })
   success: boolean;
 
   /** Reason for failure (NULL on success). */

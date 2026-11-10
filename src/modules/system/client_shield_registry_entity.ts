@@ -20,7 +20,7 @@ export class ClientShieldRegistryEntity extends Deletable(Auditable(EntityBase))
   @Column({ length: 20, nullable: false, defaultSql: "'manual'" })
   source: string;
 
-  @Column({ nullable: false, defaultSql: "true" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })
   is_enabled: boolean;
 
   /** 'static' = key set directly (manual rows, legacy services); 'derived' = HMAC(derivation_secret, ua_prefix:generation). */

@@ -67,10 +67,10 @@ export class UserProfileEntity
   @Column({ length: 10, nullable: true })
   avatar_initials?: string;
 
-  @Column({ defaultSql: "true", nullable: false })
+  @Column({ pgType: "boolean", defaultSql: "true", nullable: false })
   is_active: boolean;
 
-  @Column({ defaultSql: "false", nullable: false })
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
   is_admin: boolean;
 
   @Column({ pgType: "jsonb", nullable: true })
@@ -86,10 +86,10 @@ export class UserProfileEntity
   @Column({ length: 255, nullable: true })
   idp_username?: string;
 
-  @Column({ defaultSql: "false", nullable: false })
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
   is_verified: boolean;
 
-  @Column({ defaultSql: "false", nullable: false })
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
   email_verified: boolean;
 
   @Column({ length: 255, nullable: true })
@@ -103,10 +103,10 @@ export class UserProfileEntity
 
 
   /** Whether the user dismissed the auth method enforcer dialog (passkey/MFA prompt). */
-  @Column({ defaultSql: "false", nullable: false })
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
   auth_method_enforcer_dismissed: boolean;
 
   /** Whether the user completed the welcome/onboarding flow. */
-  @Column({ defaultSql: "false", nullable: false })
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
   onboarding_completed: boolean;
 }

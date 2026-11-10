@@ -67,11 +67,11 @@ export class UserMfaFactorEntity
   label?: string;
 
   /** Whether the factor is enabled. */
-  @Column({ nullable: false })
+  @Column({ pgType: "boolean", nullable: false })
   is_enabled: boolean;
 
   /** Whether this is the preferred factor (shown first in challenge UI). */
-  @Column({ nullable: false })
+  @Column({ pgType: "boolean", nullable: false })
   is_preferred: boolean;
 
   /** When the factor was last used for verification. */

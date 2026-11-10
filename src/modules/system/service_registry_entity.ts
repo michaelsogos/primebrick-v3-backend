@@ -75,7 +75,7 @@ export class ServiceRegistryEntity
   @Column({ nullable: false, defaultSql: "'{}'" })
   schemas: string[];
 
-  @Column({ nullable: false, defaultSql: "false" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   is_behind_scaler: boolean;
 
   @Column({ nullable: false, defaultSql: "'unknown'" })
@@ -84,7 +84,7 @@ export class ServiceRegistryEntity
   @Column({ nullable: true, jsType: "instant" })
   last_health_check_at?: Date;
 
-  @Column({ nullable: false, defaultSql: "true" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })
   is_enabled: boolean;
 
   @Column({ nullable: true })
@@ -93,7 +93,7 @@ export class ServiceRegistryEntity
   @Column({ nullable: false, defaultSql: "'icon'" })
   icon_type: string;
 
-  @Column({ nullable: false, defaultSql: "false" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   is_reserved: boolean;
 
   /**
@@ -112,7 +112,7 @@ export class ServiceRegistryEntity
    * (a second claimant is demoted to false, never rejected), demote-other
    * on admin flip.
    */
-  @Column({ nullable: false, defaultSql: "false" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   is_default: boolean;
 
 

@@ -66,7 +66,7 @@ export class RoleMappingEntity
   @Column({ pgType: "jsonb", nullable: false })
   permissions!: string[];
 
-  @Column({ nullable: false })
+  @Column({ pgType: "boolean", nullable: false })
   is_admin!: boolean;
 
   @SynchronizableField(SynchronizableFieldType.LAST_SYNCED_AT)
