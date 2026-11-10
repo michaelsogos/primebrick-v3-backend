@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-09T14:08:05.792Z",
+  "issued_at": "2026-11-10T22:13:47.797Z",
   "patches": {
     "00000000000000_init_database": "05761ee7f89f3a6518779ac1fee25ed83a90c0d8d11a5aff1da28a61db2d1efa",
     "00000000000001_seed_translations_en_gb": "52492d182cbd158744a14a93d4234f56552a73abe8d7a0af39047dc05eeb2654",
@@ -118,7 +118,17 @@
     "20261209000000_translations_missing_count_keys": "926d42562bcdb1eaf0993f3436a4881f7583c7c7f2bd36551857cf6a6684251a",
     "20261210000000_translation_preview_swap_keys": "67393cce81df45a2e25791a33e801a9e1019867b3851198562c38ef0f05b7543",
     "20261211000000_translations_manage_title": "ff40ce313a43ddd6a1b6fb6f6e627b3e1752125cd369292361b30ef470f72dcc",
-    "20261212000000_translations_manage_title_system": "d6297f6c0c4c7431d93df416fccaa25e0b0351aaf7d1e3a99a6a06b076eab4e1"
+    "20261212000000_translations_manage_title_system": "d6297f6c0c4c7431d93df416fccaa25e0b0351aaf7d1e3a99a6a06b076eab4e1",
+    "20261213000000_combo_select_selected_count": "9bfd35765e9a8b742750c525d60f2a8de7c712738272ef3f6b4a52b56551f733",
+    "20261214000000_translations_powered_switch": "cd323ef40204c92819b3d7cb5925ecaf0eaf45c085a8ea1f4089e4272f09572d",
+    "20261215000000_translations_easy_hint": "efbd95950eca2e14d44a042e769af6fd80658bb70ee43fba0ac07d8ccd2a1cc6",
+    "20261216000000_translations_meaning_hint": "5abe0171dd6708e35fb660577d99da24a92dd20a8096b28b43a0306ac48d3a16",
+    "20261217000000_selected_count_plural_keys": "2db18822cdd7a2c12d6b8d39113751b401c22901f214915aeaf72f49dd08f4ca",
+    "20261218000000_changes_pending_dead_key": "5562853fb574b9e1681678ad212b3d55d8f2182c6b19a0cee3e636a51fd22edd",
+    "20261219000000_translations_field_labels": "0370370127c88e55355930d688b2b69de775fb579182d671f8147de79c9a1d65",
+    "20261220000000_generate_all_missing_phrase": "abcf4644d18e9d4555c9c3bc7980cd1ec78995f01a46c667b926c99912c836f6",
+    "20261221000000_datetime_iana_sheet_keys": "426214eae99cb1a9adb982c77cd6bf4845d6d7940638e3ab00645404336908c5",
+    "20261222000000_list_select_all_titlecase": "95d393dc280614af3ca23897046ad375e7bdfd3da3c365529c831f5d8064fa43"
   },
-  "signature": "cdL3MSoA4l4wBPxCqEuaPSJoGvk1sH72unDhFCfFD85otSwvCn5GbOlVBYlU/itC2EF+tG8/5ZIK3J08uu36DQ=="
+  "signature": "D8eTkI/okAdBtgmQTHo4QCuJ7++nbBEHhpXbpWfIsrqLBfm6+YTbJ1lh0pyuMWygEqWzPitOLSZSgGEakg2wBg=="
 }
