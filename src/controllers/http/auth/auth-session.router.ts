@@ -74,14 +74,7 @@ const meMeta: EntityMeta = withColumnConstraints({
     { key: "is_admin", label_key: "system.entities.user_profile.fields.is_admin", type: "boolean", order: 0, tooltip: "system.entities.user_profile.hints.is_admin", tooltip_priority: "WARNING", tooltip_title: "system.entities.user_profile.hints.is_admin_title", show_form_tooltip: true },
     { key: "is_verified", label_key: "system.entities.user_profile.fields.is_verified", type: "boolean", order: 1, tooltip: "system.entities.user_profile.hints.is_verified", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.is_verified_title", show_form_tooltip: true },
     { key: "email_verified", label_key: "system.entities.user_profile.fields.email_verified", type: "boolean", order: 2, tooltip: "system.entities.user_profile.hints.email_verified", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.email_verified_title", show_form_tooltip: true },
-    { key: "deleted_at", label_key: "system.entities.user_profile.fields.deleted_at", type: "datetime", order: 3, sortable: true, default_visible: false, filterable: true, audited: true },
-    { key: "deleted_by", label_key: "system.entities.user_profile.fields.deleted_by", type: "text", order: 4, sortable: false, default_visible: false, searchable: false, audited: true },
-    { key: "updated_at", label_key: "system.entities.user_profile.fields.updated_at", type: "datetime", order: 5, sortable: true, default_visible: false, filterable: true, audited: true },
-    { key: "updated_by", label_key: "system.entities.user_profile.fields.updated_by", type: "text", order: 6, sortable: false, default_visible: false, searchable: false, audited: true },
-    { key: "last_synced_at", label_key: "system.entities.user_profile.fields.last_synced_at", type: "datetime", order: 7, sortable: true, default_visible: false, filterable: true, audited: true },
-    { key: "created_at", label_key: "system.entities.user_profile.fields.created_at", type: "datetime", order: 8, sortable: true, default_visible: false, filterable: true, audited: true },
-    { key: "created_by", label_key: "system.entities.user_profile.fields.created_by", type: "text", order: 9, sortable: false, default_visible: false, searchable: false, audited: true },
-    { key: "version", label_key: "system.entities.user_profile.fields.version", type: "text", order: 10, sortable: false, default_visible: false, searchable: false, audited: true },
+    { key: "last_synced_at", label_key: "system.entities.user_profile.fields.last_synced_at", type: "datetime", order: 7, default_visible: false, audited: true },
   ],
 }, UserProfileEntity);
 

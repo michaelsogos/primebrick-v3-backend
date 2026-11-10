@@ -20,13 +20,22 @@ reference for the AI assistant when answering questions about entity fields.
 
 | Field | Type | Sortable | Filterable | Searchable | Label Key |
 |-------|------|----------|------------|------------|-----------|
-| `uuid` | text | yes | yes | yes | `system.entities.config_entry.fields.uuid` |
-| `key` | text | yes | yes | yes | `system.entities.config_entry.fields.key` |
+| `uuid` | text | no | no | yes | `system.common.fields.uuid` |
+| `key` | text | no | no | yes | `system.entities.config_entry.fields.key` |
 | `value` | text | no | no | no | `system.entities.config_entry.fields.value` |
-| `type` | text | yes | yes | yes | `system.entities.config_entry.fields.type` |
-| `reserved` | boolean | yes | yes | yes | `system.entities.config_entry.fields.reserved` |
-| `updated_at` | datetime | yes | yes | yes | `system.entities.config_entry.fields.updated_at` |
-| `updated_by` | text | no | no | no | `system.entities.config_entry.fields.updated_by` |
+| `type` | text | no | no | yes | `system.entities.config_entry.fields.type` |
+| `reserved` | boolean | no | no | yes | `system.entities.config_entry.fields.reserved` |
+| `created_at` | datetime | no | no | no | `system.common.fields.created_at` |
+| `created_by` | text | no | no | yes | `system.common.fields.created_by` |
+| `updated_at` | datetime | no | no | no | `system.common.fields.updated_at` |
+| `updated_by` | text | no | no | yes | `system.common.fields.updated_by` |
+| `version` | number | no | no | no | `system.common.fields.version` |
+| `deleted_at` | datetime | no | no | no | `system.common.fields.deleted_at` |
+| `deleted_by` | text | no | no | yes | `system.common.fields.deleted_by` |
+| `type_config` | text | no | no | yes | `system.entities.config_entry.fields.type_config` |
+| `label_key` | text | no | no | yes | `system.entities.config_entry.fields.label_key` |
+| `description_key` | text | no | no | yes | `system.entities.config_entry.fields.description_key` |
+| `group_key` | text | no | no | yes | `system.entities.config_entry.fields.group_key` |
 
 ## organization
 
@@ -35,19 +44,22 @@ reference for the AI assistant when answering questions about entity fields.
 
 | Field | Type | Sortable | Filterable | Searchable | Label Key |
 |-------|------|----------|------------|------------|-----------|
-| `display_name` | text | yes | yes | yes | `system.entities.organization.fields.display_name` |
-| `uuid` | text | yes | yes | yes | `system.entities.organization.fields.uuid` |
-| `idp_code` | text | yes | yes | yes | `system.entities.organization.fields.idp_code` |
-| `website_url` | text | yes | yes | yes | `system.entities.organization.fields.website_url` |
+| `display_name` | text | no | no | yes | `system.entities.organization.fields.display_name` |
+| `uuid` | text | no | no | yes | `system.common.fields.uuid` |
+| `idp_code` | text | no | no | yes | `system.entities.organization.fields.idp_code` |
+| `website_url` | text | no | no | yes | `system.entities.organization.fields.website_url` |
 | `user_count` | number | no | no | yes | `system.entities.organization.fields.user_count` |
-| `created_at` | datetime | yes | yes | yes | `system.entities.organization.fields.created_at` |
-| `created_by` | text | no | no | no | `system.entities.organization.fields.created_by` |
-| `updated_at` | datetime | yes | yes | yes | `system.entities.organization.fields.updated_at` |
-| `updated_by` | text | no | no | no | `system.entities.organization.fields.updated_by` |
-| `last_synced_at` | datetime | yes | yes | yes | `system.entities.organization.fields.last_synced_at` |
-| `version` | text | no | no | no | `system.entities.organization.fields.version` |
-| `deleted_at` | datetime | yes | no | no | `system.entities.organization.fields.deleted_at` |
-| `deleted_by` | text | no | no | no | `system.entities.organization.fields.deleted_by` |
+| `last_synced_at` | datetime | no | no | yes | `system.entities.organization.fields.last_synced_at` |
+| `created_at` | datetime | no | no | no | `system.common.fields.created_at` |
+| `created_by` | text | no | no | yes | `system.common.fields.created_by` |
+| `updated_at` | datetime | no | no | no | `system.common.fields.updated_at` |
+| `updated_by` | text | no | no | yes | `system.common.fields.updated_by` |
+| `version` | number | no | no | no | `system.common.fields.version` |
+| `deleted_at` | datetime | no | no | no | `system.common.fields.deleted_at` |
+| `deleted_by` | text | no | no | yes | `system.common.fields.deleted_by` |
+| `idp_owner` | text | no | no | yes | `system.entities.organization.fields.idp_owner` |
+| `idp_name` | text | no | no | yes | `system.entities.organization.fields.idp_name` |
+| `avatar` | text | no | no | yes | `system.entities.organization.fields.avatar` |
 
 **Default sort:** `created_at` desc
 
@@ -58,18 +70,18 @@ reference for the AI assistant when answering questions about entity fields.
 
 | Field | Type | Sortable | Filterable | Searchable | Label Key |
 |-------|------|----------|------------|------------|-----------|
-| `idp_role` | text | yes | yes | yes | `system.entities.role_mapping.fields.idp_role` |
-| `uuid` | text | yes | yes | yes | `system.entities.role_mapping.fields.uuid` |
-| `idp_org` | text | yes | yes | yes | `system.entities.role_mapping.fields.idp_org` |
-| `label_key` | text | yes | yes | yes | `system.entities.role_mapping.fields.label_key` |
-| `is_admin` | badge | yes | yes | yes | `system.entities.role_mapping.fields.is_admin` |
+| `idp_role` | text | no | no | yes | `system.entities.role_mapping.fields.idp_role` |
+| `uuid` | text | no | no | yes | `system.common.fields.uuid` |
+| `idp_org` | text | no | no | yes | `system.entities.role_mapping.fields.idp_org` |
+| `label_key` | text | no | no | yes | `system.entities.role_mapping.fields.label_key` |
+| `is_admin` | badge | no | no | yes | `system.entities.role_mapping.fields.is_admin` |
 | `permissions` | text | no | no | no | `system.entities.role_mapping.fields.permissions` |
-| `last_synced_at` | datetime | yes | yes | yes | `system.entities.role_mapping.fields.last_synced_at` |
-| `created_at` | datetime | yes | yes | yes | `system.entities.role_mapping.fields.created_at` |
-| `created_by` | text | no | no | no | `system.entities.role_mapping.fields.created_by` |
-| `updated_at` | datetime | yes | yes | yes | `system.entities.role_mapping.fields.updated_at` |
-| `updated_by` | text | no | no | no | `system.entities.role_mapping.fields.updated_by` |
-| `version` | text | no | no | no | `system.entities.role_mapping.fields.version` |
+| `last_synced_at` | datetime | no | no | yes | `system.entities.role_mapping.fields.last_synced_at` |
+| `created_at` | datetime | no | no | no | `system.common.fields.created_at` |
+| `created_by` | text | no | no | yes | `system.common.fields.created_by` |
+| `updated_at` | datetime | no | no | no | `system.common.fields.updated_at` |
+| `updated_by` | text | no | no | yes | `system.common.fields.updated_by` |
+| `version` | number | no | no | no | `system.common.fields.version` |
 
 **Default sort:** `idp_role` asc
 
@@ -80,28 +92,30 @@ reference for the AI assistant when answering questions about entity fields.
 
 | Field | Type | Sortable | Filterable | Searchable | Label Key |
 |-------|------|----------|------------|------------|-----------|
-| `display_name` | text | yes | yes | yes | `system.entities.user_profile.fields.display_name` |
-| `uuid` | text | yes | yes | yes | `system.entities.user_profile.fields.uuid` |
-| `idp_code` | text | yes | yes | yes | `system.entities.user_profile.fields.idp_code` |
-| `email` | text | yes | yes | yes | `system.entities.user_profile.fields.email` |
+| `display_name` | text | no | no | yes | `system.entities.user_profile.fields.display_name` |
+| `uuid` | text | no | no | yes | `system.common.fields.uuid` |
+| `idp_code` | text | no | no | yes | `system.entities.user_profile.fields.idp_code` |
+| `email` | text | no | no | yes | `system.entities.user_profile.fields.email` |
 | `avatar_color` | color | no | no | yes | `system.entities.user_profile.fields.avatar_color` |
-| `avatar_initials` | text | yes | yes | yes | `system.entities.user_profile.fields.avatar_initials` |
-| `idp_org` | text | yes | yes | yes | `system.entities.user_profile.fields.idp_org` |
-| `idp_username` | text | yes | yes | yes | `system.entities.user_profile.fields.idp_username` |
-| `is_active` | boolean | yes | yes | yes | `system.entities.user_profile.fields.is_active` |
-| `is_admin` | boolean | yes | yes | yes | `system.entities.user_profile.fields.is_admin` |
-| `is_verified` | boolean | yes | yes | yes | `system.entities.user_profile.fields.is_verified` |
-| `email_verified` | boolean | yes | yes | yes | `system.entities.user_profile.fields.email_verified` |
+| `avatar_initials` | text | no | no | yes | `system.entities.user_profile.fields.avatar_initials` |
+| `idp_org` | text | no | no | yes | `system.entities.user_profile.fields.idp_org` |
+| `idp_username` | text | no | no | yes | `system.entities.user_profile.fields.idp_username` |
+| `is_active` | boolean | no | no | yes | `system.entities.user_profile.fields.is_active` |
+| `is_admin` | boolean | no | no | yes | `system.entities.user_profile.fields.is_admin` |
+| `is_verified` | boolean | no | no | yes | `system.entities.user_profile.fields.is_verified` |
+| `email_verified` | boolean | no | no | yes | `system.entities.user_profile.fields.email_verified` |
 | `roles` | text | no | no | no | `system.entities.user_profile.fields.roles` |
-| `issuer` | text | no | yes | yes | `system.entities.user_profile.fields.issuer` |
-| `last_synced_at` | datetime | yes | yes | yes | `system.entities.user_profile.fields.last_synced_at` |
-| `created_at` | datetime | yes | yes | yes | `system.entities.user_profile.fields.created_at` |
-| `created_by` | text | no | no | no | `system.entities.user_profile.fields.created_by` |
-| `updated_at` | datetime | yes | yes | yes | `system.entities.user_profile.fields.updated_at` |
-| `updated_by` | text | no | no | no | `system.entities.user_profile.fields.updated_by` |
-| `version` | text | no | no | no | `system.entities.user_profile.fields.version` |
-| `deleted_at` | datetime | yes | no | no | `system.entities.user_profile.fields.deleted_at` |
-| `deleted_by` | text | no | no | no | `system.entities.user_profile.fields.deleted_by` |
+| `issuer` | text | no | no | yes | `system.entities.user_profile.fields.issuer` |
+| `last_synced_at` | datetime | no | no | yes | `system.entities.user_profile.fields.last_synced_at` |
+| `created_at` | datetime | no | no | no | `system.common.fields.created_at` |
+| `created_by` | text | no | no | yes | `system.common.fields.created_by` |
+| `updated_at` | datetime | no | no | no | `system.common.fields.updated_at` |
+| `updated_by` | text | no | no | yes | `system.common.fields.updated_by` |
+| `version` | number | no | no | no | `system.common.fields.version` |
+| `deleted_at` | datetime | no | no | no | `system.common.fields.deleted_at` |
+| `deleted_by` | text | no | no | yes | `system.common.fields.deleted_by` |
+| `auth_method_enforcer_dismissed` | text | no | no | yes | `system.entities.user_profile.fields.auth_method_enforcer_dismissed` |
+| `onboarding_completed` | text | no | no | yes | `system.entities.user_profile.fields.onboarding_completed` |
 
 **Default sort:** `created_at` desc
 
@@ -114,20 +128,23 @@ reference for the AI assistant when answering questions about entity fields.
 
 | Field | Type | Sortable | Filterable | Searchable | Label Key |
 |-------|------|----------|------------|------------|-----------|
-| `ua_prefix` | text | yes | yes | yes | `system.entities.client_registry.fields.ua_prefix` |
-| `uuid` | text | yes | yes | yes | `system.entities.client_registry.fields.uuid` |
-| `source` | text | yes | yes | yes | `system.entities.client_registry.fields.source` |
-| `key_mode` | text | yes | yes | yes | `system.entities.client_registry.fields.key_mode` |
-| `key_generation` | text | yes | yes | yes | `system.entities.client_registry.fields.key_generation` |
-| `key_rotated_at` | datetime | yes | yes | yes | `system.entities.client_registry.fields.key_rotated_at` |
-| `is_enabled` | boolean | yes | yes | yes | `system.entities.client_registry.fields.is_enabled` |
-| `created_at` | datetime | yes | yes | yes | `system.entities.client_registry.fields.created_at` |
-| `created_by` | text | no | no | no | `system.entities.client_registry.fields.created_by` |
-| `updated_at` | datetime | yes | yes | yes | `system.entities.client_registry.fields.updated_at` |
-| `updated_by` | text | no | no | no | `system.entities.client_registry.fields.updated_by` |
-| `version` | text | no | no | no | `system.entities.client_registry.fields.version` |
-| `deleted_at` | datetime | yes | no | no | `system.entities.client_registry.fields.deleted_at` |
-| `deleted_by` | text | no | no | no | `system.entities.client_registry.fields.deleted_by` |
+| `ua_prefix` | text | no | no | yes | `system.entities.client_registry.fields.ua_prefix` |
+| `uuid` | text | no | no | yes | `system.common.fields.uuid` |
+| `source` | text | no | no | yes | `system.entities.client_registry.fields.source` |
+| `key_mode` | text | no | no | yes | `system.entities.client_registry.fields.key_mode` |
+| `key_generation` | text | no | no | yes | `system.entities.client_registry.fields.key_generation` |
+| `key_rotated_at` | datetime | no | no | yes | `system.entities.client_registry.fields.key_rotated_at` |
+| `is_enabled` | boolean | no | no | yes | `system.entities.client_registry.fields.is_enabled` |
+| `created_at` | datetime | no | no | yes | `system.common.fields.created_at` |
+| `created_by` | text | no | no | yes | `system.common.fields.created_by` |
+| `updated_at` | datetime | no | no | no | `system.common.fields.updated_at` |
+| `updated_by` | text | no | no | yes | `system.common.fields.updated_by` |
+| `version` | number | no | no | no | `system.common.fields.version` |
+| `deleted_at` | datetime | no | no | no | `system.common.fields.deleted_at` |
+| `deleted_by` | text | no | no | yes | `system.common.fields.deleted_by` |
+| `client_key_hash` | text | no | no | yes | `system.entities.client_registry.fields.client_key_hash` |
+| `previous_key_hash` | text | no | no | yes | `system.entities.client_registry.fields.previous_key_hash` |
+| `previous_valid_until` | text | no | no | yes | `system.entities.client_registry.fields.previous_valid_until` |
 
 **Default sort:** `created_at` desc
 
