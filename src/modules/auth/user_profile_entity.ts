@@ -44,6 +44,7 @@ export class UserProfileEntity
   id: bigint;
 
   @Unique()
+  @Column({ pgType: "uuid" })
   uuid: UUID;
 
   /**

@@ -35,6 +35,7 @@ export class UserPasskeyEntity
   id: bigint;
 
   @Unique()
+  @Column({ pgType: "uuid" })
   uuid: UUID;
 
   /** FK to user_profiles.id. */

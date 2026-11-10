@@ -40,6 +40,7 @@ export class OrganizationEntity
   id: bigint;
 
   @Unique()
+  @Column({ pgType: "uuid" })
   uuid: UUID; // Internal Primebrick UUID (used for all operations, audit fields, API endpoints)
 
   @Unique()

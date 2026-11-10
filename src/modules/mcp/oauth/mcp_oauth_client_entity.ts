@@ -16,6 +16,7 @@ export class McpOauthClientEntity {
   id: bigint;
 
   @Unique()
+  @Column({ pgType: "uuid" })
   uuid: UUID;
 
   @Unique()
@@ -43,17 +44,17 @@ export class McpOauthClientEntity {
   @Column({ nullable: true })
   scope?: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   client_id_issued_at?: Date;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   client_secret_expires_at?: Date | null;
 
   /** NOT NULL + `now()` default in DDL — always present on read, DB-fills on write. */
-  @Column({ nullable: false })
+  @Column({ nullable: false, jsType: "instant" })
   created_at: Date;
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, jsType: "instant" })
   updated_at: Date;
 
   /** DDL-compat version column — plain entity, no audit semantics (int4 per

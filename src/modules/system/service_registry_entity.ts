@@ -27,6 +27,7 @@ export class ServiceRegistryEntity
   id: bigint;
 
   @Unique()
+  @Column({ pgType: "uuid" })
   uuid: UUID;
 
   @Column({ length: 100, nullable: false })
@@ -80,7 +81,7 @@ export class ServiceRegistryEntity
   @Column({ nullable: false, defaultSql: "'unknown'" })
   status: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   last_health_check_at?: Date;
 
   @Column({ nullable: false, defaultSql: "true" })

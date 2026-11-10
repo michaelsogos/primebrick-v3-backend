@@ -24,6 +24,7 @@ export class ApiKeyEntity
   id: bigint;
 
   @Unique()
+  @Column({ pgType: "uuid" })
   uuid: UUID;
 
   /** SHA-256 of the presented key — the lookup selector, never the key itself. */
@@ -49,7 +50,7 @@ export class ApiKeyEntity
   @Column({ pgType: "boolean", nullable: true })
   is_active?: boolean;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   expires_at?: Date | null;
 
 

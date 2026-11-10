@@ -35,6 +35,7 @@ export class UserInvitationEntity
   id: bigint;
 
   @Unique()
+  @Column({ pgType: "uuid" })
   uuid: UUID;
 
   /** FK to user_profiles.id (not a @Column — it's a raw FK, no ORM relationship). */

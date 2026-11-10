@@ -38,11 +38,12 @@ export class UserPreferenceEntity extends Auditable(EntityBase) {
   id: bigint;
 
   @Unique()
+  @Column({ pgType: "uuid" })
   uuid: UUID;
 
   /** Owner — `user_profiles.uuid` of the authenticated caller. */
   @Unique("user_preferences_user_key_uidx", 0)
-  @Column({ nullable: false })
+  @Column({ pgType: "uuid", nullable: false })
   user_uuid: UUID;
 
   /** Preference family key (e.g. `favorite_pages`) — snake_case, per-user. */

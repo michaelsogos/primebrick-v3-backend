@@ -7,6 +7,7 @@ export class ClientShieldRegistryEntity extends Deletable(Auditable(EntityBase))
   id: bigint;
 
   @Unique()
+  @Column({ pgType: "uuid" })
   uuid: UUID;
 
   @Unique()
@@ -35,9 +36,9 @@ export class ClientShieldRegistryEntity extends Deletable(Auditable(EntityBase))
   previous_key_hash?: string;
 
   /** Grace end — previous_key_hash is rejected after this instant. */
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   previous_valid_until?: Date;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   key_rotated_at?: Date;
 }
