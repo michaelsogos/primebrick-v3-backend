@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-11T16:59:32.436Z",
+  "generatedAt": "2026-11-11T17:14:48.406Z",
   "source": "database",
   "tables": {
     "public.auth_events": {
@@ -623,6 +623,19 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
+          "ordinalPosition": 15,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
           "isPrimaryKey": false
         }
       },
@@ -1321,6 +1334,19 @@
           "numericScale": null,
           "isNullable": true,
           "isPrimaryKey": false
+        },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
+          "ordinalPosition": 18,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
         }
       },
       "indexes": [
@@ -1560,6 +1586,19 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
+          "ordinalPosition": 16,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
           "isPrimaryKey": false
         }
       },
@@ -1805,6 +1844,19 @@
           "typeOid": 25,
           "typcategory": "S",
           "formatType": "text",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
+          "ordinalPosition": 18,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": true,

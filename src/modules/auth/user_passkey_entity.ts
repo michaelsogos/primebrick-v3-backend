@@ -42,6 +42,10 @@ export class UserPasskeyEntity
   @Column({ jsType: "bigint", nullable: false })
   user_profile_id: bigint;
 
+  /** FK to user_profiles.uuid — uuid twin of user_profile_id (sole ref after cutover). */
+  @Column({ pgType: "uuid", nullable: true })
+  user_profile_uuid?: UUID;
+
   /** base64url credential ID from WebAuthn. */
   @Unique()
   @Column({ nullable: false })

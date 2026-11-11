@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-11T16:59:32.431Z",
+  "generatedAt": "2026-11-11T17:14:48.396Z",
   "source": "entities",
   "tables": {
     "public.auth_events": {
@@ -461,9 +461,20 @@
           "propertyKey": "user_profile_id",
           "isNullable": false
         },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
+          "ordinalPosition": 10,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "user_profile_uuid",
+          "isNullable": true
+        },
         "action": {
           "name": "action",
-          "ordinalPosition": 10,
+          "ordinalPosition": 11,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -474,7 +485,7 @@
         },
         "target_resource": {
           "name": "target_resource",
-          "ordinalPosition": 11,
+          "ordinalPosition": 12,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -485,7 +496,7 @@
         },
         "token_hash": {
           "name": "token_hash",
-          "ordinalPosition": 12,
+          "ordinalPosition": 13,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -496,7 +507,7 @@
         },
         "expires_at": {
           "name": "expires_at",
-          "ordinalPosition": 13,
+          "ordinalPosition": 14,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -507,7 +518,7 @@
         },
         "used_at": {
           "name": "used_at",
-          "ordinalPosition": 14,
+          "ordinalPosition": 15,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1016,9 +1027,20 @@
           "propertyKey": "user_profile_id",
           "isNullable": false
         },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
+          "ordinalPosition": 9,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "user_profile_uuid",
+          "isNullable": true
+        },
         "token_hash": {
           "name": "token_hash",
-          "ordinalPosition": 9,
+          "ordinalPosition": 10,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1029,7 +1051,7 @@
         },
         "status": {
           "name": "status",
-          "ordinalPosition": 10,
+          "ordinalPosition": 11,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1040,7 +1062,7 @@
         },
         "email": {
           "name": "email",
-          "ordinalPosition": 11,
+          "ordinalPosition": 12,
           "dataType": "varchar(320)",
           "typname": "varchar(320)",
           "isPrimaryKey": false,
@@ -1051,7 +1073,7 @@
         },
         "expires_at": {
           "name": "expires_at",
-          "ordinalPosition": 12,
+          "ordinalPosition": 13,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1062,7 +1084,7 @@
         },
         "completed_at": {
           "name": "completed_at",
-          "ordinalPosition": 13,
+          "ordinalPosition": 14,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1073,7 +1095,7 @@
         },
         "otp_hash": {
           "name": "otp_hash",
-          "ordinalPosition": 14,
+          "ordinalPosition": 15,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1084,7 +1106,7 @@
         },
         "otp_expires_at": {
           "name": "otp_expires_at",
-          "ordinalPosition": 15,
+          "ordinalPosition": 16,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1095,7 +1117,7 @@
         },
         "otp_attempts": {
           "name": "otp_attempts",
-          "ordinalPosition": 16,
+          "ordinalPosition": 17,
           "dataType": "integer",
           "typname": "integer",
           "isPrimaryKey": false,
@@ -1107,7 +1129,7 @@
         },
         "otp_verified_at": {
           "name": "otp_verified_at",
-          "ordinalPosition": 17,
+          "ordinalPosition": 18,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1235,9 +1257,20 @@
           "propertyKey": "user_profile_id",
           "isNullable": false
         },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
+          "ordinalPosition": 9,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "user_profile_uuid",
+          "isNullable": true
+        },
         "factor_type": {
           "name": "factor_type",
-          "ordinalPosition": 9,
+          "ordinalPosition": 10,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1248,7 +1281,7 @@
         },
         "casdoor_mfa_type": {
           "name": "casdoor_mfa_type",
-          "ordinalPosition": 10,
+          "ordinalPosition": 11,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1259,7 +1292,7 @@
         },
         "totp_secret_encrypted": {
           "name": "totp_secret_encrypted",
-          "ordinalPosition": 11,
+          "ordinalPosition": 12,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1270,7 +1303,7 @@
         },
         "label": {
           "name": "label",
-          "ordinalPosition": 12,
+          "ordinalPosition": 13,
           "dataType": "varchar(100)",
           "typname": "varchar(100)",
           "isPrimaryKey": false,
@@ -1281,7 +1314,7 @@
         },
         "is_enabled": {
           "name": "is_enabled",
-          "ordinalPosition": 13,
+          "ordinalPosition": 14,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -1292,7 +1325,7 @@
         },
         "is_preferred": {
           "name": "is_preferred",
-          "ordinalPosition": 14,
+          "ordinalPosition": 15,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -1303,7 +1336,7 @@
         },
         "last_used_at": {
           "name": "last_used_at",
-          "ordinalPosition": 15,
+          "ordinalPosition": 16,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1423,9 +1456,20 @@
           "propertyKey": "user_profile_id",
           "isNullable": false
         },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
+          "ordinalPosition": 9,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "user_profile_uuid",
+          "isNullable": true
+        },
         "credential_id": {
           "name": "credential_id",
-          "ordinalPosition": 9,
+          "ordinalPosition": 10,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1436,7 +1480,7 @@
         },
         "aaguid": {
           "name": "aaguid",
-          "ordinalPosition": 10,
+          "ordinalPosition": 11,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1447,7 +1491,7 @@
         },
         "transports": {
           "name": "transports",
-          "ordinalPosition": 11,
+          "ordinalPosition": 12,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -1458,7 +1502,7 @@
         },
         "label": {
           "name": "label",
-          "ordinalPosition": 12,
+          "ordinalPosition": 13,
           "dataType": "varchar(100)",
           "typname": "varchar(100)",
           "isPrimaryKey": false,
@@ -1469,7 +1513,7 @@
         },
         "last_used_at": {
           "name": "last_used_at",
-          "ordinalPosition": 13,
+          "ordinalPosition": 14,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1480,7 +1524,7 @@
         },
         "authenticator_attachment": {
           "name": "authenticator_attachment",
-          "ordinalPosition": 14,
+          "ordinalPosition": 15,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1491,7 +1535,7 @@
         },
         "user_agent": {
           "name": "user_agent",
-          "ordinalPosition": 15,
+          "ordinalPosition": 16,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1502,7 +1546,7 @@
         },
         "os": {
           "name": "os",
-          "ordinalPosition": 16,
+          "ordinalPosition": 17,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1513,7 +1557,7 @@
         },
         "device_model": {
           "name": "device_model",
-          "ordinalPosition": 17,
+          "ordinalPosition": 18,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,

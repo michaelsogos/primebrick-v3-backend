@@ -44,6 +44,10 @@ export class MfaActionAuthorizationEntity
   @Column({ jsType: "bigint", nullable: false })
   user_profile_id: bigint;
 
+  /** FK to user_profiles.uuid — uuid twin of user_profile_id (sole ref after cutover). */
+  @Column({ pgType: "uuid", nullable: true })
+  user_profile_uuid?: UUID;
+
   /** The action being authorized (create, update, delete, restore). */
   @Column({ nullable: false })
   action: string;
