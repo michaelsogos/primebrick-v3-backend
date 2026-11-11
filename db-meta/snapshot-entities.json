@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T23:43:00.167Z",
+  "generatedAt": "2026-11-11T14:57:41.477Z",
   "source": "entities",
   "tables": {
     "public.auth_events": {
@@ -601,7 +601,8 @@
           "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
         },
         "idp_code": {
           "name": "idp_code",
@@ -785,7 +786,8 @@
           "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
         },
         "idp_role": {
           "name": "idp_role",
@@ -958,7 +960,8 @@
           "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
         },
         "user_profile_id": {
           "name": "user_profile_id",
@@ -1176,7 +1179,8 @@
           "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
         },
         "user_profile_id": {
           "name": "user_profile_id",
@@ -1363,7 +1367,8 @@
           "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
         },
         "user_profile_id": {
           "name": "user_profile_id",
@@ -1579,7 +1584,8 @@
           "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
         },
         "user_uuid": {
           "name": "user_uuid",
@@ -1590,7 +1596,8 @@
           "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "user_uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
         },
         "key": {
           "name": "key",
@@ -1742,7 +1749,8 @@
           "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
         },
         "idp_code": {
           "name": "idp_code",
@@ -2030,7 +2038,8 @@
           "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
         },
         "key_hash": {
           "name": "key_hash",
@@ -2166,7 +2175,8 @@
           "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
         },
         "client_id": {
           "name": "client_id",
@@ -2437,7 +2447,8 @@
           "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
         },
         "code": {
           "name": "code",
@@ -2796,7 +2807,8 @@
           "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "gen_random_uuid()"
         },
         "ua_prefix": {
           "name": "ua_prefix",
