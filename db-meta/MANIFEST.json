@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-11T18:44:58.514Z",
+  "issued_at": "2026-11-11T20:00:32.979Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -15,7 +15,8 @@
     "00000000000009_uuidv7_defaults": "c21a371fd751382c76a3bb3b4652da67739e12dcefdf8515eaaee4e58c1e9775",
     "00000000000010_uuid_references": "51bedf216dc460593f138afd3c38b2ff88ffe3c0aea968599bd818bbd622eb50",
     "00000000000011_uuid_pk_swap": "7fc12cac446bcc8654e010d4c6caf44ab7d1e3da4d074b2c6a2a4f7d591fc2c2",
-    "00000000000012_uuid_v4_to_v7_rewrite": "e8bca47a692cd9e84feed63dbb0ba9d79e87d486be93c6aba242742524f45fc4"
+    "00000000000012_uuid_v4_to_v7_rewrite": "e8bca47a692cd9e84feed63dbb0ba9d79e87d486be93c6aba242742524f45fc4",
+    "20261111210000_actor_uuid_repair": "fbc94b09df6264697266e125e23ffe6e32e08fe6c30879b9e67f6323b65595eb"
   },
-  "signature": "83d0LMiKXShkSZj8vCSrHQz3CTuuXPuyExDOLK3xPui34wSrWpqo5U96IKMTPL+0rTPJAnp/l16ybOqyNFwUBQ=="
+  "signature": "0n3JJ08KW3BHWvFDMDpOOic7Zgmc7fvcNkdH/n7GbX3EyFgxHLABmY7NVHQKbmc9pKjJaTClhuxPN6hnXxZpAQ=="
 }
