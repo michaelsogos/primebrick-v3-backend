@@ -39,7 +39,9 @@ export class EntityAuditPort implements AuditPort {
     const auditTableName = `${params.tableName}_audit`;
 
     const inserted = await this.repo.add(AuditLogEntity, {
-      entity_id: params.entityId,
+      // `entity_id` exists only on pre-migration audit tables — omit the key
+      // entirely for uuid-PK entities (the column is dropped there).
+      ...(params.entityId != null ? { entity_id: params.entityId } : {}),
       entity_uuid: params.entityUuid,
       action: params.action,
       changed_at: params.changedAt,
