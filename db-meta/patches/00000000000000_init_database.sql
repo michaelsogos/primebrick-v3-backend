@@ -321,6 +321,7 @@ CREATE TABLE IF NOT EXISTS "public"."user_preferences" (
   PRIMARY KEY ("id")
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS "user_preferences_user_key_uidx" ON "public"."user_preferences" ("user_uuid", "key");
 CREATE UNIQUE INDEX IF NOT EXISTS "user_preferences_uuid_uq" ON "public"."user_preferences" ("uuid");
 
 CREATE TABLE IF NOT EXISTS "public"."user_profiles" (
