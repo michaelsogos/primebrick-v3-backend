@@ -17,12 +17,14 @@ import { CasdoorService } from "../../modules/auth/services/casdoor.service.js";
 import { MfaService } from "../../modules/auth/services/mfa.service.js";
 import { ClientShieldRegistryService } from "../../modules/system/client-shield-registry.service.js";
 import { ServiceRegistryService } from "../../modules/system/service-registry.service.js";
+import { TranslationsService } from "../../modules/system/translations.service.js";
 import { createPublisherVerifier } from "./publisher-identity.js";
 import { getCachePort } from "../../cache/cache-port-holder.js";
 
 export const AUTH_APIKEY_BY_HASH_SUBJECT = "auth.apikey.byHash";
 export const AUTH_RESOLVE_USER_SUBJECT = "auth.ctl.resolve_user";
 export const SERVICE_REGISTRY_GET_SUBJECT = "service.registry.get";
+export const SYSTEM_DICT_GET_SUBJECT = "system.dict.get";
 
 export async function startInternalRequestRoutes(): Promise<void> {
   const verifier = createPublisherVerifier();
@@ -39,6 +41,7 @@ export async function startInternalRequestRoutes(): Promise<void> {
   );
   const clientSvc = new ClientShieldRegistryService();
   const serviceSvc = new ServiceRegistryService();
+  const translationsSvc = new TranslationsService();
 
   await makeNatsRequestRoute<unknown, unknown>(
     [
@@ -146,6 +149,21 @@ export async function startInternalRequestRoutes(): Promise<void> {
         },
       },
       {
+        // Flat i18n dict for a module (system.* labels are the sanctioned
+        // replacement for direct `<schema>.translations` reads, which no US
+        // may perform under schema sovereignty — e.g. export resolvers
+        // needing `system.common.*` labels their own dict can't serve).
+        subject: SYSTEM_DICT_GET_SUBJECT,
+        permissions: [],
+        verify,
+        handler: async ({ request }) => {
+          const { module, language } = (request ?? {}) as { module?: string; language?: string };
+          if (!module || typeof module !== "string" || !language || typeof language !== "string") return null;
+          const entry = await translationsSvc.getI18nDict(module, language);
+          return entry.data;
+        },
+      },
+      {
         // Resolve a FRESH AuthUser by internal uuid for scheduled/triggered
         // dispatch — job-handler calls this at arm time (`me` lane, author
         // identity) and at fire time when the Redis auth checkpoint misses
@@ -184,7 +202,7 @@ export async function startInternalRequestRoutes(): Promise<void> {
     { serviceCode: "primebrick-api" },
   );
   logger.done(
-    `Subscribed to ${AUTH_APIKEY_BY_HASH_SUBJECT}, ${AUTH_RESOLVE_USER_SUBJECT}, ${CLIENT_SHIELD_REGISTRY_SUBJECTS.GET}, ${SERVICE_REGISTRY_GET_SUBJECT} (governed correlation-reply)`,
+    `Subscribed to ${AUTH_APIKEY_BY_HASH_SUBJECT}, ${AUTH_RESOLVE_USER_SUBJECT}, ${CLIENT_SHIELD_REGISTRY_SUBJECTS.GET}, ${SERVICE_REGISTRY_GET_SUBJECT}, ${SYSTEM_DICT_GET_SUBJECT} (governed correlation-reply)`,
     { tags: ["nats"] },
   );
 }
