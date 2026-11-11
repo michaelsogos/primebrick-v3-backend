@@ -47,9 +47,6 @@ import {
 export class RoleMappingEntity
   extends Auditable(EntityBase) {
   @Key()
-  id!: bigint;
-
-  @Unique()
   @Column({ pgType: "uuid" })
   uuid!: UUID; // Internal Primebrick UUID (used for all operations, audit fields, API endpoints)
 

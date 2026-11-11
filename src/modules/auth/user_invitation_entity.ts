@@ -32,19 +32,12 @@ export type InvitationStatus = "PENDING" | "OTP_SENT" | "COMPLETED" | "EXPIRED" 
 export class UserInvitationEntity
   extends Auditable(EntityBase) {
   @Key()
-  id: bigint;
-
-  @Unique()
   @Column({ pgType: "uuid" })
-  uuid: UUID;
+  uuid!: UUID;
 
-  /** FK to user_profiles.id (not a @Column — it's a raw FK, no ORM relationship). */
-  @Column({ jsType: "bigint", nullable: false })
-  user_profile_id: bigint;
-
-  /** FK to user_profiles.uuid — uuid twin of user_profile_id (sole ref after cutover). */
-  @Column({ pgType: "uuid", nullable: true })
-  user_profile_uuid?: UUID;
+  /** FK to user_profiles.uuid. */
+  @Column({ pgType: "uuid", nullable: false })
+  user_profile_uuid!: UUID;
 
   /** SHA-256 hash of the invitation token (raw token never stored). */
   @Unique()

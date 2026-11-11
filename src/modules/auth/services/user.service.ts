@@ -173,30 +173,16 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   }
 
   /**
-   * Light internal-PK lookup — sibling services (MFA, sessions, invitations,
-   * webauthn) need the bigint `id` for child-table FK writes; the DTO never
-   * exposes it. Returns null when the profile does not exist.
+   * Light existence check — sibling services (MFA, sessions, invitations,
+   * webauthn) verify the profile exists before child-table writes.
+   * Returns the uuid when the profile exists, null otherwise.
    */
-  async getIdByUuid(uuid: string): Promise<bigint | null> {
-    const row = await this.dal.find<any, { id: bigint }>(
-      UserProfileEntity,
-      [Project.field(field(UserProfileEntity, "id"))],
-      {
-        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        throwIfNotFound: false,
-      },
-    );
-    return row?.id ?? null;
-  }
-
-  /** Reverse lookup for invitations — internal bigint id → profile uuid. */
-  async getUuidById(id: bigint): Promise<string | null> {
+  async assertExistsByUuid(uuid: string): Promise<string | null> {
     const row = await this.dal.find<any, { uuid: string }>(
       UserProfileEntity,
       [Project.field(field(UserProfileEntity, "uuid" as any))],
       {
-        filters: [Filter.fieldValue(field(UserProfileEntity, "id"), "=", id)] as any,
-        deletedRecords: "INCLUDED",
+        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
         throwIfNotFound: false,
       },
     );
@@ -222,14 +208,14 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     )) ?? null;
   }
 
-  /** Session bootstrap pair — internal id + auth-method-enforcer flag. */
+  /** Session bootstrap pair — profile uuid + auth-method-enforcer flag. */
   async getSessionStateByUuid(
     uuid: string,
-  ): Promise<{ id: bigint; auth_method_enforcer_dismissed: boolean } | null> {
-    return (await this.dal.find<any, { id: bigint; auth_method_enforcer_dismissed: boolean }>(
+  ): Promise<{ uuid: string; auth_method_enforcer_dismissed: boolean } | null> {
+    return (await this.dal.find<any, { uuid: string; auth_method_enforcer_dismissed: boolean }>(
       UserProfileEntity,
       [
-        Project.field(field(UserProfileEntity, "id")),
+        Project.field(field(UserProfileEntity, "uuid" as any)),
         Project.field(field(UserProfileEntity, "auth_method_enforcer_dismissed" as any)),
       ],
       {
@@ -383,23 +369,22 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   }
 
   /**
-   * Update a user profile by its numeric id (alternative to `updateProfile` which
-   * uses uuid). Used by flows that have the `id` from a foreign key (e.g.
-   * `invitation.user_profile_id`).
+   * Update a user profile by its uuid. Used by flows that have the profile
+   * uuid from a foreign key (e.g. `invitation.user_profile_uuid`).
    */
-  async updateProfileById(
-    id: bigint | number,
+  async updateProfileByUuid(
+    uuid: string,
     body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string; auth_method_enforcer_dismissed?: boolean; onboarding_completed?: boolean; version?: number }
   ): Promise<UserProfileDetailDto> {
     // Internal FK-driven write — the read below is the observation step of this
-    // unit of work (the caller legitimately has `id`, not a prior version).
+    // unit of work (the caller legitimately has `uuid`, not a prior version).
     const version = body.version ?? (await this.dal.find<UserProfileEntity, UserProfileEntity>(
       UserProfileEntity,
       null,
-      { filters: [Filter.fieldValue(field(UserProfileEntity, "id" as any), "=", typeof id === "number" ? BigInt(id) : id)] as any, deletedRecords: "INCLUDED" }
+      { filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any, deletedRecords: "INCLUDED" }
     ))!.version;
     const row = await this.dal.update<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { ...body, id, version }, { actor: requireActor(), audit: this.auditPort }
+      UserProfileEntity, { ...body, uuid, version }, { actor: requireActor(), audit: this.auditPort }
     );
     return this.toDto(row);
   }
@@ -794,21 +779,8 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     // 3. Create invitation if send_invitation is true
     let invitation_uuid: string | undefined;
     if (send_invitation) {
-      // Get the internal bigint id of the profile (not exposed in the DTO)
-      const profileId = await this.getIdByUuid(newUuid);
-      if (!profileId) {
-        throw new ApiError(
-          "/errors/internal-error",
-          "Failed to create invitation",
-          500,
-          "Could not resolve user profile id after insert",
-          { internal_code: "INVITATION_CREATE_FAILED", severity: "HIGH" },
-        );
-      }
-
       const invitationService = new InvitationService(this.casdoor);
       const result = await invitationService.createInvitation(
-        BigInt(profileId),
         profile.uuid,
         email,
         display_name,

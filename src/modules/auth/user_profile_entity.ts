@@ -41,11 +41,8 @@ import { Cached } from "@primebrick/sdk";
 export class UserProfileEntity
   extends Deletable(Auditable(EntityBase)) {
   @Key()
-  id: bigint;
-
-  @Unique()
   @Column({ pgType: "uuid" })
-  uuid: UUID;
+  uuid!: UUID;
 
   /**
    * IDP subject claim. Unique per IDP. We never expose this externally.

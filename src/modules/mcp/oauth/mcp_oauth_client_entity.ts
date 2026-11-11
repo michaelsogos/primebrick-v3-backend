@@ -13,11 +13,8 @@ import { Column, Entity, Key, Unique,
 @Entity("mcp_oauth_clients")
 export class McpOauthClientEntity {
   @Key()
-  id: bigint;
-
-  @Unique()
   @Column({ pgType: "uuid" })
-  uuid: UUID;
+  uuid!: UUID;
 
   @Unique()
   @Column({ length: 255, nullable: false })

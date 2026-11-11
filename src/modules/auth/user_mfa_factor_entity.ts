@@ -35,19 +35,12 @@ export type MfaFactorType = "totp";
 export class UserMfaFactorEntity
   extends Auditable(EntityBase) {
   @Key()
-  id: bigint;
-
-  @Unique()
   @Column({ pgType: "uuid" })
-  uuid: UUID;
+  uuid!: UUID;
 
-  /** FK to user_profiles.id. */
-  @Column({ jsType: "bigint", nullable: false })
-  user_profile_id: bigint;
-
-  /** FK to user_profiles.uuid — uuid twin of user_profile_id (sole ref after cutover). */
-  @Column({ pgType: "uuid", nullable: true })
-  user_profile_uuid?: UUID;
+  /** FK to user_profiles.uuid. */
+  @Column({ pgType: "uuid", nullable: false })
+  user_profile_uuid!: UUID;
 
   /** Factor type: "totp" (v1 only). */
   @Column({ nullable: false })

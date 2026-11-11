@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-11T17:14:18.428Z",
+  "issued_at": "2026-11-11T18:01:44.721Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -13,7 +13,8 @@
     "00000000000007_seed_translations_en_us": "7aef5f57278eecc4c00379b5aaaa9b4285959d56f9e405ed4a4eed065618fd79",
     "00000000000008_seed_config": "f679f6df466a928fc11613d3b57f3c5ec3625fee70787b76f1fc7850144aa0dd",
     "00000000000009_uuidv7_defaults": "c21a371fd751382c76a3bb3b4652da67739e12dcefdf8515eaaee4e58c1e9775",
-    "00000000000010_uuid_references": "51bedf216dc460593f138afd3c38b2ff88ffe3c0aea968599bd818bbd622eb50"
+    "00000000000010_uuid_references": "51bedf216dc460593f138afd3c38b2ff88ffe3c0aea968599bd818bbd622eb50",
+    "00000000000011_uuid_pk_swap": "7fc12cac446bcc8654e010d4c6caf44ab7d1e3da4d074b2c6a2a4f7d591fc2c2"
   },
-  "signature": "teKVfftXjYmSeBSiz0VWOZEjv7QWD3Ez8uX8KUKKJF0fqB0vTbBaT1bhqb5jRAEL+dzIIhYgu1zDoTY/io6zAw=="
+  "signature": "UapggiR8uQ/SPXwLdSMr/mSvVRW9vP2stwZG4S6kcesDLgoH1rDPYm40FDzVmG2cm4uLlGKQZ1pjmV4dES1+Dw=="
 }

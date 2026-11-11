@@ -4,11 +4,8 @@ import { Column, Entity, Key, Unique, EntityBase, Auditable, Deletable } from "@
 @Entity("client_shield_registry", "system")
 export class ClientShieldRegistryEntity extends Deletable(Auditable(EntityBase)) {
   @Key()
-  id: bigint;
-
-  @Unique()
   @Column({ pgType: "uuid" })
-  uuid: UUID;
+  uuid!: UUID;
 
   @Unique()
   @Column({ length: 255, nullable: false })

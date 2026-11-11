@@ -21,11 +21,8 @@ import {
 export class ApiKeyEntity
   extends Auditable(EntityBase) {
   @Key()
-  id: bigint;
-
-  @Unique()
   @Column({ pgType: "uuid" })
-  uuid: UUID;
+  uuid!: UUID;
 
   /** SHA-256 of the presented key — the lookup selector, never the key itself. */
   @Unique()

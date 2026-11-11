@@ -24,9 +24,6 @@ import {
 @Entity("auth_events")
 export class AuthEventEntity {
   @Key()
-  id: bigint;
-
-  @Unique()
   @Column({ pgType: "uuid" })
   uuid!: UUID;
 

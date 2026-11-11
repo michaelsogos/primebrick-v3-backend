@@ -24,11 +24,8 @@ import {
 export class ServiceRegistryEntity
   extends Deletable(Auditable(EntityBase)) {
   @Key()
-  id: bigint;
-
-  @Unique()
   @Column({ pgType: "uuid" })
-  uuid: UUID;
+  uuid!: UUID;
 
   @Column({ length: 100, nullable: false })
   code: string;

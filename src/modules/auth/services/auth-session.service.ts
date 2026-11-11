@@ -314,21 +314,20 @@ export class AuthSessionService {
 
     // Include passkey info for the FE auth method enforcer dialog logic
     const sessionState = await this.users.getSessionStateByUuid(userUuid);
-    const profileId = sessionState?.id;
     const authMethodEnforcerDismissed = sessionState?.auth_method_enforcer_dismissed ?? false;
 
     let hasPasskey = false;
-    if (profileId) {
+    if (sessionState) {
       const { WebauthnService } = await import("./webauthn.service.js");
-      const count = await new WebauthnService(this.casdoor).countPasskeysByUserProfileId(BigInt(profileId));
+      const count = await new WebauthnService(this.casdoor).countPasskeysByUserProfileUuid(userUuid);
       hasPasskey = count > 0;
     }
 
     // Include MFA info for the FE auth method enforcer dialog logic
     let hasMfa = false;
-    if (profileId && getAuthConfig().enable_mfa) {
+    if (sessionState && getAuthConfig().enable_mfa) {
       const { MfaService } = await import("./mfa.service.js");
-      const mfaCount = await new MfaService(this.casdoor).countEnabledFactorsByUserProfileId(BigInt(profileId));
+      const mfaCount = await new MfaService(this.casdoor).countEnabledFactorsByUserProfileUuid(userUuid);
       hasMfa = mfaCount > 0;
     }
 

@@ -268,7 +268,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
       entity: UserMfaFactorEntity,
       list: {
         searchableKeys: ["label"],
-        filterableKeys: new Set(["user_profile_id", "factor_type", "is_enabled", "is_preferred"]),
+        filterableKeys: new Set(["user_profile_uuid", "factor_type", "is_enabled", "is_preferred"]),
         defaultSort: { key: "created_at", dir: "desc" },
       },
     });
@@ -278,7 +278,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
 
   /** Insert a new MFA factor row after successful enrollment. */
   private async createFactor(data: {
-    user_profile_id: bigint;
+    user_profile_uuid: string;
     factor_type: MfaFactorType;
     casdoor_mfa_type?: string;
     totp_secret_encrypted: string;
@@ -290,7 +290,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
     const row = await this.dal.add<UserMfaFactorEntity>(
       UserMfaFactorEntity,
       {
-        user_profile_id: data.user_profile_id,
+        user_profile_uuid: data.user_profile_uuid,
         factor_type: data.factor_type,
         casdoor_mfa_type: data.casdoor_mfa_type,
         totp_secret_encrypted: data.totp_secret_encrypted,
@@ -319,14 +319,14 @@ export class MfaService extends DomainService<Record<string, unknown>> {
     );
   }
 
-  /** Find all factors for a user profile (by user_profile_id). */
-  private async findFactorsByUserProfileId(userProfileId: bigint): Promise<UserMfaFactorEntity[]> {
+  /** Find all factors for a user profile (by user_profile_uuid). */
+  private async findFactorsByUserProfileUuid(userProfileUuid: string): Promise<UserMfaFactorEntity[]> {
     const rows = await this.dal.findAll<UserMfaFactorEntity, UserMfaFactorEntity>(
       UserMfaFactorEntity,
       null,
       {
         filters: [
-          Filter.fieldValue(field(UserMfaFactorEntity, "user_profile_id" as any), "=", userProfileId),
+          Filter.fieldValue(field(UserMfaFactorEntity, "user_profile_uuid" as any), "=", userProfileUuid),
         ],
       },
     );
@@ -334,16 +334,16 @@ export class MfaService extends DomainService<Record<string, unknown>> {
   }
 
   /**
-   * Find enabled factors for a user profile (by user_profile_id).
+   * Find enabled factors for a user profile (by user_profile_uuid).
    * Used by login MFA and step-up MFA to determine available challenges.
    */
-  async findEnabledFactorsByUserProfileId(userProfileId: bigint): Promise<UserMfaFactorEntity[]> {
+  async findEnabledFactorsByUserProfileUuid(userProfileUuid: string): Promise<UserMfaFactorEntity[]> {
     const rows = await this.dal.findAll<UserMfaFactorEntity, UserMfaFactorEntity>(
       UserMfaFactorEntity,
       null,
       {
         filters: [
-          Filter.fieldValue(field(UserMfaFactorEntity, "user_profile_id" as any), "=", userProfileId),
+          Filter.fieldValue(field(UserMfaFactorEntity, "user_profile_uuid" as any), "=", userProfileUuid),
           Filter.fieldValue(field(UserMfaFactorEntity, "is_enabled" as any), "=", true),
         ],
       },
@@ -355,8 +355,8 @@ export class MfaService extends DomainService<Record<string, unknown>> {
    * Count enabled factors for a user profile.
    * Used by the has_mfa flag in GET /api/v1/auth/me.
    */
-  async countEnabledFactorsByUserProfileId(userProfileId: bigint): Promise<number> {
-    const rows = await this.findEnabledFactorsByUserProfileId(userProfileId);
+  async countEnabledFactorsByUserProfileUuid(userProfileUuid: string): Promise<number> {
+    const rows = await this.findEnabledFactorsByUserProfileUuid(userProfileUuid);
     return rows.length;
   }
 
@@ -384,8 +384,8 @@ export class MfaService extends DomainService<Record<string, unknown>> {
    * Clear the preferred flag for all factors of a user.
    * Used before setting a new preferred factor.
    */
-  private async clearPreferredFactorsForUser(userProfileId: bigint): Promise<void> {
-    const factors = await this.findFactorsByUserProfileId(userProfileId);
+  private async clearPreferredFactorsForUser(userProfileUuid: string): Promise<void> {
+    const factors = await this.findFactorsByUserProfileUuid(userProfileUuid);
     const actor = requireActor();
     for (const f of factors) {
       if (f.is_preferred) {
@@ -410,7 +410,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
   private async deleteFactorByUuid(uuid: string): Promise<void> {
     const existing = await this.findFactorByUuid(uuid);
     if (existing) {
-      await this.dal.hardDelete(UserMfaFactorEntity, { id: existing.id, version: existing.version }, { actor: requireActor() });
+      await this.dal.hardDelete(UserMfaFactorEntity, { uuid: existing.uuid, version: existing.version }, { actor: requireActor() });
     }
   }
 
@@ -422,7 +422,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
    */
   private async createActionAuthorization(data: {
     jti: string;
-    user_profile_id: bigint;
+    user_profile_uuid: string;
     action: string;
     target_resource: string;
     token_hash: string;
@@ -433,7 +433,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
       MfaActionAuthorizationEntity,
       {
         jti: data.jti,
-        user_profile_id: data.user_profile_id,
+        user_profile_uuid: data.user_profile_uuid,
         action: data.action,
         target_resource: data.target_resource,
         token_hash: data.token_hash,
@@ -503,7 +503,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
     if (expired.length === 0) return 0;
     const res = await this.dal.hardDeleteMany(
       MfaActionAuthorizationEntity,
-      expired.map((e) => ({ id: e.id, version: e.version })),
+      expired.map((e) => ({ uuid: e.uuid, version: e.version })),
       { actor: requireActor() },
     );
     return res.affected;
@@ -559,17 +559,17 @@ export class MfaService extends DomainService<Record<string, unknown>> {
   }
 
   /**
-   * Resolve the user's PG profile ID from their UUID.
+   * Assert the user's profile exists, then return its public uuid.
    * Throws 404 if the profile doesn't exist.
    */
-  private async resolveProfileId(userUuid: string): Promise<bigint> {
-    const id = await getUserService().getIdByUuid(userUuid);
-    if (!id) {
+  private async resolveProfileUuid(userUuid: string): Promise<string> {
+    const profile = await getUserService().getByUuid(userUuid);
+    if (!profile) {
       throw new NotFoundError("User profile not found", {
         internal_code: "USER_PROFILE_NOT_FOUND",
       });
     }
-    return id;
+    return userUuid;
   }
 
   /**
@@ -617,8 +617,8 @@ export class MfaService extends DomainService<Record<string, unknown>> {
     await this.requireMfaEnabled();
 
     // Refuse if the user already has an enabled TOTP factor (v1: one TOTP factor per user)
-    const profileId = await this.resolveProfileId(userUuid);
-    const existing = await this.findEnabledFactorsByUserProfileId(profileId);
+    const profileUuid = await this.resolveProfileUuid(userUuid);
+    const existing = await this.findEnabledFactorsByUserProfileUuid(profileUuid);
     if (existing.length > 0) {
       throw new ApiError(
         "/errors/mfa-already-enrolled",
@@ -735,11 +735,11 @@ export class MfaService extends DomainService<Record<string, unknown>> {
     // Step 4: insert a row in user_mfa_factors with the encrypted TOTP secret.
     // The secret is encrypted with mfa_challenge_signing_secret so the BE can
     // verify TOTP codes locally without a Casdoor round-trip.
-    const profileId = await this.resolveProfileId(userUuid);
+    const profileUuid = await this.resolveProfileUuid(userUuid);
     const secret = await this.getMfaChallengeSecret();
     const encryptedSecret = encrypt(entry.secret, secret);
     const factorUuid = await this.createFactor({
-      user_profile_id: profileId,
+      user_profile_uuid: profileUuid,
       factor_type: "totp",
       casdoor_mfa_type: entry.casdoor_mfa_type,
       totp_secret_encrypted: encryptedSecret,
@@ -761,8 +761,8 @@ export class MfaService extends DomainService<Record<string, unknown>> {
    */
   async listFactors(userUuid: string): Promise<MfaFactorInfo[]> {
     await this.requireMfaEnabled();
-    const profileId = await this.resolveProfileId(userUuid);
-    const factors = await this.findFactorsByUserProfileId(profileId);
+    const profileUuid = await this.resolveProfileUuid(userUuid);
+    const factors = await this.findFactorsByUserProfileUuid(profileUuid);
     return factors.map((f) => ({
       uuid: f.uuid,
       factor_type: f.factor_type,
@@ -791,8 +791,8 @@ export class MfaService extends DomainService<Record<string, unknown>> {
     }
 
     // Verify ownership: the factor must belong to the requesting user
-    const profileId = await this.resolveProfileId(userUuid);
-    if (factor.user_profile_id !== profileId) {
+    const profileUuid = await this.resolveProfileUuid(userUuid);
+    if (factor.user_profile_uuid !== profileUuid) {
       throw new NotFoundError("MFA factor not found", {
         internal_code: "MFA_FACTOR_NOT_FOUND",
       });
@@ -834,8 +834,8 @@ export class MfaService extends DomainService<Record<string, unknown>> {
    */
   async hasMfa(userUuid: string): Promise<boolean> {
     if (!getAuthConfig().enable_mfa) return false;
-    const profileId = await this.resolveProfileId(userUuid);
-    const count = await this.countEnabledFactorsByUserProfileId(profileId);
+    const profileUuid = await this.resolveProfileUuid(userUuid);
+    const count = await this.countEnabledFactorsByUserProfileUuid(profileUuid);
     return count > 0;
   }
 
@@ -860,8 +860,8 @@ export class MfaService extends DomainService<Record<string, unknown>> {
   }> {
     await this.requireMfaEnabled();
 
-    const profileId = await this.resolveProfileId(userUuid);
-    const factors = await this.findEnabledFactorsByUserProfileId(profileId);
+    const profileUuid = await this.resolveProfileUuid(userUuid);
+    const factors = await this.findEnabledFactorsByUserProfileUuid(profileUuid);
     if (factors.length === 0) {
       throw new ApiError(
         "/errors/mfa-no-factors",
@@ -935,8 +935,8 @@ export class MfaService extends DomainService<Record<string, unknown>> {
       });
     }
 
-    const profileId = await this.resolveProfileId(payload.sub);
-    const factors = await this.findEnabledFactorsByUserProfileId(profileId);
+    const profileUuid = await this.resolveProfileUuid(payload.sub);
+    const factors = await this.findEnabledFactorsByUserProfileUuid(profileUuid);
 
     const ttl = await this.getMfaChallengeTtl();
     const token = await signMfaChallengeToken(
@@ -1105,8 +1105,8 @@ export class MfaService extends DomainService<Record<string, unknown>> {
   }> {
     await this.requireMfaEnabled();
 
-    const profileId = await this.resolveProfileId(userUuid);
-    const factors = await this.findEnabledFactorsByUserProfileId(profileId);
+    const profileUuid = await this.resolveProfileUuid(userUuid);
+    const factors = await this.findEnabledFactorsByUserProfileUuid(profileUuid);
     if (factors.length === 0) {
       throw new ApiError(
         "/errors/mfa-no-factors",
@@ -1191,8 +1191,8 @@ export class MfaService extends DomainService<Record<string, unknown>> {
       });
     }
     // Verify the factor belongs to the user (by matching profile ID)
-    const profileId = await this.resolveProfileId(payload.sub);
-    if (factor.user_profile_id !== profileId) {
+    const profileUuid = await this.resolveProfileUuid(payload.sub);
+    if (factor.user_profile_uuid !== profileUuid) {
       throw new UnauthorizedError("MFA factor does not belong to the user", {
         internal_code: "MFA_FACTOR_NOT_OWNED",
       });
@@ -1249,7 +1249,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
     await runAsSystem(() =>
       this.createActionAuthorization({
         jti: actionJti,
-        user_profile_id: profileId,
+        user_profile_uuid: profileUuid,
         action: payload.action!,
         target_resource: payload.target_resource!,
         token_hash: tokenHash,

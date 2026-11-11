@@ -71,7 +71,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
       entity: UserInvitationEntity,
       list: {
         searchableKeys: ["email", "status"],
-        filterableKeys: new Set(["user_profile_id", "status"]),
+        filterableKeys: new Set(["user_profile_uuid", "status"]),
         defaultSort: { key: "created_at", dir: "desc" },
       },
     });
@@ -86,7 +86,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
    * is NEVER stored in the DB.
    */
   private async insertInvitation(data: {
-    user_profile_id: bigint;
+    user_profile_uuid: string;
     token_hash: string;
     email: string;
     expires_at: Date;
@@ -95,7 +95,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
     const row = await this.dal.add<UserInvitationEntity>(
       UserInvitationEntity,
       {
-        user_profile_id: data.user_profile_id,
+        user_profile_uuid: data.user_profile_uuid,
         token_hash: data.token_hash,
         status: "PENDING" as InvitationStatus,
         email: data.email,
@@ -144,16 +144,16 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
   }
 
   /**
-   * Find all invitations for a user profile (by user_profile_id).
+   * Find all invitations for a user profile (by user_profile_uuid).
    * Ordered by created_at descending (most recent first).
    */
-  private async findInvitationsByUserProfileId(userProfileId: bigint): Promise<UserInvitationEntity[]> {
+  private async findInvitationsByUserProfileUuid(userProfileUuid: string): Promise<UserInvitationEntity[]> {
     const rows = await this.dal.findAll<UserInvitationEntity, UserInvitationEntity>(
       UserInvitationEntity,
       null,
       {
         filters: [
-          Filter.fieldValue(field(UserInvitationEntity, "user_profile_id" as any), "=", userProfileId),
+          Filter.fieldValue(field(UserInvitationEntity, "user_profile_uuid" as any), "=", userProfileUuid),
         ],
       },
     );
@@ -423,7 +423,6 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
    * Called by UserService.createUser() after the user is created in Casdoor + PG.
    */
   async createInvitation(
-    userProfileId: bigint,
     userProfileUuid: string,
     email: string,
     displayName: string,
@@ -437,7 +436,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
 
     // Store invitation in DB — admin context is set by auth middleware
     const invitationUuid = await this.insertInvitation({
-      user_profile_id: userProfileId,
+      user_profile_uuid: userProfileUuid,
       token_hash: tokenHash,
       email,
       expires_at: expiresAt,
@@ -485,9 +484,9 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
     }
 
     // Get user profile for display_name — the invitation stores the
-    // internal bigint id, not the profile UUID.
+    // profile uuid directly.
     const profile = await (await this.profiles()).getByUuid(
-      await this.getProfileUuidById(invitation.user_profile_id),
+      invitation.user_profile_uuid,
     );
 
     return {
@@ -495,17 +494,6 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
       display_name: profile?.display_name ?? "",
       expires_at: invitation.expires_at.toISOString(),
     };
-  }
-
-  /**
-   * Helper: get a user profile's UUID by its internal bigint ID.
-   */
-  private async getProfileUuidById(profileId: bigint): Promise<string> {
-    const uuid = await (await this.profiles()).getUuidById(profileId);
-    if (!uuid) {
-      throw new NotFoundError("User profile not found for invitation");
-    }
-    return uuid;
   }
 
   /**
@@ -538,7 +526,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
     );
 
     // Get display_name for the email
-    const profileUuid = await this.getProfileUuidById(invitation.user_profile_id);
+    const profileUuid = invitation.user_profile_uuid;
     const profile = await (await this.profiles()).getByUuid(profileUuid);
 
     // Send OTP email via NATS → emailsender
@@ -663,7 +651,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
     }
 
     // Get user profile
-    const profileUuid = await this.getProfileUuidById(invitation.user_profile_id);
+    const profileUuid = invitation.user_profile_uuid;
     const profile = await (await this.profiles()).getByUuid(profileUuid);
     if (!profile) {
       throw new NotFoundError("User profile not found");
@@ -710,7 +698,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
 
     // Mark onboarding_completed on user_profile
     await runAsSystem(async () =>
-      (await this.profiles()).updateProfileById(invitation.user_profile_id, { onboarding_completed: true }),
+      (await this.profiles()).updateProfileByUuid(invitation.user_profile_uuid, { onboarding_completed: true }),
     );
 
     // Send notification email
@@ -769,7 +757,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
     }
 
     // Get user profile for display_name
-    const profileUuid = await this.getProfileUuidById(invitation.user_profile_id);
+    const profileUuid = invitation.user_profile_uuid;
     const profile = await (await this.profiles()).getByUuid(profileUuid);
     if (!profile) {
       throw new NotFoundError("User profile not found");

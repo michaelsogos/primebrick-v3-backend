@@ -243,7 +243,7 @@ export type OrganizationDetailDto = Omit<
 // --- Auth event row / API DTO (auth_events — non-auditable audit log) ------
 
 export type AuthEventRow = {
-  id: bigint;
+  uuid: string;
   user_profile_uuid?: string;
   attempted_username?: string;
   event_type: string;
