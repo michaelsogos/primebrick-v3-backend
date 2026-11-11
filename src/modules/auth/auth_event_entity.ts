@@ -16,13 +16,19 @@
 import {
   Column,
   Entity,
-  Key, type UUID,
+  Key,
+  Unique,
+  type UUID,
 } from "@primebrick/dal-pg";
 
 @Entity("auth_events")
 export class AuthEventEntity {
   @Key()
   id: bigint;
+
+  @Unique()
+  @Column({ pgType: "uuid" })
+  uuid!: UUID;
 
   /** FK to user_profiles.uuid. NULL for failed login (no resolvable user). */
   @Column({ pgType: "uuid", nullable: true })

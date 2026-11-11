@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-11T14:57:41.483Z",
+  "generatedAt": "2026-11-11T16:59:32.436Z",
   "source": "database",
   "tables": {
     "public.auth_events": {
@@ -124,9 +124,31 @@
           "numericScale": null,
           "isNullable": true,
           "isPrimaryKey": false
+        },
+        "uuid": {
+          "name": "uuid",
+          "ordinalPosition": 10,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
         }
       },
       "indexes": [
+        {
+          "name": "auth_events_uuid_uq",
+          "using": "btree",
+          "isUnique": true,
+          "columns": [
+            "uuid"
+          ],
+          "definition": "CREATE UNIQUE INDEX auth_events_uuid_uq ON public.auth_events USING btree (uuid)"
+        },
         {
           "name": "auth_events_user_profile_uuid_event_at_idx",
           "using": "btree",
@@ -589,9 +611,31 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false
+        },
+        "uuid": {
+          "name": "uuid",
+          "ordinalPosition": 14,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
         }
       },
       "indexes": [
+        {
+          "name": "mfa_action_authorizations_uuid_uq",
+          "using": "btree",
+          "isUnique": true,
+          "columns": [
+            "uuid"
+          ],
+          "definition": "CREATE UNIQUE INDEX mfa_action_authorizations_uuid_uq ON public.mfa_action_authorizations USING btree (uuid)"
+        },
         {
           "name": "mfa_action_authorizations_jti_uq",
           "using": "btree",

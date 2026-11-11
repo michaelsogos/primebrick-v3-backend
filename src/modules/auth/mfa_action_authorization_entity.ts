@@ -21,6 +21,7 @@ import {
   AuditTrail,
   EntityBase,
   Auditable,
+  type UUID,
 } from "@primebrick/dal-pg";
 
 @Entity("mfa_action_authorizations")
@@ -29,6 +30,10 @@ export class MfaActionAuthorizationEntity
   extends Auditable(EntityBase) {
   @Key()
   id: bigint;
+
+  @Unique()
+  @Column({ pgType: "uuid" })
+  uuid!: UUID;
 
   /** JWT jti claim — the unique identifier of the action authorization token. */
   @Unique()
