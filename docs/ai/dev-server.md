@@ -15,6 +15,21 @@
    "I didn't start it".
 3. **Never duplicate, never migrate**: no second server on the same port,
    no "just use a different port". If the port is taken, resolve the owner.
+4. **The stack must survive the turn**: BE, FE, job-handler and CRM stay
+   running across agent turns — a service started inside an agent shell
+   dies with the session, so services MUST be started **detached** via
+   `primebrick-workspace/scripts/dev-stack.ps1` (idempotent, skips ports
+   already listening, logs to `primebrick-workspace/temp/logs/`). If a
+   turn finds a service down, restart it detached — never leave the only
+   copy of the stack inside an ephemeral shell.
+5. **Releases and branch churn kill the stack — restart it after**:
+   checkouts, merges and release flows rewrite source files under
+   running `bun --hot`/tsx watchers; watch-mode services crash
+   mid-operation and stay down (`dev-hot` prints "edit a file to
+   restart" and respawns only on a *lib* `src/` change). After any
+   release, merge or branch-close operation, re-run `dev-stack.ps1`
+   and verify the stack ports answer — the stack MUST be alive when
+   the turn ends.
 
 ## Default ports
 
