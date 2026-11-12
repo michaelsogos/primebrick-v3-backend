@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-11T18:01:35.816Z",
+  "generatedAt": "2026-11-12T20:33:41.549Z",
   "source": "database",
   "tables": {
     "public.auth_events": {
@@ -1884,21 +1884,8 @@
           "isNullable": true,
           "isPrimaryKey": false
         },
-        "is_active": {
-          "name": "is_active",
-          "ordinalPosition": 8,
-          "dataType": "bool",
-          "typname": "bool",
-          "typeOid": 16,
-          "typcategory": "B",
-          "formatType": "boolean",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false
-        },
-        "is_admin": {
-          "name": "is_admin",
+        "idp_is_admin": {
+          "name": "idp_is_admin",
           "ordinalPosition": 9,
           "dataType": "bool",
           "typname": "bool",
@@ -2053,8 +2040,8 @@
           "isNullable": true,
           "isPrimaryKey": false
         },
-        "is_verified": {
-          "name": "is_verified",
+        "idp_is_verified": {
+          "name": "idp_is_verified",
           "ordinalPosition": 21,
           "dataType": "bool",
           "typname": "bool",
@@ -2066,8 +2053,8 @@
           "isNullable": false,
           "isPrimaryKey": false
         },
-        "issuer": {
-          "name": "issuer",
+        "idp_issuer": {
+          "name": "idp_issuer",
           "ordinalPosition": 22,
           "dataType": "varchar",
           "typname": "varchar",
@@ -2079,8 +2066,8 @@
           "isNullable": true,
           "isPrimaryKey": false
         },
-        "email_verified": {
-          "name": "email_verified",
+        "idp_email_verified": {
+          "name": "idp_email_verified",
           "ordinalPosition": 23,
           "dataType": "bool",
           "typname": "bool",
@@ -2116,6 +2103,32 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
+          "isPrimaryKey": false
+        },
+        "suspended_at": {
+          "name": "suspended_at",
+          "ordinalPosition": 27,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "typeOid": 1184,
+          "typcategory": "D",
+          "formatType": "timestamp with time zone",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
+          "isPrimaryKey": false
+        },
+        "suspended_by": {
+          "name": "suspended_by",
+          "ordinalPosition": 28,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": true,
           "isPrimaryKey": false
         }
       },
