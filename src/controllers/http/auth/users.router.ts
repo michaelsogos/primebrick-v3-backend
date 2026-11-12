@@ -106,6 +106,18 @@ export function usersRouter() {
     res.json(await service.restoreUser(uuid, version));
   });
 
+  const suspend: RequestHandler = asyncHandler(async (req, res) => {
+    const uuid = requireValidUuid(req.params.uuid);
+    const version = requireVersionQuery(req);
+    res.json(await service.suspendUser(uuid, version));
+  });
+
+  const reactivate: RequestHandler = asyncHandler(async (req, res) => {
+    const uuid = requireValidUuid(req.params.uuid);
+    const version = requireVersionQuery(req);
+    res.json(await service.reactivateUser(uuid, version));
+  });
+
   const changePassword: RequestHandler = asyncHandler(async (req, res) => {
     const uuid = requireValidUuid(req.params.uuid);
     // Load the active password policy from DB and build the schema dynamically.
@@ -161,6 +173,18 @@ export function usersRouter() {
       path: "/api/v1/auth/users/:uuid/restore",
       permission: rbacHandler([Permission.USER_PROFILE_RESTORE_SINGLE]),
       handler: restore,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/users/:uuid/suspend",
+      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+      handler: suspend,
+    },
+    {
+      method: "post",
+      path: "/api/v1/auth/users/:uuid/reactivate",
+      permission: rbacHandler([Permission.AUTHENTICATED_ADMIN]),
+      handler: reactivate,
     },
     {
       method: "post",

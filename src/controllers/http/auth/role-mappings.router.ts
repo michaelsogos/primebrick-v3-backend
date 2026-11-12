@@ -54,14 +54,14 @@ import {
 // idp_role: slug — letter-leading, digits/underscore/hyphen, 1-255 chars.
 const idpRoleSchema = z
   .string()
-  .min(1, { message: "system.settings.roles.validation.idpRoleRequired" })
+  .min(1, { message: "system.settings.roles.validation.idp_role_required" })
   .max(255)
   .refine(isSlug, { message: "app.common.validation.slug" });
 
 // idp_org: the Casdoor organization name (owner). Required on create.
 const idpOrgSchema = z
   .string()
-  .min(1, { message: "system.settings.roles.validation.idpOrgRequired" })
+  .min(1, { message: "system.settings.roles.validation.idp_org_required" })
   .max(255);
 
 // permissions: array of permission strings matching module.action.granularity.

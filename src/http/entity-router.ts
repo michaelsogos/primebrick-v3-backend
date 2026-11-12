@@ -22,6 +22,7 @@
  *   purge        DEL  /:uuid/purge [uuid]            -> service.purge(uuid, requireVersionQuery)   (hard, opt-in)
  *   restore      POST /:uuid/restore [uuid]          -> service.restore(uuid, requireVersionQuery)
  *   audit        GET  /:uuid/audit [uuid, validateQuery] -> service.audit(uuid, page, limit)
+ *   audit-actors GET  /audit-actors                -> service.auditActors() (iff implemented; `list` permission)
  *
  * An action is registered iff `permissions.<action>` is present — declaring
  * the permission declares the route. Non-CRUD / RPC endpoints (e.g.
@@ -319,6 +320,25 @@ export function makeEntityRouter<TEntity, S extends object>(
     path: `${base}/:uuid/audit`,
     middlewares: [validateUuidParam, ...(config.schemas.auditQuery ? [validateQuery(config.schemas.auditQuery)] : []), ...extraMw("audit")],
   });
+
+  // audit-actors — the `options_source:"audit.actors"` vocabulary feed:
+  // DISTINCT writers of this entity's audit columns, label-resolved
+  // server-side. Gated on the `list` permission (filter options are a
+  // list-UX read). Literal route — must register BEFORE the `:uuid`
+  // params (registerRoutes orders literalDefs first).
+  // Registered unconditionally for entities with `list` permission — the
+  // service getter is lazy (property access constructs it before
+  // initDal); the implementation check happens per-request.
+  if (config.permissions.list) {
+    literalDefs.push({
+      permission: rbacHandler(config.permissions.list),
+      method: "get",
+      path: `${base}/audit-actors`,
+      handler: asyncHandler(async (_req, res) => {
+        res.json({ items: (await service.auditActors?.()) ?? [] });
+      }),
+    });
+  }
 
   registerRoutes(router, [...literalDefs, ...(config.extraRoutes ?? []), ...paramDefs]);
 

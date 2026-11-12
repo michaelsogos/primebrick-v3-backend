@@ -32,14 +32,12 @@ export type InvitationStatus = "PENDING" | "OTP_SENT" | "COMPLETED" | "EXPIRED" 
 export class UserInvitationEntity
   extends Auditable(EntityBase) {
   @Key()
-  id: bigint;
+  @Column({ pgType: "uuid" })
+  uuid!: UUID;
 
-  @Unique()
-  uuid: UUID;
-
-  /** FK to user_profiles.id (not a @Column — it's a raw FK, no ORM relationship). */
-  @Column({ nullable: false })
-  user_profile_id: bigint;
+  /** FK to user_profiles.uuid. */
+  @Column({ pgType: "uuid", nullable: false })
+  user_profile_uuid!: UUID;
 
   /** SHA-256 hash of the invitation token (raw token never stored). */
   @Unique()
@@ -55,11 +53,11 @@ export class UserInvitationEntity
   email: string;
 
   /** Token expiry timestamp (default: now() + invitation_expiry_days). */
-  @Column({ nullable: false })
+  @Column({ nullable: false, jsType: "instant" })
   expires_at: Date;
 
   /** When the user completed onboarding (null until COMPLETED). */
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   completed_at?: Date;
 
   /** SHA-256 hash of the 6-digit OTP code (null if not sent). */
@@ -67,7 +65,7 @@ export class UserInvitationEntity
   otp_hash?: string;
 
   /** OTP validity window (5 minutes from send). */
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   otp_expires_at?: Date;
 
   /** Failed OTP verify attempts (max 10). */
@@ -75,7 +73,7 @@ export class UserInvitationEntity
   otp_attempts: number;
 
   /** When the user verified the OTP (gate for password set). */
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   otp_verified_at?: Date;
 
 

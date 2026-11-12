@@ -64,7 +64,7 @@ const jobRow = svc({
       nav: [
         { id: "schedules", label_key: "job.jobs.nav", href: "/system/job/job-schedules", icon: "schedule", default: true },
         { id: "runs", label_key: "job.runs.nav", href: "/system/job/runs", icon: "list-checks" },
-        { id: "rules", label_key: "job.rules.nav", href: "/system/job/triggers", icon: "list-todo" },
+        { id: "triggers", label_key: "job.jobs.nav_triggers", href: "/system/job/triggers", icon: "list-checks" },
       ],
       routes: [
         { route: "/system/job/job-schedules", kind: "list", entity: "job_schedule" },
@@ -125,7 +125,7 @@ describe("ModuleDiscoveryService — derived-leaf access filtering", () => {
     setup([jobRow]);
     const { modules } = await list(["access.system.job.*"]);
     const job = modules[0];
-    expect(job.nav?.map((l) => l.id)).toEqual(["schedules", "runs", "rules"]);
+    expect(job.nav?.map((l) => l.id)).toEqual(["schedules", "runs", "triggers"]);
     expect(job.routes?.map((r) => r.route)).toEqual([
       "/system/job/job-schedules",
       "/system/job/job-schedules/create",
@@ -152,13 +152,13 @@ describe("ModuleDiscoveryService — derived-leaf access filtering", () => {
 
   it("an exact leaf grant keeps only that leaf — module still visible", async () => {
     setup([jobRow]);
-    const { modules } = await list(["access.system.job.rules"]);
+    const { modules } = await list(["access.system.job.triggers"]);
     expect(modules).toHaveLength(1);
     const job = modules[0];
-    expect(job.nav?.map((l) => l.id)).toEqual(["rules"]);
+    expect(job.nav?.map((l) => l.id)).toEqual(["triggers"]);
     expect(job.routes?.map((r) => r.route)).toEqual([
       "/system/job/triggers",
-      "/system/job/triggers/create", // create collapses into the rules leaf
+      "/system/job/triggers/create", // create collapses into the triggers leaf
     ]);
     expect(job.sheets).toEqual([]); // sheet key is its own leaf
   });
@@ -171,12 +171,12 @@ describe("ModuleDiscoveryService — derived-leaf access filtering", () => {
     expect(job.accessible).toBe(false);
     expect(job.nav).toEqual([]);
     // Every dropped leaf rides nav_hidden — the launcher's reveal switch.
-    expect(job.nav_hidden?.map((l) => l.id)).toEqual(["schedules", "runs", "rules"]);
+    expect(job.nav_hidden?.map((l) => l.id)).toEqual(["schedules", "runs", "triggers"]);
   });
 
   it("a leaf grant in a sibling module does NOT leak — the sibling stays accessible:false", async () => {
     setup([settingsRow, jobRow]);
-    const { modules } = await list(["access.system.job.rules"]);
+    const { modules } = await list(["access.system.job.triggers"]);
     expect(modules.map((m) => m.id)).toEqual(["settings", "job"]);
     expect(modules[0].accessible).toBe(false);
     expect(modules[1].accessible).toBeUndefined();
@@ -337,7 +337,7 @@ describe("ModuleDiscoveryService — labels seed", () => {
         "job.run.sheet": "Run detail",
       },
     });
-    const { labels } = await list(["access.system.job.rules"]); // only 'rules' survives the filter
+    const { labels } = await list(["access.system.job.triggers"]); // only 'triggers' survives the filter
     expect(labels).toEqual({
       "job.module.name": "Process Manager",
       "job.jobs.nav": "Schedules",
@@ -424,5 +424,101 @@ describe("ModuleDiscoveryService — labels seed", () => {
     const { modules, labels } = await list(["access.crm.*"]);
     expect(modules).toHaveLength(1); // census survives the scope failure
     expect(labels).toEqual({ "app.common.new": "New" });
+  });
+});
+
+describe("ModuleDiscoveryService — icon materialization", () => {
+  /**
+   * `icon` is OPTIONAL in the declaration — emission fills nulls from
+   * the kind map: dict→list, list→table-2, create/detail→text-cursor-input,
+   * everything else→file-box. An authored icon always wins; nav leaves
+   * inherit the icon of the route they point at. These assertions fail
+   * against an emit that leaves `icon` undefined.
+   */
+  const dictSvc = svc({
+    code: "crm",
+    part_of: "crm",
+    endpoints: {
+      nav: {
+        route_prefixes: ["/crm"],
+        access: "access.crm",
+        nav: [
+          { id: "types", label_key: "crm.types.nav", href: "/crm/settings/customer_types", default: true },
+          { id: "custom", label_key: "crm.custom.nav", href: "/crm/extras", icon: "star" },
+          { id: "orphan", label_key: "crm.orphan.nav", href: "/crm/archives" },
+          {
+            id: "group",
+            label_key: "crm.group.nav",
+            href: "/crm/group",
+            children: [{ id: "child", label_key: "crm.child.nav", href: "/crm/settings/customer_types" }],
+          },
+        ],
+        routes: [
+          { route: "/crm/settings/customer_types", kind: "dict", entity: "customer_type" },
+          { route: "/crm/extras", kind: "list", entity: "extra", icon: "star" },
+          { route: "/crm/group", kind: "page" },
+        ],
+      },
+    },
+  });
+
+  it("fills unset icons from kind — dict→list — nav leaves inherit the pointed route's icon", async () => {
+    setup([dictSvc]);
+    const { modules } = await list(["access.crm.*"]);
+    const m = modules[0];
+    expect(m.routes?.find((r) => r.kind === "dict")?.icon).toBe("list");
+    expect(m.nav?.find((l) => l.id === "types")?.icon).toBe("list");
+    // Child leaves resolve through the same census map.
+    expect(m.nav?.find((l) => l.id === "group")?.children?.[0]?.icon).toBe("list");
+    // The group parent keeps its declared (absent) icon — it is not a page.
+    expect(m.nav?.find((l) => l.id === "group")?.icon).toBeUndefined();
+    // A leaf with no matching route decl falls back to file-box.
+    expect(m.nav?.find((l) => l.id === "orphan")?.icon).toBe("file-box");
+  });
+
+  it("an authored icon always wins — never overwritten", async () => {
+    setup([dictSvc]);
+    const { modules } = await list(["access.crm.*"]);
+    const m = modules[0];
+    expect(m.routes?.find((r) => r.route === "/crm/extras")?.icon).toBe("star");
+    expect(m.nav?.find((l) => l.id === "custom")?.icon).toBe("star");
+  });
+
+  it("covers the kind vocabulary — list→table-2, create/detail→text-cursor-input, page→file-box", async () => {
+    const allSvc = svc({
+      code: "all",
+      part_of: "all",
+      endpoints: {
+        nav: {
+          route_prefixes: ["/all"],
+          access: "access.all",
+          nav: [{ id: "home", label_key: "all.nav", href: "/all/items", default: true }],
+          routes: [
+            { route: "/all/items", kind: "list" },
+            { route: "/all/items/create", kind: "create" },
+            { route: "/all/items/[uuid]", kind: "detail" },
+            { route: "/all/panel", kind: "page" },
+          ],
+        },
+      },
+    });
+    setup([allSvc]);
+    const { modules } = await list(["access.all.*"]);
+    const icon = Object.fromEntries((modules[0].routes ?? []).map((r) => [r.route, r.icon]));
+    expect(icon["/all/items"]).toBe("table-2");
+    expect(icon["/all/items/create"]).toBe("text-cursor-input");
+    expect(icon["/all/items/[uuid]"]).toBe("text-cursor-input");
+    expect(icon["/all/panel"]).toBe("file-box");
+    // The nav leaf inherits its route's resolved kind icon.
+    expect(modules[0].nav?.find((l) => l.id === "home")?.icon).toBe("table-2");
+  });
+
+  it("nav_hidden leaves materialize too — the launcher reveal shows the same icon", async () => {
+    setup([dictSvc]);
+    // Grant only the /crm/extras leaf — the dict leaf lands in nav_hidden
+    // but still resolves its declared route's kind icon.
+    const { modules } = await list(["access.crm.extras"]);
+    const m = modules[0];
+    expect(m.nav_hidden?.find((l) => l.href === "/crm/settings/customer_types")?.icon).toBe("list");
   });
 });

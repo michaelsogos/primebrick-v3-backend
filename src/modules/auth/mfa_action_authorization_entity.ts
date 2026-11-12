@@ -21,6 +21,7 @@ import {
   AuditTrail,
   EntityBase,
   Auditable,
+  type UUID,
 } from "@primebrick/dal-pg";
 
 @Entity("mfa_action_authorizations")
@@ -28,16 +29,17 @@ import {
 export class MfaActionAuthorizationEntity
   extends Auditable(EntityBase) {
   @Key()
-  id: bigint;
+  @Column({ pgType: "uuid" })
+  uuid!: UUID;
 
   /** JWT jti claim — the unique identifier of the action authorization token. */
   @Unique()
   @Column({ nullable: false })
   jti: string;
 
-  /** FK to user_profiles.id. */
-  @Column({ nullable: false })
-  user_profile_id: bigint;
+  /** FK to user_profiles.uuid. */
+  @Column({ pgType: "uuid", nullable: false })
+  user_profile_uuid!: UUID;
 
   /** The action being authorized (create, update, delete, restore). */
   @Column({ nullable: false })
@@ -52,11 +54,11 @@ export class MfaActionAuthorizationEntity
   token_hash: string;
 
   /** When the token expires. */
-  @Column({ nullable: false })
+  @Column({ nullable: false, jsType: "instant" })
   expires_at: Date;
 
   /** When the token was consumed by the middleware. NULL = not yet used. */
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   used_at?: Date;
 
 

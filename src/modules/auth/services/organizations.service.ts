@@ -58,18 +58,6 @@ export class OrganizationsService {
         searchableKeys: deriveSearchableKeys(organizationMeta, OrganizationEntity),
         filterableKeys: ORG_FILTERABLE_FIELDS,
         defaultSort: { key: "created_at", dir: "asc" },
-        aggregates: [{
-          name: "user_count",
-          expr: "COUNT(u.id)",
-          cast: "int",
-          join: {
-            entity: UserProfileEntity,
-            alias: "u",
-            base: "idp_code",
-            joined: "idp_org",
-            extra: "u.deleted_at IS NULL AND u.is_active = true",
-          },
-        }],
       },
     });
   }

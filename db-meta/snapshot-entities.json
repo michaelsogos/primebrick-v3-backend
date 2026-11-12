@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T23:43:00.167Z",
+  "generatedAt": "2026-11-11T18:01:35.808Z",
   "source": "entities",
   "tables": {
     "public.auth_events": {
@@ -9,16 +9,17 @@
       "name": "auth_events",
       "entityClassName": "AuthEventEntity",
       "columns": {
-        "id": {
-          "name": "id",
+        "uuid": {
+          "name": "uuid",
           "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
+          "dataType": "uuid",
+          "typname": "uuid",
           "isPrimaryKey": true,
           "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
+          "isPostgresIdentity": false,
+          "propertyKey": "uuid",
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
         },
         "user_profile_uuid": {
           "name": "user_profile_uuid",
@@ -197,32 +198,21 @@
           "propertyKey": "deleted_by",
           "isNullable": true
         },
-        "id": {
-          "name": "id",
-          "ordinalPosition": 8,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": true,
-          "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
-        },
         "uuid": {
           "name": "uuid",
-          "ordinalPosition": 9,
+          "ordinalPosition": 8,
           "dataType": "uuid",
           "typname": "uuid",
-          "isPrimaryKey": false,
-          "isUnique": true,
+          "isPrimaryKey": true,
+          "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
           "isNullable": false,
-          "defaultSql": "gen_random_uuid()"
+          "defaultSql": "uuidv7()"
         },
         "key": {
           "name": "key",
-          "ordinalPosition": 10,
+          "ordinalPosition": 9,
           "dataType": "varchar(100)",
           "typname": "varchar(100)",
           "isPrimaryKey": false,
@@ -233,7 +223,7 @@
         },
         "value": {
           "name": "value",
-          "ordinalPosition": 11,
+          "ordinalPosition": 10,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -244,7 +234,7 @@
         },
         "type": {
           "name": "type",
-          "ordinalPosition": 12,
+          "ordinalPosition": 11,
           "dataType": "varchar(50)",
           "typname": "varchar(50)",
           "isPrimaryKey": false,
@@ -255,7 +245,7 @@
         },
         "type_config": {
           "name": "type_config",
-          "ordinalPosition": 13,
+          "ordinalPosition": 12,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -266,7 +256,7 @@
         },
         "label_key": {
           "name": "label_key",
-          "ordinalPosition": 14,
+          "ordinalPosition": 13,
           "dataType": "varchar(100)",
           "typname": "varchar(100)",
           "isPrimaryKey": false,
@@ -277,7 +267,7 @@
         },
         "description_key": {
           "name": "description_key",
-          "ordinalPosition": 15,
+          "ordinalPosition": 14,
           "dataType": "varchar(100)",
           "typname": "varchar(100)",
           "isPrimaryKey": false,
@@ -288,7 +278,7 @@
         },
         "reserved": {
           "name": "reserved",
-          "ordinalPosition": 16,
+          "ordinalPosition": 15,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -300,7 +290,7 @@
         },
         "group_key": {
           "name": "group_key",
-          "ordinalPosition": 17,
+          "ordinalPosition": 16,
           "dataType": "varchar(100)",
           "typname": "varchar(100)",
           "isPrimaryKey": false,
@@ -311,14 +301,6 @@
         }
       },
       "indexes": [
-        {
-          "name": "config_entries_uuid_uq",
-          "columns": [
-            "uuid"
-          ],
-          "using": "btree",
-          "isUnique": true
-        },
         {
           "name": "config_entries_key_uq",
           "columns": [
@@ -394,16 +376,17 @@
           "isNullable": false,
           "defaultSql": "1"
         },
-        "id": {
-          "name": "id",
+        "uuid": {
+          "name": "uuid",
           "ordinalPosition": 6,
-          "dataType": "int8",
-          "typname": "int8",
+          "dataType": "uuid",
+          "typname": "uuid",
           "isPrimaryKey": true,
           "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
+          "isPostgresIdentity": false,
+          "propertyKey": "uuid",
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
         },
         "jti": {
           "name": "jti",
@@ -416,15 +399,15 @@
           "propertyKey": "jti",
           "isNullable": false
         },
-        "user_profile_id": {
-          "name": "user_profile_id",
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
           "ordinalPosition": 8,
-          "dataType": "int8",
-          "typname": "int8",
+          "dataType": "uuid",
+          "typname": "uuid",
           "isPrimaryKey": false,
           "isUnique": false,
           "isPostgresIdentity": false,
-          "propertyKey": "user_profile_id",
+          "propertyKey": "user_profile_uuid",
           "isNullable": false
         },
         "action": {
@@ -581,31 +564,21 @@
           "propertyKey": "deleted_by",
           "isNullable": true
         },
-        "id": {
-          "name": "id",
-          "ordinalPosition": 8,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": true,
-          "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
-        },
         "uuid": {
           "name": "uuid",
-          "ordinalPosition": 9,
+          "ordinalPosition": 8,
           "dataType": "uuid",
           "typname": "uuid",
-          "isPrimaryKey": false,
-          "isUnique": true,
+          "isPrimaryKey": true,
+          "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
         },
         "idp_code": {
           "name": "idp_code",
-          "ordinalPosition": 10,
+          "ordinalPosition": 9,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -616,7 +589,7 @@
         },
         "idp_owner": {
           "name": "idp_owner",
-          "ordinalPosition": 11,
+          "ordinalPosition": 10,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -627,7 +600,7 @@
         },
         "idp_name": {
           "name": "idp_name",
-          "ordinalPosition": 12,
+          "ordinalPosition": 11,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -638,7 +611,7 @@
         },
         "display_name": {
           "name": "display_name",
-          "ordinalPosition": 13,
+          "ordinalPosition": 12,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -649,7 +622,7 @@
         },
         "website_url": {
           "name": "website_url",
-          "ordinalPosition": 14,
+          "ordinalPosition": 13,
           "dataType": "varchar(2048)",
           "typname": "varchar(2048)",
           "isPrimaryKey": false,
@@ -660,7 +633,7 @@
         },
         "avatar": {
           "name": "avatar",
-          "ordinalPosition": 15,
+          "ordinalPosition": 14,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -671,7 +644,7 @@
         },
         "last_synced_at": {
           "name": "last_synced_at",
-          "ordinalPosition": 16,
+          "ordinalPosition": 15,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -682,14 +655,6 @@
         }
       },
       "indexes": [
-        {
-          "name": "organizations_uuid_uq",
-          "columns": [
-            "uuid"
-          ],
-          "using": "btree",
-          "isUnique": true
-        },
         {
           "name": "organizations_idp_code_uq",
           "columns": [
@@ -765,31 +730,21 @@
           "isNullable": false,
           "defaultSql": "1"
         },
-        "id": {
-          "name": "id",
-          "ordinalPosition": 6,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": true,
-          "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
-        },
         "uuid": {
           "name": "uuid",
-          "ordinalPosition": 7,
+          "ordinalPosition": 6,
           "dataType": "uuid",
           "typname": "uuid",
-          "isPrimaryKey": false,
-          "isUnique": true,
+          "isPrimaryKey": true,
+          "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
         },
         "idp_role": {
           "name": "idp_role",
-          "ordinalPosition": 8,
+          "ordinalPosition": 7,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -800,7 +755,7 @@
         },
         "idp_org": {
           "name": "idp_org",
-          "ordinalPosition": 9,
+          "ordinalPosition": 8,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -811,7 +766,7 @@
         },
         "label_key": {
           "name": "label_key",
-          "ordinalPosition": 10,
+          "ordinalPosition": 9,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -822,7 +777,7 @@
         },
         "permissions": {
           "name": "permissions",
-          "ordinalPosition": 11,
+          "ordinalPosition": 10,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -833,7 +788,7 @@
         },
         "is_admin": {
           "name": "is_admin",
-          "ordinalPosition": 12,
+          "ordinalPosition": 11,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -844,7 +799,7 @@
         },
         "last_synced_at": {
           "name": "last_synced_at",
-          "ordinalPosition": 13,
+          "ordinalPosition": 12,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -855,14 +810,6 @@
         }
       },
       "indexes": [
-        {
-          "name": "role_mappings_uuid_uq",
-          "columns": [
-            "uuid"
-          ],
-          "using": "btree",
-          "isUnique": true
-        },
         {
           "name": "role_mappings_idp_role_uq",
           "columns": [
@@ -938,42 +885,32 @@
           "isNullable": false,
           "defaultSql": "1"
         },
-        "id": {
-          "name": "id",
-          "ordinalPosition": 6,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": true,
-          "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
-        },
         "uuid": {
           "name": "uuid",
+          "ordinalPosition": 6,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "isPrimaryKey": true,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "uuid",
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
+        },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
           "ordinalPosition": 7,
           "dataType": "uuid",
           "typname": "uuid",
           "isPrimaryKey": false,
-          "isUnique": true,
-          "isPostgresIdentity": false,
-          "propertyKey": "uuid",
-          "isNullable": false
-        },
-        "user_profile_id": {
-          "name": "user_profile_id",
-          "ordinalPosition": 8,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": false,
           "isUnique": false,
           "isPostgresIdentity": false,
-          "propertyKey": "user_profile_id",
+          "propertyKey": "user_profile_uuid",
           "isNullable": false
         },
         "token_hash": {
           "name": "token_hash",
-          "ordinalPosition": 9,
+          "ordinalPosition": 8,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -984,7 +921,7 @@
         },
         "status": {
           "name": "status",
-          "ordinalPosition": 10,
+          "ordinalPosition": 9,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -995,7 +932,7 @@
         },
         "email": {
           "name": "email",
-          "ordinalPosition": 11,
+          "ordinalPosition": 10,
           "dataType": "varchar(320)",
           "typname": "varchar(320)",
           "isPrimaryKey": false,
@@ -1006,7 +943,7 @@
         },
         "expires_at": {
           "name": "expires_at",
-          "ordinalPosition": 12,
+          "ordinalPosition": 11,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1017,7 +954,7 @@
         },
         "completed_at": {
           "name": "completed_at",
-          "ordinalPosition": 13,
+          "ordinalPosition": 12,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1028,7 +965,7 @@
         },
         "otp_hash": {
           "name": "otp_hash",
-          "ordinalPosition": 14,
+          "ordinalPosition": 13,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1039,7 +976,7 @@
         },
         "otp_expires_at": {
           "name": "otp_expires_at",
-          "ordinalPosition": 15,
+          "ordinalPosition": 14,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1050,7 +987,7 @@
         },
         "otp_attempts": {
           "name": "otp_attempts",
-          "ordinalPosition": 16,
+          "ordinalPosition": 15,
           "dataType": "integer",
           "typname": "integer",
           "isPrimaryKey": false,
@@ -1062,7 +999,7 @@
         },
         "otp_verified_at": {
           "name": "otp_verified_at",
-          "ordinalPosition": 17,
+          "ordinalPosition": 16,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1073,14 +1010,6 @@
         }
       },
       "indexes": [
-        {
-          "name": "user_invitations_uuid_uq",
-          "columns": [
-            "uuid"
-          ],
-          "using": "btree",
-          "isUnique": true
-        },
         {
           "name": "user_invitations_token_hash_uq",
           "columns": [
@@ -1156,42 +1085,32 @@
           "isNullable": false,
           "defaultSql": "1"
         },
-        "id": {
-          "name": "id",
-          "ordinalPosition": 6,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": true,
-          "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
-        },
         "uuid": {
           "name": "uuid",
+          "ordinalPosition": 6,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "isPrimaryKey": true,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "uuid",
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
+        },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
           "ordinalPosition": 7,
           "dataType": "uuid",
           "typname": "uuid",
           "isPrimaryKey": false,
-          "isUnique": true,
-          "isPostgresIdentity": false,
-          "propertyKey": "uuid",
-          "isNullable": false
-        },
-        "user_profile_id": {
-          "name": "user_profile_id",
-          "ordinalPosition": 8,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": false,
           "isUnique": false,
           "isPostgresIdentity": false,
-          "propertyKey": "user_profile_id",
+          "propertyKey": "user_profile_uuid",
           "isNullable": false
         },
         "factor_type": {
           "name": "factor_type",
-          "ordinalPosition": 9,
+          "ordinalPosition": 8,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1202,7 +1121,7 @@
         },
         "casdoor_mfa_type": {
           "name": "casdoor_mfa_type",
-          "ordinalPosition": 10,
+          "ordinalPosition": 9,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1213,7 +1132,7 @@
         },
         "totp_secret_encrypted": {
           "name": "totp_secret_encrypted",
-          "ordinalPosition": 11,
+          "ordinalPosition": 10,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1224,7 +1143,7 @@
         },
         "label": {
           "name": "label",
-          "ordinalPosition": 12,
+          "ordinalPosition": 11,
           "dataType": "varchar(100)",
           "typname": "varchar(100)",
           "isPrimaryKey": false,
@@ -1235,7 +1154,7 @@
         },
         "is_enabled": {
           "name": "is_enabled",
-          "ordinalPosition": 13,
+          "ordinalPosition": 12,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -1246,7 +1165,7 @@
         },
         "is_preferred": {
           "name": "is_preferred",
-          "ordinalPosition": 14,
+          "ordinalPosition": 13,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -1257,7 +1176,7 @@
         },
         "last_used_at": {
           "name": "last_used_at",
-          "ordinalPosition": 15,
+          "ordinalPosition": 14,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1266,17 +1185,7 @@
           "propertyKey": "last_used_at",
           "isNullable": true
         }
-      },
-      "indexes": [
-        {
-          "name": "user_mfa_factors_uuid_uq",
-          "columns": [
-            "uuid"
-          ],
-          "using": "btree",
-          "isUnique": true
-        }
-      ]
+      }
     },
     "public.user_passkeys": {
       "kind": "table",
@@ -1343,42 +1252,32 @@
           "isNullable": false,
           "defaultSql": "1"
         },
-        "id": {
-          "name": "id",
-          "ordinalPosition": 6,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": true,
-          "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
-        },
         "uuid": {
           "name": "uuid",
+          "ordinalPosition": 6,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "isPrimaryKey": true,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "uuid",
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
+        },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
           "ordinalPosition": 7,
           "dataType": "uuid",
           "typname": "uuid",
           "isPrimaryKey": false,
-          "isUnique": true,
-          "isPostgresIdentity": false,
-          "propertyKey": "uuid",
-          "isNullable": false
-        },
-        "user_profile_id": {
-          "name": "user_profile_id",
-          "ordinalPosition": 8,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": false,
           "isUnique": false,
           "isPostgresIdentity": false,
-          "propertyKey": "user_profile_id",
+          "propertyKey": "user_profile_uuid",
           "isNullable": false
         },
         "credential_id": {
           "name": "credential_id",
-          "ordinalPosition": 9,
+          "ordinalPosition": 8,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1389,7 +1288,7 @@
         },
         "aaguid": {
           "name": "aaguid",
-          "ordinalPosition": 10,
+          "ordinalPosition": 9,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1400,7 +1299,7 @@
         },
         "transports": {
           "name": "transports",
-          "ordinalPosition": 11,
+          "ordinalPosition": 10,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -1411,7 +1310,7 @@
         },
         "label": {
           "name": "label",
-          "ordinalPosition": 12,
+          "ordinalPosition": 11,
           "dataType": "varchar(100)",
           "typname": "varchar(100)",
           "isPrimaryKey": false,
@@ -1422,7 +1321,7 @@
         },
         "last_used_at": {
           "name": "last_used_at",
-          "ordinalPosition": 13,
+          "ordinalPosition": 12,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1433,7 +1332,7 @@
         },
         "authenticator_attachment": {
           "name": "authenticator_attachment",
-          "ordinalPosition": 14,
+          "ordinalPosition": 13,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1444,7 +1343,7 @@
         },
         "user_agent": {
           "name": "user_agent",
-          "ordinalPosition": 15,
+          "ordinalPosition": 14,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1455,7 +1354,7 @@
         },
         "os": {
           "name": "os",
-          "ordinalPosition": 16,
+          "ordinalPosition": 15,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1466,7 +1365,7 @@
         },
         "device_model": {
           "name": "device_model",
-          "ordinalPosition": 17,
+          "ordinalPosition": 16,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -1477,14 +1376,6 @@
         }
       },
       "indexes": [
-        {
-          "name": "user_passkeys_uuid_uq",
-          "columns": [
-            "uuid"
-          ],
-          "using": "btree",
-          "isUnique": true
-        },
         {
           "name": "user_passkeys_credential_id_uq",
           "columns": [
@@ -1559,42 +1450,33 @@
           "isNullable": false,
           "defaultSql": "1"
         },
-        "id": {
-          "name": "id",
-          "ordinalPosition": 6,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": true,
-          "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
-        },
         "uuid": {
           "name": "uuid",
+          "ordinalPosition": 6,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "isPrimaryKey": true,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "uuid",
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
+        },
+        "user_uuid": {
+          "name": "user_uuid",
           "ordinalPosition": 7,
           "dataType": "uuid",
           "typname": "uuid",
           "isPrimaryKey": false,
           "isUnique": true,
           "isPostgresIdentity": false,
-          "propertyKey": "uuid",
-          "isNullable": false
-        },
-        "user_uuid": {
-          "name": "user_uuid",
-          "ordinalPosition": 8,
-          "dataType": "uuid",
-          "typname": "uuid",
-          "isPrimaryKey": false,
-          "isUnique": true,
-          "isPostgresIdentity": false,
           "propertyKey": "user_uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
         },
         "key": {
           "name": "key",
-          "ordinalPosition": 9,
+          "ordinalPosition": 8,
           "dataType": "varchar(128)",
           "typname": "varchar(128)",
           "isPrimaryKey": false,
@@ -1605,7 +1487,7 @@
         },
         "value": {
           "name": "value",
-          "ordinalPosition": 10,
+          "ordinalPosition": 9,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -1616,14 +1498,6 @@
         }
       },
       "indexes": [
-        {
-          "name": "user_preferences_uuid_uq",
-          "columns": [
-            "uuid"
-          ],
-          "using": "btree",
-          "isUnique": true
-        },
         {
           "name": "user_preferences_user_key_uidx",
           "columns": [
@@ -1722,31 +1596,21 @@
           "propertyKey": "deleted_by",
           "isNullable": true
         },
-        "id": {
-          "name": "id",
-          "ordinalPosition": 8,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": true,
-          "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
-        },
         "uuid": {
           "name": "uuid",
-          "ordinalPosition": 9,
+          "ordinalPosition": 8,
           "dataType": "uuid",
           "typname": "uuid",
-          "isPrimaryKey": false,
-          "isUnique": true,
+          "isPrimaryKey": true,
+          "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
         },
         "idp_code": {
           "name": "idp_code",
-          "ordinalPosition": 10,
+          "ordinalPosition": 9,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -1757,7 +1621,7 @@
         },
         "email": {
           "name": "email",
-          "ordinalPosition": 11,
+          "ordinalPosition": 10,
           "dataType": "varchar(320)",
           "typname": "varchar(320)",
           "isPrimaryKey": false,
@@ -1768,7 +1632,7 @@
         },
         "display_name": {
           "name": "display_name",
-          "ordinalPosition": 12,
+          "ordinalPosition": 11,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -1779,7 +1643,7 @@
         },
         "avatar_color": {
           "name": "avatar_color",
-          "ordinalPosition": 13,
+          "ordinalPosition": 12,
           "dataType": "varchar(7)",
           "typname": "varchar(7)",
           "isPrimaryKey": false,
@@ -1790,7 +1654,7 @@
         },
         "avatar_initials": {
           "name": "avatar_initials",
-          "ordinalPosition": 14,
+          "ordinalPosition": 13,
           "dataType": "varchar(10)",
           "typname": "varchar(10)",
           "isPrimaryKey": false,
@@ -1801,7 +1665,7 @@
         },
         "is_active": {
           "name": "is_active",
-          "ordinalPosition": 15,
+          "ordinalPosition": 14,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -1813,7 +1677,7 @@
         },
         "is_admin": {
           "name": "is_admin",
-          "ordinalPosition": 16,
+          "ordinalPosition": 15,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -1825,7 +1689,7 @@
         },
         "roles": {
           "name": "roles",
-          "ordinalPosition": 17,
+          "ordinalPosition": 16,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -1836,7 +1700,7 @@
         },
         "last_synced_at": {
           "name": "last_synced_at",
-          "ordinalPosition": 18,
+          "ordinalPosition": 17,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1847,7 +1711,7 @@
         },
         "idp_org": {
           "name": "idp_org",
-          "ordinalPosition": 19,
+          "ordinalPosition": 18,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -1858,7 +1722,7 @@
         },
         "idp_username": {
           "name": "idp_username",
-          "ordinalPosition": 20,
+          "ordinalPosition": 19,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -1869,7 +1733,7 @@
         },
         "is_verified": {
           "name": "is_verified",
-          "ordinalPosition": 21,
+          "ordinalPosition": 20,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -1881,7 +1745,7 @@
         },
         "email_verified": {
           "name": "email_verified",
-          "ordinalPosition": 22,
+          "ordinalPosition": 21,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -1893,7 +1757,7 @@
         },
         "issuer": {
           "name": "issuer",
-          "ordinalPosition": 23,
+          "ordinalPosition": 22,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -1904,7 +1768,7 @@
         },
         "auth_method_enforcer_dismissed": {
           "name": "auth_method_enforcer_dismissed",
-          "ordinalPosition": 24,
+          "ordinalPosition": 23,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -1916,7 +1780,7 @@
         },
         "onboarding_completed": {
           "name": "onboarding_completed",
-          "ordinalPosition": 25,
+          "ordinalPosition": 24,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -1928,14 +1792,6 @@
         }
       },
       "indexes": [
-        {
-          "name": "user_profiles_uuid_uq",
-          "columns": [
-            "uuid"
-          ],
-          "using": "btree",
-          "isUnique": true
-        },
         {
           "name": "user_profiles_idp_code_uq",
           "columns": [
@@ -2010,31 +1866,21 @@
           "isNullable": false,
           "defaultSql": "1"
         },
-        "id": {
-          "name": "id",
-          "ordinalPosition": 6,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": true,
-          "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
-        },
         "uuid": {
           "name": "uuid",
-          "ordinalPosition": 7,
+          "ordinalPosition": 6,
           "dataType": "uuid",
           "typname": "uuid",
-          "isPrimaryKey": false,
-          "isUnique": true,
+          "isPrimaryKey": true,
+          "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
         },
         "key_hash": {
           "name": "key_hash",
-          "ordinalPosition": 8,
+          "ordinalPosition": 7,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2045,7 +1891,7 @@
         },
         "key_prefix": {
           "name": "key_prefix",
-          "ordinalPosition": 9,
+          "ordinalPosition": 8,
           "dataType": "varchar(20)",
           "typname": "varchar(20)",
           "isPrimaryKey": false,
@@ -2056,7 +1902,7 @@
         },
         "name": {
           "name": "name",
-          "ordinalPosition": 10,
+          "ordinalPosition": 9,
           "dataType": "varchar(100)",
           "typname": "varchar(100)",
           "isPrimaryKey": false,
@@ -2067,7 +1913,7 @@
         },
         "description": {
           "name": "description",
-          "ordinalPosition": 11,
+          "ordinalPosition": 10,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2078,7 +1924,7 @@
         },
         "permissions": {
           "name": "permissions",
-          "ordinalPosition": 12,
+          "ordinalPosition": 11,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -2089,7 +1935,7 @@
         },
         "is_system": {
           "name": "is_system",
-          "ordinalPosition": 13,
+          "ordinalPosition": 12,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -2100,7 +1946,7 @@
         },
         "is_active": {
           "name": "is_active",
-          "ordinalPosition": 14,
+          "ordinalPosition": 13,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -2111,7 +1957,7 @@
         },
         "expires_at": {
           "name": "expires_at",
-          "ordinalPosition": 15,
+          "ordinalPosition": 14,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -2122,14 +1968,6 @@
         }
       },
       "indexes": [
-        {
-          "name": "api_keys_uuid_uq",
-          "columns": [
-            "uuid"
-          ],
-          "using": "btree",
-          "isUnique": true
-        },
         {
           "name": "api_keys_key_hash_uq",
           "columns": [
@@ -2146,31 +1984,21 @@
       "name": "mcp_oauth_clients",
       "entityClassName": "McpOauthClientEntity",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": true,
-          "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
-        },
         "uuid": {
           "name": "uuid",
-          "ordinalPosition": 2,
+          "ordinalPosition": 1,
           "dataType": "uuid",
           "typname": "uuid",
-          "isPrimaryKey": false,
-          "isUnique": true,
+          "isPrimaryKey": true,
+          "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
         },
         "client_id": {
           "name": "client_id",
-          "ordinalPosition": 3,
+          "ordinalPosition": 2,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -2181,7 +2009,7 @@
         },
         "client_secret": {
           "name": "client_secret",
-          "ordinalPosition": 4,
+          "ordinalPosition": 3,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2192,7 +2020,7 @@
         },
         "client_name": {
           "name": "client_name",
-          "ordinalPosition": 5,
+          "ordinalPosition": 4,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -2203,7 +2031,7 @@
         },
         "redirect_uris": {
           "name": "redirect_uris",
-          "ordinalPosition": 6,
+          "ordinalPosition": 5,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -2214,7 +2042,7 @@
         },
         "grant_types": {
           "name": "grant_types",
-          "ordinalPosition": 7,
+          "ordinalPosition": 6,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -2225,7 +2053,7 @@
         },
         "response_types": {
           "name": "response_types",
-          "ordinalPosition": 8,
+          "ordinalPosition": 7,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -2236,7 +2064,7 @@
         },
         "token_endpoint_auth_method": {
           "name": "token_endpoint_auth_method",
-          "ordinalPosition": 9,
+          "ordinalPosition": 8,
           "dataType": "varchar(50)",
           "typname": "varchar(50)",
           "isPrimaryKey": false,
@@ -2247,7 +2075,7 @@
         },
         "scope": {
           "name": "scope",
-          "ordinalPosition": 10,
+          "ordinalPosition": 9,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2258,7 +2086,7 @@
         },
         "client_id_issued_at": {
           "name": "client_id_issued_at",
-          "ordinalPosition": 11,
+          "ordinalPosition": 10,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -2269,7 +2097,7 @@
         },
         "client_secret_expires_at": {
           "name": "client_secret_expires_at",
-          "ordinalPosition": 12,
+          "ordinalPosition": 11,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -2280,7 +2108,7 @@
         },
         "created_at": {
           "name": "created_at",
-          "ordinalPosition": 13,
+          "ordinalPosition": 12,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -2291,7 +2119,7 @@
         },
         "updated_at": {
           "name": "updated_at",
-          "ordinalPosition": 14,
+          "ordinalPosition": 13,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -2302,7 +2130,7 @@
         },
         "version": {
           "name": "version",
-          "ordinalPosition": 15,
+          "ordinalPosition": 14,
           "dataType": "int4",
           "typname": "int4",
           "isPrimaryKey": false,
@@ -2313,14 +2141,6 @@
         }
       },
       "indexes": [
-        {
-          "name": "mcp_oauth_clients_uuid_uq",
-          "columns": [
-            "uuid"
-          ],
-          "using": "btree",
-          "isUnique": true
-        },
         {
           "name": "mcp_oauth_clients_client_id_uq",
           "columns": [
@@ -2417,31 +2237,21 @@
           "propertyKey": "deleted_by",
           "isNullable": true
         },
-        "id": {
-          "name": "id",
-          "ordinalPosition": 8,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": true,
-          "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
-        },
         "uuid": {
           "name": "uuid",
-          "ordinalPosition": 9,
+          "ordinalPosition": 8,
           "dataType": "uuid",
           "typname": "uuid",
-          "isPrimaryKey": false,
-          "isUnique": true,
+          "isPrimaryKey": true,
+          "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
         },
         "code": {
           "name": "code",
-          "ordinalPosition": 10,
+          "ordinalPosition": 9,
           "dataType": "varchar(100)",
           "typname": "varchar(100)",
           "isPrimaryKey": false,
@@ -2452,7 +2262,7 @@
         },
         "base_url": {
           "name": "base_url",
-          "ordinalPosition": 11,
+          "ordinalPosition": 10,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2463,7 +2273,7 @@
         },
         "part_of": {
           "name": "part_of",
-          "ordinalPosition": 12,
+          "ordinalPosition": 11,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2474,7 +2284,7 @@
         },
         "endpoints": {
           "name": "endpoints",
-          "ordinalPosition": 13,
+          "ordinalPosition": 12,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -2485,7 +2295,7 @@
         },
         "name": {
           "name": "name",
-          "ordinalPosition": 14,
+          "ordinalPosition": 13,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2496,7 +2306,7 @@
         },
         "description": {
           "name": "description",
-          "ordinalPosition": 15,
+          "ordinalPosition": 14,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2507,7 +2317,7 @@
         },
         "author": {
           "name": "author",
-          "ordinalPosition": 16,
+          "ordinalPosition": 15,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2518,7 +2328,7 @@
         },
         "github_repo_url": {
           "name": "github_repo_url",
-          "ordinalPosition": 17,
+          "ordinalPosition": 16,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2529,7 +2339,7 @@
         },
         "service_version": {
           "name": "service_version",
-          "ordinalPosition": 18,
+          "ordinalPosition": 17,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2540,7 +2350,7 @@
         },
         "pkg_name": {
           "name": "pkg_name",
-          "ordinalPosition": 19,
+          "ordinalPosition": 18,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2551,7 +2361,7 @@
         },
         "capabilities": {
           "name": "capabilities",
-          "ordinalPosition": 20,
+          "ordinalPosition": 19,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -2563,7 +2373,7 @@
         },
         "schemas": {
           "name": "schemas",
-          "ordinalPosition": 21,
+          "ordinalPosition": 20,
           "dataType": "text[]",
           "typname": "text[]",
           "isPrimaryKey": false,
@@ -2575,7 +2385,7 @@
         },
         "is_behind_scaler": {
           "name": "is_behind_scaler",
-          "ordinalPosition": 22,
+          "ordinalPosition": 21,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -2587,7 +2397,7 @@
         },
         "status": {
           "name": "status",
-          "ordinalPosition": 23,
+          "ordinalPosition": 22,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2599,7 +2409,7 @@
         },
         "last_health_check_at": {
           "name": "last_health_check_at",
-          "ordinalPosition": 24,
+          "ordinalPosition": 23,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -2610,7 +2420,7 @@
         },
         "is_enabled": {
           "name": "is_enabled",
-          "ordinalPosition": 25,
+          "ordinalPosition": 24,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -2622,7 +2432,7 @@
         },
         "icon": {
           "name": "icon",
-          "ordinalPosition": 26,
+          "ordinalPosition": 25,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2633,7 +2443,7 @@
         },
         "icon_type": {
           "name": "icon_type",
-          "ordinalPosition": 27,
+          "ordinalPosition": 26,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2645,7 +2455,7 @@
         },
         "is_reserved": {
           "name": "is_reserved",
-          "ordinalPosition": 28,
+          "ordinalPosition": 27,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -2657,7 +2467,7 @@
         },
         "label_key": {
           "name": "label_key",
-          "ordinalPosition": 29,
+          "ordinalPosition": 28,
           "dataType": "varchar",
           "typname": "varchar",
           "isPrimaryKey": false,
@@ -2668,7 +2478,7 @@
         },
         "is_default": {
           "name": "is_default",
-          "ordinalPosition": 30,
+          "ordinalPosition": 29,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -2678,17 +2488,7 @@
           "isNullable": false,
           "defaultSql": "false"
         }
-      },
-      "indexes": [
-        {
-          "name": "service_registry_uuid_uq",
-          "columns": [
-            "uuid"
-          ],
-          "using": "btree",
-          "isUnique": true
-        }
-      ]
+      }
     },
     "system.client_shield_registry": {
       "kind": "table",
@@ -2776,31 +2576,21 @@
           "propertyKey": "deleted_by",
           "isNullable": true
         },
-        "id": {
-          "name": "id",
-          "ordinalPosition": 8,
-          "dataType": "int8",
-          "typname": "int8",
-          "isPrimaryKey": true,
-          "isUnique": false,
-          "isPostgresIdentity": true,
-          "propertyKey": "id",
-          "isNullable": false
-        },
         "uuid": {
           "name": "uuid",
-          "ordinalPosition": 9,
+          "ordinalPosition": 8,
           "dataType": "uuid",
           "typname": "uuid",
-          "isPrimaryKey": false,
-          "isUnique": true,
+          "isPrimaryKey": true,
+          "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "uuid",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "uuidv7()"
         },
         "ua_prefix": {
           "name": "ua_prefix",
-          "ordinalPosition": 10,
+          "ordinalPosition": 9,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -2811,7 +2601,7 @@
         },
         "client_key_hash": {
           "name": "client_key_hash",
-          "ordinalPosition": 11,
+          "ordinalPosition": 10,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -2822,7 +2612,7 @@
         },
         "source": {
           "name": "source",
-          "ordinalPosition": 12,
+          "ordinalPosition": 11,
           "dataType": "varchar(20)",
           "typname": "varchar(20)",
           "isPrimaryKey": false,
@@ -2834,7 +2624,7 @@
         },
         "is_enabled": {
           "name": "is_enabled",
-          "ordinalPosition": 13,
+          "ordinalPosition": 12,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -2846,7 +2636,7 @@
         },
         "key_mode": {
           "name": "key_mode",
-          "ordinalPosition": 14,
+          "ordinalPosition": 13,
           "dataType": "varchar(10)",
           "typname": "varchar(10)",
           "isPrimaryKey": false,
@@ -2858,7 +2648,7 @@
         },
         "key_generation": {
           "name": "key_generation",
-          "ordinalPosition": 15,
+          "ordinalPosition": 14,
           "dataType": "int4",
           "typname": "int4",
           "isPrimaryKey": false,
@@ -2870,7 +2660,7 @@
         },
         "previous_key_hash": {
           "name": "previous_key_hash",
-          "ordinalPosition": 16,
+          "ordinalPosition": 15,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -2881,7 +2671,7 @@
         },
         "previous_valid_until": {
           "name": "previous_valid_until",
-          "ordinalPosition": 17,
+          "ordinalPosition": 16,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -2892,7 +2682,7 @@
         },
         "key_rotated_at": {
           "name": "key_rotated_at",
-          "ordinalPosition": 18,
+          "ordinalPosition": 17,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -2903,14 +2693,6 @@
         }
       },
       "indexes": [
-        {
-          "name": "client_shield_registry_uuid_uq",
-          "columns": [
-            "uuid"
-          ],
-          "using": "btree",
-          "isUnique": true
-        },
         {
           "name": "client_shield_registry_ua_prefix_uq",
           "columns": [

@@ -1,400 +1,62 @@
--- Primebrick: Database Initialization Script
--- This script consolidates all database schema changes into a single idempotent init script
--- It can be run multiple times safely on a fresh database
--- generatedAt: 2026-05-29T15:00:00.000Z
+-- 00000000000000 — be schema baseline: consolidated 'as if first time' shape.
+-- Replaces the accumulated 127-patch chain (00000000000000-14 + 2026* deltas).
+-- Entity-generated section: all registry-declared tables, partman *_audit
+-- partitions, declared indexes. Handwritten supplement: objects the registry
+-- cannot declare — the three translations tables (gateway-owned CRUD:
+-- public=app.*, system=system.*, custom=custom.*), the custom schema, and
+-- client_shield_registry CHECK constraints.
 
--- === Extensions ===
--- Create extensions with idempotent checks
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pgcrypto') THEN
-    CREATE EXTENSION pgcrypto;
-  END IF;
-END $$;
+-- ─── Platform extensions ────────────────────────────────────────────────
 
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_partman') THEN
-    CREATE EXTENSION pg_partman;
-  END IF;
-END $$;
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE SCHEMA IF NOT EXISTS "partman";
+CREATE EXTENSION IF NOT EXISTS "pg_partman" SCHEMA "partman";
 
--- === Schemas ===
-CREATE SCHEMA IF NOT EXISTS emailsender;
-CREATE SCHEMA IF NOT EXISTS system;
+-- ─── custom schema (user-owned data boundary) ───────────────────────────
+
 CREATE SCHEMA IF NOT EXISTS "custom";
-
-GRANT ALL ON SCHEMA emailsender TO primebrick;
-GRANT ALL ON SCHEMA emailsender TO public;
-GRANT ALL ON SCHEMA system TO primebrick;
-GRANT ALL ON SCHEMA system TO public;
 GRANT ALL ON SCHEMA "custom" TO primebrick;
 GRANT ALL ON SCHEMA "custom" TO public;
 
--- === Functions ===
--- pg_raise(code, message, detail): raises a PostgreSQL exception with a custom
--- SQLSTATE from plain SQL contexts (e.g. DAL CTEs). Used by @primebrick/dal-pg
--- add() conflict reporting to emit ERR04 (unique conflict on live row) /
--- ERR05 (unique conflict on soft-deleted row) with the conflicting row's
--- uuid + matched constraint in DETAIL (jsonb).
-CREATE OR REPLACE FUNCTION public.pg_raise(p_code text, p_message text, p_detail text DEFAULT NULL)
-RETURNS void
-LANGUAGE plpgsql
-AS $func$
-BEGIN
-  RAISE EXCEPTION '%', p_message USING ERRCODE = p_code, DETAIL = p_detail;
-END;
-$func$;
+-- ─── Entity tables, indexes, audit partitions (entity-declared) ─────────
 
-GRANT EXECUTE ON FUNCTION public.pg_raise(text, text, text) TO primebrick;
-GRANT EXECUTE ON FUNCTION public.pg_raise(text, text, text) TO public;
-
--- === Tables ===
-
--- customers table (merged from multiple patches)
-CREATE TABLE IF NOT EXISTS "public"."customers" (
+CREATE TABLE IF NOT EXISTS "public"."auth_events" (
   "id" bigint generated always as identity NOT NULL,
-  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
-  "code" varchar(20) NOT NULL,
-  "email" varchar(320),
-  "phone" varchar(64),
-  "status" text NOT NULL,
-  "first_name" text,
-  "last_name" text,
-  "company_name" text,
-  "status_reason" text,
-  "local_address" text,
-  "local_city" text,
-  "local_state" text,
-  "local_country" text,
-  "local_zip" text,
-  "onboarding_time_zone" varchar(100),
-  "onboarding_at" timestamptz,
-  "cloned_from" uuid,
-  "created_at" timestamptz DEFAULT now(),
-  "created_by" text,
-  "updated_at" timestamptz DEFAULT now(),
-  "updated_by" text,
-  "version" integer DEFAULT 1,
-  "deleted_at" timestamptz,
-  "deleted_by" text,
-  PRIMARY KEY ("id")
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS "customers_uuid_uq" ON "public"."customers" ("uuid");
-
-COMMENT ON COLUMN public.customers.onboarding_at IS 'Customer onboarding instant, stored as timestamptz (UTC)';
-COMMENT ON COLUMN public.customers.onboarding_time_zone IS 'IANA time zone for the user who set onboarding (display context; DST via IANA rules)';
-COMMENT ON COLUMN public.customers.cloned_from IS 'UUID of the source record this customer was cloned from. Null if this is an original record (not a clone).';
-
--- customers_audit table
-CREATE TABLE IF NOT EXISTS "public"."customers_audit" (
-  "id" bigint generated always as identity NOT NULL,
-  "entity_id" bigint NOT NULL,
-  "entity_uuid" uuid NOT NULL,
-  "action" text NOT NULL,
-  "changed_at" timestamptz NOT NULL,
-  "changed_by" text NOT NULL DEFAULT 'system',
-  "version" integer NOT NULL,
-  "delta" jsonb NOT NULL,
-  PRIMARY KEY ("id", "changed_at")
-) PARTITION BY RANGE ("changed_at");
-
-COMMENT ON COLUMN public.customers_audit.changed_by IS 'Identifier of the principal that produced the audit entry (falls back to "system" when no authenticated context is available).';
-
--- Indexes for customers_audit
-CREATE INDEX IF NOT EXISTS "customers_audit_entity_uuid_idx" ON "public"."customers_audit" ("entity_uuid");
-CREATE INDEX IF NOT EXISTS "customers_audit_action_idx" ON "public"."customers_audit" ("action");
-
--- pg_partman setup for customers_audit (idempotent)
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'partman' 
-    AND table_name = 'part_config'
-  ) OR NOT EXISTS (
-    SELECT 1 FROM partman.part_config 
-    WHERE parent_table = 'public.customers_audit'
-  ) THEN
-    PERFORM partman.create_parent('public.customers_audit', 'changed_at', '1 month');
-  END IF;
-EXCEPTION WHEN others THEN
-  -- If pg_partman is not properly configured, skip silently
-  NULL;
-END $$;
-
--- user_profiles table (merged from multiple patches)
-CREATE TABLE IF NOT EXISTS "public"."user_profiles" (
-  "id" bigint generated always as identity NOT NULL,
-  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
-  "idp_code" varchar(255) NOT NULL,
-  "idp_org" varchar(255),
-  "idp_username" varchar(255),
-  "email" varchar(320),
-  "display_name" varchar(255),
-  "avatar_color" varchar(7),
-  "avatar_initials" varchar(10),
-  "is_active" boolean NOT NULL DEFAULT true,
-  "is_admin" boolean NOT NULL DEFAULT false,
-  "roles" jsonb,
-  "last_synced_at" timestamptz,
-  "is_verified" boolean DEFAULT false NOT NULL,
-  "issuer" varchar(255),
-  "email_verified" boolean DEFAULT false NOT NULL,
-  "created_at" timestamptz DEFAULT now(),
-  "created_by" text,
-  "updated_at" timestamptz DEFAULT now(),
-  "updated_by" text,
-  "version" integer DEFAULT 1,
-  "deleted_at" timestamptz,
-  "deleted_by" text,
-  "auth_method_enforcer_dismissed" boolean NOT NULL DEFAULT false,
-  "onboarding_completed" boolean NOT NULL DEFAULT false,
-  PRIMARY KEY ("id")
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS "user_profiles_uuid_uq" ON "public"."user_profiles" ("uuid");
-CREATE UNIQUE INDEX IF NOT EXISTS "user_profiles_idp_code_uq" ON "public"."user_profiles" ("idp_code");
-
-COMMENT ON COLUMN public.user_profiles.avatar_color IS 'Avatar color hex code (e.g., #3b82f6) for user profile display';
-COMMENT ON COLUMN public.user_profiles.is_active IS 'Whether the user account is active (mirrors Casdoor™ isForbidden)';
-COMMENT ON COLUMN public.user_profiles.is_admin IS 'Whether the user has admin privileges (mirrors Casdoor™ isAdmin)';
-COMMENT ON COLUMN public.user_profiles.roles IS 'Array of role names assigned to the user (mirrors Casdoor™ roles)';
-COMMENT ON COLUMN public.user_profiles.last_synced_at IS 'Timestamp of last successful sync with Casdoor™';
-COMMENT ON COLUMN public.user_profiles.auth_method_enforcer_dismissed IS 'Whether the user dismissed the auth method enforcer dialog (passkey/MFA prompt)';
-COMMENT ON COLUMN public.user_profiles.onboarding_completed IS 'Whether the user completed the welcome/onboarding flow';
-
--- user_profiles_audit table
-CREATE TABLE IF NOT EXISTS "public"."user_profiles_audit" (
-  "id" bigint generated always as identity NOT NULL,
-  "entity_id" bigint NOT NULL,
-  "entity_uuid" uuid NOT NULL,
-  "action" text NOT NULL,
-  "changed_at" timestamptz NOT NULL,
-  "changed_by" text NOT NULL DEFAULT 'system',
-  "version" integer NOT NULL,
-  "delta" jsonb NOT NULL,
-  PRIMARY KEY ("id")
-);
-
-CREATE INDEX IF NOT EXISTS "user_profiles_audit_entity_uuid_idx" ON "public"."user_profiles_audit" ("entity_uuid");
-CREATE INDEX IF NOT EXISTS "user_profiles_audit_action_idx" ON "public"."user_profiles_audit" ("action");
-
--- user_invitations table
-CREATE TABLE IF NOT EXISTS "public"."user_invitations" (
-  "id" bigint generated always as identity NOT NULL,
-  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
-  "user_profile_id" bigint NOT NULL,
-  "token_hash" text NOT NULL,
-  "status" text NOT NULL DEFAULT 'PENDING',
-  "email" varchar(320) NOT NULL,
-  "created_at" timestamptz DEFAULT now(),
-  "created_by" text,
-  "expires_at" timestamptz NOT NULL,
-  "completed_at" timestamptz,
-  "updated_at" timestamptz DEFAULT now(),
-  "updated_by" text,
-  "version" integer DEFAULT 1,
-  "otp_hash" text,
-  "otp_expires_at" timestamptz,
-  "otp_attempts" integer NOT NULL DEFAULT 0,
-  "otp_verified_at" timestamptz,
-  PRIMARY KEY ("id")
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS "user_invitations_uuid_uq" ON "public"."user_invitations" ("uuid");
-CREATE UNIQUE INDEX IF NOT EXISTS "user_invitations_token_hash_uq" ON "public"."user_invitations" ("token_hash");
-CREATE INDEX IF NOT EXISTS "user_invitations_user_profile_id_idx" ON "public"."user_invitations" ("user_profile_id");
-CREATE INDEX IF NOT EXISTS "user_invitations_status_idx" ON "public"."user_invitations" ("status");
-
-COMMENT ON TABLE public.user_invitations IS 'Invitation tokens for user onboarding/welcome flow';
-COMMENT ON COLUMN public.user_invitations.token_hash IS 'SHA-256 hash of the invitation token (raw token never stored)';
-COMMENT ON COLUMN public.user_invitations.status IS 'PENDING | OTP_SENT | COMPLETED | EXPIRED | REVOKED';
-COMMENT ON COLUMN public.user_invitations.otp_hash IS 'SHA-256 hash of the 6-digit OTP code (null if not sent)';
-COMMENT ON COLUMN public.user_invitations.otp_expires_at IS 'OTP validity window (5 minutes from send)';
-COMMENT ON COLUMN public.user_invitations.otp_attempts IS 'Failed OTP verify attempts (max 10)';
-COMMENT ON COLUMN public.user_invitations.otp_verified_at IS 'When the user verified the OTP (gate for password set)';
-
--- user_passkeys table
-CREATE TABLE IF NOT EXISTS "public"."user_passkeys" (
-  "id" bigint generated always as identity NOT NULL,
-  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
-  "user_profile_id" bigint NOT NULL,
-  "credential_id" text NOT NULL,
-  "aaguid" text,
-  "transports" jsonb,
-  "label" varchar(100),
-  "last_used_at" timestamptz,
-  "authenticator_attachment" text,
+  "user_profile_uuid" uuid,
+  "attempted_username" text,
+  "event_type" text NOT NULL,
+  "event_at" timestamptz NOT NULL,
+  "ip_address" inet,
   "user_agent" text,
-  "os" text,
-  "device_model" text,
-  "created_at" timestamptz DEFAULT now(),
-  "created_by" text,
-  "updated_at" timestamptz DEFAULT now(),
-  "updated_by" text,
-  "version" integer DEFAULT 1,
+  "success" boolean NOT NULL,
+  "failure_reason" text,
   PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "user_passkeys_uuid_uq" ON "public"."user_passkeys" ("uuid");
-CREATE UNIQUE INDEX IF NOT EXISTS "user_passkeys_credential_id_uq" ON "public"."user_passkeys" ("credential_id");
-CREATE INDEX IF NOT EXISTS "user_passkeys_user_profile_id_idx" ON "public"."user_passkeys" ("user_profile_id");
-
-COMMENT ON TABLE public.user_passkeys IS 'Passkey credentials tracked in PG (mirrors Casdoor™ webauthnCredentials)';
-COMMENT ON COLUMN public.user_passkeys.credential_id IS 'base64url credential ID from WebAuthn';
-COMMENT ON COLUMN public.user_passkeys.aaguid IS 'Authenticator model identifier';
-COMMENT ON COLUMN public.user_passkeys.transports IS 'JSON array of transports ["internal","hybrid","usb","nfc","ble"]';
-COMMENT ON COLUMN public.user_passkeys.label IS 'User-given name (e.g. "Windows Hello™", "iPhone")';
-COMMENT ON COLUMN public.user_passkeys.last_used_at IS 'Last time this credential was used to sign in (null until first signin after this feature ships)';
-COMMENT ON COLUMN public.user_passkeys.authenticator_attachment IS 'platform | cross-platform (WebAuthn AuthenticatorAttachment)';
-COMMENT ON COLUMN public.user_passkeys.user_agent IS 'navigator.userAgent captured at enrollment (truncated to 512 chars)';
-COMMENT ON COLUMN public.user_passkeys.os IS 'OS inferred from UA at enrollment (e.g. Windows, macOS, iOS, Android, Linux)';
-COMMENT ON COLUMN public.user_passkeys.device_model IS 'Device model inferred from UA at enrollment (e.g. "Windows PC", "Mac", "iPhone", "Pixel")';
-
--- user_mfa_factors table (MFA factors tracked in PG, mirrors Casdoor™ MFA setup)
-CREATE TABLE IF NOT EXISTS "public"."user_mfa_factors" (
-  "id" bigint generated always as identity NOT NULL,
-  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
-  "user_profile_id" bigint NOT NULL,
-  "factor_type" text NOT NULL,
-  "casdoor_mfa_type" text,
-  "totp_secret_encrypted" text NOT NULL,
-  "label" varchar(100),
-  "is_enabled" boolean NOT NULL DEFAULT true,
-  "is_preferred" boolean NOT NULL DEFAULT false,
-  "last_used_at" timestamptz,
-  "created_at" timestamptz DEFAULT now(),
-  "created_by" text,
-  "updated_at" timestamptz DEFAULT now(),
-  "updated_by" text,
-  "version" integer DEFAULT 1,
-  PRIMARY KEY ("id")
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS "user_mfa_factors_uuid_uq" ON "public"."user_mfa_factors" ("uuid");
-CREATE INDEX IF NOT EXISTS "user_mfa_factors_user_profile_id_idx" ON "public"."user_mfa_factors" ("user_profile_id");
-
-COMMENT ON TABLE public.user_mfa_factors IS 'MFA factors tracked in PG (mirrors Casdoor™ MFA setup)';
-COMMENT ON COLUMN public.user_mfa_factors.factor_type IS 'Factor type: "totp" (v1 only)';
-COMMENT ON COLUMN public.user_mfa_factors.casdoor_mfa_type IS 'Casdoor™ mfaType value: "app" for TOTP';
-COMMENT ON COLUMN public.user_mfa_factors.label IS 'User-given name (e.g. "Google Authenticator™", "Authy™")';
-COMMENT ON COLUMN public.user_mfa_factors.is_enabled IS 'Whether the factor is enabled';
-COMMENT ON COLUMN public.user_mfa_factors.is_preferred IS 'Whether this is the preferred factor (shown first in challenge UI)';
-COMMENT ON COLUMN public.user_mfa_factors.last_used_at IS 'When the factor was last used for verification';
-
--- mfa_action_authorizations table (single-use action authorization tokens for step-up MFA)
-CREATE TABLE IF NOT EXISTS "public"."mfa_action_authorizations" (
-  "id" bigint generated always as identity NOT NULL,
-  "jti" text NOT NULL,
-  "user_profile_id" bigint NOT NULL,
-  "action" text NOT NULL,
-  "target_resource" text NOT NULL,
-  "token_hash" text NOT NULL,
-  "expires_at" timestamptz NOT NULL,
-  "used_at" timestamptz,
-  "created_at" timestamptz DEFAULT now(),
-  "created_by" text,
-  "updated_at" timestamptz DEFAULT now(),
-  "updated_by" text,
-  "version" integer DEFAULT 1,
-  PRIMARY KEY ("id")
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS "mfa_action_authorizations_jti_uq" ON "public"."mfa_action_authorizations" ("jti");
-CREATE INDEX IF NOT EXISTS "mfa_action_authorizations_user_profile_id_idx" ON "public"."mfa_action_authorizations" ("user_profile_id");
-CREATE INDEX IF NOT EXISTS "mfa_action_authorizations_expires_at_idx" ON "public"."mfa_action_authorizations" ("expires_at");
-
-COMMENT ON TABLE public.mfa_action_authorizations IS 'Single-use action authorization tokens for step-up MFA';
-COMMENT ON COLUMN public.mfa_action_authorizations.jti IS 'JWT jti claim — unique identifier of the action authorization token';
-COMMENT ON COLUMN public.mfa_action_authorizations.action IS 'The action being authorized (create, update, delete, restore)';
-COMMENT ON COLUMN public.mfa_action_authorizations.target_resource IS 'The target resource being acted upon (e.g. "organizations", "user_profiles")';
-COMMENT ON COLUMN public.mfa_action_authorizations.token_hash IS 'SHA-256 hash of the JWT token (for lookup, never store the token itself)';
-COMMENT ON COLUMN public.mfa_action_authorizations.expires_at IS 'When the token expires';
-COMMENT ON COLUMN public.mfa_action_authorizations.used_at IS 'When the token was consumed by the middleware. NULL = not yet used';
-
--- role_mappings table
-CREATE TABLE IF NOT EXISTS "public"."role_mappings" (
-  "id" bigint generated always as identity NOT NULL,
-  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
-  "idp_role" varchar(255) NOT NULL,
-  "label_key" varchar(255),
-  "permissions" jsonb NOT NULL,
-  "is_admin" boolean NOT NULL DEFAULT false,
-  "idp_org" varchar(255),
-  "last_synced_at" timestamptz,
-  "created_at" timestamptz DEFAULT now(),
-  "created_by" text,
-  "updated_at" timestamptz DEFAULT now(),
-  "updated_by" text,
-  "version" integer DEFAULT 1,
-  PRIMARY KEY ("id")
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS "role_mappings_idp_role_uq" ON "public"."role_mappings" ("idp_role");
-CREATE UNIQUE INDEX IF NOT EXISTS "role_mappings_uuid_uq" ON "public"."role_mappings" ("uuid");
-
--- role_mappings_audit table
-CREATE TABLE IF NOT EXISTS "public"."role_mappings_audit" (
-  "id" bigint generated always as identity NOT NULL,
-  "entity_id" bigint NOT NULL,
-  "entity_uuid" uuid NOT NULL,
-  "action" text NOT NULL,
-  "changed_at" timestamptz NOT NULL,
-  "changed_by" text NOT NULL DEFAULT 'system',
-  "version" integer NOT NULL,
-  "delta" jsonb NOT NULL,
-  PRIMARY KEY ("id", "changed_at")
-) PARTITION BY RANGE ("changed_at");
-
--- pg_partman setup for role_mappings_audit (idempotent)
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'partman' 
-    AND table_name = 'part_config'
-  ) OR NOT EXISTS (
-    SELECT 1 FROM partman.part_config 
-    WHERE parent_table = 'public.role_mappings_audit'
-  ) THEN
-    PERFORM partman.create_parent('public.role_mappings_audit', 'changed_at', '1 month');
-  END IF;
-EXCEPTION WHEN others THEN
-  -- If pg_partman is not properly configured, skip silently
-  NULL;
-END $$;
-
-CREATE INDEX IF NOT EXISTS "role_mappings_audit_entity_uuid_idx" ON "public"."role_mappings_audit" ("entity_uuid");
-CREATE INDEX IF NOT EXISTS "role_mappings_audit_action_idx" ON "public"."role_mappings_audit" ("action");
-
--- config_entries table (Config Table standard: type/type_config/label_key/description_key/reserved)
 CREATE TABLE IF NOT EXISTS "public"."config_entries" (
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "created_by" text NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_by" text NOT NULL,
+  "version" int4 DEFAULT 1 NOT NULL,
+  "deleted_at" timestamptz,
+  "deleted_by" text,
   "id" bigint generated always as identity NOT NULL,
   "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
   "key" varchar(100) NOT NULL,
   "value" text,
-  "type" varchar(50) NOT NULL DEFAULT 'string',
+  "type" varchar(50) NOT NULL,
   "type_config" text,
   "label_key" varchar(100),
   "description_key" varchar(100),
-  "reserved" boolean NOT NULL DEFAULT false,
+  "reserved" boolean DEFAULT false NOT NULL,
   "group_key" varchar(100),
-  "created_at" timestamptz DEFAULT now(),
-  "created_by" text,
-  "updated_at" timestamptz DEFAULT now(),
-  "updated_by" text,
-  "version" integer DEFAULT 1,
-  "deleted_at" timestamptz,
-  "deleted_by" text,
   PRIMARY KEY ("id")
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS "config_entries_uuid_uq" ON "public"."config_entries" ("uuid");
 CREATE UNIQUE INDEX IF NOT EXISTS "config_entries_key_uq" ON "public"."config_entries" ("key");
-CREATE INDEX IF NOT EXISTS "config_entries_deleted_at_idx" ON "public"."config_entries" ("deleted_at");
 
--- config_entries_audit table
 CREATE TABLE IF NOT EXISTS "public"."config_entries_audit" (
   "id" bigint generated always as identity NOT NULL,
   "entity_id" bigint NOT NULL,
@@ -407,32 +69,55 @@ CREATE TABLE IF NOT EXISTS "public"."config_entries_audit" (
   PRIMARY KEY ("id", "changed_at")
 ) PARTITION BY RANGE ("changed_at");
 
-COMMENT ON COLUMN public.config_entries_audit.changed_by IS 'Identifier of the principal that produced the audit entry (falls back to "system" when no authenticated context is available).';
+SELECT partman.create_parent('public.config_entries_audit', 'changed_at', '1 month', 'range');
 
--- Indexes for config_entries_audit
 CREATE INDEX IF NOT EXISTS "config_entries_audit_entity_uuid_idx" ON "public"."config_entries_audit" ("entity_uuid");
 CREATE INDEX IF NOT EXISTS "config_entries_audit_action_idx" ON "public"."config_entries_audit" ("action");
 
--- pg_partman setup for config_entries_audit (idempotent)
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'partman' 
-    AND table_name = 'part_config'
-  ) OR NOT EXISTS (
-    SELECT 1 FROM partman.part_config 
-    WHERE parent_table = 'public.config_entries_audit'
-  ) THEN
-    PERFORM partman.create_parent('public.config_entries_audit', 'changed_at', '1 month');
-  END IF;
-EXCEPTION WHEN others THEN
-  -- If pg_partman is not properly configured, skip silently
-  NULL;
-END $$;
+CREATE TABLE IF NOT EXISTS "public"."mfa_action_authorizations" (
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "created_by" text NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_by" text NOT NULL,
+  "version" int4 DEFAULT 1 NOT NULL,
+  "id" bigint generated always as identity NOT NULL,
+  "jti" text NOT NULL,
+  "user_profile_id" int8 NOT NULL,
+  "action" text NOT NULL,
+  "target_resource" text NOT NULL,
+  "token_hash" text NOT NULL,
+  "expires_at" timestamptz NOT NULL,
+  "used_at" timestamptz,
+  PRIMARY KEY ("id")
+);
 
--- organizations table (merged from multiple patches)
+CREATE UNIQUE INDEX IF NOT EXISTS "mfa_action_authorizations_jti_uq" ON "public"."mfa_action_authorizations" ("jti");
+
+CREATE TABLE IF NOT EXISTS "public"."mfa_action_authorizations_audit" (
+  "id" bigint generated always as identity NOT NULL,
+  "entity_id" bigint NOT NULL,
+  "entity_uuid" uuid NOT NULL,
+  "action" text NOT NULL,
+  "changed_at" timestamptz NOT NULL,
+  "changed_by" text NOT NULL DEFAULT 'system',
+  "version" integer NOT NULL,
+  "delta" jsonb NOT NULL,
+  PRIMARY KEY ("id", "changed_at")
+) PARTITION BY RANGE ("changed_at");
+
+SELECT partman.create_parent('public.mfa_action_authorizations_audit', 'changed_at', '1 month', 'range');
+
+CREATE INDEX IF NOT EXISTS "mfa_action_authorizations_audit_entity_uuid_idx" ON "public"."mfa_action_authorizations_audit" ("entity_uuid");
+CREATE INDEX IF NOT EXISTS "mfa_action_authorizations_audit_action_idx" ON "public"."mfa_action_authorizations_audit" ("action");
+
 CREATE TABLE IF NOT EXISTS "public"."organizations" (
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "created_by" text NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_by" text NOT NULL,
+  "version" int4 DEFAULT 1 NOT NULL,
+  "deleted_at" timestamptz,
+  "deleted_by" text,
   "id" bigint generated always as identity NOT NULL,
   "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
   "idp_code" varchar(255) NOT NULL,
@@ -441,21 +126,13 @@ CREATE TABLE IF NOT EXISTS "public"."organizations" (
   "display_name" varchar(255),
   "website_url" varchar(2048),
   "avatar" text,
-  "last_synced_at" timestamp with time zone,
-  "created_at" timestamptz DEFAULT now(),
-  "created_by" text,
-  "updated_at" timestamptz DEFAULT now(),
-  "updated_by" text,
-  "version" integer DEFAULT 1,
-  "deleted_at" timestamptz,
-  "deleted_by" text,
+  "last_synced_at" timestamptz,
   PRIMARY KEY ("id")
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "organizations_uuid_uq" ON "public"."organizations" ("uuid");
 CREATE UNIQUE INDEX IF NOT EXISTS "organizations_idp_code_uq" ON "public"."organizations" ("idp_code");
 
--- organizations_audit table
 CREATE TABLE IF NOT EXISTS "public"."organizations_audit" (
   "id" bigint generated always as identity NOT NULL,
   "entity_id" bigint NOT NULL,
@@ -468,33 +145,291 @@ CREATE TABLE IF NOT EXISTS "public"."organizations_audit" (
   PRIMARY KEY ("id", "changed_at")
 ) PARTITION BY RANGE ("changed_at");
 
--- pg_partman setup for organizations_audit (idempotent)
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'partman' 
-    AND table_name = 'part_config'
-  ) OR NOT EXISTS (
-    SELECT 1 FROM partman.part_config 
-    WHERE parent_table = 'public.organizations_audit'
-  ) THEN
-    PERFORM partman.create_parent('public.organizations_audit', 'changed_at', '1 month');
-  END IF;
-EXCEPTION WHEN others THEN
-  -- If pg_partman is not properly configured, skip silently
-  NULL;
-END $$;
+SELECT partman.create_parent('public.organizations_audit', 'changed_at', '1 month', 'range');
 
 CREATE INDEX IF NOT EXISTS "organizations_audit_entity_uuid_idx" ON "public"."organizations_audit" ("entity_uuid");
 CREATE INDEX IF NOT EXISTS "organizations_audit_action_idx" ON "public"."organizations_audit" ("action");
 
--- service_registry table
+CREATE TABLE IF NOT EXISTS "public"."role_mappings" (
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "created_by" text NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_by" text NOT NULL,
+  "version" int4 DEFAULT 1 NOT NULL,
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "idp_role" varchar(255) NOT NULL,
+  "idp_org" varchar(255),
+  "label_key" varchar(255),
+  "permissions" jsonb NOT NULL,
+  "is_admin" boolean NOT NULL,
+  "last_synced_at" timestamptz,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "role_mappings_uuid_uq" ON "public"."role_mappings" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "role_mappings_idp_role_uq" ON "public"."role_mappings" ("idp_role");
+
+CREATE TABLE IF NOT EXISTS "public"."role_mappings_audit" (
+  "id" bigint generated always as identity NOT NULL,
+  "entity_id" bigint NOT NULL,
+  "entity_uuid" uuid NOT NULL,
+  "action" text NOT NULL,
+  "changed_at" timestamptz NOT NULL,
+  "changed_by" text NOT NULL DEFAULT 'system',
+  "version" integer NOT NULL,
+  "delta" jsonb NOT NULL,
+  PRIMARY KEY ("id", "changed_at")
+) PARTITION BY RANGE ("changed_at");
+
+SELECT partman.create_parent('public.role_mappings_audit', 'changed_at', '1 month', 'range');
+
+CREATE INDEX IF NOT EXISTS "role_mappings_audit_entity_uuid_idx" ON "public"."role_mappings_audit" ("entity_uuid");
+CREATE INDEX IF NOT EXISTS "role_mappings_audit_action_idx" ON "public"."role_mappings_audit" ("action");
+
+CREATE TABLE IF NOT EXISTS "public"."user_invitations" (
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "created_by" text NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_by" text NOT NULL,
+  "version" int4 DEFAULT 1 NOT NULL,
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "user_profile_id" int8 NOT NULL,
+  "token_hash" text NOT NULL,
+  "status" text NOT NULL,
+  "email" varchar(320) NOT NULL,
+  "expires_at" timestamptz NOT NULL,
+  "completed_at" timestamptz,
+  "otp_hash" text,
+  "otp_expires_at" timestamptz,
+  "otp_attempts" integer DEFAULT 0 NOT NULL,
+  "otp_verified_at" timestamptz,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "user_invitations_uuid_uq" ON "public"."user_invitations" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_invitations_token_hash_uq" ON "public"."user_invitations" ("token_hash");
+
+CREATE TABLE IF NOT EXISTS "public"."user_invitations_audit" (
+  "id" bigint generated always as identity NOT NULL,
+  "entity_id" bigint NOT NULL,
+  "entity_uuid" uuid NOT NULL,
+  "action" text NOT NULL,
+  "changed_at" timestamptz NOT NULL,
+  "changed_by" text NOT NULL DEFAULT 'system',
+  "version" integer NOT NULL,
+  "delta" jsonb NOT NULL,
+  PRIMARY KEY ("id", "changed_at")
+) PARTITION BY RANGE ("changed_at");
+
+SELECT partman.create_parent('public.user_invitations_audit', 'changed_at', '1 month', 'range');
+
+CREATE INDEX IF NOT EXISTS "user_invitations_audit_entity_uuid_idx" ON "public"."user_invitations_audit" ("entity_uuid");
+CREATE INDEX IF NOT EXISTS "user_invitations_audit_action_idx" ON "public"."user_invitations_audit" ("action");
+
+CREATE TABLE IF NOT EXISTS "public"."user_mfa_factors" (
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "created_by" text NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_by" text NOT NULL,
+  "version" int4 DEFAULT 1 NOT NULL,
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "user_profile_id" int8 NOT NULL,
+  "factor_type" text NOT NULL,
+  "casdoor_mfa_type" text,
+  "totp_secret_encrypted" text NOT NULL,
+  "label" varchar(100),
+  "is_enabled" boolean NOT NULL,
+  "is_preferred" boolean NOT NULL,
+  "last_used_at" timestamptz,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "user_mfa_factors_uuid_uq" ON "public"."user_mfa_factors" ("uuid");
+
+CREATE TABLE IF NOT EXISTS "public"."user_mfa_factors_audit" (
+  "id" bigint generated always as identity NOT NULL,
+  "entity_id" bigint NOT NULL,
+  "entity_uuid" uuid NOT NULL,
+  "action" text NOT NULL,
+  "changed_at" timestamptz NOT NULL,
+  "changed_by" text NOT NULL DEFAULT 'system',
+  "version" integer NOT NULL,
+  "delta" jsonb NOT NULL,
+  PRIMARY KEY ("id", "changed_at")
+) PARTITION BY RANGE ("changed_at");
+
+SELECT partman.create_parent('public.user_mfa_factors_audit', 'changed_at', '1 month', 'range');
+
+CREATE INDEX IF NOT EXISTS "user_mfa_factors_audit_entity_uuid_idx" ON "public"."user_mfa_factors_audit" ("entity_uuid");
+CREATE INDEX IF NOT EXISTS "user_mfa_factors_audit_action_idx" ON "public"."user_mfa_factors_audit" ("action");
+
+CREATE TABLE IF NOT EXISTS "public"."user_passkeys" (
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "created_by" text NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_by" text NOT NULL,
+  "version" int4 DEFAULT 1 NOT NULL,
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "user_profile_id" int8 NOT NULL,
+  "credential_id" text NOT NULL,
+  "aaguid" text,
+  "transports" jsonb,
+  "label" varchar(100),
+  "last_used_at" timestamptz,
+  "authenticator_attachment" text,
+  "user_agent" text,
+  "os" text,
+  "device_model" text,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "user_passkeys_uuid_uq" ON "public"."user_passkeys" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_passkeys_credential_id_uq" ON "public"."user_passkeys" ("credential_id");
+
+CREATE TABLE IF NOT EXISTS "public"."user_passkeys_audit" (
+  "id" bigint generated always as identity NOT NULL,
+  "entity_id" bigint NOT NULL,
+  "entity_uuid" uuid NOT NULL,
+  "action" text NOT NULL,
+  "changed_at" timestamptz NOT NULL,
+  "changed_by" text NOT NULL DEFAULT 'system',
+  "version" integer NOT NULL,
+  "delta" jsonb NOT NULL,
+  PRIMARY KEY ("id", "changed_at")
+) PARTITION BY RANGE ("changed_at");
+
+SELECT partman.create_parent('public.user_passkeys_audit', 'changed_at', '1 month', 'range');
+
+CREATE INDEX IF NOT EXISTS "user_passkeys_audit_entity_uuid_idx" ON "public"."user_passkeys_audit" ("entity_uuid");
+CREATE INDEX IF NOT EXISTS "user_passkeys_audit_action_idx" ON "public"."user_passkeys_audit" ("action");
+
+CREATE TABLE IF NOT EXISTS "public"."user_preferences" (
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "created_by" text NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_by" text NOT NULL,
+  "version" int4 DEFAULT 1 NOT NULL,
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "user_uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "key" varchar(128) NOT NULL,
+  "value" jsonb NOT NULL,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "user_preferences_user_key_uidx" ON "public"."user_preferences" ("user_uuid", "key");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_preferences_uuid_uq" ON "public"."user_preferences" ("uuid");
+
+CREATE TABLE IF NOT EXISTS "public"."user_profiles" (
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "created_by" text NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_by" text NOT NULL,
+  "version" int4 DEFAULT 1 NOT NULL,
+  "deleted_at" timestamptz,
+  "deleted_by" text,
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "idp_code" varchar(255) NOT NULL,
+  "email" varchar(320),
+  "display_name" varchar(255),
+  "avatar_color" varchar(7),
+  "avatar_initials" varchar(10),
+  "is_active" boolean DEFAULT true NOT NULL,
+  "is_admin" boolean DEFAULT false NOT NULL,
+  "roles" jsonb,
+  "last_synced_at" timestamptz,
+  "idp_org" varchar(255),
+  "idp_username" varchar(255),
+  "is_verified" boolean DEFAULT false NOT NULL,
+  "email_verified" boolean DEFAULT false NOT NULL,
+  "issuer" varchar(255),
+  "auth_method_enforcer_dismissed" boolean DEFAULT false NOT NULL,
+  "onboarding_completed" boolean DEFAULT false NOT NULL,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "user_profiles_uuid_uq" ON "public"."user_profiles" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_profiles_idp_code_uq" ON "public"."user_profiles" ("idp_code");
+
+CREATE TABLE IF NOT EXISTS "public"."user_profiles_audit" (
+  "id" bigint generated always as identity NOT NULL,
+  "entity_id" bigint NOT NULL,
+  "entity_uuid" uuid NOT NULL,
+  "action" text NOT NULL,
+  "changed_at" timestamptz NOT NULL,
+  "changed_by" text NOT NULL DEFAULT 'system',
+  "version" integer NOT NULL,
+  "delta" jsonb NOT NULL,
+  PRIMARY KEY ("id", "changed_at")
+) PARTITION BY RANGE ("changed_at");
+
+SELECT partman.create_parent('public.user_profiles_audit', 'changed_at', '1 month', 'range');
+
+CREATE INDEX IF NOT EXISTS "user_profiles_audit_entity_uuid_idx" ON "public"."user_profiles_audit" ("entity_uuid");
+CREATE INDEX IF NOT EXISTS "user_profiles_audit_action_idx" ON "public"."user_profiles_audit" ("action");
+
+CREATE TABLE IF NOT EXISTS "public"."api_keys" (
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "created_by" text NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_by" text NOT NULL,
+  "version" int4 DEFAULT 1 NOT NULL,
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "key_hash" text NOT NULL,
+  "key_prefix" varchar(20) NOT NULL,
+  "name" varchar(100) NOT NULL,
+  "description" text,
+  "permissions" jsonb,
+  "is_system" boolean,
+  "is_active" boolean,
+  "expires_at" timestamptz,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "api_keys_uuid_uq" ON "public"."api_keys" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "api_keys_key_hash_uq" ON "public"."api_keys" ("key_hash");
+
+CREATE TABLE IF NOT EXISTS "public"."mcp_oauth_clients" (
+  "id" bigint generated always as identity NOT NULL,
+  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
+  "client_id" varchar(255) NOT NULL,
+  "client_secret" text,
+  "client_name" varchar(255),
+  "redirect_uris" jsonb,
+  "grant_types" jsonb,
+  "response_types" jsonb,
+  "token_endpoint_auth_method" varchar(50),
+  "scope" text,
+  "client_id_issued_at" timestamptz,
+  "client_secret_expires_at" timestamptz,
+  "created_at" timestamptz NOT NULL,
+  "updated_at" timestamptz NOT NULL,
+  "version" int4 NOT NULL,
+  PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "mcp_oauth_clients_uuid_uq" ON "public"."mcp_oauth_clients" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "mcp_oauth_clients_client_id_uq" ON "public"."mcp_oauth_clients" ("client_id");
+
 CREATE TABLE IF NOT EXISTS "public"."service_registry" (
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "created_by" text NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_by" text NOT NULL,
+  "version" int4 DEFAULT 1 NOT NULL,
+  "deleted_at" timestamptz,
+  "deleted_by" text,
   "id" bigint generated always as identity NOT NULL,
   "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
   "code" varchar(100) NOT NULL,
   "base_url" text NOT NULL,
+  "part_of" text NOT NULL,
   "endpoints" jsonb NOT NULL,
   "name" text,
   "description" text,
@@ -502,337 +437,128 @@ CREATE TABLE IF NOT EXISTS "public"."service_registry" (
   "github_repo_url" text,
   "service_version" text,
   "pkg_name" text,
-  "is_behind_scaler" boolean NOT NULL DEFAULT false,
-  "is_reserved" boolean NOT NULL DEFAULT false,
-  "status" text NOT NULL DEFAULT 'unknown',
+  "capabilities" jsonb DEFAULT '[]' NOT NULL,
+  "schemas" text[] DEFAULT '{}' NOT NULL,
+  "is_behind_scaler" boolean DEFAULT false NOT NULL,
+  "status" text DEFAULT 'unknown' NOT NULL,
   "last_health_check_at" timestamptz,
-  "is_enabled" boolean NOT NULL DEFAULT true,
+  "is_enabled" boolean DEFAULT true NOT NULL,
   "icon" text,
-  "icon_type" text NOT NULL DEFAULT 'icon',
-  "created_at" timestamptz DEFAULT now(),
-  "created_by" text,
-  "updated_at" timestamptz DEFAULT now(),
-  "updated_by" text,
-  "version" integer DEFAULT 1,
+  "icon_type" text DEFAULT 'icon' NOT NULL,
+  "is_reserved" boolean DEFAULT false NOT NULL,
+  "label_key" varchar,
+  "is_default" boolean DEFAULT false NOT NULL,
   PRIMARY KEY ("id")
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_uuid_uq" ON "public"."service_registry" ("uuid");
 
--- One row per code when behind scaler
-CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_uq_scaler"
-  ON "public"."service_registry" ("code") WHERE is_behind_scaler = true;
+CREATE SCHEMA IF NOT EXISTS "system";
 
--- One row per (code, base_url) when not behind scaler
-CREATE UNIQUE INDEX IF NOT EXISTS "service_registry_code_base_url_uq"
-  ON "public"."service_registry" ("code", "base_url") WHERE is_behind_scaler = false;
-
--- Seed reserved SETTINGS module (cannot be disabled/deleted, always present).
--- SETTINGS is the system configuration module — 7 sub-pages, no microservice backend.
-INSERT INTO public.service_registry (
-  code, base_url, endpoints, name, description, is_behind_scaler,
-  status, is_enabled, icon, icon_type, is_reserved,
-  created_at, created_by, updated_at, updated_by, version
-)
-SELECT
-  'settings', '', '{}'::jsonb, 'Settings', 'Primebrick system settings — reserved shell module', true,
-  'active', true, 'settings', 'icon', true,
-  now(), 'system', now(), 'system', 1
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.service_registry WHERE code = 'settings' AND is_behind_scaler = true
-);
-
--- === AI Chat tables ===
--- NOTE: The AI chat tables (docs_kb, ai_conversations, ai_messages,
--- ai_feedback, ai_telemetry) live in the "ai" schema and are created by the
--- AI microservice's own db-meta/patches/0002_ai_chat_tables.sql patch.
--- The AI microservice owns its schema (microservice isolation pattern).
--- auth_events stays in public because it is a BE concern (auth-event-logger
--- writes from the BE, and the BE's MCP entity registry exposes it).
-
--- auth_events: Audit auth events (login, logout, mfa_verify, passkey_signin, login_failed)
--- user_profile_uuid is NULLABLE: for failed login attempts there is no JWT and
--- no resolvable user UUID. attempted_username captures the username that was tried.
-CREATE TABLE IF NOT EXISTS "public"."auth_events" (
-  "id" bigint generated always as identity PRIMARY KEY,
-  "user_profile_uuid" uuid,
-  "attempted_username" text,
-  "event_type" text NOT NULL,
-  "event_at" timestamptz NOT NULL DEFAULT now(),
-  "ip_address" inet,
-  "user_agent" text,
-  "success" boolean NOT NULL,
-  "failure_reason" text
-);
-
-CREATE INDEX IF NOT EXISTS "auth_events_user_profile_uuid_event_at_idx"
-  ON "public"."auth_events" ("user_profile_uuid", "event_at" DESC);
-CREATE INDEX IF NOT EXISTS "auth_events_event_type_event_at_idx"
-  ON "public"."auth_events" ("event_type", "event_at" DESC);
-CREATE INDEX IF NOT EXISTS "auth_events_attempted_username_event_at_idx"
-  ON "public"."auth_events" ("attempted_username", "event_at" DESC);
-
--- api_keys table (machine-to-machine authentication with RBAC).
--- API keys are first-class auth credentials mapped to permissions.
--- The is_system flag allows system API keys that bypass RBAC (actor = "system").
-CREATE TABLE IF NOT EXISTS "public"."api_keys" (
+CREATE TABLE IF NOT EXISTS "system"."client_shield_registry" (
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "created_by" text NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_by" text NOT NULL,
+  "version" int4 DEFAULT 1 NOT NULL,
+  "deleted_at" timestamptz,
+  "deleted_by" text,
   "id" bigint generated always as identity NOT NULL,
   "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
-  "key_hash" text NOT NULL,
-  "key_prefix" varchar(20) NOT NULL,
-  "name" varchar(100) NOT NULL,
-  "description" text,
-  "permissions" jsonb DEFAULT '[]',
-  "is_system" boolean DEFAULT FALSE,
-  "is_active" boolean DEFAULT TRUE,
-  "expires_at" timestamptz,
-  "created_at" timestamptz DEFAULT now(),
-  "created_by" text,
-  "updated_at" timestamptz DEFAULT now(),
-  "updated_by" text,
-  "version" integer DEFAULT 1,
+  "ua_prefix" varchar(255) NOT NULL,
+  "client_key_hash" varchar(255) NOT NULL,
+  "source" varchar(20) DEFAULT 'manual' NOT NULL,
+  "is_enabled" boolean DEFAULT true NOT NULL,
+  "key_mode" varchar(10) DEFAULT 'static' NOT NULL,
+  "key_generation" int4 DEFAULT 0 NOT NULL,
+  "previous_key_hash" varchar(255),
+  "previous_valid_until" timestamptz,
+  "key_rotated_at" timestamptz,
   PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "api_keys_uuid_uq" ON "public"."api_keys" ("uuid");
-CREATE UNIQUE INDEX IF NOT EXISTS "api_keys_key_hash_uq" ON "public"."api_keys" ("key_hash");
+CREATE UNIQUE INDEX IF NOT EXISTS "client_shield_registry_uuid_uq" ON "system"."client_shield_registry" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "client_shield_registry_ua_prefix_uq" ON "system"."client_shield_registry" ("ua_prefix");
 
--- mcp_oauth_clients table (MCP OAuth 2.1 Dynamic Client Registration, RFC 7591).
--- Stores OAuth clients registered by AI clients (Claude Desktop, Cursor, VS Code)
--- via the MCP server's DCR endpoint. These clients are used for the authorization
--- code flow that issues Casdoor JWTs scoped to the MCP server.
-CREATE TABLE IF NOT EXISTS "public"."mcp_oauth_clients" (
-  "id" bigint generated always as identity NOT NULL,
-  "uuid" uuid DEFAULT gen_random_uuid() NOT NULL,
-  "client_id" varchar(255) NOT NULL,
-  "client_secret" text,
-  "client_name" varchar(255),
-  "redirect_uris" jsonb DEFAULT '[]',
-  "grant_types" jsonb DEFAULT '["authorization_code","refresh_token"]',
-  "response_types" jsonb DEFAULT '["code"]',
-  "token_endpoint_auth_method" varchar(50) DEFAULT 'client_secret_post',
-  "scope" text DEFAULT 'mcp:tools',
-  "client_id_issued_at" timestamptz DEFAULT now(),
-  "client_secret_expires_at" timestamptz,
-  "created_at" timestamptz DEFAULT now(),
-  "updated_at" timestamptz DEFAULT now(),
-  "version" integer DEFAULT 1,
-  PRIMARY KEY ("id")
+-- ─── public.translations (app.* keys, BE gateway CRUD) ─────────────────
+
+CREATE TABLE IF NOT EXISTS public.translations (
+    id bigint NOT NULL,
+    uuid uuid DEFAULT gen_random_uuid() NOT NULL,
+    key character varying(255) NOT NULL,
+    language character varying(10) NOT NULL,
+    value text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by character varying(255) NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(255) NOT NULL,
+    version integer DEFAULT 1 NOT NULL,
+    deleted_at timestamp with time zone,
+    deleted_by character varying(255),
+    CONSTRAINT translations_key_shape CHECK (((key)::text ~ '^app(.[a-z0-9_]+)+$'::text))
 );
+CREATE SEQUENCE IF NOT EXISTS public.translations_id_seq
+    START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
+ALTER SEQUENCE public.translations_id_seq OWNED BY public.translations.id;
+ALTER TABLE ONLY public.translations ALTER COLUMN id SET DEFAULT nextval('public.translations_id_seq'::regclass);
+ALTER TABLE ONLY public.translations ADD CONSTRAINT translations_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.translations ADD CONSTRAINT translations_uuid_key UNIQUE (uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS translations_key_language_uidx ON public.translations USING btree (key, language);
+CREATE INDEX IF NOT EXISTS translations_language_idx ON public.translations USING btree (language) WHERE (deleted_at IS NULL);
 
-CREATE UNIQUE INDEX IF NOT EXISTS "mcp_oauth_clients_uuid_uq" ON "public"."mcp_oauth_clients" ("uuid");
-CREATE UNIQUE INDEX IF NOT EXISTS "mcp_oauth_clients_client_id_uq" ON "public"."mcp_oauth_clients" ("client_id");
+-- ─── system.translations (system.* keys) ────────────────────────────────
 
--- === Translations tables (DB is the sole source of truth for i18n) ===
--- Schema = module boundary: public.translations (app module), system.translations (system module).
--- One row per (key, language) pair. The key is the full dot-path
--- (e.g. 'app.auth.login.title'). The API returns a flat i18n dict
--- built by PostgreSQL's jsonb_object_agg(key, value).
-
--- public.translations (app module: app.* — all app-scope UI keys)
-CREATE TABLE IF NOT EXISTS "public"."translations" (
-  "id" BIGSERIAL PRIMARY KEY,
-  "uuid" UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  "key" VARCHAR(255) NOT NULL,
-  "language" VARCHAR(10) NOT NULL,
-  "value" TEXT NOT NULL,
-  "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "created_by" VARCHAR(255) NOT NULL,
-  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "updated_by" VARCHAR(255) NOT NULL,
-  "version" INTEGER NOT NULL DEFAULT 1,
-  "deleted_at" TIMESTAMPTZ,
-  "deleted_by" VARCHAR(255)
+CREATE TABLE IF NOT EXISTS system.translations (
+    id bigint NOT NULL,
+    uuid uuid DEFAULT gen_random_uuid() NOT NULL,
+    key character varying(255) NOT NULL,
+    language character varying(10) NOT NULL,
+    value text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by character varying(255) NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(255) NOT NULL,
+    version integer DEFAULT 1 NOT NULL,
+    deleted_at timestamp with time zone,
+    deleted_by character varying(255),
+    CONSTRAINT translations_key_shape CHECK (((key)::text ~ '^system(.[a-z0-9_]+)+$'::text))
 );
+CREATE SEQUENCE IF NOT EXISTS system.translations_id_seq
+    START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
+ALTER SEQUENCE system.translations_id_seq OWNED BY system.translations.id;
+ALTER TABLE ONLY system.translations ALTER COLUMN id SET DEFAULT nextval('system.translations_id_seq'::regclass);
+ALTER TABLE ONLY system.translations ADD CONSTRAINT translations_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY system.translations ADD CONSTRAINT translations_uuid_key UNIQUE (uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS system_translations_key_language_uidx ON system.translations USING btree (key, language);
+CREATE INDEX IF NOT EXISTS system_translations_language_idx ON system.translations USING btree (language) WHERE (deleted_at IS NULL);
 
-CREATE UNIQUE INDEX IF NOT EXISTS "translations_key_language_uidx"
-  ON "public"."translations" ("key", "language");
+-- ─── custom.translations (custom.* keys, user-owned) ───────────────────
 
-CREATE INDEX IF NOT EXISTS "translations_language_idx"
-  ON "public"."translations" ("language")
-  WHERE "deleted_at" IS NULL;
-
--- system.translations (system module: system.* — settings + entity labels)
-CREATE TABLE IF NOT EXISTS "system"."translations" (
-  "id" BIGSERIAL PRIMARY KEY,
-  "uuid" UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  "key" VARCHAR(255) NOT NULL,
-  "language" VARCHAR(10) NOT NULL,
-  "value" TEXT NOT NULL,
-  "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "created_by" VARCHAR(255) NOT NULL,
-  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "updated_by" VARCHAR(255) NOT NULL,
-  "version" INTEGER NOT NULL DEFAULT 1,
-  "deleted_at" TIMESTAMPTZ,
-  "deleted_by" VARCHAR(255)
+CREATE TABLE IF NOT EXISTS custom.translations (
+    id bigint NOT NULL,
+    uuid uuid DEFAULT gen_random_uuid() NOT NULL,
+    key character varying(255) NOT NULL,
+    language character varying(10) NOT NULL,
+    value text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by character varying(255) NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(255) NOT NULL,
+    version integer DEFAULT 1 NOT NULL,
+    deleted_at timestamp with time zone,
+    deleted_by character varying(255),
+    CONSTRAINT translations_key_shape CHECK (((key)::text ~ '^custom(.[a-z0-9_]+)+$'::text))
 );
+CREATE SEQUENCE IF NOT EXISTS custom.translations_id_seq
+    START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
+ALTER SEQUENCE custom.translations_id_seq OWNED BY custom.translations.id;
+ALTER TABLE ONLY custom.translations ALTER COLUMN id SET DEFAULT nextval('custom.translations_id_seq'::regclass);
+ALTER TABLE ONLY custom.translations ADD CONSTRAINT translations_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY custom.translations ADD CONSTRAINT translations_uuid_key UNIQUE (uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS custom_translations_key_language_uidx ON custom.translations USING btree (key, language);
+CREATE INDEX IF NOT EXISTS custom_translations_language_idx ON custom.translations USING btree (language) WHERE (deleted_at IS NULL);
 
-CREATE UNIQUE INDEX IF NOT EXISTS "system_translations_key_language_uidx"
-  ON "system"."translations" ("key", "language");
+-- ─── client_shield_registry CHECK constraints ───────────────────────────
 
-CREATE INDEX IF NOT EXISTS "system_translations_language_idx"
-  ON "system"."translations" ("language")
-  WHERE "deleted_at" IS NULL;
-
--- system.client_registry — allowlist of recognized internal callers.
--- Rows with source='registry' are auto-maintained by the BE from
--- service.register payloads (admin cannot edit them); source='manual' rows
--- are admin-managed (e.g. a Postman UA with its own client key).
-CREATE TABLE IF NOT EXISTS "system"."client_registry" (
-  "id" BIGSERIAL PRIMARY KEY,
-  "uuid" UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  "ua_prefix" VARCHAR(255) NOT NULL,
-  "client_key_hash" VARCHAR(255) NOT NULL,
-  "source" VARCHAR(20) NOT NULL DEFAULT 'manual',
-  "is_enabled" BOOLEAN NOT NULL DEFAULT true,
-  "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "created_by" VARCHAR(255) NOT NULL,
-  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "updated_by" VARCHAR(255) NOT NULL,
-  "version" INTEGER NOT NULL DEFAULT 1,
-  "deleted_at" TIMESTAMPTZ,
-  "deleted_by" VARCHAR(255),
-  CONSTRAINT "client_registry_source_ck" CHECK ("source" IN ('registry', 'manual'))
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS "system_client_registry_ua_prefix_uidx"
-  ON "system"."client_registry" ("ua_prefix");
-
--- custom.translations (user-created keys: custom.* — global, shared, cross-org.
--- The `custom` schema is the boundary for user-owned data: never project seed
--- data, never service-module data.)
-CREATE TABLE IF NOT EXISTS "custom"."translations" (
-  "id" BIGSERIAL PRIMARY KEY,
-  "uuid" UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  "key" VARCHAR(255) NOT NULL,
-  "language" VARCHAR(10) NOT NULL,
-  "value" TEXT NOT NULL,
-  "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "created_by" VARCHAR(255) NOT NULL,
-  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "updated_by" VARCHAR(255) NOT NULL,
-  "version" INTEGER NOT NULL DEFAULT 1,
-  "deleted_at" TIMESTAMPTZ,
-  "deleted_by" VARCHAR(255)
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS "custom_translations_key_language_uidx"
-  ON "custom"."translations" ("key", "language");
-
-CREATE INDEX IF NOT EXISTS "custom_translations_language_idx"
-  ON "custom"."translations" ("language")
-  WHERE "deleted_at" IS NULL;
-
--- === Seed Data ===
-
--- Seed the only auto-created role mapping: 'administrators' (is_admin=true).
--- This matches the 'administrators' role in the admin user's JWT roles array.
--- All other roles are created by the user via the Settings > Roles UI.
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('administrators', '[]'::jsonb, true, '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1)
-ON CONFLICT (idp_role) DO NOTHING;
-
--- Audit trail for the administrators role seed (INSERT record).
--- Uses 'initial-setup' as changed_by to distinguish seed/system inserts from user actions.
-INSERT INTO public.role_mappings_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
-SELECT id, uuid, 'INSERT', '2026-05-18T14:27:00Z', 'initial-setup', 1,
-  jsonb_build_object(
-    'idp_role', jsonb_build_object('old', null, 'new', idp_role),
-    'is_admin', jsonb_build_object('old', null, 'new', is_admin),
-    'permissions', jsonb_build_object('old', null, 'new', permissions)
-  )
-FROM public.role_mappings
-WHERE idp_role = 'administrators'
-AND NOT EXISTS (
-  SELECT 1 FROM public.role_mappings_audit a
-  WHERE a.entity_uuid = (SELECT uuid FROM public.role_mappings WHERE idp_role = 'administrators')
-    AND a.action = 'INSERT'
-);
-
--- Seed the 'auth_auditor' role mapping (read-only auth events audit).
--- Dedicated role for security/compliance team to inspect login logs.
--- Admin (is_admin=true) bypasses all checks; this role is for non-admin users.
-INSERT INTO public.role_mappings (idp_role, permissions, is_admin, created_at, created_by, updated_at, updated_by, version)
-VALUES ('auth_auditor', '["auth_event.read.all"]'::jsonb, false, '2026-05-18T14:27:00Z', 'initial-setup', '2026-05-18T14:27:00Z', 'initial-setup', 1)
-ON CONFLICT (idp_role) DO NOTHING;
-
--- Seed initial auth configuration values
-INSERT INTO "public"."config_entries" ("key", "value", "type", "type_config", "label_key", "description_key", "reserved", "group_key", "created_by") VALUES
-('idp_endpoint', 'http://localhost:8000', 'url', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"url":{"protocols":["http","https"],"error_label_key":"app.common.validation.invalidUrl"}}}}', 'system.settings.config.auth.idp_endpoint.label', 'system.settings.config.auth.idp_endpoint.description', true, 'idp_parameters', 'system'),
-('idp_organization', 'ACME', 'string', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":1,"error_label_key":"app.common.validation.tooShort"},"max":{"value":100,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.idp_organization.label', 'system.settings.config.auth.idp_organization.description', true, 'idp_parameters', 'system'),
-('oidc_issuer_url', 'http://localhost:8000', 'url', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"url":{"protocols":["http","https"],"error_label_key":"app.common.validation.invalidUrl"}}}}', 'system.settings.config.auth.oidc_issuer_url.label', 'system.settings.config.auth.oidc_issuer_url.description', true, 'oidc_parameters', 'system'),
-('idp_type', 'casdoor', 'badge', '{"values":{"casdoor":{"label_key":"system.settings.config.auth.idp_type.casdoor"},"keycloak":{"label_key":"system.settings.config.auth.idp_type.keycloak"},"entra":{"label_key":"system.settings.config.auth.idp_type.entra"},"okta":{"label_key":"system.settings.config.auth.idp_type.okta"}},"validation":{"required":true,"required_error_label_key":"system.settings.config.auth.idp_type.errors.required","rules":{}}}', 'system.settings.config.auth.idp_type.label', 'system.settings.config.auth.idp_type.description', true, 'idp_parameters', 'system'),
-('oidc_client_id', '', 'string', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":6,"error_label_key":"app.common.validation.tooShort"},"max":{"value":100,"error_label_key":"app.common.validation.tooLong"},"regex":{"pattern":"^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$","error_label_key":"system.settings.config.auth.oidc_client_id.errors.invalidFormat"}}}}', 'system.settings.config.auth.oidc_client_id.label', 'system.settings.config.auth.oidc_client_id.description', true, 'oidc_parameters', 'system'),
-('oidc_client_secret', '', 'secret', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":32,"error_label_key":"app.common.validation.tooShort"},"max":{"value":256,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.oidc_client_secret.label', 'system.settings.config.auth.oidc_client_secret.description', true, 'oidc_parameters', 'system'),
-('enable_email_verification_check', 'false', 'boolean', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.enable_email_verification_check.label', 'system.settings.config.auth.enable_email_verification_check.description', true, 'security_parameters', 'system'),
-('enable_webauthn', 'true', 'boolean', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.enable_webauthn.label', 'system.settings.config.auth.enable_webauthn.description', true, 'security_parameters', 'system'),
-('passkey_required', 'true', 'boolean', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.passkey_required.label', 'system.settings.config.auth.passkey_required.description', true, 'security_parameters', 'system'),
-('enable_mfa', 'false', 'boolean', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.enable_mfa.label', 'system.settings.config.auth.enable_mfa.description', true, 'security_parameters', 'system'),
-('password_policy', 'letter_number_special', 'badge', '{"values":{"alpha_numeric":{"label_key":"system.settings.config.auth.password_policy.alpha_numeric"},"letter_and_number":{"label_key":"system.settings.config.auth.password_policy.letter_and_number"},"letter_number_special":{"label_key":"system.settings.config.auth.password_policy.letter_number_special"},"mixed_case_special":{"label_key":"system.settings.config.auth.password_policy.mixed_case_special"}},"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.password_policy.label', 'system.settings.config.auth.password_policy.description', true, 'security_parameters', 'system'),
-('auth_mode', 'STANDALONE', 'badge', '{"values":{"STANDALONE":{"label_key":"system.settings.config.auth.auth_mode.standalone","color":"sky-300"},"GATEWAY":{"label_key":"system.settings.config.auth.auth_mode.gateway","color":"amber-300"}},"validation":{"required":true,"required_error_label_key":"system.settings.config.auth.auth_mode.errors.required","rules":{}}}', 'system.settings.config.auth.auth_mode.label', 'system.settings.config.auth.auth_mode.description', true, 'idp_parameters', 'system'),
-('auth_roles_path', 'roles', 'string', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":3,"error_label_key":"app.common.validation.tooShort"},"max":{"value":255,"error_label_key":"app.common.validation.tooLong"},"regex":{"pattern":"^([_a-zA-Z0-9-]*[a-zA-Z0-9])(\\.([_a-zA-Z0-9-]*[a-zA-Z0-9]))*$","error_label_key":"system.settings.config.auth.auth_roles_path.errors.invalidFormat"}}}}', 'system.settings.config.auth.auth_roles_path.label', 'system.settings.config.auth.auth_roles_path.description', true, 'oidc_parameters', 'system'),
-('invitation_expiry_days', '7', 'bigint', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":1,"error_label_key":"app.common.validation.tooShort"},"max":{"value":90,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.invitation_expiry_days.label', 'system.settings.config.auth.invitation_expiry_days.description', true, 'advanced_features', 'system'),
-('admin_contact_email', '', 'string', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"email":{"error_label_key":"app.common.validation.invalidEmail"}}}}', 'system.settings.config.auth.admin_contact_email.label', 'system.settings.config.auth.admin_contact_email.description', true, 'system_settings', 'system'),
-('notification_alert_secret', '', 'secret', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":32,"error_label_key":"app.common.validation.tooShort"},"max":{"value":256,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.notification_alert_secret.label', 'system.settings.config.auth.notification_alert_secret.description', true, 'system_settings', 'system'),
-('frontend_url', 'http://localhost:5173', 'url', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"url":{"protocols":["http","https"],"error_label_key":"app.common.validation.invalidUrl"}}}}', 'system.settings.config.auth.frontend_url.label', 'system.settings.config.auth.frontend_url.description', true, 'system_settings', 'system'),
-('redis_url', 'redis://redis:6379', 'url', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"url":{"protocols":["redis","rediss","tcp","http","https"],"error_label_key":"app.common.validation.invalidUrl"}}}}', 'system.settings.config.auth.redis_url.label', 'system.settings.config.auth.redis_url.description', true, 'advanced_features', 'system'),
-('mfa_challenge_token_ttl_seconds', '300', 'bigint', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":30,"error_label_key":"app.common.validation.tooShort"},"max":{"value":600,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.mfa_challenge_token_ttl_seconds.label', 'system.settings.config.auth.mfa_challenge_token_ttl_seconds.description', true, 'security_parameters', 'system'),
-('mfa_challenge_signing_secret', '', 'secret', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{"min":{"value":32,"error_label_key":"app.common.validation.tooShort"},"max":{"value":256,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.auth.mfa_challenge_signing_secret.label', 'system.settings.config.auth.mfa_challenge_signing_secret.description', true, 'security_parameters', 'system'),
-('currency_favorites', 'EUR,USD,GBP,CHF,CNY,JPY', 'multi_select', '{"values_source":"currencies","value_field":"code","label_field":"name","validation":{"required":false,"rules":{}}}', 'system.settings.config.auth.currency_favorites.label', 'system.settings.config.auth.currency_favorites.description', true, 'system_settings', 'system'),
-('ai_assistant_model', 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC', 'single_select', '{"values_source":"ai_models","value_field":"id","label_field":"label_key","model_levels":{"Qwen3-1.7B-q4f16_1-MLC":2,"Qwen2.5-1.5B-Instruct-q4f16_1-MLC":3,"Qwen3-4B-q4f16_1-MLC":4},"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.auth.ai_assistant_model.label', 'system.settings.config.auth.ai_assistant_model.description', true, 'ai_features', 'system'),
-('telemetry_enabled', 'false', 'boolean', '{"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.telemetry.telemetry_enabled.label', 'system.settings.config.telemetry.telemetry_enabled.description', true, 'observability', 'system'),
-('otel_exporter_otlp_endpoint', '', 'url', '{"default_protocol":"http","allowed_protocols":["http","https"],"validation":{"required":false,"rules":{}}}', 'system.settings.config.telemetry.otel_exporter_otlp_endpoint.label', 'system.settings.config.telemetry.otel_exporter_otlp_endpoint.description', true, 'observability', 'system'),
-('otel_exporter_otlp_headers', '', 'json', '{"validation":{"required":false,"rules":{}}}', 'system.settings.config.telemetry.otel_exporter_otlp_headers.label', 'system.settings.config.telemetry.otel_exporter_otlp_headers.description', true, 'observability', 'system'),
-('otel_traces_sampler', 'always_on', 'badge', '{"values":{"always_on":{"label_key":"system.settings.config.telemetry.otel_traces_sampler.always_on","color":"primary"},"always_off":{"label_key":"system.settings.config.telemetry.otel_traces_sampler.always_off","color":"secondary"},"traceidratio":{"label_key":"system.settings.config.telemetry.otel_traces_sampler.traceidratio","color":"secondary"}},"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.telemetry.otel_traces_sampler.label', 'system.settings.config.telemetry.otel_traces_sampler.description', true, 'observability', 'system'),
-('otel_traces_sampler_arg', '1', 'number', '{"validation":{"required":false,"rules":{"min":{"value":0,"error_label_key":"app.common.validation.tooShort"},"max":{"value":1,"error_label_key":"app.common.validation.tooLong"}}}}', 'system.settings.config.telemetry.otel_traces_sampler_arg.label', 'system.settings.config.telemetry.otel_traces_sampler_arg.description', true, 'observability', 'system'),
-('log_format', 'pretty', 'badge', '{"values":{"pretty":{"label_key":"system.settings.config.telemetry.log_format.pretty","color":"primary"},"json":{"label_key":"system.settings.config.telemetry.log_format.json","color":"secondary"}},"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.telemetry.log_format.label', 'system.settings.config.telemetry.log_format.description', true, 'observability', 'system'),
-('log_level', 'info', 'badge', '{"values":{"debug":{"label_key":"system.settings.config.telemetry.log_level.debug","color":"secondary"},"info":{"label_key":"system.settings.config.telemetry.log_level.info","color":"primary"},"warn":{"label_key":"system.settings.config.telemetry.log_level.warn","color":"secondary"},"error":{"label_key":"system.settings.config.telemetry.log_level.error","color":"destructive"}},"validation":{"required":true,"required_error_label_key":"app.common.validation.required","rules":{}}}', 'system.settings.config.telemetry.log_level.label', 'system.settings.config.telemetry.log_level.description', true, 'observability', 'system')
-ON CONFLICT ("key") DO NOTHING;
-
--- Audit trail for the config_entries seed (INSERT record, version 1).
--- Uses 'initial-setup' as changed_by to distinguish seed/system inserts from user actions.
--- changed_at uses the actual created_at of each row (not a hardcoded timestamp).
--- Delta includes ALL columns to match the DAL's INSERT audit behavior (Phase 2).
-INSERT INTO public.config_entries_audit (entity_id, entity_uuid, action, changed_at, changed_by, version, delta)
-SELECT id, uuid, 'INSERT', created_at, 'initial-setup', 1,
-  jsonb_strip_nulls(jsonb_build_object(
-    'id', jsonb_build_object('old', null, 'new', id),
-    'uuid', jsonb_build_object('old', null, 'new', uuid),
-    'key', jsonb_build_object('old', null, 'new', key),
-    'value', jsonb_build_object('old', null, 'new', value),
-    'type', jsonb_build_object('old', null, 'new', type),
-    'type_config', jsonb_build_object('old', null, 'new', type_config),
-    'label_key', jsonb_build_object('old', null, 'new', label_key),
-    'description_key', jsonb_build_object('old', null, 'new', description_key),
-    'reserved', jsonb_build_object('old', null, 'new', reserved),
-    'group_key', jsonb_build_object('old', null, 'new', group_key),
-    'created_at', jsonb_build_object('old', null, 'new', created_at),
-    'created_by', jsonb_build_object('old', null, 'new', COALESCE(created_by, 'system')),
-    'updated_at', jsonb_build_object('old', null, 'new', updated_at),
-    'updated_by', jsonb_build_object('old', null, 'new', COALESCE(updated_by, created_by, 'system')),
-    'version', jsonb_build_object('old', null, 'new', version),
-    'deleted_at', jsonb_build_object('old', null, 'new', deleted_at),
-    'deleted_by', jsonb_build_object('old', null, 'new', deleted_by)
-  ))
-FROM public.config_entries
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.config_entries_audit a
-  WHERE a.entity_uuid = config_entries.uuid
-    AND a.action = 'INSERT'
-);
-
--- === Patch Registry Table ===
-CREATE TABLE IF NOT EXISTS "public"."primebrick_database_patches" (
-  "patch_id" text PRIMARY KEY,
-  "content_sha256" text NOT NULL,
-  "applied_at" timestamptz DEFAULT now()
-);
-
--- === patch registry (repeatable runs) ===
--- patch_id: 00000000000000_init_database
--- content_sha256: TBD
--- After apply:
--- INSERT INTO public.primebrick_database_patches (patch_id, content_sha256)
--- VALUES ('00000000000000_init_database', 'TBD')
--- ON CONFLICT (patch_id) DO NOTHING;
+ALTER TABLE system.client_shield_registry ADD CONSTRAINT client_shield_registry_key_mode_ck CHECK (((key_mode)::text = ANY ((ARRAY['static'::character varying, 'derived'::character varying])::text[])));
+ALTER TABLE system.client_shield_registry ADD CONSTRAINT client_shield_registry_source_ck CHECK (((source)::text = ANY ((ARRAY['registry'::character varying, 'manual'::character varying])::text[])));

@@ -24,6 +24,7 @@ import {
   SynchronizableField,
   SynchronizableFieldType,
   AuditTrail,
+  Calculated,
   EntityBase,
   Auditable,
   Deletable,
@@ -36,10 +37,8 @@ import { Cached } from "@primebrick/sdk";
 export class OrganizationEntity
   extends Deletable(Auditable(EntityBase)) {
   @Key()
-  id: bigint;
-
-  @Unique()
-  uuid: UUID; // Internal Primebrick UUID (used for all operations, audit fields, API endpoints)
+  @Column({ pgType: "uuid" })
+  uuid!: UUID; // Internal Primebrick UUID (used for all operations, audit fields, API endpoints)
 
   @Unique()
   @Column({ length: 255, nullable: false })
@@ -63,6 +62,15 @@ export class OrganizationEntity
   @SynchronizableField(SynchronizableFieldType.LAST_SYNCED_AT)
   @Column({ nullable: true })
   last_synced_at?: Date;
+
+  /** Active member count — SQL projection over `user_profiles.idp_org`
+   *  (the same correlation the old `aggregates` JOIN+COUNT expressed,
+   *  minus the join/group-by cost). */
+  @Calculated(
+    `(SELECT count(*)::int FROM public.user_profiles u WHERE u.idp_org = {self}.idp_code AND u.deleted_at IS NULL AND u.suspended_at IS NULL)`,
+    { pgType: "int4" },
+  )
+  user_count?: number;
 
   // Audit fields (NOT synced to Casdoor)
 

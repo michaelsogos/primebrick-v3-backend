@@ -563,7 +563,7 @@ export class ConfigEntriesService extends DomainService<
       // Build the partial update entity. Only include fields that are present
       // in the patch so the generic Repository.update() doesn't overwrite
       // unset fields with undefined.
-      const updateEntity: Record<string, unknown> = { id: existing.id };
+      const updateEntity: Record<string, unknown> = { uuid: existing.uuid };
 
       if (patch.value !== undefined) {
         // secret: empty string = "leave unchanged" → skip value write entirely

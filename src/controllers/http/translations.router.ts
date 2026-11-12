@@ -25,10 +25,11 @@ import { zBoundedInt } from "../../http/validation.js";
 import { makeProtectedRouter } from "../../http/protected-router.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
-import { Permission, isSlug, type CacheEntry, type I18nDict } from "@primebrick/sdk";
+import { Permission, isSlug, isValidTranslationKey, type CacheEntry, type I18nDict } from "@primebrick/sdk";
 import { ValidationError } from "../../http/api-errors.js";
 import { etagMiddleware } from "../../http/etag-middleware.js";
 import { entityOnlyWriteBody } from "../../http/entity-write.js";
+import { ListQueryBaseSchema } from "../../http/list-query.js";
 import { TranslationsService } from "../../modules/system/translations.service.js";
 
 const ModuleCodeSchema = z
@@ -45,14 +46,21 @@ const LanguageSchema = z
 
 const UuidSchema = z.string().uuid();
 
+/** `[a-z0-9_]+` dot-separated segments, ≥2 — the ONE key grammar (core). */
+const TranslationKeySchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine(isValidTranslationKey, { message: "app.common.validation.dotted_key" });
+
 const TranslationCreateSchema = z.object({
-  key: z.string().min(1).max(255),
+  key: TranslationKeySchema,
   language: LanguageSchema,
   value: z.string(),
 });
 
 const TranslationUpdateSchema = z.object({
-  key: z.string().min(1).max(255).optional(),
+  key: TranslationKeySchema.optional(),
   language: LanguageSchema.optional(),
   value: z.string().optional(),
   version: zBoundedInt(0, Number.MAX_SAFE_INTEGER),
@@ -63,14 +71,13 @@ const TranslationUpdateSchema = z.object({
 const TranslationCreateWriteSchema = entityOnlyWriteBody(TranslationCreateSchema);
 const TranslationUpdateWriteSchema = entityOnlyWriteBody(TranslationUpdateSchema);
 
-const ListQuerySchema = z.object({
+// Canonical entity list contract — `filters[i][field|op|value]` WHERE
+// terms, `search`/`search_in`, `connector`, sort, paging, deleted_records
+// all come from the shared base. `module` selects the schema and
+// `language` stays a dedicated convenience param (merged via extraFilters).
+const ListQuerySchema = ListQueryBaseSchema.extend({
   module: ModuleCodeSchema,
-  page: z.coerce.number().int().min(1).default(1),
-  page_size: z.coerce.number().int().min(1).max(100).default(25),
   language: LanguageSchema.optional(),
-  sort_key: z.string().optional(),
-  sort_dir: z.enum(["asc", "desc"]).optional(),
-  deleted_records: z.enum(["EXCLUDED", "ONLY", "INCLUDED"]).optional(),
 });
 
 const ModuleQuerySchema = z.object({

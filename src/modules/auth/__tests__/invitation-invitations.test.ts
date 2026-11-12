@@ -29,9 +29,8 @@ import { InvitationService } from "../services/invitation.service.js";
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function makeInvitationRow(overrides: Partial<{
-  id: bigint;
   uuid: string;
-  user_profile_id: bigint;
+  user_profile_uuid: string;
   token_hash: string;
   status: string;
   email: string;
@@ -44,10 +43,9 @@ function makeInvitationRow(overrides: Partial<{
   version: number;
 }> = {}) {
   return {
-    id: 1n,
     uuid: "inv-uuid-123",
     version: 1,
-    user_profile_id: 10n,
+    user_profile_uuid: "profile-uuid-123",
     token_hash: "abc123hash",
     status: "PENDING",
     email: "user@example.com",
@@ -77,7 +75,7 @@ describe("InvitationService — user_invitations ops", () => {
       mockRepo.add.mockResolvedValue({ uuid: "new-inv-uuid" });
 
       const result = await (svc as any).insertInvitation({
-        user_profile_id: 10n,
+        user_profile_uuid: "profile-uuid-123",
         token_hash: "sha256hash",
         email: "user@example.com",
         expires_at: new Date("2026-07-24T00:00:00Z"),
@@ -137,7 +135,7 @@ describe("InvitationService — user_invitations ops", () => {
     });
   });
 
-  describe("findByUserProfileId", () => {
+  describe("findByUserProfileUuid", () => {
     it("should return all invitations for a user profile", async () => {
       const rows = [
         makeInvitationRow({ uuid: "inv-1" }),
@@ -145,7 +143,7 @@ describe("InvitationService — user_invitations ops", () => {
       ];
       mockRepo.findAll.mockResolvedValue(rows);
 
-      const result = await (svc as any).findInvitationsByUserProfileId(10n);
+      const result = await (svc as any).findInvitationsByUserProfileUuid("profile-uuid-123");
 
       expect(result).toHaveLength(2);
       expect(result[0].uuid).toBe("inv-1");
@@ -155,7 +153,7 @@ describe("InvitationService — user_invitations ops", () => {
     it("should return empty array when no invitations exist", async () => {
       mockRepo.findAll.mockResolvedValue([]);
 
-      const result = await (svc as any).findInvitationsByUserProfileId(999n);
+      const result = await (svc as any).findInvitationsByUserProfileUuid("profile-uuid-123");
 
       expect(result).toHaveLength(0);
     });

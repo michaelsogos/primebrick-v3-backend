@@ -22,12 +22,12 @@ The page is visible with the `access.system.settings.organizations` grant.
 
 ### How to create a new organization
 1. Click **New** in the toolbar.
-2. Fill in the form — required: **Display name**, **Identity Name**.
+2. Fill in the form — required: **display name**, **name**.
 3. Click **Save** — the new organization is created.
 
 ### How to edit an organization
 1. Open the row actions menu on the organization and click **Edit**.
-2. Update the fields — required: **Display name**, **Identity Owner**, **Identity Name**.
+2. Update the fields — required: **display name**, **owner**, **name**.
 3. Click **Save** — the changes to the organization are saved.
 
 ### How to delete an organization
@@ -48,16 +48,22 @@ The page is visible with the `access.system.settings.organizations` grant.
 | Column | Visible | Sortable | Filterable | Notes |
 |--------|---------|----------|------------|-------|
 | **Display Name** | yes | yes | yes |  |
-| **UUID** | no | yes | yes |  |
+| **ID** | no | yes | yes |  |
 | **IDP Code** | no | yes | yes | the record's identifier code in Casdoor — the link between this row and the IDP record |
 | **Website URL** | yes | yes | yes |  |
 | **User Count** | yes | no | yes |  |
+| **idp owner** | no | yes | yes |  |
+| **idp name** | no | yes | yes |  |
+| **avatar** | no | yes | yes |  |
 
 - The Display Name column is shown by default and can be sorted and filtered.
-- The UUID column is hidden by default and can be sorted and filtered.
+- The ID column is hidden by default and can be sorted and filtered.
 - The IDP Code column is hidden by default and can be sorted and filtered — the record's identifier code in Casdoor — the link between this row and the IDP record.
 - The Website URL column is shown by default and can be sorted and filtered.
 - The User Count column is shown by default and can be filtered but not sorted.
+- The idp owner column is hidden by default and can be sorted and filtered.
+- The idp name column is hidden by default and can be sorted and filtered.
+- The avatar column is hidden by default and can be sorted and filtered.
 
 ## Actions
 

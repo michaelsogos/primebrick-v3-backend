@@ -35,14 +35,12 @@ import { Cached } from "@primebrick/sdk";
 @Cached(300_000) // 5 min TTL — mutations write through the DAL cache
 export class UserPreferenceEntity extends Auditable(EntityBase) {
   @Key()
-  id: bigint;
-
-  @Unique()
-  uuid: UUID;
+  @Column({ pgType: "uuid" })
+  uuid!: UUID;
 
   /** Owner — `user_profiles.uuid` of the authenticated caller. */
   @Unique("user_preferences_user_key_uidx", 0)
-  @Column({ nullable: false })
+  @Column({ pgType: "uuid", nullable: false })
   user_uuid: UUID;
 
   /** Preference family key (e.g. `favorite_pages`) — snake_case, per-user. */

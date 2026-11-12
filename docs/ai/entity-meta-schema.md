@@ -73,7 +73,11 @@ required fields (`type_capabilities`).
         "action_name": "change_password",   // bare op name — must exist in actions
         "translation_key": "system.settings.users.change_password",
         "icon": "key-round",
-        "text_color": "",
+        "color": "neutral",                 // ActionColor — closed enum, NOT a
+        // CSS class: neutral(default)|primary|info|success|warning|destructive.
+        // Semantic exec-* icons BIND their color — a divergent pair is a
+        // construction error (validateActionChrome). Icon+label share it —
+        // never drifts.
         "disabled_when_deleted": true,
         "required_permission": "AUTHENTICATED_ADMIN"
       }

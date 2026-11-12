@@ -32,6 +32,7 @@ import {
   EntityBase,
   Auditable,
   Deletable,
+  Calculated,
 } from "@primebrick/dal-pg";
 import { Cached } from "@primebrick/sdk";
 
@@ -41,10 +42,8 @@ import { Cached } from "@primebrick/sdk";
 export class UserProfileEntity
   extends Deletable(Auditable(EntityBase)) {
   @Key()
-  id: bigint;
-
-  @Unique()
-  uuid: UUID;
+  @Column({ pgType: "uuid" })
+  uuid!: UUID;
 
   /**
    * IDP subject claim. Unique per IDP. We never expose this externally.
@@ -66,11 +65,8 @@ export class UserProfileEntity
   @Column({ length: 10, nullable: true })
   avatar_initials?: string;
 
-  @Column({ defaultSql: "true", nullable: false })
-  is_active: boolean;
-
-  @Column({ defaultSql: "false", nullable: false })
-  is_admin: boolean;
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  idp_is_admin: boolean;
 
   @Column({ pgType: "jsonb", nullable: true })
   roles?: string[];
@@ -85,14 +81,30 @@ export class UserProfileEntity
   @Column({ length: 255, nullable: true })
   idp_username?: string;
 
-  @Column({ defaultSql: "false", nullable: false })
-  is_verified: boolean;
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  idp_is_verified: boolean;
 
-  @Column({ defaultSql: "false", nullable: false })
-  email_verified: boolean;
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
+  idp_email_verified: boolean;
 
+  /** IDP issuer endpoint captured at creation — derived, never user input. */
   @Column({ length: 255, nullable: true })
-  issuer?: string;
+  idp_issuer?: string;
+
+  /** Suspension audit pair — suspension is NOT deletion: suspended rows are
+   *  live records that fail auth resolution while surviving retention purge.
+   *  `isForbidden` on the IDP derives as `suspended ∨ deleted` at every
+   *  lifecycle transition. */
+  @Column({ pgType: "timestamptz", nullable: true })
+  suspended_at?: Date;
+
+  @Column({ pgType: "uuid", nullable: true })
+  suspended_by?: UUID;
+
+  /** Live suspension flag — SQL projection of `suspended_at IS NOT NULL`.
+   *  Drives row-action `visible_on` and the list badge; never writable. */
+  @Calculated(`{self}.suspended_at IS NOT NULL`, { pgType: "boolean" })
+  suspended?: boolean;
 
 
 
@@ -102,10 +114,10 @@ export class UserProfileEntity
 
 
   /** Whether the user dismissed the auth method enforcer dialog (passkey/MFA prompt). */
-  @Column({ defaultSql: "false", nullable: false })
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
   auth_method_enforcer_dismissed: boolean;
 
   /** Whether the user completed the welcome/onboarding flow. */
-  @Column({ defaultSql: "false", nullable: false })
+  @Column({ pgType: "boolean", defaultSql: "false", nullable: false })
   onboarding_completed: boolean;
 }

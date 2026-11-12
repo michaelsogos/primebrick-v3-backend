@@ -4,10 +4,8 @@ import { Column, Entity, Key, Unique, EntityBase, Auditable, Deletable } from "@
 @Entity("client_shield_registry", "system")
 export class ClientShieldRegistryEntity extends Deletable(Auditable(EntityBase)) {
   @Key()
-  id: bigint;
-
-  @Unique()
-  uuid: UUID;
+  @Column({ pgType: "uuid" })
+  uuid!: UUID;
 
   @Unique()
   @Column({ length: 255, nullable: false })
@@ -19,7 +17,7 @@ export class ClientShieldRegistryEntity extends Deletable(Auditable(EntityBase))
   @Column({ length: 20, nullable: false, defaultSql: "'manual'" })
   source: string;
 
-  @Column({ nullable: false, defaultSql: "true" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })
   is_enabled: boolean;
 
   /** 'static' = key set directly (manual rows, legacy services); 'derived' = HMAC(derivation_secret, ua_prefix:generation). */
@@ -35,9 +33,9 @@ export class ClientShieldRegistryEntity extends Deletable(Auditable(EntityBase))
   previous_key_hash?: string;
 
   /** Grace end — previous_key_hash is rejected after this instant. */
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   previous_valid_until?: Date;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   key_rotated_at?: Date;
 }

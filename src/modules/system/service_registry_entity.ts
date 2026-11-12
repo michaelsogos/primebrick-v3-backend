@@ -24,10 +24,8 @@ import {
 export class ServiceRegistryEntity
   extends Deletable(Auditable(EntityBase)) {
   @Key()
-  id: bigint;
-
-  @Unique()
-  uuid: UUID;
+  @Column({ pgType: "uuid" })
+  uuid!: UUID;
 
   @Column({ length: 100, nullable: false })
   code: string;
@@ -71,19 +69,19 @@ export class ServiceRegistryEntity
   capabilities: string[];
 
   /** PG schema ownership claim from the service's DATABASE_SCHEMA env contract (first = owned schema). The BE rejects registration when a claimed schema is owned by a different code or is a platform schema. Claim persists while the row exists — released by unregister or admin purge only. */
-  @Column({ nullable: false, defaultSql: "'{}'" })
+  @Column({ pgType: "text[]", nullable: false, defaultSql: "'{}'" })
   schemas: string[];
 
-  @Column({ nullable: false, defaultSql: "false" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   is_behind_scaler: boolean;
 
   @Column({ nullable: false, defaultSql: "'unknown'" })
   status: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   last_health_check_at?: Date;
 
-  @Column({ nullable: false, defaultSql: "true" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "true" })
   is_enabled: boolean;
 
   @Column({ nullable: true })
@@ -92,7 +90,7 @@ export class ServiceRegistryEntity
   @Column({ nullable: false, defaultSql: "'icon'" })
   icon_type: string;
 
-  @Column({ nullable: false, defaultSql: "false" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   is_reserved: boolean;
 
   /**
@@ -111,7 +109,7 @@ export class ServiceRegistryEntity
    * (a second claimant is demoted to false, never rejected), demote-other
    * on admin flip.
    */
-  @Column({ nullable: false, defaultSql: "false" })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   is_default: boolean;
 
 
