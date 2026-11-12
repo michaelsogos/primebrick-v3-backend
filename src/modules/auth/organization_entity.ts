@@ -67,7 +67,7 @@ export class OrganizationEntity
    *  (the same correlation the old `aggregates` JOIN+COUNT expressed,
    *  minus the join/group-by cost). */
   @Calculated(
-    `(SELECT count(*)::int FROM public.user_profiles u WHERE u.idp_org = {self}.idp_code AND u.deleted_at IS NULL AND u.is_active = true)`,
+    `(SELECT count(*)::int FROM public.user_profiles u WHERE u.idp_org = {self}.idp_code AND u.deleted_at IS NULL AND u.suspended_at IS NULL)`,
     { pgType: "int4" },
   )
   user_count?: number;
