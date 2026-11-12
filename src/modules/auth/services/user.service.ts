@@ -1012,7 +1012,11 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   // --- Entity CRUD (admin surface) -----------------------------------------
 
   async getUserByUuid(uuid: string): Promise<UserProfileDetailDto> {
-    const user = await this.getByUuid(uuid);
+    // Read surface includes tombstoned rows: a soft-deleted profile is still a
+    // record the admin can open — `deleted_at`/`deleted_by` ride the DTO and
+    // the FE renders the deleted lifecycle state. Writes keep `getByUuid`
+    // (EXCLUDED) — you cannot mutate a deleted record.
+    const user = await this.getByUuidIncludingDeleted(uuid);
     if (!user) {
       throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
     }
