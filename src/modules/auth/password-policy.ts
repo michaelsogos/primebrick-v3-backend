@@ -68,12 +68,12 @@ export interface PasswordPolicyConfig {
 export const PASSWORD_POLICY_CONFIGS: Record<PasswordPolicy, PasswordPolicyConfig> = {
   [PasswordPolicy.ALPHA_NUMERIC]: {
     regex: /^[A-Za-z0-9]{8,64}$/,
-    errorLabelKey: "app.common.validation.passwordPolicyAlphaNumeric",
+    errorLabelKey: "app.common.validation.password_policy_alpha_numeric",
     checklistRules: [PasswordChecklistRule.LENGTH],
   },
   [PasswordPolicy.LETTER_AND_NUMBER]: {
     regex: /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]{8,64}$/,
-    errorLabelKey: "app.common.validation.passwordPolicyLetterAndNumber",
+    errorLabelKey: "app.common.validation.password_policy_letter_and_number",
     checklistRules: [
       PasswordChecklistRule.LENGTH,
       PasswordChecklistRule.LETTER,
@@ -82,7 +82,7 @@ export const PASSWORD_POLICY_CONFIGS: Record<PasswordPolicy, PasswordPolicyConfi
   },
   [PasswordPolicy.LETTER_NUMBER_SPECIAL]: {
     regex: /^(?=.*[A-Za-z])(?=.*\d)(?=.*[*\-_.#@!|?^:])[A-Za-z0-9*\-_.#@!|?^:]{8,64}$/,
-    errorLabelKey: "app.common.validation.passwordPolicyLetterNumberSpecial",
+    errorLabelKey: "app.common.validation.password_policy_letter_number_special",
     checklistRules: [
       PasswordChecklistRule.LENGTH,
       PasswordChecklistRule.LETTER,
@@ -92,7 +92,7 @@ export const PASSWORD_POLICY_CONFIGS: Record<PasswordPolicy, PasswordPolicyConfi
   },
   [PasswordPolicy.MIXED_CASE_SPECIAL]: {
     regex: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[*\-_.#@!|?^:])[A-Za-z0-9*\-_.#@!|?^:]{8,64}$/,
-    errorLabelKey: "app.common.validation.passwordPolicyMixedCaseSpecial",
+    errorLabelKey: "app.common.validation.password_policy_mixed_case_special",
     checklistRules: [
       PasswordChecklistRule.LENGTH,
       PasswordChecklistRule.LOWERCASE,
@@ -132,6 +132,6 @@ export function passwordZodSchema(policy: PasswordPolicy) {
   const config = getPasswordPolicyConfig(policy);
   return z
     .string()
-    .min(1, { message: "app.common.validation.passwordRequired" })
+    .min(1, { message: "app.common.validation.password_required" })
     .regex(config.regex, { message: config.errorLabelKey });
 }

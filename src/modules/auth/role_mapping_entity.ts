@@ -47,9 +47,7 @@ import {
 export class RoleMappingEntity
   extends Auditable(EntityBase) {
   @Key()
-  id!: bigint;
-
-  @Unique()
+  @Column({ pgType: "uuid" })
   uuid!: UUID; // Internal Primebrick UUID (used for all operations, audit fields, API endpoints)
 
   @Unique()
@@ -65,7 +63,7 @@ export class RoleMappingEntity
   @Column({ pgType: "jsonb", nullable: false })
   permissions!: string[];
 
-  @Column({ nullable: false })
+  @Column({ pgType: "boolean", nullable: false })
   is_admin!: boolean;
 
   @SynchronizableField(SynchronizableFieldType.LAST_SYNCED_AT)

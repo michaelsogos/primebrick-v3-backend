@@ -22,5 +22,34 @@
       ]
     }
   },
-  "i18n_namespaces": ["app", "system", "custom"]
+  "i18n_namespaces": ["app", "system", "custom"],
+  "i18n_sql_exempt": [
+    "20261116040000_emailsender_callable_help_keys.sql",
+    "00000000000001_seed_translations_en_gb.sql",
+    "00000000000002_seed_translations_it_it.sql",
+    "00000000000003_seed_translations_fr_fr.sql",
+    "00000000000004_seed_translations_es_es.sql",
+    "00000000000005_seed_translations_de_de.sql",
+    "00000000000006_seed_translations_pt_pt.sql",
+    "00000000000010_seed_mfa_challenge_expired.sql",
+    "00000000000011_seed_test_role_label.sql",
+    "00000000000012_seed_translations_en_us.sql",
+    "20261014003756_modules_instance_translations.sql",
+    "20261015004600_migrations_page_translations.sql",
+    "20261016140000_seed_translations_missing_keys.sql",
+    "20261018143000_seed_translations_docs_browser.sql",
+    "20261021003000_seed_translations_root_levels.sql",
+    "20261021010000_root_level_ptpt_and_app_label.sql",
+    "20261021031000_app_nav_goto.sql",
+    "20261028120000_seed_json_value_widget.sql",
+    "20261109000000_lang_format_and_disabled_toggle.sql",
+    "20261116010000_draft_restored_translation.sql",
+    "20261116030000_draft_restored_title.sql",
+    "20261119000000_bulk_scope_choicebox_keys.sql",
+    "20261120030000_kbd_legend_paging_keys.sql",
+    "20261120060000_kbd_legend_trigger.sql",
+    "20261121000000_filter_boolean_tristate.sql",
+    "20261122000000_filter_value_hint.sql",
+    "20261123000000_numeric_input_stepper_aria.sql"
+  ]
 }

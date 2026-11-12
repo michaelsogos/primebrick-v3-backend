@@ -22,12 +22,12 @@ The page is visible with the `access.system.settings.users` grant.
 
 ### How to create a new user
 1. Click **New** in the toolbar.
-2. Fill in the form — required: **Username**, **Display Name**, **Email**, **Organization**.
+2. Fill in the form — required: **Username**, **display name**, **Email**, **org**.
 3. Click **Save** — the new user is created.
 
 ### How to edit a user
 1. Open the row actions menu on the user and click **Edit**.
-2. Update the fields — required: **Display Name**.
+2. Update the fields — required: **display name**.
 3. Click **Save** — the changes to the user are saved.
 
 ### How to delete a user
@@ -45,8 +45,6 @@ The page is visible with the `access.system.settings.users` grant.
 
 ### How to change the user's password
 1. Open the row actions menu on the user and click **Change Password**.
-2. Set a new password for this user; they will need to use the new password on next login.
-
 ### How to grant admin rights to a user
 1. Open the user in its form (see *How to create a new user* / *How to edit a user* above).
 2. In **Application Roles**, select a role whose **Admin** flag is enabled; administrator roles are marked with a **System Administrator** badge — the flag is configured on the role via **Edit Role**.
@@ -57,7 +55,7 @@ The page is visible with the `access.system.settings.users` grant.
 | Column | Visible | Sortable | Filterable | Notes |
 |--------|---------|----------|------------|-------|
 | **Display Name** | yes | yes | yes |  |
-| **UUID** | no | yes | yes |  |
+| **ID** | no | yes | yes |  |
 | **IDP Code** | no | yes | yes | the record's identifier code in Casdoor — the link between this row and the IDP record |
 | **Email** | yes | yes | yes |  |
 | **Avatar Color** | no | no | no |  |
@@ -70,9 +68,11 @@ The page is visible with the `access.system.settings.users` grant.
 | **Email Verified** | yes | yes | yes | Indicates whether the email has been verified, typically via a link sent to the email inbox that is presumed to be readable only by the user whose profile we are configuring. |
 | **Roles** | no | no | no |  |
 | **IDP Issuer** | no | no | yes | the identity-provider issuer that owns this identity |
+| **auth method enforcer dismissed** | no | yes | yes |  |
+| **onboarding completed** | no | yes | yes |  |
 
 - The Display Name column is shown by default and can be sorted and filtered.
-- The UUID column is hidden by default and can be sorted and filtered.
+- The ID column is hidden by default and can be sorted and filtered.
 - The IDP Code column is hidden by default and can be sorted and filtered — the record's identifier code in Casdoor — the link between this row and the IDP record.
 - The Email column is shown by default and can be sorted and filtered.
 - The Avatar Color column is hidden by default and cannot be sorted or filtered.
@@ -85,6 +85,8 @@ The page is visible with the `access.system.settings.users` grant.
 - The Email Verified column is shown by default and can be sorted and filtered — indicates whether the email has been verified, typically via a link sent to the email inbox that is presumed to be readable only by the user whose profile we are configuring.
 - The Roles column is hidden by default and cannot be sorted or filtered.
 - The IDP Issuer column is hidden by default and can be filtered but not sorted — the identity-provider issuer that owns this identity.
+- The auth method enforcer dismissed column is hidden by default and can be sorted and filtered.
+- The onboarding completed column is hidden by default and can be sorted and filtered.
 
 ## Related entities
 
@@ -103,7 +105,7 @@ The page is visible with the `access.system.settings.users` grant.
 | **restore** | ENABLED | `user_profile.restore.single` | Brings a soft-deleted user back | no |
 | **purge** | DISABLED | — | Removes the user forever | no |
 | **audit history** | ENABLED | `user_profile.read.audit` | Shows the change history of the user | no |
-| **Change Password** | ENABLED | `AUTHENTICATED_ADMIN` | Set a new password for this user. They will need to use the new password on next login. | no |
+| **Change Password** | ENABLED | `AUTHENTICATED_ADMIN` | — | no |
 
 - Creating a new user is available on this page — the create action opens the create form in the same tab and it requires the `user_profile.create.single` permission.
 - Editing a user is available on this page — the row action opens the record in the same tab and it requires the `user_profile.update.single` permission.
@@ -111,7 +113,7 @@ The page is visible with the `access.system.settings.users` grant.
 - Restoring a soft-deleted user is available on this page — brings a soft-deleted user back and it requires the `user_profile.restore.single` permission.
 - Permanently deleting a user is not available on this page — no permission is declared for it on users.
 - Viewing the change history of a user is available on this page — every user keeps a full version history and it requires the `user_profile.read.audit` permission.
-- The Change Password action is available on this page — set a new password for this user; they will need to use the new password on next login — it is unavailable on deleted rows and it requires the `AUTHENTICATED_ADMIN` permission.
+- The Change Password action is available on this page — it is unavailable on deleted rows and it requires the `AUTHENTICATED_ADMIN` permission.
 
 ### Bulk actions
 

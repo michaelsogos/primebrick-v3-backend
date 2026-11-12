@@ -222,7 +222,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
       entity: UserPasskeyEntity,
       list: {
         searchableKeys: ["label", "credential_id"],
-        filterableKeys: new Set(["user_profile_id", "credential_id", "aaguid"]),
+        filterableKeys: new Set(["user_profile_uuid", "credential_id", "aaguid"]),
         defaultSort: { key: "created_at", dir: "desc" },
       },
     });
@@ -232,7 +232,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
 
   /** Insert a new passkey row after successful WebAuthn enrollment. */
   private async createPasskey(data: {
-    user_profile_id: bigint;
+    user_profile_uuid: string;
     credential_id: string;
     aaguid?: string;
     transports?: string[];
@@ -247,7 +247,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
     const row = await this.dal.add<UserPasskeyEntity>(
       UserPasskeyEntity,
       {
-        user_profile_id: data.user_profile_id,
+        user_profile_uuid: data.user_profile_uuid,
         credential_id: data.credential_id,
         aaguid: data.aaguid,
         transports: data.transports,
@@ -296,14 +296,14 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
     );
   }
 
-  /** Find all passkeys for a user profile (by user_profile_id). */
-  private async findPasskeysByUserProfileId(userProfileId: bigint): Promise<UserPasskeyEntity[]> {
+  /** Find all passkeys for a user profile (by user_profile_uuid). */
+  private async findPasskeysByUserProfileUuid(userProfileUuid: string): Promise<UserPasskeyEntity[]> {
     const rows = await this.dal.findAll<UserPasskeyEntity, UserPasskeyEntity>(
       UserPasskeyEntity,
       null,
       {
         filters: [
-          Filter.fieldValue(field(UserPasskeyEntity, "user_profile_id" as any), "=", userProfileId),
+          Filter.fieldValue(field(UserPasskeyEntity, "user_profile_uuid" as any), "=", userProfileUuid),
         ],
       },
     );
@@ -311,22 +311,11 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
   }
 
   /**
-   * Find passkeys by user profile UUID — resolves uuid → internal id via
-   * UserService (UserProfileEntity is @Cached, so the lookup is usually
-   * a cache hit), then filters `user_profile_id` on the entity.
-   */
-  private async findPasskeysByUserProfileUuid(userProfileUuid: string): Promise<UserPasskeyEntity[]> {
-    const profileId = await getUserService().getIdByUuid(userProfileUuid);
-    if (!profileId) return [];
-    return this.findPasskeysByUserProfileId(profileId);
-  }
-
-  /**
    * Count passkeys for a user profile.
    * Used by the passkey prompt logic (has_passkey = count > 0).
    */
-  async countPasskeysByUserProfileId(userProfileId: bigint): Promise<number> {
-    const rows = await this.findPasskeysByUserProfileId(userProfileId);
+  async countPasskeysByUserProfileUuid(userProfileUuid: string): Promise<number> {
+    const rows = await this.findPasskeysByUserProfileUuid(userProfileUuid);
     return rows.length;
   }
 
@@ -347,7 +336,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
       },
     );
     if (existing) {
-      await this.dal.delete(UserPasskeyEntity, { id: existing.id, version: existing.version }, { actor: requireActor() });
+      await this.dal.delete(UserPasskeyEntity, { uuid: existing.uuid, version: existing.version }, { actor: requireActor() });
     }
   }
 
@@ -358,7 +347,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
   private async deletePasskeyByCredentialId(credentialId: string): Promise<void> {
     const existing = await this.findPasskeyByCredentialId(credentialId);
     if (existing) {
-      await this.dal.delete(UserPasskeyEntity, { id: existing.id, version: existing.version }, { actor: requireActor() });
+      await this.dal.delete(UserPasskeyEntity, { uuid: existing.uuid, version: existing.version }, { actor: requireActor() });
     }
   }
 
@@ -424,7 +413,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
     await this.dal.update(
       UserPasskeyEntity,
       {
-        id: existing.id,
+        uuid: existing.uuid,
         version: existing.version,
         ...patch,
       },
@@ -660,7 +649,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
       debugLog(`signinFinish called | credentialId=${extJsonStringify(credentialId)} | credential keys=${Object.keys(credential || {})}`);
       if (credentialId) {
         const existing = await this.findPasskeyByCredentialId(credentialId);
-        debugLog(`findByCredentialId(credentialId) => ${existing ? `FOUND id=${existing.id} stored_cred=${existing.credential_id}` : "NOT FOUND"}`);
+        debugLog(`findByCredentialId(credentialId) => ${existing ? `FOUND uuid=${existing.uuid} stored_cred=${existing.credential_id}` : "NOT FOUND"}`);
         // Also try with all PG passkeys to find a match
         const profile = await (async () => {
           try {
@@ -672,7 +661,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
         })();
         if (profile) {
           const allPks = await this.findPasskeysByUserProfileUuid(profile.uuid);
-          debugLog(`all PG passkeys for profile ${profile.uuid}: ${extJsonStringify(allPks.map(p => ({ id: p.id, cred: p.credential_id, last_used: p.last_used_at })))}`);
+          debugLog(`all PG passkeys for profile ${profile.uuid}: ${extJsonStringify(allPks.map(p => ({ uuid: p.uuid, cred: p.credential_id, last_used: p.last_used_at })))}`);
         }
         await runAsSystem(() => this.updatePasskeyLastUsed(credentialId, new Date()));
         debugLog(`updateLastUsed DONE`);
@@ -839,7 +828,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
       const cred = credential as { id?: string; response?: { attestationObject?: string } };
       const credentialId = cred?.id;
       if (credentialId) {
-        // Get the user profile from the access token to find user_profile_id
+        // Get the user profile from the access token to find user_profile_uuid
         const profilesDal = getUserService();
         // We need the user's idp_code to look up the profile — extract from the
         // access token claims. For now, we use the Casdoor session to get the user.
@@ -849,8 +838,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
         const actor = requireActor();
         const profile = await profilesDal.getByUuid(actor);
         if (profile) {
-          const profileId = await profilesDal.getIdByUuid(actor);
-          if (profileId) {
+          {
             // Check if this credential is already tracked (idempotent)
             const existing = await this.findPasskeyByCredentialId(credentialId);
             if (!existing) {
@@ -859,7 +847,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
               // Windows 10 from Windows 11 on Chromium-based browsers.
               const uaInfo = userAgent ? parseUserAgent(userAgent, platformVersion) : {};
               await this.createPasskey({
-                user_profile_id: BigInt(profileId),
+                user_profile_uuid: profile.uuid,
                 credential_id: credentialId,
                 // aaguid and transports are inside the attestationObject which is
                 // CBOR-encoded — extracting them requires a CBOR decoder. For now,
@@ -1074,14 +1062,6 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
 
     const pgPasskeys = await this.findPasskeysByUserProfileUuid(profile.uuid);
 
-    // Get the numeric profile ID for insertion
-    const profileId = await profilesDal.getIdByUuid(profile.uuid);
-    if (!profileId) {
-      throw new NotFoundError("User profile ID not found", {
-        internal_code: "USER_PROFILE_NOT_FOUND",
-      });
-    }
-
     let inserted = 0;
     let deleted = 0;
 
@@ -1098,7 +1078,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
         // New credential — insert with all available metadata
         const osInfo = inferOsFromAaguid(aaguid);
         await this.createPasskey({
-          user_profile_id: BigInt(profileId),
+          user_profile_uuid: profile.uuid,
           credential_id: cred.id,
           aaguid,
           transports: cred.transport ?? undefined,

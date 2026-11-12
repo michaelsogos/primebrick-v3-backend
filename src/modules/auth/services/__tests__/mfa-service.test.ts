@@ -11,9 +11,9 @@ const {
 } = vi.hoisted(() => ({
   factorMethodMocks: {
     findFactorByUuid: vi.fn(),
-    findFactorsByUserProfileId: vi.fn(),
-    findEnabledFactorsByUserProfileId: vi.fn(),
-    countEnabledFactorsByUserProfileId: vi.fn(),
+    findFactorsByUserProfileUuid: vi.fn(),
+    findEnabledFactorsByUserProfileUuid: vi.fn(),
+    countEnabledFactorsByUserProfileUuid: vi.fn(),
     createFactor: vi.fn(),
     updateFactor: vi.fn(),
     delete: vi.fn(),
@@ -33,7 +33,6 @@ const {
   },
   mockUserService: {
     getByUuid: vi.fn(),
-    getIdByUuid: vi.fn(),
     getIdpIdentityByUuid: vi.fn(),
   },
   mockCasdoor: {
@@ -117,7 +116,7 @@ function makeService(): MfaService {
 function makeFactor(overrides: Partial<any> = {}): any {
   return {
     uuid: "factor-uuid-1",
-    user_profile_id: BigInt(1),
+    user_profile_uuid: "user-uuid-1",
     factor_type: "totp",
     casdoor_mfa_type: "app",
     totp_secret_encrypted: encrypt(TOTP_SECRET, SIGNING_SECRET),
@@ -134,10 +133,10 @@ beforeEach(() => {
   // Don't use vi.clearAllMocks() — in vitest 4 it clears implementations.
   // Instead, just overwrite the default implementations each time.
   mockConfigEntriesService.findByKey.mockResolvedValue({ value: SIGNING_SECRET });
-  factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([]);
-  factorMethodMocks.findFactorsByUserProfileId.mockResolvedValue([]);
+  factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([]);
+  factorMethodMocks.findFactorsByUserProfileUuid.mockResolvedValue([]);
   factorMethodMocks.findFactorByUuid.mockResolvedValue(null);
-  factorMethodMocks.countEnabledFactorsByUserProfileId.mockResolvedValue(0);
+  factorMethodMocks.countEnabledFactorsByUserProfileUuid.mockResolvedValue(0);
   factorMethodMocks.hardDelete.mockResolvedValue(undefined);
   factorMethodMocks.deleteFactorByUuid.mockResolvedValue(undefined);
   factorMethodMocks.updateFactor.mockResolvedValue(undefined);
@@ -145,8 +144,8 @@ beforeEach(() => {
   actionAuthzMocks.findActionAuthorizationByJti.mockResolvedValue(null);
   actionAuthzMocks.markActionAuthorizationUsed.mockResolvedValue(undefined);
   mockCasdoor.getClient.mockResolvedValue(mockCasdoorClient);
-  // Default: profile lookups used by resolveProfileId / resolveCasdoorIdentity
-  mockUserService.getIdByUuid.mockResolvedValue(BigInt(1));
+  // Default: profile lookups used by resolveProfileUuid / resolveCasdoorIdentity
+  mockUserService.getByUuid.mockResolvedValue({ uuid: "profile-uuid-1" });
   mockUserService.getIdpIdentityByUuid.mockResolvedValue({
     idp_org: "acme",
     idp_username: "test-admin",
@@ -158,13 +157,13 @@ beforeEach(() => {
 
 describe("MfaService — hasMfa", () => {
   it("returns true when user has enabled factors", async () => {
-    factorMethodMocks.countEnabledFactorsByUserProfileId.mockResolvedValue(1);
+    factorMethodMocks.countEnabledFactorsByUserProfileUuid.mockResolvedValue(1);
     const service = makeService();
     expect(await service.hasMfa("user-uuid-1")).toBe(true);
   });
 
   it("returns false when user has no enabled factors", async () => {
-    factorMethodMocks.countEnabledFactorsByUserProfileId.mockResolvedValue(0);
+    factorMethodMocks.countEnabledFactorsByUserProfileUuid.mockResolvedValue(0);
     const service = makeService();
     expect(await service.hasMfa("user-uuid-1")).toBe(false);
   });
@@ -172,7 +171,7 @@ describe("MfaService — hasMfa", () => {
 
 describe("MfaService — mintLoginChallenge", () => {
   it("issues a challenge token with available factors", async () => {
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([
       makeFactor({ uuid: "factor-1", label: "Phone 1" }),
       makeFactor({ uuid: "factor-2", label: "Phone 2" }),
     ]);
@@ -191,7 +190,7 @@ describe("MfaService — mintLoginChallenge", () => {
   });
 
   it("throws when user has no enabled factors", async () => {
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([]);
     const service = makeService();
     await expect(
       service.mintLoginChallenge("user-uuid-1", "idp-code-1", "acme", "test-admin", {
@@ -209,7 +208,7 @@ describe("MfaService — verifyAtLogin", () => {
 
     const service = makeService();
     // First mint a challenge
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([factor]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([factor]);
     const challenge = await service.mintLoginChallenge(
       "user-uuid-1",
       "idp-code-1",
@@ -236,7 +235,7 @@ describe("MfaService — verifyAtLogin", () => {
   it("rejects an invalid TOTP code", async () => {
     const factor = makeFactor();
     factorMethodMocks.findFactorByUuid.mockResolvedValue(factor);
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([factor]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([factor]);
 
     const service = makeService();
     const challenge = await service.mintLoginChallenge(
@@ -254,7 +253,7 @@ describe("MfaService — verifyAtLogin", () => {
 
   it("rejects a factor not in available_factor_ids", async () => {
     const factor = makeFactor();
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([factor]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([factor]);
 
     const service = makeService();
     const challenge = await service.mintLoginChallenge(
@@ -273,7 +272,7 @@ describe("MfaService — verifyAtLogin", () => {
   it("rejects replay (second use of same challenge token)", async () => {
     const factor = makeFactor();
     factorMethodMocks.findFactorByUuid.mockResolvedValue(factor);
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([factor]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([factor]);
 
     const service = makeService();
     const challenge = await service.mintLoginChallenge(
@@ -296,7 +295,7 @@ describe("MfaService — verifyAtLogin", () => {
 
 describe("MfaService — mintStepUpChallenge", () => {
   it("issues a step-up challenge with action + target_resource", async () => {
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([makeFactor()]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([makeFactor()]);
     const service = makeService();
     const result = await service.mintStepUpChallenge("user-uuid-1", "delete", "organizations");
     expect(result.mfa_challenge_token).toBeTruthy();
@@ -304,7 +303,7 @@ describe("MfaService — mintStepUpChallenge", () => {
   });
 
   it("throws when user has no enabled factors", async () => {
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([]);
     const service = makeService();
     await expect(
       service.mintStepUpChallenge("user-uuid-1", "delete", "organizations"),
@@ -315,7 +314,7 @@ describe("MfaService — mintStepUpChallenge", () => {
 describe("MfaService — verifyStepUp", () => {
   it("verifies TOTP and issues an action authorization token", async () => {
     const factor = makeFactor();
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([factor]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([factor]);
     factorMethodMocks.findFactorByUuid.mockResolvedValue(factor);
 
     const service = makeService();
@@ -332,7 +331,7 @@ describe("MfaService — verifyStepUp", () => {
 
   it("rejects wrong TOTP code", async () => {
     const factor = makeFactor();
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([factor]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([factor]);
     factorMethodMocks.findFactorByUuid.mockResolvedValue(factor);
 
     const service = makeService();
@@ -346,7 +345,7 @@ describe("MfaService — verifyStepUp", () => {
 describe("MfaService — consumeActionAuthorization", () => {
   it("consumes a valid action authorization token", async () => {
     const factor = makeFactor();
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([factor]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([factor]);
     factorMethodMocks.findFactorByUuid.mockResolvedValue(factor);
 
     const service = makeService();
@@ -384,7 +383,7 @@ describe("MfaService — consumeActionAuthorization", () => {
 
   it("rejects a token with wrong action", async () => {
     const factor = makeFactor();
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([factor]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([factor]);
     factorMethodMocks.findFactorByUuid.mockResolvedValue(factor);
 
     const service = makeService();
@@ -403,7 +402,7 @@ describe("MfaService — consumeActionAuthorization", () => {
 
   it("rejects an already-used token", async () => {
     const factor = makeFactor();
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([factor]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([factor]);
     factorMethodMocks.findFactorByUuid.mockResolvedValue(factor);
 
     const service = makeService();
@@ -431,7 +430,7 @@ describe("MfaService — consumeActionAuthorization", () => {
 
   it("rejects an expired token", async () => {
     const factor = makeFactor();
-    factorMethodMocks.findEnabledFactorsByUserProfileId.mockResolvedValue([factor]);
+    factorMethodMocks.findEnabledFactorsByUserProfileUuid.mockResolvedValue([factor]);
     factorMethodMocks.findFactorByUuid.mockResolvedValue(factor);
 
     const service = makeService();
@@ -460,7 +459,7 @@ describe("MfaService — consumeActionAuthorization", () => {
 
 describe("MfaService — listFactors", () => {
   it("returns enabled factors for the user", async () => {
-    factorMethodMocks.findFactorsByUserProfileId.mockResolvedValue([
+    factorMethodMocks.findFactorsByUserProfileUuid.mockResolvedValue([
       makeFactor({ uuid: "f1", label: "Phone 1" }),
       makeFactor({ uuid: "f2", label: "Phone 2" }),
     ]);
@@ -487,7 +486,7 @@ describe("MfaService — deleteFactor", () => {
 
   it("throws when factor does not belong to the user", async () => {
     factorMethodMocks.findFactorByUuid.mockResolvedValue(
-      makeFactor({ user_profile_id: BigInt(999) }), // different user
+      makeFactor({ user_profile_uuid: "profile-uuid-other" }), // different user
     );
     const service = makeService();
     await expect(service.deleteFactor("user-uuid-1", "factor-uuid-1")).rejects.toThrow();

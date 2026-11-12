@@ -32,14 +32,12 @@ import {
 export class UserPasskeyEntity
   extends Auditable(EntityBase) {
   @Key()
-  id: bigint;
+  @Column({ pgType: "uuid" })
+  uuid!: UUID;
 
-  @Unique()
-  uuid: UUID;
-
-  /** FK to user_profiles.id. */
-  @Column({ nullable: false })
-  user_profile_id: bigint;
+  /** FK to user_profiles.uuid. */
+  @Column({ pgType: "uuid", nullable: false })
+  user_profile_uuid!: UUID;
 
   /** base64url credential ID from WebAuthn. */
   @Unique()
@@ -59,7 +57,7 @@ export class UserPasskeyEntity
   label?: string;
 
   /** Last time this credential was used to sign in (null until first signin after this feature ships). */
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   last_used_at?: Date;
 
   /** WebAuthn AuthenticatorAttachment: "platform" | "cross-platform". */

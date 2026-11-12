@@ -35,14 +35,12 @@ export type MfaFactorType = "totp";
 export class UserMfaFactorEntity
   extends Auditable(EntityBase) {
   @Key()
-  id: bigint;
+  @Column({ pgType: "uuid" })
+  uuid!: UUID;
 
-  @Unique()
-  uuid: UUID;
-
-  /** FK to user_profiles.id. */
-  @Column({ nullable: false })
-  user_profile_id: bigint;
+  /** FK to user_profiles.uuid. */
+  @Column({ pgType: "uuid", nullable: false })
+  user_profile_uuid!: UUID;
 
   /** Factor type: "totp" (v1 only). */
   @Column({ nullable: false })
@@ -66,15 +64,15 @@ export class UserMfaFactorEntity
   label?: string;
 
   /** Whether the factor is enabled. */
-  @Column({ nullable: false })
+  @Column({ pgType: "boolean", nullable: false })
   is_enabled: boolean;
 
   /** Whether this is the preferred factor (shown first in challenge UI). */
-  @Column({ nullable: false })
+  @Column({ pgType: "boolean", nullable: false })
   is_preferred: boolean;
 
   /** When the factor was last used for verification. */
-  @Column({ nullable: true })
+  @Column({ nullable: true, jsType: "instant" })
   last_used_at?: Date;
 
 

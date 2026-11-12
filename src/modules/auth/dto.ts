@@ -33,6 +33,8 @@ export const ProfileUpdateSchema = z
     email: z.string().email().optional(),
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
     avatar_initials: z.string().min(1).optional(),
+    /** Self-service editable — user can re-arm the enforcer on their own profile. */
+    auth_method_enforcer_dismissed: z.boolean().optional(),
   })
   .strict();
 export type ProfileUpdate = z.infer<typeof ProfileUpdateSchema>;
@@ -62,10 +64,9 @@ export function makeCreateUserSchema(policy: PasswordPolicy) {
     avatar_initials: z.string().optional(),
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
     idp_org: z.string().optional(),
-    is_active: z.boolean().default(false),
-    is_admin: z.boolean().default(false),
-    is_verified: z.boolean().default(false),
-    email_verified: z.boolean().default(false),
+    idp_is_admin: z.boolean().default(false),
+    idp_is_verified: z.boolean().default(false),
+    idp_email_verified: z.boolean().default(false),
     send_invitation: z.boolean().default(false),
   }).superRefine((data, ctx) => {
     // Password is required when send_invitation is false
@@ -98,6 +99,10 @@ export const UserUpdateBodySchema = z
     avatar_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
     avatar_initials: z.string().min(1).max(10).optional(),
     roles: z.array(z.string()).optional(),
+    /** Admin-managed Casdoor-console flag — editable on /update only. */
+    idp_is_admin: z.boolean().optional(),
+    /** Admin can re-arm the auth-method enforcer on legacy users. */
+    auth_method_enforcer_dismissed: z.boolean().optional(),
     version: zBoundedInt(0, Number.MAX_SAFE_INTEGER),
   })
   .strict();
@@ -243,7 +248,7 @@ export type OrganizationDetailDto = Omit<
 // --- Auth event row / API DTO (auth_events — non-auditable audit log) ------
 
 export type AuthEventRow = {
-  id: bigint;
+  uuid: string;
   user_profile_uuid?: string;
   attempted_username?: string;
   event_type: string;

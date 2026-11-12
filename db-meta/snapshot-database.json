@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T23:43:00.174Z",
+  "generatedAt": "2026-11-11T18:01:35.816Z",
   "source": "database",
   "tables": {
     "public.auth_events": {
@@ -8,19 +8,6 @@
       "schema": "public",
       "name": "auth_events",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "user_profile_uuid": {
           "name": "user_profile_uuid",
           "ordinalPosition": 2,
@@ -124,6 +111,19 @@
           "numericScale": null,
           "isNullable": true,
           "isPrimaryKey": false
+        },
+        "uuid": {
+          "name": "uuid",
+          "ordinalPosition": 10,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": true
         }
       },
       "indexes": [
@@ -164,19 +164,6 @@
       "schema": "public",
       "name": "config_entries",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "uuid": {
           "name": "uuid",
           "ordinalPosition": 2,
@@ -188,7 +175,7 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": true
         },
         "key": {
           "name": "key",
@@ -404,15 +391,6 @@
             "deleted_at"
           ],
           "definition": "CREATE INDEX config_entries_deleted_at_idx ON public.config_entries USING btree (deleted_at)"
-        },
-        {
-          "name": "config_entries_uuid_uq",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "uuid"
-          ],
-          "definition": "CREATE UNIQUE INDEX config_entries_uuid_uq ON public.config_entries USING btree (uuid)"
         }
       ]
     },
@@ -421,19 +399,6 @@
       "schema": "public",
       "name": "mfa_action_authorizations",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "jti": {
           "name": "jti",
           "ordinalPosition": 2,
@@ -442,19 +407,6 @@
           "typeOid": 25,
           "typcategory": "S",
           "formatType": "text",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false
-        },
-        "user_profile_id": {
-          "name": "user_profile_id",
-          "ordinalPosition": 3,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
@@ -589,6 +541,32 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false
+        },
+        "uuid": {
+          "name": "uuid",
+          "ordinalPosition": 14,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": true
+        },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
+          "ordinalPosition": 15,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
         }
       },
       "indexes": [
@@ -602,15 +580,6 @@
           "definition": "CREATE UNIQUE INDEX mfa_action_authorizations_jti_uq ON public.mfa_action_authorizations USING btree (jti)"
         },
         {
-          "name": "mfa_action_authorizations_user_profile_id_idx",
-          "using": "btree",
-          "isUnique": false,
-          "columns": [
-            "user_profile_id"
-          ],
-          "definition": "CREATE INDEX mfa_action_authorizations_user_profile_id_idx ON public.mfa_action_authorizations USING btree (user_profile_id)"
-        },
-        {
           "name": "mfa_action_authorizations_expires_at_idx",
           "using": "btree",
           "isUnique": false,
@@ -618,6 +587,15 @@
             "expires_at"
           ],
           "definition": "CREATE INDEX mfa_action_authorizations_expires_at_idx ON public.mfa_action_authorizations USING btree (expires_at)"
+        },
+        {
+          "name": "mfa_action_authorizations_user_profile_uuid_idx",
+          "using": "btree",
+          "isUnique": false,
+          "columns": [
+            "user_profile_uuid"
+          ],
+          "definition": "CREATE INDEX mfa_action_authorizations_user_profile_uuid_idx ON public.mfa_action_authorizations USING btree (user_profile_uuid)"
         }
       ]
     },
@@ -626,19 +604,6 @@
       "schema": "public",
       "name": "organizations",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "uuid": {
           "name": "uuid",
           "ordinalPosition": 2,
@@ -650,7 +615,7 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": true
         },
         "idp_code": {
           "name": "idp_code",
@@ -837,15 +802,6 @@
       },
       "indexes": [
         {
-          "name": "organizations_uuid_uq",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "uuid"
-          ],
-          "definition": "CREATE UNIQUE INDEX organizations_uuid_uq ON public.organizations USING btree (uuid)"
-        },
-        {
           "name": "organizations_idp_code_uq",
           "using": "btree",
           "isUnique": true,
@@ -861,19 +817,6 @@
       "schema": "public",
       "name": "role_mappings",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "idp_role": {
           "name": "idp_role",
           "ordinalPosition": 2,
@@ -1028,19 +971,10 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": true
         }
       },
       "indexes": [
-        {
-          "name": "role_mappings_uuid_uq",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "uuid"
-          ],
-          "definition": "CREATE UNIQUE INDEX role_mappings_uuid_uq ON public.role_mappings USING btree (uuid)"
-        },
         {
           "name": "role_mappings_idp_role_uq",
           "using": "btree",
@@ -1057,19 +991,6 @@
       "schema": "public",
       "name": "user_invitations",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "uuid": {
           "name": "uuid",
           "ordinalPosition": 2,
@@ -1081,20 +1002,7 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
-        },
-        "user_profile_id": {
-          "name": "user_profile_id",
-          "ordinalPosition": 3,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": true
         },
         "token_hash": {
           "name": "token_hash",
@@ -1277,18 +1185,22 @@
           "numericScale": null,
           "isNullable": true,
           "isPrimaryKey": false
+        },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
+          "ordinalPosition": 18,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
         }
       },
       "indexes": [
-        {
-          "name": "user_invitations_uuid_uq",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "uuid"
-          ],
-          "definition": "CREATE UNIQUE INDEX user_invitations_uuid_uq ON public.user_invitations USING btree (uuid)"
-        },
         {
           "name": "user_invitations_token_hash_uq",
           "using": "btree",
@@ -1299,15 +1211,6 @@
           "definition": "CREATE UNIQUE INDEX user_invitations_token_hash_uq ON public.user_invitations USING btree (token_hash)"
         },
         {
-          "name": "user_invitations_user_profile_id_idx",
-          "using": "btree",
-          "isUnique": false,
-          "columns": [
-            "user_profile_id"
-          ],
-          "definition": "CREATE INDEX user_invitations_user_profile_id_idx ON public.user_invitations USING btree (user_profile_id)"
-        },
-        {
           "name": "user_invitations_status_idx",
           "using": "btree",
           "isUnique": false,
@@ -1315,6 +1218,15 @@
             "status"
           ],
           "definition": "CREATE INDEX user_invitations_status_idx ON public.user_invitations USING btree (status)"
+        },
+        {
+          "name": "user_invitations_user_profile_uuid_idx",
+          "using": "btree",
+          "isUnique": false,
+          "columns": [
+            "user_profile_uuid"
+          ],
+          "definition": "CREATE INDEX user_invitations_user_profile_uuid_idx ON public.user_invitations USING btree (user_profile_uuid)"
         }
       ]
     },
@@ -1323,19 +1235,6 @@
       "schema": "public",
       "name": "user_mfa_factors",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "uuid": {
           "name": "uuid",
           "ordinalPosition": 2,
@@ -1347,20 +1246,7 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
-        },
-        "user_profile_id": {
-          "name": "user_profile_id",
-          "ordinalPosition": 3,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": true
         },
         "factor_type": {
           "name": "factor_type",
@@ -1517,26 +1403,30 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false
+        },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
+          "ordinalPosition": 16,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
         }
       },
       "indexes": [
         {
-          "name": "user_mfa_factors_uuid_uq",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "uuid"
-          ],
-          "definition": "CREATE UNIQUE INDEX user_mfa_factors_uuid_uq ON public.user_mfa_factors USING btree (uuid)"
-        },
-        {
-          "name": "user_mfa_factors_user_profile_id_idx",
+          "name": "user_mfa_factors_user_profile_uuid_idx",
           "using": "btree",
           "isUnique": false,
           "columns": [
-            "user_profile_id"
+            "user_profile_uuid"
           ],
-          "definition": "CREATE INDEX user_mfa_factors_user_profile_id_idx ON public.user_mfa_factors USING btree (user_profile_id)"
+          "definition": "CREATE INDEX user_mfa_factors_user_profile_uuid_idx ON public.user_mfa_factors USING btree (user_profile_uuid)"
         }
       ]
     },
@@ -1545,19 +1435,6 @@
       "schema": "public",
       "name": "user_passkeys",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "uuid": {
           "name": "uuid",
           "ordinalPosition": 2,
@@ -1569,20 +1446,7 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
-        },
-        "user_profile_id": {
-          "name": "user_profile_id",
-          "ordinalPosition": 3,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": true
         },
         "credential_id": {
           "name": "credential_id",
@@ -1765,18 +1629,22 @@
           "numericScale": null,
           "isNullable": true,
           "isPrimaryKey": false
+        },
+        "user_profile_uuid": {
+          "name": "user_profile_uuid",
+          "ordinalPosition": 18,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "typeOid": 2950,
+          "typcategory": "U",
+          "formatType": "uuid",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false
         }
       },
       "indexes": [
-        {
-          "name": "user_passkeys_uuid_uq",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "uuid"
-          ],
-          "definition": "CREATE UNIQUE INDEX user_passkeys_uuid_uq ON public.user_passkeys USING btree (uuid)"
-        },
         {
           "name": "user_passkeys_credential_id_uq",
           "using": "btree",
@@ -1787,13 +1655,13 @@
           "definition": "CREATE UNIQUE INDEX user_passkeys_credential_id_uq ON public.user_passkeys USING btree (credential_id)"
         },
         {
-          "name": "user_passkeys_user_profile_id_idx",
+          "name": "user_passkeys_user_profile_uuid_idx",
           "using": "btree",
           "isUnique": false,
           "columns": [
-            "user_profile_id"
+            "user_profile_uuid"
           ],
-          "definition": "CREATE INDEX user_passkeys_user_profile_id_idx ON public.user_passkeys USING btree (user_profile_id)"
+          "definition": "CREATE INDEX user_passkeys_user_profile_uuid_idx ON public.user_passkeys USING btree (user_profile_uuid)"
         }
       ]
     },
@@ -1802,19 +1670,6 @@
       "schema": "public",
       "name": "user_preferences",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "uuid": {
           "name": "uuid",
           "ordinalPosition": 2,
@@ -1826,7 +1681,7 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": true
         },
         "user_uuid": {
           "name": "user_uuid",
@@ -1935,15 +1790,6 @@
       },
       "indexes": [
         {
-          "name": "user_preferences_uuid_uq",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "uuid"
-          ],
-          "definition": "CREATE UNIQUE INDEX user_preferences_uuid_uq ON public.user_preferences USING btree (uuid)"
-        },
-        {
           "name": "user_preferences_user_key_uidx",
           "using": "btree",
           "isUnique": true,
@@ -1960,19 +1806,6 @@
       "schema": "public",
       "name": "user_profiles",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "uuid": {
           "name": "uuid",
           "ordinalPosition": 2,
@@ -1984,7 +1817,7 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": true
         },
         "idp_code": {
           "name": "idp_code",
@@ -2288,15 +2121,6 @@
       },
       "indexes": [
         {
-          "name": "user_profiles_uuid_uq",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "uuid"
-          ],
-          "definition": "CREATE UNIQUE INDEX user_profiles_uuid_uq ON public.user_profiles USING btree (uuid)"
-        },
-        {
           "name": "user_profiles_idp_code_uq",
           "using": "btree",
           "isUnique": true,
@@ -2312,19 +2136,6 @@
       "schema": "public",
       "name": "api_keys",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "uuid": {
           "name": "uuid",
           "ordinalPosition": 2,
@@ -2336,7 +2147,7 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": true
         },
         "key_hash": {
           "name": "key_hash",
@@ -2510,15 +2321,6 @@
       },
       "indexes": [
         {
-          "name": "api_keys_uuid_uq",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "uuid"
-          ],
-          "definition": "CREATE UNIQUE INDEX api_keys_uuid_uq ON public.api_keys USING btree (uuid)"
-        },
-        {
           "name": "api_keys_key_hash_uq",
           "using": "btree",
           "isUnique": true,
@@ -2534,19 +2336,6 @@
       "schema": "public",
       "name": "mcp_oauth_clients",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "uuid": {
           "name": "uuid",
           "ordinalPosition": 2,
@@ -2558,7 +2347,7 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": true
         },
         "client_id": {
           "name": "client_id",
@@ -2732,15 +2521,6 @@
       },
       "indexes": [
         {
-          "name": "mcp_oauth_clients_uuid_uq",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "uuid"
-          ],
-          "definition": "CREATE UNIQUE INDEX mcp_oauth_clients_uuid_uq ON public.mcp_oauth_clients USING btree (uuid)"
-        },
-        {
           "name": "mcp_oauth_clients_client_id_uq",
           "using": "btree",
           "isUnique": true,
@@ -2756,19 +2536,6 @@
       "schema": "public",
       "name": "service_registry",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "uuid": {
           "name": "uuid",
           "ordinalPosition": 2,
@@ -2780,7 +2547,7 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": true
         },
         "code": {
           "name": "code",
@@ -3149,15 +2916,6 @@
       },
       "indexes": [
         {
-          "name": "service_registry_uuid_uq",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "uuid"
-          ],
-          "definition": "CREATE UNIQUE INDEX service_registry_uuid_uq ON public.service_registry USING btree (uuid)"
-        },
-        {
           "name": "service_registry_deleted_at_idx",
           "using": "btree",
           "isUnique": false,
@@ -3194,19 +2952,6 @@
       "schema": "system",
       "name": "client_shield_registry",
       "columns": {
-        "id": {
-          "name": "id",
-          "ordinalPosition": 1,
-          "dataType": "int8",
-          "typname": "int8",
-          "typeOid": 20,
-          "typcategory": "N",
-          "formatType": "bigint",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true
-        },
         "uuid": {
           "name": "uuid",
           "ordinalPosition": 2,
@@ -3218,7 +2963,7 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": true
         },
         "ua_prefix": {
           "name": "ua_prefix",
@@ -3430,15 +3175,6 @@
         }
       },
       "indexes": [
-        {
-          "name": "client_shield_registry_uuid_uq",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "uuid"
-          ],
-          "definition": "CREATE UNIQUE INDEX client_shield_registry_uuid_uq ON system.client_shield_registry USING btree (uuid)"
-        },
         {
           "name": "client_shield_registry_ua_prefix_uidx",
           "using": "btree",

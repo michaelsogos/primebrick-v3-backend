@@ -314,21 +314,20 @@ export class AuthSessionService {
 
     // Include passkey info for the FE auth method enforcer dialog logic
     const sessionState = await this.users.getSessionStateByUuid(userUuid);
-    const profileId = sessionState?.id;
     const authMethodEnforcerDismissed = sessionState?.auth_method_enforcer_dismissed ?? false;
 
     let hasPasskey = false;
-    if (profileId) {
+    if (sessionState) {
       const { WebauthnService } = await import("./webauthn.service.js");
-      const count = await new WebauthnService(this.casdoor).countPasskeysByUserProfileId(BigInt(profileId));
+      const count = await new WebauthnService(this.casdoor).countPasskeysByUserProfileUuid(userUuid);
       hasPasskey = count > 0;
     }
 
     // Include MFA info for the FE auth method enforcer dialog logic
     let hasMfa = false;
-    if (profileId && getAuthConfig().enable_mfa) {
+    if (sessionState && getAuthConfig().enable_mfa) {
       const { MfaService } = await import("./mfa.service.js");
-      const mfaCount = await new MfaService(this.casdoor).countEnabledFactorsByUserProfileId(BigInt(profileId));
+      const mfaCount = await new MfaService(this.casdoor).countEnabledFactorsByUserProfileUuid(userUuid);
       hasMfa = mfaCount > 0;
     }
 
@@ -365,7 +364,7 @@ export class AuthSessionService {
   }
 
   async updateMe(userUuid: string, input: ProfileUpdate): Promise<MeProfileResponse> {
-    const { display_name, email, avatar_color, avatar_initials } = input;
+    const { display_name, email, avatar_color, avatar_initials, auth_method_enforcer_dismissed } = input;
 
     if (avatar_color !== undefined && !avatar_initials) {
       throw new ValidationError("avatar_initials is required when updating avatar_color", {
@@ -378,6 +377,7 @@ export class AuthSessionService {
     if (email !== undefined) updateBody.email = email;
     if (avatar_color !== undefined) updateBody.avatar_color = avatar_color;
     if (avatar_initials !== undefined) updateBody.avatar_initials = avatar_initials;
+    if (auth_method_enforcer_dismissed !== undefined) updateBody.auth_method_enforcer_dismissed = auth_method_enforcer_dismissed;
 
     if (Object.keys(updateBody).length === 0) {
       throw new ValidationError("No fields to update", { internal_code: "NO_FIELDS" });

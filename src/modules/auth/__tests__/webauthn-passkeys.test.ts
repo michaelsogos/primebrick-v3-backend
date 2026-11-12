@@ -31,9 +31,8 @@ import { WebauthnService } from "../services/webauthn.service.js";
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function makePasskeyRow(overrides: Partial<{
-  id: bigint;
   uuid: string;
-  user_profile_id: bigint;
+  user_profile_uuid: string;
   credential_id: string;
   aaguid: string | null;
   transports: string[] | null;
@@ -41,9 +40,8 @@ function makePasskeyRow(overrides: Partial<{
   version: number;
 }> = {}) {
   return {
-    id: 1n,
     uuid: "passkey-uuid-123",
-    user_profile_id: 10n,
+    user_profile_uuid: "profile-uuid-123",
     credential_id: "cred-id-base64url",
     aaguid: "aaguid-uuid",
     transports: ["internal"],
@@ -69,7 +67,7 @@ describe("WebauthnService — user_passkeys ops", () => {
       mockRepo.add.mockResolvedValue({ uuid: "new-passkey-uuid" });
 
       const result = await (svc as any).createPasskey({
-        user_profile_id: 10n,
+        user_profile_uuid: "profile-uuid-123",
         credential_id: "cred-123",
         aaguid: "aaguid-456",
         transports: ["internal", "hybrid"],
@@ -92,7 +90,7 @@ describe("WebauthnService — user_passkeys ops", () => {
       mockRepo.add.mockResolvedValue({ uuid: "new-passkey-uuid" });
 
       await (svc as any).createPasskey({
-        user_profile_id: 10n,
+        user_profile_uuid: "profile-uuid-123",
         credential_id: "cred-123",
       });
 
@@ -107,7 +105,7 @@ describe("WebauthnService — user_passkeys ops", () => {
       const when = new Date("2026-07-25T10:00:00Z");
 
       await (svc as any).createPasskey({
-        user_profile_id: 10n,
+        user_profile_uuid: "profile-uuid-123",
         credential_id: "cred-123",
         authenticator_attachment: "platform",
         user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
@@ -145,15 +143,15 @@ describe("WebauthnService — user_passkeys ops", () => {
     });
   });
 
-  describe("findByUserProfileId", () => {
+  describe("findByUserProfileUuid", () => {
     it("should return all passkeys for a user profile", async () => {
       const rows = [
         makePasskeyRow({ uuid: "pk-1", label: "Windows Hello" }),
-        makePasskeyRow({ uuid: "pk-2", label: "iPhone", id: 2n }),
+        makePasskeyRow({ uuid: "pk-2", label: "iPhone" }),
       ];
       mockRepo.findAll.mockResolvedValue(rows);
 
-      const result = await (svc as any).findPasskeysByUserProfileId(10n);
+      const result = await (svc as any).findPasskeysByUserProfileUuid("profile-uuid-123");
 
       expect(result).toHaveLength(2);
       expect(result[0].uuid).toBe("pk-1");
@@ -163,22 +161,22 @@ describe("WebauthnService — user_passkeys ops", () => {
     it("should return empty array when user has no passkeys", async () => {
       mockRepo.findAll.mockResolvedValue([]);
 
-      const result = await (svc as any).findPasskeysByUserProfileId(999n);
+      const result = await (svc as any).findPasskeysByUserProfileUuid("profile-uuid-123");
 
       expect(result).toHaveLength(0);
     });
   });
 
-  describe("countByUserProfileId", () => {
+  describe("countByUserProfileUuid", () => {
     it("should return the count of passkeys", async () => {
       const rows = [
         makePasskeyRow({ uuid: "pk-1" }),
-        makePasskeyRow({ uuid: "pk-2", id: 2n }),
-        makePasskeyRow({ uuid: "pk-3", id: 3n }),
+        makePasskeyRow({ uuid: "pk-2" }),
+        makePasskeyRow({ uuid: "pk-3" }),
       ];
       mockRepo.findAll.mockResolvedValue(rows);
 
-      const result = await svc.countPasskeysByUserProfileId(10n);
+      const result = await svc.countPasskeysByUserProfileUuid("profile-uuid-123");
 
       expect(result).toBe(3);
     });
@@ -186,7 +184,7 @@ describe("WebauthnService — user_passkeys ops", () => {
     it("should return 0 when user has no passkeys", async () => {
       mockRepo.findAll.mockResolvedValue([]);
 
-      const result = await svc.countPasskeysByUserProfileId(999n);
+      const result = await svc.countPasskeysByUserProfileUuid("profile-uuid-123");
 
       expect(result).toBe(0);
     });
@@ -194,7 +192,7 @@ describe("WebauthnService — user_passkeys ops", () => {
 
   describe("deleteByUuid", () => {
     it("should delete a passkey by uuid", async () => {
-      const row = makePasskeyRow({ uuid: "pk-to-delete", id: 42n });
+      const row = makePasskeyRow({ uuid: "pk-to-delete" });
       mockRepo.find.mockResolvedValue(row);
 
       await (svc as any).deletePasskeyByUuid("pk-to-delete");
@@ -202,7 +200,7 @@ describe("WebauthnService — user_passkeys ops", () => {
       expect(mockRepo.find).toHaveBeenCalledTimes(1);
       expect(mockRepo.delete).toHaveBeenCalledTimes(1);
       const [entity, match, options] = mockRepo.delete.mock.calls[0];
-      expect(match.id).toBe(42n);
+      expect(match.uuid).toBe("pk-to-delete");
       expect(options.actor).toBe("test-actor-uuid");
     });
 
@@ -217,14 +215,14 @@ describe("WebauthnService — user_passkeys ops", () => {
 
   describe("deleteByCredentialId", () => {
     it("should delete a passkey by credential ID", async () => {
-      const row = makePasskeyRow({ credential_id: "cred-to-delete", id: 55n });
+      const row = makePasskeyRow({ credential_id: "cred-to-delete", uuid: "pk-cred-del" });
       mockRepo.find.mockResolvedValue(row);
 
       await (svc as any).deletePasskeyByCredentialId("cred-to-delete");
 
       expect(mockRepo.delete).toHaveBeenCalledTimes(1);
       const [, match] = mockRepo.delete.mock.calls[0];
-      expect(match.id).toBe(55n);
+      expect(match.uuid).toBe("pk-cred-del");
     });
 
     it("should do nothing if credential ID not found", async () => {
@@ -255,7 +253,7 @@ describe("WebauthnService — user_passkeys ops", () => {
 
   describe("updateLastUsed", () => {
     it("should bump last_used_at for an existing credential", async () => {
-      const row = makePasskeyRow({ credential_id: "cred-abc", id: 77n, version: 1 });
+      const row = makePasskeyRow({ credential_id: "cred-abc", version: 1 });
       mockRepo.find.mockResolvedValue(row);
       const when = new Date("2026-07-25T12:00:00Z");
 
