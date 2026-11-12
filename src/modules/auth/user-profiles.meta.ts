@@ -23,7 +23,7 @@ export const userProfileMeta: EntityMeta = withColumnConstraints({
     { key: "idp_code", label_key: "system.entities.user_profile.fields.idp_code", type: "text", order: 2, default_visible: false, immutable: true },
     { key: "email", label_key: "system.entities.user_profile.fields.email", type: "text", order: 3, default_visible: true },
     { key: "avatar_color", label_key: "system.entities.user_profile.fields.avatar_color", type: "color", order: 4, sortable: false, default_visible: false, filterable: false },
-    { key: "avatar_initials", label_key: "system.entities.user_profile.fields.avatar_initials", type: "text", order: 5, default_visible: false, immutable: true },
+    { key: "avatar_initials", label_key: "system.entities.user_profile.fields.avatar_initials", type: "avatar", order: 5, default_visible: false, immutable: true, avatar: { color_field: "avatar_color" } },
     { key: "idp_org", label_key: "system.entities.user_profile.fields.idp_org", type: "text", order: 6, default_visible: true, immutable: true },
     { key: "idp_username", label_key: "system.entities.user_profile.fields.idp_username", type: "text", order: 7, default_visible: true, immutable: true },
     { key: "idp_is_admin", label_key: "system.entities.user_profile.fields.is_admin", type: "boolean", order: 9, default_visible: true, tooltip: "system.entities.user_profile.hints.is_admin", tooltip_priority: "WARNING", tooltip_title: "system.entities.user_profile.hints.is_admin_title", show_form_tooltip: true, show_list_tooltip: true },
