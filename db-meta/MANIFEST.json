@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-12T20:33:51.606Z",
+  "issued_at": "2026-11-12T23:29:46.016Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -20,7 +20,9 @@
     "20261111231811_user_profile_internal_flag_labels": "52e666cc378bff99765c118dd2b8fe7461537800b82c3bc42729b8ddad6138e0",
     "20261112105749_user_profile_lifecycle_suspended": "aa5a919d7687d671f75255f277e8fc23d275d69ba39964ed0e14a0bdf580dad7",
     "20261112110500_user_profile_suspended_label": "1ed31a1f856a057d7f286e62d055f6540659c34ef67f896d009ad748966669fb",
-    "20261112190000_suspended_labels_bcp47_fix": "c82ca6d087a27f3b02474eecb6fb0fc8c9d524f56fb8b059946bed16a8e36012"
+    "20261112190000_suspended_labels_bcp47_fix": "c82ca6d087a27f3b02474eecb6fb0fc8c9d524f56fb8b059946bed16a8e36012",
+    "20261113100000_record_sheet_actor_heroes": "7edfa20be6da372efe3413adf11b48eb56c7fca0e3d0e888275b7550d3e7943e",
+    "20261113101000_clone_audit_field_labels": "e479dad54dbc4426b67733679a57865ca915f88d44c4042b9a7a4792b1a64071"
   },
-  "signature": "pYGWdrVi3b/Z8V8hLOsGzEyv2MjNjqmf2HRyXShOJMb8IREWJTpBa2gmOb9V8i1FClWq3w6nrjo+1QId3vtZCg=="
+  "signature": "vwBHppG1YDWl2KaIsu0EHTWOymNVIePryepcsnt4MmQvXfqWoJEWtbtSjvRo8igukhf/4DFjICjQ7Ya2aiMEDQ=="
 }
