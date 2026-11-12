@@ -177,7 +177,10 @@ export async function startInternalRequestRoutes(): Promise<void> {
           if (!user_uuid || typeof user_uuid !== "string") return null;
           const { getUserService } = await import("../../modules/auth/services/user.service.js");
           const user = await getUserService().getByUuid(user_uuid);
-          if (!user || user.is_active === false) return null;
+          // Suspended identities fail closed like deleted ones (deleted rows
+          // already null via EXCLUDED) — suspension is a live-record lockout
+          // that survives retention purge, per the lifecycle contract.
+          if (!user || user.suspended_at) return null;
           const rolePort = new DomainRoleMappingPort();
           const { patterns, isAdmin } = await expandPermissions(
             user.roles ?? [],

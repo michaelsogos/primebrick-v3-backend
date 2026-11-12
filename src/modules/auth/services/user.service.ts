@@ -53,7 +53,7 @@ const SEARCH_IN_ALLOWED = new Set([...DEFAULT_SEARCH_KEYS, "uuid"]);
 // fields — the uid powers ref/actor label `IN` lookups and the `*_by`
 // columns feed `options_source:"audit.actors"` (same contract the
 // generic entity-service merges via `wireAlwaysFilterable`).
-const USER_PROFILE_FILTERABLE_FIELDS = new Set(["display_name", "email", "idp_code", "idp_username", "idp_org", "is_active", "is_admin", "is_verified", "uuid", "created_by", "updated_by", "deleted_by"]);
+const USER_PROFILE_FILTERABLE_FIELDS = new Set(["display_name", "email", "idp_code", "idp_username", "idp_org", "suspended_at", "idp_is_admin", "idp_is_verified", "uuid", "created_by", "updated_by", "deleted_by"]);
 
 const USER_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
 
@@ -63,6 +63,28 @@ function idpCodeCacheKey(idpCode: string): string {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+/** Writable profile columns accepted by the internal update paths
+ *  (API update, session sync, dedicated actions). Renamed `idp_*` mirrors
+ *  stay out of user-supplied updates — dedicated write paths set them. */
+export type UserProfileWriteBody = {
+  display_name?: string;
+  email?: string;
+  avatar_color?: string;
+  avatar_initials?: string;
+  idp_is_admin?: boolean;
+  idp_is_verified?: boolean;
+  idp_email_verified?: boolean;
+  idp_issuer?: string;
+  roles?: string[];
+  last_synced_at?: Date;
+  idp_code?: string;
+  auth_method_enforcer_dismissed?: boolean;
+  onboarding_completed?: boolean;
+  suspended_at?: Date | null;
+  suspended_by?: string | null;
+  version?: number;
+};
+
 export type UserProfileDetailRow = WithAuditableDisplayNames<{
   uuid: string;
   idp_code: string;
@@ -70,11 +92,12 @@ export type UserProfileDetailRow = WithAuditableDisplayNames<{
   display_name?: string;
   avatar_color?: string;
   avatar_initials?: string;
-  is_active: boolean;
-  is_admin: boolean;
-  is_verified: boolean;
-  email_verified: boolean;
-  issuer?: string;
+  idp_is_admin: boolean;
+  idp_is_verified: boolean;
+  idp_email_verified: boolean;
+  idp_issuer?: string;
+  suspended_at?: Date;
+  suspended_by?: string;
   roles?: string[];
   last_synced_at?: Date;
   idp_org?: string;
@@ -301,11 +324,10 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     idp_username?: string | null;
     avatar_color?: string;
     avatar_initials?: string;
-    is_active: boolean;
-    is_admin: boolean;
-    is_verified: boolean;
-    email_verified: boolean;
-    issuer?: string | null;
+    idp_is_admin: boolean;
+    idp_is_verified: boolean;
+    idp_email_verified: boolean;
+    idp_issuer?: string | null;
     roles?: string[] | null;
     last_synced_at?: Date;
   }): Promise<void> {
@@ -321,11 +343,10 @@ export class UserService extends DomainService<UserProfileDetailDto> {
         idp_username: data.idp_username,
         avatar_color: data.avatar_color,
         avatar_initials: data.avatar_initials,
-        is_active: data.is_active,
-        is_admin: data.is_admin,
-        is_verified: data.is_verified,
-        email_verified: data.email_verified,
-        issuer: data.issuer,
+        idp_is_admin: data.idp_is_admin,
+        idp_is_verified: data.idp_is_verified,
+        idp_email_verified: data.idp_email_verified,
+        idp_issuer: data.idp_issuer,
         roles: data.roles,
         last_synced_at: data.last_synced_at,
       },
@@ -335,7 +356,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
   async updateProfile(
     uuid: string,
-    body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string; auth_method_enforcer_dismissed?: boolean; onboarding_completed?: boolean; version?: number },
+    body: UserProfileWriteBody,
     tx?: Repository
   ): Promise<UserProfileDetailDto> {
     const repo = tx ?? this.dal;
@@ -356,7 +377,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
    */
   async updateProfileInternal(
     uuid: string,
-    body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string; auth_method_enforcer_dismissed?: boolean; onboarding_completed?: boolean },
+    body: UserProfileWriteBody,
     tx?: Repository
   ): Promise<UserProfileDetailDto> {
     const repo = tx ?? this.dal;
@@ -374,7 +395,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
    */
   async updateProfileByUuid(
     uuid: string,
-    body: { display_name?: string; email?: string; avatar_color?: string; is_active?: boolean; is_admin?: boolean; is_verified?: boolean; email_verified?: boolean; issuer?: string; roles?: string[]; last_synced_at?: Date; idp_code?: string; auth_method_enforcer_dismissed?: boolean; onboarding_completed?: boolean; version?: number }
+    body: UserProfileWriteBody
   ): Promise<UserProfileDetailDto> {
     // Internal FK-driven write — the read below is the observation step of this
     // unit of work (the caller legitimately has `uuid`, not a prior version).
@@ -671,7 +692,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
   async createUser(input: CreateUserBody): Promise<CreateUserResult> {
     const actor = requireActor();
-    const { username, password, display_name, email, roles, avatar_initials, avatar_color, idp_org, is_active, is_admin, is_verified, email_verified, send_invitation } = input;
+    const { username, password, display_name, email, roles, avatar_initials, avatar_color, idp_org, idp_is_admin, idp_is_verified, idp_email_verified, send_invitation } = input;
 
     const calculatedInitials = avatar_initials || computeInitials(display_name);
     const defaultColor = avatar_color || avatarPaletteHex(calculatedInitials);
@@ -704,10 +725,11 @@ export class UserService extends DomainService<UserProfileDetailDto> {
           app_avatar_letters: calculatedInitials,
         },
         avatar: svgDataUri,
-        isForbidden: !is_active,
-        isAdmin: is_admin,
-        isVerified: is_verified,
-        emailVerified: email_verified,
+        // New users are never suspended/deleted at birth → isForbidden false.
+        isForbidden: false,
+        isAdmin: idp_is_admin,
+        isVerified: idp_is_verified,
+        emailVerified: idp_email_verified,
       });
       if (!newUser || !newUser.id) {
         throw new ApiError(
@@ -744,7 +766,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     // 2. Create local profile via DAL (repo.add — no manual audit field setting)
     const idpCode = casdoorUserId;
     const newUuid = randomUUID();
-    const issuer = cfg.idp_endpoint || null;
+    const idp_issuer = cfg.idp_endpoint || null;
 
     await this.createProfile({
       uuid: newUuid,
@@ -755,11 +777,10 @@ export class UserService extends DomainService<UserProfileDetailDto> {
       idp_username: idpUsername,
       avatar_color: defaultColor,
       avatar_initials: calculatedInitials,
-      is_active,
-      is_admin,
-      is_verified,
-      email_verified,
-      issuer,
+      idp_is_admin,
+      idp_is_verified,
+      idp_email_verified,
+      idp_issuer,
       roles: roles ?? null,
       last_synced_at: new Date(),
     });
@@ -834,6 +855,95 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     return deleted;
   }
 
+  // --- Suspend / reactivate -------------------------------------------------
+
+  /**
+   * Suspend a user: the record STAYS live (survives retention purge) but auth
+   * resolution fails closed (`AUTH_RESOLVE_USER_SUBJECT` → null) and the IDP
+   * identity is forbidden. `isForbidden` derives as `suspended ∨ deleted` —
+   * suspending an already-deleted user is refused (deleted wins).
+   */
+  async suspendUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
+    const existing = await this.getByUuid(uuid);
+    if (!existing) {
+      throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
+    }
+    if (existing.suspended_at) {
+      return existing; // idempotent
+    }
+
+    // Disable the IdP user FIRST (fail-closed ordering, same as deleteUser).
+    const cdClient = await this.casdoor.getClient();
+    if (cdClient) {
+      try {
+        await cdClient.updateUser({
+          id: existing.idp_code,
+          owner: existing.idp_org || undefined,
+          name: existing.idp_username || undefined,
+          isForbidden: true,
+        } as any);
+      } catch (syncError) {
+        throw new ApiError(
+          "/errors/internal-error",
+          "Casdoor™ sync failed",
+          502,
+          "Failed to disable user in Casdoor™ — suspend NOT performed",
+          { instance: "/api/v1/auth/users/:uuid/suspend", internal_code: "CASDOOR_SYNC_FAILED", severity: "HIGH" },
+        );
+      }
+    }
+
+    const updated = await this.updateProfile(uuid, {
+      suspended_at: new Date(),
+      suspended_by: requireActor(),
+      version,
+    });
+    await this.bumpUserAuthEpoch(uuid);
+    return updated;
+  }
+
+  /**
+   * Reactivate a suspended user: clears the audit pair and re-enables the
+   * IDP identity — unless the record is also deleted (deleted wins: a
+   * suspended+deleted user stays forbidden, only `restore` re-enables).
+   */
+  async reactivateUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
+    const existing = await this.getByUuid(uuid);
+    if (!existing) {
+      throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
+    }
+    if (!existing.suspended_at) {
+      return existing; // idempotent
+    }
+
+    const updated = await this.updateProfile(uuid, {
+      suspended_at: null,
+      suspended_by: null,
+      version,
+    });
+
+    const cdClient = await this.casdoor.getClient();
+    if (cdClient) {
+      try {
+        await cdClient.updateUser({
+          id: existing.idp_code,
+          owner: existing.idp_org || undefined,
+          name: existing.idp_username || undefined,
+          isForbidden: false,
+        } as any);
+      } catch (syncError) {
+        throw new ApiError(
+          "/errors/internal-error",
+          "Casdoor™ sync failed",
+          502,
+          "Suspension cleared locally but Casdoor™ re-enable failed — user remains forbidden at the IdP; retry reactivate",
+          { instance: "/api/v1/auth/users/:uuid/reactivate", internal_code: "CASDOOR_SYNC_FAILED", severity: "HIGH" },
+        );
+      }
+    }
+    return updated;
+  }
+
   // --- Restore (un-soft-delete) --------------------------------------------
 
   private async getByUuidIncludingDeleted(uuid: string): Promise<UserProfileDetailDto | null> {
@@ -863,6 +973,12 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     // the IdP user stays forbidden (locked out, no security hole) and the
     // caller sees the failure — a retry re-attempts the re-enable.
     const restored = await this.restore(uuid, version);
+
+    // isForbidden = suspended ∨ deleted — restoring a SUSPENDED user must
+    // NOT re-enable the IDP identity (it stays forbidden until reactivate).
+    if (existing.suspended_at) {
+      return restored;
+    }
 
     const cdClient = await this.casdoor.getClient();
     if (cdClient) {
@@ -940,6 +1056,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
         name: profile.idp_username || undefined,
         displayName: body.display_name || profile.display_name,
         email: body.email || profile.email,
+        ...(body.idp_is_admin !== undefined && { isAdmin: body.idp_is_admin }),
         customFields: {
           app_avatar_color: body.avatar_color || profile.avatar_color,
           app_avatar_shape: "hexagon",
@@ -969,6 +1086,8 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     if (body.email !== undefined) updateBody.email = body.email || undefined;
     if (body.avatar_color !== undefined) updateBody.avatar_color = body.avatar_color;
     if (body.avatar_initials !== undefined) updateBody.avatar_initials = body.avatar_initials;
+    if (body.idp_is_admin !== undefined) updateBody.idp_is_admin = body.idp_is_admin;
+    if (body.auth_method_enforcer_dismissed !== undefined) updateBody.auth_method_enforcer_dismissed = body.auth_method_enforcer_dismissed;
     // Casdoor-compatible column format (roles stored as stringified JSON —
     // extJson is byte-identical here and bigint-safe should one slip in).
     if (body.roles !== undefined) updateBody.roles = extJsonStringify(body.roles);

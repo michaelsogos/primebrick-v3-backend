@@ -150,10 +150,10 @@ async function mintActor(): Promise<{ username: string; password: string }> {
   await pool.query(
     `INSERT INTO public.user_profiles
      (uuid, idp_code, email, display_name, idp_org, idp_username, avatar_color, avatar_initials,
-      is_active, is_admin, is_verified, email_verified, issuer, roles, last_synced_at,
+      idp_is_admin, idp_is_verified, idp_email_verified, idp_issuer, roles, last_synced_at,
       created_at, created_by, updated_at, updated_by, version,
       auth_method_enforcer_dismissed)
-     VALUES ($1,$2,$3,$4,$5,$6,'#4f46e5','TA',true,true,true,true,$7,$8,$9,$9,'e2e-setup',$9,'e2e-setup',1,true)`,
+     VALUES ($1,$2,$3,$4,$5,$6,'#4f46e5','TA',true,true,true,$7,$8,$9,$9,'e2e-setup',$9,'e2e-setup',1,true)`,
     [randomUUID(), casdoorUser.id, ACTOR_EMAIL, "E2E Boundary Admin", cfg.org, ACTOR_NAME,
      cfg.endpoint, JSON.stringify([ADMIN_ROLE]), now],
   );

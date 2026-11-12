@@ -71,9 +71,10 @@ const meMeta: EntityMeta = withColumnConstraints({
   // (which would default `display_name` to `"${" + display_field + "}"`).
   display_name: "${display_name}",
   columns: [
-    { key: "is_admin", label_key: "system.entities.user_profile.fields.is_admin", type: "boolean", order: 0, tooltip: "system.entities.user_profile.hints.is_admin", tooltip_priority: "WARNING", tooltip_title: "system.entities.user_profile.hints.is_admin_title", show_form_tooltip: true },
-    { key: "is_verified", label_key: "system.entities.user_profile.fields.is_verified", type: "boolean", order: 1, tooltip: "system.entities.user_profile.hints.is_verified", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.is_verified_title", show_form_tooltip: true },
-    { key: "email_verified", label_key: "system.entities.user_profile.fields.email_verified", type: "boolean", order: 2, tooltip: "system.entities.user_profile.hints.email_verified", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.email_verified_title", show_form_tooltip: true },
+    { key: "idp_is_admin", label_key: "system.entities.user_profile.fields.is_admin", type: "boolean", order: 0, tooltip: "system.entities.user_profile.hints.is_admin", tooltip_priority: "WARNING", tooltip_title: "system.entities.user_profile.hints.is_admin_title", show_form_tooltip: true },
+    { key: "idp_is_verified", label_key: "system.entities.user_profile.fields.is_verified", type: "boolean", order: 1, tooltip: "system.entities.user_profile.hints.is_verified", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.is_verified_title", show_form_tooltip: true },
+    { key: "idp_email_verified", label_key: "system.entities.user_profile.fields.email_verified", type: "boolean", order: 2, tooltip: "system.entities.user_profile.hints.email_verified", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.email_verified_title", show_form_tooltip: true },
+    { key: "auth_method_enforcer_dismissed", label_key: "system.entities.user_profile.fields.auth_method_enforcer_dismissed", type: "boolean", order: 3 },
     { key: "last_synced_at", label_key: "system.entities.user_profile.fields.last_synced_at", type: "datetime", order: 7, default_visible: false, audited: true },
   ],
 }, UserProfileEntity);
@@ -149,7 +150,9 @@ export function authSessionRouter() {
     // request (roles → role_mappings → wildcard patterns). The FE uses it for
     // per-CTA enablement; BE enforcement stays authoritative.
     const permissions = req.user ? Array.from(req.user.permissions) : [];
-    res.json({ success: true, profile, has_passkey, auth_method_enforcer_dismissed, has_mfa, permissions });
+    // `is_admin` = Primebrick admin (role_mappings-derived) — NOT the Casdoor
+    // console flag `profile.idp_is_admin` (mirror only, never an auth gate).
+    res.json({ success: true, profile, is_admin: req.user?.isAdmin === true, has_passkey, auth_method_enforcer_dismissed, has_mfa, permissions });
   });
 
   const getMeMeta: RequestHandler = asyncHandler(async (_req, res) => {
