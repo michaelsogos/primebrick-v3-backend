@@ -51,5 +51,9 @@
     "20261121000000_filter_boolean_tristate.sql",
     "20261122000000_filter_value_hint.sql",
     "20261123000000_numeric_input_stepper_aria.sql"
+  ],
+  "i18n_lang_exempt": [
+    "20261112105749_user_profile_lifecycle_suspended.sql",
+    "20261112110500_user_profile_suspended_label.sql"
   ]
 }

@@ -32,7 +32,11 @@ export const userProfileMeta: EntityMeta = withColumnConstraints({
     { key: "roles", label_key: "system.entities.user_profile.fields.roles", type: "text", order: 12, sortable: false, default_visible: false, filterable: false, searchable: false, options_source: "system.roles" },
     { key: "idp_issuer", label_key: "system.entities.user_profile.fields.issuer", type: "text", order: 13, sortable: false, default_visible: false, immutable: true },
     { key: "last_synced_at", label_key: "system.entities.user_profile.fields.last_synced_at", type: "datetime", order: 14, default_visible: false, audited: true },
-    { key: "auth_method_enforcer_dismissed", label_key: "system.entities.user_profile.fields.auth_method_enforcer_dismissed", type: "boolean", order: 15, default_visible: false },
+    // Internal auth-flow flag — set by the post-login enrollment prompt
+    // and toggled only by the dedicated Settings→Profile checkbox (/me
+    // contract). `hidden` suppresses it from every entity surface (sheet,
+    // column picker, filters, forms) — it is system-managed, not a field.
+    { key: "auth_method_enforcer_dismissed", label_key: "system.entities.user_profile.fields.auth_method_enforcer_dismissed", type: "boolean", order: 15, default_visible: false, hidden: true },
     { key: "onboarding_completed", label_key: "system.entities.user_profile.fields.onboarding_completed", type: "boolean", order: 16, default_visible: false, immutable: true },
     { key: "suspended", label_key: "system.entities.user_profile.fields.suspended", type: "boolean", order: 17, kind: "calculated", default_visible: true },
     { key: "suspended_at", label_key: "system.entities.user_profile.fields.suspended_at", type: "datetime", order: 18, default_visible: false, audited: true },
