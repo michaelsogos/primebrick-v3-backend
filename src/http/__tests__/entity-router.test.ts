@@ -53,8 +53,16 @@ vi.mock("../entity-write.js", async (importOriginal) => {
 import { makeEntityRouter } from "../entity-router.js";
 import { mountRouter, type TestApp } from "../../controllers/http/__tests__/harness.js";
 import { Permission } from "@primebrick/sdk";
+import { z } from "zod";
+import { Entity, EntityBase, Auditable, Deletable, Clonable, AuditTrail } from "@primebrick/dal-pg";
 
-class TestEntity {}
+@Entity("test_entities")
+class TestEntity extends Deletable(Auditable(EntityBase)) {}
+
+@Entity("test_clonables")
+@AuditTrail()
+class ClonableTestEntity extends Clonable(Deletable(Auditable(EntityBase))) {}
+
 const testMeta = { columns: [] } as never;
 
 const UUID = "123e4567-e89b-42d3-a456-426614174000";
@@ -69,6 +77,7 @@ function makeService() {
     purge: vi.fn().mockResolvedValue({ uuid: UUID, purged: true }),
     restore: vi.fn().mockResolvedValue({ uuid: UUID, restored: true }),
     audit: vi.fn().mockResolvedValue({ rows: [], total: 0 }),
+    duplicate: vi.fn().mockResolvedValue([{ uuid: UUID, version: 1 }]),
   };
 }
 type Service = ReturnType<typeof makeService>;
@@ -77,10 +86,12 @@ function buildRouter<S extends object>(service: S, over?: {
   permissions?: Parameters<typeof makeEntityRouter>[0]["permissions"];
   methods?: Partial<Record<import("../entity-router.js").EntityAction, keyof S & string>>;
   handlers?: Parameters<typeof makeEntityRouter>[0]["handlers"];
+  schemas?: Parameters<typeof makeEntityRouter>[0]["schemas"];
+  entity?: Parameters<typeof makeEntityRouter>[0]["entity"];
 }): IRouter {
   return makeEntityRouter({
     entityName: "test_entity",
-    entity: TestEntity,
+    entity: over?.entity ?? TestEntity,
     meta: testMeta,
     service,
     permissions: {
@@ -95,6 +106,7 @@ function buildRouter<S extends object>(service: S, over?: {
     schemas: {
       createBody: undefined,
       updateBody: undefined,
+      ...over?.schemas,
     },
     methods: over?.methods,
     handlers: over?.handlers,
@@ -291,6 +303,96 @@ describe("makeEntityRouter — mandatory chain + overrides", () => {
       expect(svc.customGet).toHaveBeenCalledWith(UUID);
     } finally {
       await app2.close();
+    }
+  });
+});
+
+describe("makeEntityRouter — duplicate gate (Clonable-derived)", () => {
+  const service = makeService();
+
+  it("non-clonable: POST /duplicate → 404 and meta.actions disables duplicate.bulk", async () => {
+    const app = await mountRouter(buildRouter(service));
+    try {
+      const res = await fetch(`${app.baseUrl}${BASE}/duplicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uuids: [UUID] }),
+      });
+      expect(res.status).toBe(404);
+      expect(service.duplicate).not.toHaveBeenCalled();
+
+      const meta = await (await fetch(`${app.baseUrl}${BASE}/meta`)).json();
+      const dup = (meta.actions as { op: string; enabled: boolean }[]).find(
+        (a) => a.op === "duplicate.bulk",
+      );
+      expect(dup?.enabled).toBe(false);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("non-clonable + duplicate config → construction throws (dead config)", () => {
+    expect(() =>
+      buildRouter(service, { permissions: { duplicate: [Permission.ROLE_MAPPING_READ_ALL] } }),
+    ).toThrow(/not clonable/);
+    expect(() =>
+      buildRouter(service, { schemas: { duplicateBody: z.object({}) } }),
+    ).toThrow(/not clonable/);
+    expect(() =>
+      buildRouter(service, { handlers: { duplicate: (_req: any, res: any) => res.json({}) } }),
+    ).toThrow(/not clonable/);
+  });
+
+  it("stale `duplicate` field → construction throws (capability is never authored)", () => {
+    expect(() =>
+      makeEntityRouter({
+        entityName: "test_entity",
+        entity: TestEntity,
+        meta: testMeta,
+        service,
+        permissions: { list: [Permission.ROLE_MAPPING_READ_ALL] },
+        schemas: {},
+        duplicate: false,
+      } as Parameters<typeof makeEntityRouter>[0]),
+    ).toThrow(/not a config field/);
+  });
+
+  it("clonable: POST /duplicate reaches service.duplicate; meta serves violet chrome", async () => {
+    const app = await mountRouter(buildRouter(service, { entity: ClonableTestEntity }));
+    try {
+      const res = await fetch(`${app.baseUrl}${BASE}/duplicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uuids: [UUID] }),
+      });
+      expect(res.status).toBe(200);
+      expect(service.duplicate).toHaveBeenCalledWith([UUID]);
+
+      const meta = await (await fetch(`${app.baseUrl}${BASE}/meta`)).json();
+      const dup = (meta.actions as { op: string; enabled: boolean; color?: string; icon?: string }[]).find(
+        (a) => a.op === "duplicate.bulk",
+      );
+      expect(dup).toMatchObject({ enabled: true, color: "violet", icon: "copy" });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("clonable + authored permissions.duplicate → custom grant still applies", async () => {
+    const app = await mountRouter(
+      buildRouter(service, {
+        entity: ClonableTestEntity,
+        permissions: { duplicate: [Permission.USER_PROFILE_READ_ALL] },
+      }),
+    );
+    try {
+      const meta = await (await fetch(`${app.baseUrl}${BASE}/meta`)).json();
+      const dup = (meta.actions as { op: string; permissions: string[] }[]).find(
+        (a) => a.op === "duplicate.bulk",
+      );
+      expect(dup?.permissions).toEqual([Permission.USER_PROFILE_READ_ALL]);
+    } finally {
+      await app.close();
     }
   });
 });
