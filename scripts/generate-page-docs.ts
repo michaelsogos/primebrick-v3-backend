@@ -117,13 +117,6 @@ const report = generatePageDocs({
   idp_name,
   access_namespace: "access.system.settings",
   out_dir: OUT_DIR,
-  keep_files: [
-    "entity-api-catalog",
-    "entity-field-reference",
-    "filter-operator-reference",
-    "filter-syntax-guide",
-    "navigation-map",
-  ],
 });
 
 printDocsReport(report, OUT_DIR);

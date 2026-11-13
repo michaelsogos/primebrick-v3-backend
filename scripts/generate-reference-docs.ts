@@ -2,7 +2,9 @@
  * generate-reference-docs — metadata-derived user-guide pages, generated
  * IN the owning repo (successor of v3-docs generate-reference-docs.mjs).
  *
- * Emits into docs/user-guide/generated/:
+ * Emits into docs/user-guide/reference/ — its own pipeline-owned dir
+ * (page docs own `generated/`; the two never share an output dir, so the
+ * ghost cleaner in each cannot delete the other's files).
  *   1. entity-field-reference.mdx   — fields from src/modules/**\/*.meta.ts
  *   2. filter-operator-reference.mdx — SqlOperator union from @primebrick/dal-pg
  *   3. filter-syntax-guide.mdx       — examples per operator and entity
@@ -15,6 +17,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
+import { reconcileOrder } from "@primebrick/sdk";
 import { buildModuleNavMeta, listModuleNavCodes } from "../src/modules/module-nav-meta.js";
 
 // ─── Source collection ────────────────────────────────────────────────────
@@ -458,34 +461,16 @@ export async function generateReferenceDocs(outDir: string): Promise<string[]> {
     console.log(`  wrote ${name}`);
   }
 
-  // Keep _order.json in sync — the files on disk are the ground truth:
-  // pages emitted by ANY generator (this script, the docs-render page
-  // manuals, future emitters) must appear; entries whose file no longer
-  // exists must drop. No manual curation step.
-  const orderPath = join(outDir, "..", "_order.json");
-  const order = existsSync(orderPath) ? JSON.parse(readFileSync(orderPath, "utf-8")) : { pages: [] };
-  const onDisk = new Set(
-    readdirSync(outDir)
-      .filter((f) => f.endsWith(".mdx") && !f.startsWith("["))
-      .map((f) => `generated/${f.replace(/\.mdx$/, "")}`),
-  );
-  // 1. drop generated/* entries whose file is gone
-  const kept = (order.pages as string[]).filter(
-    (p) => !p.startsWith("generated/") || onDisk.has(p),
-  );
-  // 2. generated files missing from the manifest join at the end of the
-  //    generated cluster (right after the last generated entry), sorted
-  const missing = [...onDisk].filter((s) => !kept.includes(s)).sort();
-  const lastGen = kept.reduce((acc, p, i) => (p.startsWith("generated/") ? i : acc), -1);
-  order.pages =
-    lastGen === -1 ? [...kept, ...missing] : [...kept.slice(0, lastGen + 1), ...missing, ...kept.slice(lastGen + 1)];
-  writeFileSync(orderPath, JSON.stringify(order, null, 2) + "\n", "utf-8");
+  // Keep _order.json in sync — the shared reconcile uses this dir's
+  // basename (`reference/`) as the entry prefix, so it only ever touches
+  // this generator's own entries.
+  reconcileOrder(outDir);
 
   return pages.map(([name]) => name);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1].replace(/\\/g, "/")) {
-  generateReferenceDocs(join(process.cwd(), "docs", "user-guide", "generated")).catch((e) => {
+  generateReferenceDocs(join(process.cwd(), "docs", "user-guide", "reference")).catch((e) => {
     console.error(e);
     process.exit(1);
   });
