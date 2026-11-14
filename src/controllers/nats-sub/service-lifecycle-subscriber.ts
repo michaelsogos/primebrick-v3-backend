@@ -16,7 +16,7 @@ import { NatsClient, SERVICE_SUBJECTS, CLIENT_SHIELD_REGISTRY_SUBJECTS, makeNats
 import { createPublisherVerifier } from "./publisher-identity.js";
 import { ServiceRegistryService } from "../../modules/system/service-registry.service.js";
 import { validateNavDeclaration } from "../../modules/module-nav-meta.js";
-import { validateEventsDeclaration, validateCallablesDeclaration } from "@primebrick/sdk";
+import { validateEventsDeclaration, validateCallablesDeclaration, validateEntitiesDeclaration } from "@primebrick/sdk";
 import { ClientShieldRegistryService } from "../../modules/system/client-shield-registry.service.js";
 import { entityRegistry } from "../../modules/mcp/tools/entity-registry.js";
 import { discoverEntitiesFromService } from "../../modules/mcp/tools/openapi-discovery.js";
@@ -120,6 +120,16 @@ export class ServiceLifecycleSubscriber {
                 tags: ["nats", `brick:${payload.code}`],
               });
               return { registered: false, error: callablesError };
+            }
+            // Same enrollment gate for endpoints.entities — the
+            // entity→service map served on /modules must never ingest a
+            // malformed declaration.
+            const entitiesError = validateEntitiesDeclaration(payload.code, payload.endpoints?.["entities"]);
+            if (entitiesError) {
+              logger.warn(`service.register rejected for the brick '${payload.code}' — ${entitiesError}`, {
+                tags: ["nats", `brick:${payload.code}`],
+              });
+              return { registered: false, error: entitiesError };
             }
             return this.handleRegister(payload);
           },

@@ -105,6 +105,14 @@ export interface DiscoveredModule {
    * target picker resolves options AND request contracts from the union.
    */
   callables?: ModuleCallablesDecl;
+  /**
+   * Entity names this service owns (`endpoints.entities` — the same
+   * declarations that produce its `/entities/*` routes). The FE resolves
+   * entity→service from this document: ref-sheet drill-through and the
+   * `/svc/<code>` api prefix are derived here, never hand-mapped.
+   * Served verbatim like `events`/`callables`.
+   */
+  entities?: string[];
 }
 
 function filterNavLinks(
@@ -295,6 +303,9 @@ export class ModuleDiscoveryService {
         events: s.endpoints?.["events"] as ModuleEventsDecl | undefined,
         // Callable destinations — same verbatim contract as `events`.
         callables: s.endpoints?.["callables"] as ModuleCallablesDecl | undefined,
+        // Owned entity names — same verbatim contract: enrollment
+        // validated the shape (array of api names).
+        entities: s.endpoints?.["entities"] as string[] | undefined,
       });
 
       // Siblings — second module nodes next to this service's module under
