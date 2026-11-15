@@ -15,11 +15,11 @@ import { clientKeyHash, deriveClientKey } from "@primebrick/sdk";
 
 import {getDal} from "../../db/dal-gateway.js";
 import { makeEntityService, type EntityService } from "../../http/entity-service.js";
-import { deriveSearchableKeys } from "../../lib/search-keys.js";
 import { UnprocessableEntityError } from "../../http/api-errors.js";
 import { getConfigEntriesService } from "../auth/services/config-entries.service.js";
 import { ClientShieldRegistryEntity } from "./client_shield_registry_entity.js";
 import { clientRegistryMeta } from "./client-shield-registry.meta.js";
+
 import type {
   ClientRegistryCreateEntity,
   ClientRegistryListQuery,
@@ -200,8 +200,7 @@ export class ClientShieldRegistryService {
       entity: ClientShieldRegistryEntity,
       debugCode: "CLIENT_REGISTRY",
       list: {
-        searchableKeys: deriveSearchableKeys(clientRegistryMeta, ClientShieldRegistryEntity),
-        filterableKeys: new Set(["ua_prefix", "source", "key_mode", "is_enabled", "created_at", "updated_at", "key_rotated_at"]),
+        meta: clientRegistryMeta,
         defaultSort: { key: "created_at", dir: "desc" },
         extraFilters: (q) =>
           (q as ClientRegistryListQuery).source
