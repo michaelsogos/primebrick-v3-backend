@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-15T17:58:05.475Z",
+  "issued_at": "2026-11-15T19:46:12.783Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -36,7 +36,8 @@
     "20261114161000_service_registry_is_enabled_i18n": "9412ae3e3c601aad30bb72f3436c85513ab9d4dfded80cade8639eaca421a826",
     "20261114162000_job_schedule_system_key_revert": "d305869d0d2176d3df7293358514f93360146ee5deb7ed654a1063dadecfadeb",
     "20261114170000_schedule_spec_min_interval": "b1a4af97d31a62b55d06ffc2f78122cff64d67786a632dedaefcae20d798ec52",
-    "20261115100000_system_trigger_immutable": "86ac7e34e0ca506bdda23c3ca4c08161ca2efe9a0152e4787f98b9c438efc5ee"
+    "20261115100000_system_trigger_immutable": "86ac7e34e0ca506bdda23c3ca4c08161ca2efe9a0152e4787f98b9c438efc5ee",
+    "20261115204500_version_history_prose_actions": "f37a790710716dbb274212ac23b69ea0e3f7f9ec19e584b28d485f8d45647fc0"
   },
-  "signature": "svwFNzernFKm8zcB7ThCN/Gl6g60mUzrMqbdIu6g4doCe8NC1p8WJNOxBWtxVFcA16RpoL9bFoJmuwA+rjsNBg=="
+  "signature": "Es5k5oOhWsP3idEpDVLcDwa1aYwqhVKDaRsMcjSqAVsMb01pefusxvyQiHNj6NqrgrC90Z2d3DgWdABtmomfAQ=="
 }
