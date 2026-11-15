@@ -25,7 +25,7 @@ import { zBoundedInt } from "../../http/validation.js";
 import { makeProtectedRouter } from "../../http/protected-router.js";
 import { asyncHandler } from "../../http/async-handler.js";
 import { rbacHandler } from "../../modules/auth/rbac.middleware.js";
-import { Permission, isSlug, isValidTranslationKey, type CacheEntry, type I18nDict } from "@primebrick/sdk";
+import { Permission, isSlug, isSupportedLanguage, isValidTranslationKey, type CacheEntry, type I18nDict } from "@primebrick/sdk";
 import { ValidationError } from "../../http/api-errors.js";
 import { etagMiddleware } from "../../http/etag-middleware.js";
 import { entityOnlyWriteBody } from "../../http/entity-write.js";
@@ -42,7 +42,8 @@ const LanguageSchema = z
   .string()
   .min(2)
   .max(10)
-  .regex(/^[a-z]{2}-[A-Z]{2}$/, { message: "Language must be BCP 47 (e.g. en-GB)" });
+  .regex(/^[a-z]{2}-[A-Z]{2}$/, { message: "Language must be BCP 47 (e.g. en-GB)" })
+  .refine(isSupportedLanguage, { message: "Language must be one of the supported languages" });
 
 const UuidSchema = z.string().uuid();
 

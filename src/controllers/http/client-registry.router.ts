@@ -66,7 +66,6 @@ export function clientRegistryRouter() {
       restore: [Permission.CLIENT_REGISTRY_RESTORE_SINGLE],
       audit: [Permission.CLIENT_REGISTRY_READ_AUDIT],
     },
-    duplicate: false,
     schemas: {
       listQuery: ClientRegistryListQuerySchema,
       createBody: CreateBodySchema,

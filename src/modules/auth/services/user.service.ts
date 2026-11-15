@@ -34,7 +34,7 @@ import { DomainService } from "../../../db/domain-service.js";
 import { EntityAuditPort } from "../../../db/entity-audit-port.js";
 import { findAuditPage } from "../../../db/audit-query-helper.js";
 import { getCachePort } from "../../../cache/cache-port-holder.js";
-import { deriveSearchableKeys } from "../../../lib/search-keys.js";
+import { deriveListWireSets } from "@primebrick/dal-pg";
 import { UserProfileEntity } from "../user_profile_entity.js";
 import { userProfileMeta } from "../user-profiles.meta.js";
 import { CasdoorService } from "./casdoor.service.js";
@@ -47,13 +47,17 @@ import { requireActor } from "@primebrick/sdk";
 import { ApiError, NotFoundError, ValidationError } from "../../../http/api-errors.js";
 import type { CreateUserBody, UserUpdateBody } from "../dto.js";
 
-const DEFAULT_SEARCH_KEYS = deriveSearchableKeys(userProfileMeta, UserProfileEntity);
-const SEARCH_IN_ALLOWED = new Set([...DEFAULT_SEARCH_KEYS, "uuid"]);
+// The custom findByPage path below answers to the same served contract as
+// DomainService.list — the wire sets come from the SAME derivation
+// (`deriveListWireSets` over the resolved meta), never a parallel list.
+const USER_PROFILE_WIRE_SETS = deriveListWireSets(userProfileMeta.columns, UserProfileEntity);
+const DEFAULT_SEARCH_KEYS = [...USER_PROFILE_WIRE_SETS.searchable];
+const SEARCH_IN_ALLOWED = new Set([...USER_PROFILE_WIRE_SETS.searchable, "uuid"]);
 // uid + `*_by` audit columns are wire-filterable on top of the domain
 // fields — the uid powers ref/actor label `IN` lookups and the `*_by`
 // columns feed `options_source:"audit.actors"` (same contract the
 // generic entity-service merges via `wireAlwaysFilterable`).
-const USER_PROFILE_FILTERABLE_FIELDS = new Set(["display_name", "email", "idp_code", "idp_username", "idp_org", "suspended_at", "idp_is_admin", "idp_is_verified", "uuid", "created_by", "updated_by", "deleted_by"]);
+const USER_PROFILE_FILTERABLE_FIELDS = new Set([...USER_PROFILE_WIRE_SETS.filterable, "uuid", "created_by", "updated_by", "deleted_by"]);
 
 const USER_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
 
@@ -164,8 +168,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     super({
       entity: UserProfileEntity,
       list: {
-        searchableKeys: [...DEFAULT_SEARCH_KEYS],
-        filterableKeys: USER_PROFILE_FILTERABLE_FIELDS,
+        meta: userProfileMeta,
         defaultSort: { key: "created_at", dir: "desc" },
       },
     });

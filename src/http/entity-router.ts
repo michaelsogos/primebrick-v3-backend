@@ -13,7 +13,7 @@
  *   list         GET  /list      [validateQuery]     -> service.list(req.query)
  *   export       GET  /export    [validateQuery]     -> service.export(req.query, res)  (streaming)
  *   create       POST /          [validateBody]      -> runEntityWrite -> service.create(entity, tx) -> 201 entity
- *   duplicate    POST /duplicate [validateBody]      -> service.duplicate(body.uuids)
+ *   duplicate    POST /duplicate [validateBody]      -> service.duplicate(body.uuids)   (Clonable-gated)
  *   bulkDelete   POST /bulk-delete   [validateBody]  -> service.bulkDelete(body.items)
  *   bulkRestore  POST /bulk-restore  [validateBody]  -> service.bulkRestore(body.items)
  *   get          GET  /:uuid     [uuid]              -> service.get(uuid)
@@ -50,6 +50,7 @@ import { validateBody, validateQuery } from "./validation.js";
 import { ValidationError } from "./api-errors.js";
 import { rbacHandler } from "../modules/auth/rbac.middleware.js";
 import { entityCrudSpec, type Permission } from "@primebrick/sdk";
+import { isClonableEntity, hasAuditTrail } from "@primebrick/dal-pg";
 import { registerEntityName } from "../db/entity-name-registry.js";
 import type { EntityMeta } from "./entity-meta.types.js";
 import { assembleMeta } from "./meta-assembler.js";
@@ -115,7 +116,8 @@ const DefaultDuplicateBodySchema = z.object({
 export interface EntityRouterConfig<TEntity = unknown, S extends object = object> {
   /** Entity URL segment, e.g. "customer" -> /api/v1/entities/customer/* */
   entityName: string;
-  /** Entity class (for meta assembly: auditable/collaboration flags). */
+  /** Entity class — the capability source: meta assembly (auditable/
+   *  collaboration flags) and `Clonable` derivation for `/duplicate`. */
   entity: new () => unknown;
   /** Static entity meta object (e.g. customerMeta). */
   meta: EntityMeta;
@@ -146,14 +148,6 @@ export interface EntityRouterConfig<TEntity = unknown, S extends object = object
     actionMiddlewares?: Partial<Record<EntityAction, RequestHandler[]>>;
   };
 
-  /** `duplicate` is ON by default (E.8): the route registers with the
-   *  conventional `<entity>.duplicate.bulk` permission even when
-   *  `permissions.duplicate` is unset. Set to `false` to disable —
-   *  required for IdP-synced entities (org/role_mapping/user_profile)
-   *  and domain entities where cloning is meaningless (e.g. ai_model in the
-   *  AI service — the same factory option exists in the US SDK router). */
-  duplicate?: false;
-
   /** Override an action's handler body; the mandatory chain still applies. */
   handlers?: Partial<Record<EntityAction, RequestHandler>>;
 
@@ -170,6 +164,34 @@ export function makeEntityRouter<TEntity, S extends object>(
   // Link the entity class to its API name so the audit port can publish
   // collaboration markers under the API namespace (not the physical table).
   registerEntityName(config.entity, config.entityName);
+
+  // Capability is a class fact, never authored: `/duplicate` exists iff the
+  // entity uses the Clonable mixin — there is no flag and no override (the
+  // US SDK router derives the same gate from `service.clonable`). A stale
+  // `duplicate` field or any duplicate-scoped config on a non-clonable
+  // entity is dead code → construction error, not silent no-op.
+  const clonable = isClonableEntity(config.entity as Parameters<typeof isClonableEntity>[0]);
+  if ((config as { duplicate?: unknown }).duplicate !== undefined) {
+    throw new Error(
+      `entity-router[${config.entityName}]: 'duplicate' is not a config field — ` +
+        `clonability derives from the entity class (Clonable mixin)`,
+    );
+  }
+  if (!clonable) {
+    const deadKeys = [
+      config.permissions.duplicate && "permissions.duplicate",
+      config.schemas.duplicateBody && "schemas.duplicateBody",
+      config.methods?.duplicate && "methods.duplicate",
+      config.handlers?.duplicate && "handlers.duplicate",
+      config.hooks?.actionMiddlewares?.duplicate && "hooks.actionMiddlewares.duplicate",
+    ].filter(Boolean);
+    if (deadKeys.length) {
+      throw new Error(
+        `entity-router[${config.entityName}]: ${deadKeys.join(", ")} configured but the entity is not clonable — ` +
+          `add the Clonable mixin to the entity class (or remove the duplicate config)`,
+      );
+    }
+  }
   const method = (a: EntityAction) => (config.methods?.[a] ?? a) as keyof S & string;
   const call = (a: EntityAction, ...args: unknown[]) =>
     (service as Record<string, (...x: unknown[]) => Promise<unknown>>)[method(a)](...args);
@@ -242,12 +264,12 @@ export function makeEntityRouter<TEntity, S extends object>(
   const handler = (a: EntityAction) => config.handlers?.[a] ?? defaults[a];
   const perms = (a: EntityAction) => {
     let p = config.permissions[a];
-    // `duplicate` is ON BY DEFAULT for factory entities (E.8): when no
-    // explicit permission is declared, derive the conventional
-    // `<entity>.duplicate.bulk` permission. Set `config.duplicate === false`
-    // to disable the route entirely (IdP-synced / RPC-lifecycle entities).
-    if (!p && a === "duplicate" && config.duplicate !== false) {
-      p = [`${config.entityName}.duplicate.bulk` as Permission];
+    // `/duplicate` registers iff the entity class is Clonable — the
+    // conventional `<entity>.duplicate.bulk` permission applies unless an
+    // explicit grant is authored (access config, not capability).
+    if (a === "duplicate") {
+      if (!clonable) return undefined;
+      p ??= [`${config.entityName}.duplicate.bulk` as Permission];
     }
     return p ? rbacHandler(p) : undefined;
   };
@@ -326,10 +348,11 @@ export function makeEntityRouter<TEntity, S extends object>(
   // server-side. Gated on the `list` permission (filter options are a
   // list-UX read). Literal route — must register BEFORE the `:uuid`
   // params (registerRoutes orders literalDefs first).
-  // Registered unconditionally for entities with `list` permission — the
-  // service getter is lazy (property access constructs it before
-  // initDal); the implementation check happens per-request.
-  if (config.permissions.list) {
+  // Registered for auditable entities with `list` permission — no trail
+  // means no actors to feed (the US SDK router gates identically on
+  // `hasAuditTrail`). The service getter stays lazy; the implementation
+  // check still happens per-request.
+  if (config.permissions.list && hasAuditTrail(config.entity as Parameters<typeof hasAuditTrail>[0])) {
     literalDefs.push({
       permission: rbacHandler(config.permissions.list),
       method: "get",

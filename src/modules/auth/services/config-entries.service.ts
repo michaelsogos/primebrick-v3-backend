@@ -47,6 +47,7 @@ import { getCachePort } from "../../../cache/cache-port-holder.js";
 import { findAuditPage } from "../../../db/audit-query-helper.js";
 import { ApiError, ValidationError } from "../../../http/api-errors.js";
 import { ConfigEntryEntity } from "../config_entry_entity.js";
+import { configEntriesMeta } from "../config-entries.meta.js";
 import { UserProfileEntity } from "../user_profile_entity.js";
 
 const LIST_CACHE_KEY = "dal:config_entries:list";
@@ -172,8 +173,7 @@ export class ConfigEntriesService extends DomainService<
     super({
       entity: ConfigEntryEntity,
       list: {
-        searchableKeys: ["key", "label_key"],
-        filterableKeys: new Set(["key", "type", "group_key", "reserved"]),
+        meta: configEntriesMeta,
         defaultSort: { key: "key", dir: "asc" },
       },
     });

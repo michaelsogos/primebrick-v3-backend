@@ -9,7 +9,7 @@ import { buildDocsPack } from "@primebrick/sdk";
 import { generateReferenceDocs } from "./generate-reference-docs.js";
 import { openapi } from "../src/openapi/openapi.js";
 
-await generateReferenceDocs(join(process.cwd(), "docs", "user-guide", "generated"));
+await generateReferenceDocs(join(process.cwd(), "docs", "user-guide", "reference"));
 
 const manifest = await buildDocsPack({
   repo: "backend",

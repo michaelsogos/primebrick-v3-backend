@@ -25,13 +25,10 @@ import type { OrganizationDetailDto, OrganizationDetailRow } from "../dto.js";
 import type { OrganizationListQueryInput } from "../dto.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { getAuthConfig } from "../config.js";
-import { deriveSearchableKeys } from "../../../lib/search-keys.js";
 import {
   ApiError,
   NotFoundError,
 } from "../../../http/api-errors.js";
-
-const ORG_FILTERABLE_FIELDS = new Set(["display_name", "idp_code", "website_url"]);
 
 export interface CreateOrganizationInput {
   idp_owner: string;
@@ -55,8 +52,7 @@ export class OrganizationsService {
     this.svc = makeEntityService<OrganizationDetailDto>({
       entity: OrganizationEntity,
       list: {
-        searchableKeys: deriveSearchableKeys(organizationMeta, OrganizationEntity),
-        filterableKeys: ORG_FILTERABLE_FIELDS,
+        meta: organizationMeta,
         defaultSort: { key: "created_at", dir: "asc" },
       },
     });

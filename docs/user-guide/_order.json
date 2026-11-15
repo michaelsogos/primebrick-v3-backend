@@ -26,10 +26,10 @@
     "generated/migrations",
     "generated/templates",
     "generated/translations",
-    "generated/entity-api-catalog",
-    "generated/entity-field-reference",
-    "generated/filter-operator-reference",
-    "generated/filter-syntax-guide",
-    "generated/navigation-map"
+    "reference/entity-api-catalog",
+    "reference/entity-field-reference",
+    "reference/filter-operator-reference",
+    "reference/filter-syntax-guide",
+    "reference/navigation-map"
   ]
 }

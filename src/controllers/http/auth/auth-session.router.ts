@@ -74,7 +74,7 @@ const meMeta: EntityMeta = withColumnConstraints({
     { key: "idp_is_admin", label_key: "system.entities.user_profile.fields.is_admin", type: "boolean", order: 0, tooltip: "system.entities.user_profile.hints.is_admin", tooltip_priority: "WARNING", tooltip_title: "system.entities.user_profile.hints.is_admin_title", show_form_tooltip: true },
     { key: "idp_is_verified", label_key: "system.entities.user_profile.fields.is_verified", type: "boolean", order: 1, tooltip: "system.entities.user_profile.hints.is_verified", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.is_verified_title", show_form_tooltip: true },
     { key: "idp_email_verified", label_key: "system.entities.user_profile.fields.email_verified", type: "boolean", order: 2, tooltip: "system.entities.user_profile.hints.email_verified", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.email_verified_title", show_form_tooltip: true },
-    { key: "auth_method_enforcer_dismissed", label_key: "system.entities.user_profile.fields.auth_method_enforcer_dismissed", type: "boolean", order: 3 },
+    { key: "auth_method_enforcer_dismissed", label_key: "system.entities.user_profile.fields.auth_method_enforcer_dismissed", type: "boolean", order: 3, tooltip: "system.entities.user_profile.hints.auth_method_enforcer_dismissed", tooltip_priority: "HINT", tooltip_title: "system.entities.user_profile.hints.auth_method_enforcer_dismissed_title", show_form_tooltip: true },
     { key: "last_synced_at", label_key: "system.entities.user_profile.fields.last_synced_at", type: "datetime", order: 7, default_visible: false, audited: true },
   ],
 }, UserProfileEntity);

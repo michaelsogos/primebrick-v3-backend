@@ -522,3 +522,33 @@ describe("ModuleDiscoveryService — icon materialization", () => {
     expect(m.nav_hidden?.find((l) => l.href === "/crm/settings/customer_types")?.icon).toBe("list");
   });
 });
+
+describe("ModuleDiscoveryService — entity ownership (endpoints.entities)", () => {
+  it("serves endpoints.entities verbatim — the FE's entity→service source", async () => {
+    const row = svc({
+      code: "job",
+      name: "Job Handler",
+      endpoints: { entities: ["job_trigger", "job_schedule", "job_run"] },
+    });
+    setup([row]);
+    const { modules } = await list([]);
+    expect(modules[0].entities).toEqual(["job_trigger", "job_schedule", "job_run"]);
+  });
+
+  it("absent declaration → field omitted, never an empty list", async () => {
+    setup([svc({ code: "bare", name: "Bare" })]);
+    const { modules } = await list([]);
+    expect(modules[0].entities).toBeUndefined();
+  });
+
+  it("a headless service still publishes its owned entities — the page-less case the map exists for", async () => {
+    const headless = svc({
+      code: "emailsender",
+      name: "Email Sender",
+      endpoints: { entities: ["provider", "email_template"] },
+    });
+    setup([headless]);
+    const { modules } = await list([]);
+    expect(modules[0].entities).toEqual(["provider", "email_template"]);
+  });
+});

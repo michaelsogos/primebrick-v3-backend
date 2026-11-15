@@ -124,9 +124,14 @@ the `nav[].icon` fields and resolve through `DynamicIcon`.
 `ModuleDiscoveryService.list(user)` emits, per enabled service, the
 registry identity fields **plus** the resolved nav declaration —
 `nav` + `routes` + per-root `home` (`nav[0]` of each root slice,
-post-filter). This ONE payload feeds every nav surface: the launcher
-columns, the sidebar, the breadcrumb, and the client-derived route census
-(`routesCensusFromModules` in the FE). The former `/modules/:code/meta`
+post-filter) — and the service's owned entity names (`endpoints.entities`,
+derived from the same declarations that produce its `/entities/*` routes
+and validated at enrollment by `validateEntitiesDeclaration`). This ONE
+payload feeds every nav surface: the launcher columns, the sidebar, the
+breadcrumb, the client-derived route census (`routesCensusFromModules`
+in the FE) and the FE's entity→service map (`/svc/<code>` api bases —
+`entityApiBase`/`serviceApiPrefix` — resolve from `module.entities`,
+never a hand-maintained map). The former `/modules/:code/meta`
 and `/system/routes` endpoints are **retired** — they were projections of
 the same source and leaked module metadata regardless of access.
 
@@ -173,7 +178,7 @@ see it; admins do via the implied `access.system` grant.
    already access-filtered.
 3. **`generate:docs`** — `generate-reference-docs.ts` iterates
    `listModuleNavCodes()` + the service registry to emit
-   `docs/user-guide/generated/navigation-map.mdx` (route → module → kind
+   `docs/user-guide/reference/navigation-map.mdx` (route → module → kind
    → entity). No FE file scanning — the metadata already knows everything
    a `+page.svelte` scan could find and more.
 

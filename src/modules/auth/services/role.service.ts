@@ -37,7 +37,6 @@ import {
 import { DomainService } from "../../../db/domain-service.js";
 import { EntityAuditPort } from "../../../db/entity-audit-port.js";
 import { getCachePort } from "../../../cache/cache-port-holder.js";
-import { deriveSearchableKeys } from "../../../lib/search-keys.js";
 import { roleMappingsMeta } from "../role-mappings.meta.js";
 import { RoleMappingEntity } from "../role_mapping_entity.js";
 import { CasdoorService } from "./casdoor.service.js";
@@ -49,8 +48,6 @@ const ROLE_MAPPINGS_CACHE_KEY = "be:role_mappings:all";
 /** Global auth epoch — bumped on role/permission writes; fire-time auth checkpoints compare cached snapshot timestamps against it. */
 const AUTH_EPOCH_KEY = "auth:epoch";
 const AUTH_EPOCH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-export const ROLE_MAPPING_FILTERABLE_FIELDS = new Set(["idp_role", "idp_org", "label_key", "is_admin"]);
-
 interface RoleMappingRow {
   idp_role: string;
   label_key?: string;
@@ -146,8 +143,7 @@ export class RoleService extends DomainService<RoleMappingDto> {
     super({
       entity: RoleMappingEntity,
       list: {
-        searchableKeys: deriveSearchableKeys(roleMappingsMeta, RoleMappingEntity),
-        filterableKeys: ROLE_MAPPING_FILTERABLE_FIELDS,
+        meta: roleMappingsMeta,
         defaultSort: { key: "idp_role", dir: "asc" },
       },
     });

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-11T18:01:35.808Z",
+  "generatedAt": "2026-11-12T20:33:41.541Z",
   "source": "entities",
   "tables": {
     "public.auth_events": {
@@ -1663,33 +1663,21 @@
           "propertyKey": "avatar_initials",
           "isNullable": true
         },
-        "is_active": {
-          "name": "is_active",
+        "idp_is_admin": {
+          "name": "idp_is_admin",
           "ordinalPosition": 14,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
           "isUnique": false,
           "isPostgresIdentity": false,
-          "propertyKey": "is_active",
-          "isNullable": false,
-          "defaultSql": "true"
-        },
-        "is_admin": {
-          "name": "is_admin",
-          "ordinalPosition": 15,
-          "dataType": "boolean",
-          "typname": "boolean",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "is_admin",
+          "propertyKey": "idp_is_admin",
           "isNullable": false,
           "defaultSql": "false"
         },
         "roles": {
           "name": "roles",
-          "ordinalPosition": 16,
+          "ordinalPosition": 15,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -1700,7 +1688,7 @@
         },
         "last_synced_at": {
           "name": "last_synced_at",
-          "ordinalPosition": 17,
+          "ordinalPosition": 16,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -1711,7 +1699,7 @@
         },
         "idp_org": {
           "name": "idp_org",
-          "ordinalPosition": 18,
+          "ordinalPosition": 17,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -1722,7 +1710,7 @@
         },
         "idp_username": {
           "name": "idp_username",
-          "ordinalPosition": 19,
+          "ordinalPosition": 18,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -1731,44 +1719,66 @@
           "propertyKey": "idp_username",
           "isNullable": true
         },
-        "is_verified": {
-          "name": "is_verified",
+        "idp_is_verified": {
+          "name": "idp_is_verified",
+          "ordinalPosition": 19,
+          "dataType": "boolean",
+          "typname": "boolean",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "idp_is_verified",
+          "isNullable": false,
+          "defaultSql": "false"
+        },
+        "idp_email_verified": {
+          "name": "idp_email_verified",
           "ordinalPosition": 20,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
           "isUnique": false,
           "isPostgresIdentity": false,
-          "propertyKey": "is_verified",
+          "propertyKey": "idp_email_verified",
           "isNullable": false,
           "defaultSql": "false"
         },
-        "email_verified": {
-          "name": "email_verified",
+        "idp_issuer": {
+          "name": "idp_issuer",
           "ordinalPosition": 21,
-          "dataType": "boolean",
-          "typname": "boolean",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "email_verified",
-          "isNullable": false,
-          "defaultSql": "false"
-        },
-        "issuer": {
-          "name": "issuer",
-          "ordinalPosition": 22,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
           "isUnique": false,
           "isPostgresIdentity": false,
-          "propertyKey": "issuer",
+          "propertyKey": "idp_issuer",
+          "isNullable": true
+        },
+        "suspended_at": {
+          "name": "suspended_at",
+          "ordinalPosition": 22,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "suspended_at",
+          "isNullable": true
+        },
+        "suspended_by": {
+          "name": "suspended_by",
+          "ordinalPosition": 23,
+          "dataType": "uuid",
+          "typname": "uuid",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "suspended_by",
           "isNullable": true
         },
         "auth_method_enforcer_dismissed": {
           "name": "auth_method_enforcer_dismissed",
-          "ordinalPosition": 23,
+          "ordinalPosition": 24,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,
@@ -1780,7 +1790,7 @@
         },
         "onboarding_completed": {
           "name": "onboarding_completed",
-          "ordinalPosition": 24,
+          "ordinalPosition": 25,
           "dataType": "boolean",
           "typname": "boolean",
           "isPrimaryKey": false,

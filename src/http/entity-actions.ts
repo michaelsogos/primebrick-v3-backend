@@ -151,6 +151,9 @@ export function deriveEntityActions(
           ...(sentinel ? { sentinel: sentinel as EntityActionSentinel } : {}),
           enabled: true,
           endpoint: { method: method.toUpperCase(), path: route.path },
+          // Violet IS the clone semantic — duplicate.bulk carries it (and
+          // its Copy icon) by served default, same as the US SDK router.
+          ...(op === "duplicate.bulk" ? { color: "violet" as const, icon: "copy" } : {}),
         });
       }
     }
