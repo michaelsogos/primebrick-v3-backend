@@ -10,5 +10,11 @@
     "algo": "ed25519",
     "public_key": "MCowBQYDK2VwAyEAPedH2672xeMfg/qU0YNss2sMPmtQYw/SOn+7PFUiX8E=",
     "trust": "dev"
+  },
+  {
+    "key_id": "dev-micha-3",
+    "algo": "ed25519",
+    "public_key": "MCowBQYDK2VwAyEAjJj1ebA2MA9mpZtCG+L634chg5mcJloooNo0wdQRxNE=",
+    "trust": "dev"
   }
 ]
