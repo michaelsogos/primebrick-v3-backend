@@ -134,6 +134,61 @@ export class ServiceRegistryService {
     await getDal().add(ServiceRegistryEntity, row as any, { actor: "system" });
   }
 
+  /**
+   * Self-enroll the BE's own platform row (`code='api'`). The BE never
+   * sends `service.register` — it IS the gateway — so every `system:api`
+   * audit writer would otherwise resolve to nothing: no registry name,
+   * no lazy ref, a raw `system:api` token in every audited cell. Mirrors
+   * `enrollRegistryRow` for client_shield: idempotent upsert that
+   * re-asserts the row each boot and self-corrects drift (including a
+   * soft-deleted row — the platform identity can never stay tombstoned).
+   */
+  async enrollApiGatewayRow(identity: { name: string; version?: string }): Promise<"enrolled" | "updated" | "ok"> {
+    const wanted: Partial<ServiceRegistryEntry> = {
+      code: "api",
+      // No base_url — the BE is the host process serving this registry;
+      // proxied modules carry one, platform rows (`settings`) stay empty.
+      base_url: "",
+      part_of: "system",
+      endpoints: {},
+      name: "API Gateway",
+      status: "active",
+      is_enabled: true,
+      icon: "network",
+      icon_type: "icon",
+      is_reserved: true,
+      is_default: false,
+      label_key: "system.api.title",
+      pkg_name: identity.name,
+      service_version: identity.version,
+      is_behind_scaler: false,
+    };
+    const existing = await this.findByCode("api");
+    if (!existing) {
+      const deleted = await this.findDeletedByCode("api");
+      if (deleted?.uuid) {
+        await this.restoreByUuid(deleted.uuid, deleted.version);
+        await this.updateByCode("api", wanted);
+        return "updated";
+      }
+      await this.insert(wanted);
+      return "enrolled";
+    }
+    const drift =
+      existing.name !== wanted.name ||
+      existing.label_key !== wanted.label_key ||
+      existing.is_reserved !== wanted.is_reserved ||
+      existing.status !== wanted.status ||
+      existing.service_version !== wanted.service_version ||
+      existing.part_of !== wanted.part_of ||
+      existing.is_enabled !== wanted.is_enabled;
+    if (drift) {
+      await this.updateByCode("api", wanted);
+      return "updated";
+    }
+    return "ok";
+  }
+
   async updateByCode(code: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
     const existing = await this.findByCode(code);
     if (!existing) return;

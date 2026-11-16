@@ -1,5 +1,5 @@
 import "dotenv/config"; // must stay first — loads .env before any module reads it
-import { logger, assertDbEnv } from "@primebrick/sdk";
+import { logger, assertDbEnv, detectPackageIdentity } from "@primebrick/sdk";
 import "./observability/logging-init.js"; // must stay first import — async console bridge
 import cors from "cors";
 import express, { type Response } from "express";
@@ -490,6 +490,10 @@ async function startServiceLifecycle(): Promise<void> {
     // and internal routes serve shield-verified calls — every NATS publish
     // must already carry the BE's client-shield identity.
     await enrollBackendIdentity();
+    // Registry self-enrollment SECOND: `system:api` audit writers resolve
+    // through service_registry — without the platform row every such actor
+    // is an unresolvable token (no display name, no record drill).
+    await enrollServiceRegistryIdentity();
     const subscriber = new ServiceLifecycleSubscriber();
     await subscriber.start();
     await startInternalRequestRoutes();
@@ -521,6 +525,21 @@ async function startServiceLifecycle(): Promise<void> {
  */
 async function enrollBackendIdentity(): Promise<void> {
   await initBackendIdentity();
+}
+
+/**
+ * Self-enroll the BE into public.service_registry (`code='api'`). The BE
+ * never sends `service.register` — it owns the registry — but its own
+ * audit writes stamp `system:api`, and the `system:<code>` convention
+ * resolves through this table. Without the row every `system:api` actor
+ * is an unresolvable token (no display name, no service.record drill).
+ * Idempotent: re-asserted every boot, self-corrects drift.
+ */
+async function enrollServiceRegistryIdentity(): Promise<void> {
+  const outcome = await new ServiceRegistryService().enrollApiGatewayRow(
+    detectPackageIdentity(),
+  );
+  logger.info(`service_registry self-enrollment (api): ${outcome}`, { tags: ["core"] });
 }
 
 // --- Graceful shutdown --------------------------------------------------------
