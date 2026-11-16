@@ -177,11 +177,17 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   // --- Profile reads ---------------------------------------------------------
 
   private toDto(r: UserProfileDetailRow): UserProfileDetailDto {
+    // `dal.find*` reads return DB rows (timestamptz → Date); `svc.*`
+    // writes return WIRE rows — the entity-service DTO step already
+    // serialized dates to ISO. Normalize both; the row spread above can
+    // carry either shape.
+    const iso = (v: unknown): string | undefined =>
+      v instanceof Date ? entityDateToApiIso(v) : typeof v === "string" ? v : undefined;
     return {
       ...r,
-      created_at: entityDateToApiIso(r.created_at),
-      updated_at: entityDateToApiIso(r.updated_at),
-      deleted_at: r.deleted_at ? entityDateToApiIso(r.deleted_at) : undefined,
+      created_at: iso(r.created_at)!,
+      updated_at: iso(r.updated_at)!,
+      deleted_at: iso(r.deleted_at),
     };
   }
 
