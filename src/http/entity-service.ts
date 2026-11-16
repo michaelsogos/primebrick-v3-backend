@@ -114,7 +114,7 @@ export function makeEntityService<TEntity extends Record<string, unknown>>(
     bulkDelete: (items) => resolve().bulkDelete(items),
     bulkRestore: (items) => resolve().bulkRestore(items),
     audit: (uuid, page, limit) => resolve().audit(uuid, page, limit),
-    auditActors: () => resolve().auditActors(),
+    auditActors: async () => (await resolve().auditActors?.()) ?? [],
     stream: (query) => resolve().stream(query),
   };
 }
