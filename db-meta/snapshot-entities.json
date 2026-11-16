@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-12T20:33:41.541Z",
+  "generatedAt": "2026-11-16T10:26:38.786Z",
   "source": "entities",
   "tables": {
     "public.auth_events": {
