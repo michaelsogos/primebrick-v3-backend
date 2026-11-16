@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-15T19:46:12.783Z",
+  "issued_at": "2026-11-16T10:17:46.322Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -37,7 +37,11 @@
     "20261114162000_job_schedule_system_key_revert": "d305869d0d2176d3df7293358514f93360146ee5deb7ed654a1063dadecfadeb",
     "20261114170000_schedule_spec_min_interval": "b1a4af97d31a62b55d06ffc2f78122cff64d67786a632dedaefcae20d798ec52",
     "20261115100000_system_trigger_immutable": "86ac7e34e0ca506bdda23c3ca4c08161ca2efe9a0152e4787f98b9c438efc5ee",
-    "20261115204500_version_history_prose_actions": "f37a790710716dbb274212ac23b69ea0e3f7f9ec19e584b28d485f8d45647fc0"
+    "20261115204500_version_history_prose_actions": "f37a790710716dbb274212ac23b69ea0e3f7f9ec19e584b28d485f8d45647fc0",
+    "20261115225600_elt_preview_pane_i18n_cleanup": "8278e85b721bc372e6ac7a0e8cd95afceafe819d614b2110fcd6ef1d4733274f",
+    "20261116010000_mapper_viewer_i18n": "131aad9ddf5472ae1c52d5e6d2286b91d4edf41c7402a6bf9c49562673d1a739",
+    "20261116100000_audit_uuid_pk_retention": "9a657db20b555949fc2afca366bdede0bdb7cf949e4a0ae6b8575cdfa60e461a",
+    "20261116110000_partition_maintenance_callable_i18n": "475ed3c5c23ec9ec97fd4d53da2d1d07fe79fd27e9b2a4ce9caadf3c37f0e06d"
   },
-  "signature": "Es5k5oOhWsP3idEpDVLcDwa1aYwqhVKDaRsMcjSqAVsMb01pefusxvyQiHNj6NqrgrC90Z2d3DgWdABtmomfAQ=="
+  "signature": "AoqCjDpP6MqlIjdJ2m6HS8zWEqgA13crpQ8pKsKh7qXOoByf1RV716F1Sz7lQ0mKQXg8nwBGtyd9Tay5UzJ+BA=="
 }

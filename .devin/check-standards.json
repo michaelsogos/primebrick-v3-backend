@@ -20,6 +20,11 @@
         "controllers/",
         "modules/mcp/"
       ]
+    },
+    "pg-import": {
+      "allowPaths": [
+        "db/dal-gateway.ts"
+      ]
     }
   },
   "i18n_namespaces": ["app", "system", "custom"],

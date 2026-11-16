@@ -89,13 +89,13 @@ export class ClientShieldRegistryService {
     actor = "self-enroll",
     opts: { keyMode?: "static" | "derived"; keyGeneration?: number } = {},
   ): Promise<{ outcome: "enrolled" | "stale_generation"; key_generation?: number }> {
-    const dal = getDal();
+    const repo = getDal();
     const claimedGen = opts.keyGeneration ?? 0;
     // One retry covers the concurrent-enroll race: two instances may both
     // find no row and race on `add` — the loser hits ERR04/ERR05 and retries
     // as a normal versioned update.
     for (let attempt = 0; attempt < 2; attempt++) {
-      const existing = await dal.find<
+      const existing = await repo.find<
         ClientShieldRegistryEntity,
         ClientShieldRegistryRow & { version: number; deleted_at?: Date | null }
       >(
@@ -114,7 +114,7 @@ export class ClientShieldRegistryService {
 
       if (!existing) {
         try {
-          await dal.add(
+          await repo.add(
             ClientShieldRegistryEntity,
             {
               ua_prefix: uaPrefix,
@@ -149,7 +149,7 @@ export class ClientShieldRegistryService {
 
       let version = existing.version;
       if (existing.deleted_at) {
-        const restored = await dal.restore<ClientShieldRegistryEntity, { version: number }>(
+        const restored = await repo.restore<ClientShieldRegistryEntity, { version: number }>(
           ClientShieldRegistryEntity,
           { uuid: existing.uuid, version } as never,
           { actor, matchBy: "uuid" as never },
@@ -158,7 +158,7 @@ export class ClientShieldRegistryService {
       }
       const hashChanged = existing.client_key_hash !== clientKeyHash;
       const now = new Date();
-      await dal.update(
+      await repo.update(
         ClientShieldRegistryEntity,
         {
           uuid: existing.uuid,

@@ -6,7 +6,8 @@ import {
   type CachePort,
   type CacheableRepository,
 } from "@primebrick/sdk";
-// standards-exempt: pg-import — type-only for the sanctioned getPool() migration seam
+// Type-only `pg` import for the sanctioned getPool() migration seam —
+// declared in .devin/check-standards.json (pg-import allowPaths).
 import type { Pool } from "pg";
 import { getCachePort } from "../cache/cache-port-holder.js";
 

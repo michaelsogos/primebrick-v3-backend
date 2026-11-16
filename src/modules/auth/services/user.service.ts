@@ -334,27 +334,22 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     roles?: string[] | null;
     last_synced_at?: Date;
   }): Promise<void> {
-    const actor = requireActor();
-    await this.dal.add(
-      UserProfileEntity,
-      {
-        uuid: data.uuid,
-        idp_code: data.idp_code,
-        email: data.email,
-        display_name: data.display_name,
-        idp_org: data.idp_org,
-        idp_username: data.idp_username,
-        avatar_color: data.avatar_color,
-        avatar_initials: data.avatar_initials,
-        idp_is_admin: data.idp_is_admin,
-        idp_is_verified: data.idp_is_verified,
-        idp_email_verified: data.idp_email_verified,
-        idp_issuer: data.idp_issuer,
-        roles: data.roles,
-        last_synced_at: data.last_synced_at,
-      },
-      { actor, audit: this.auditPort }
-    );
+    await this.svc.create({
+      uuid: data.uuid,
+      idp_code: data.idp_code,
+      email: data.email,
+      display_name: data.display_name,
+      idp_org: data.idp_org,
+      idp_username: data.idp_username,
+      avatar_color: data.avatar_color,
+      avatar_initials: data.avatar_initials,
+      idp_is_admin: data.idp_is_admin,
+      idp_is_verified: data.idp_is_verified,
+      idp_email_verified: data.idp_email_verified,
+      idp_issuer: data.idp_issuer,
+      roles: data.roles,
+      last_synced_at: data.last_synced_at,
+    });
   }
 
   async updateProfile(
@@ -362,15 +357,13 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     body: UserProfileWriteBody,
     tx?: Repository
   ): Promise<UserProfileDetailDto> {
-    const repo = tx ?? this.dal;
     // API path: `body.version` is the caller-observed version. If absent the
-    // Repository.update() version guard throws ERR02 — we NEVER manufacture a
+    // update's version guard throws ERR02 — we NEVER manufacture a
     // version by re-reading the row (that would elide the concurrency check).
-    const row = await repo.update<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { ...body, uuid },
-      { actor: requireActor(), audit: new EntityAuditPort(repo) }
+    const row = await this.svc.update(
+      uuid, { ...body } as Record<string, unknown> & { version: number }, tx,
     );
-    return this.toDto(row);
+    return this.toDto(row as never);
   }
 
   /**
@@ -383,13 +376,11 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     body: UserProfileWriteBody,
     tx?: Repository
   ): Promise<UserProfileDetailDto> {
-    const repo = tx ?? this.dal;
-    const version = (await this.freshRowByUuid(uuid, repo))!.version;
-    const row = await repo.update<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { ...body, uuid, version },
-      { actor: requireActor(), audit: new EntityAuditPort(repo) }
+    const version = (await this.freshRowByUuid(uuid, tx ?? this.dal))!.version;
+    const row = await this.svc.update(
+      uuid, { ...body, version } as Record<string, unknown> & { version: number }, tx,
     );
-    return this.toDto(row);
+    return this.toDto(row as never);
   }
 
   /**
@@ -407,10 +398,10 @@ export class UserService extends DomainService<UserProfileDetailDto> {
       null,
       { filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any, deletedRecords: "INCLUDED" }
     ))!.version;
-    const row = await this.dal.update<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { ...body, uuid, version }, { actor: requireActor(), audit: this.auditPort }
+    const row = await this.svc.update(
+      uuid, { ...body, version } as Record<string, unknown> & { version: number },
     );
-    return this.toDto(row);
+    return this.toDto(row as never);
   }
 
   // DB-first read — `findByUUID`/`findById` may serve a stale cached row
@@ -424,52 +415,20 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   }
 
   async softDeleteProfile(uuid: string, version: number): Promise<UserProfileDetailDto> {
-    const row = await this.dal.delete<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort }
-    );
-    return this.toDto(row);
+    const row = await this.svc.delete(uuid, version);
+    return this.toDto(row as unknown as UserProfileDetailRow);
   }
 
   /**
    * Restore a soft-deleted profile. Overrides `svc.restore` — same signature —
    * returning the joined + DTO-mapped row (audit display names, ISO dates).
    */
-  override async restore(uuid: string, version: number): Promise<UserProfileDetailDto> {
-    const row = await this.dal.restore<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort }
-    );
-    return this.toDto(row);
+  override async restore(uuid: string, version?: number): Promise<UserProfileDetailDto> {
+    const row = await this.svc.restore(uuid, version);
+    return this.toDto(row as unknown as UserProfileDetailRow);
   }
 
   // --- Audit -----------------------------------------------------------------
-
-  private enrichAuditDeltaWithDisplayNames(
-    delta: Record<string, any>,
-    changedByName: string | null
-  ): Record<string, any> {
-    const enriched = { ...delta };
-    const auditFields = ['created_by', 'updated_by', 'deleted_by'];
-
-    for (const f of auditFields) {
-      if (f in enriched) {
-        const change = enriched[f];
-
-        // Add display_name alongside GUID if available
-        if (changedByName && this.isUuid(change.new)) {
-          change.new_display_name = changedByName;
-        }
-        if (changedByName && this.isUuid(change.old)) {
-          change.old_display_name = changedByName;
-        }
-      }
-    }
-
-    return enriched;
-  }
-
-  private isUuid(value: any): boolean {
-    return typeof value === 'string' && /^[0-9a-fA-F-]{36}$/.test(value);
-  }
 
   async getUserProfileAudit(uuid: string, page: number, limit: number) {
     const result = await findAuditPage(this.dal, {
@@ -477,18 +436,19 @@ export class UserService extends DomainService<UserProfileDetailDto> {
       entityUuid: uuid,
       page,
       limit,
+      entity: UserProfileEntity,
     });
 
     return {
       data: result.data.map((row) => ({
-        id: row.id.toString(),
+        uuid: row.uuid,
         entity_uuid: row.entity_uuid,
         action: row.action,
         changed_at: row.changed_at,
         changed_by: row.changed_by,
         changed_by_name: row.changed_by_display_name,
         version: row.version,
-        delta: this.enrichAuditDeltaWithDisplayNames(row.delta as Record<string, any>, row.changed_by_display_name),
+        delta: row.delta as Record<string, any>,
       })),
       pagination: result.pagination,
     };
@@ -632,10 +592,10 @@ export class UserService extends DomainService<UserProfileDetailDto> {
         if (input.idp_username !== undefined && input.idp_username !== null) {
           updates.idp_username = input.idp_username;
         }
-        await this.dal.update(
-          UserProfileEntity,
-          updates,
-          { actor: row.uuid, matchBy: "idp_code", audit: this.auditPort }
+        // Self-attribution: the sync write stamps the profile's own uuid
+        // (no user session exists yet on the JIT path).
+        await this.runAs(row.uuid, () =>
+          this.svc.update(row.uuid, updates as Record<string, unknown> & { version: number }),
         );
       }
       // 3. Cache the result in Redis
@@ -656,17 +616,16 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     // find→NULL above proved absence → this is a pure INSERT. A concurrent
     // first-login for the same idp_code loses the race with a unique violation —
     // visible failure, correct per the optimistic-concurrency contract.
-    const inserted = await this.dal.add(
-      UserProfileEntity,
-      {
+    // Self-attribution: the just-provisioned profile stamps its own uuid.
+    const inserted = await this.runAs(newUuid, () =>
+      this.svc.create({
         uuid: newUuid,
         idp_code: input.idp_code,
         email: input.email,
         display_name: input.display_name,
         idp_org: input.idp_org,
         idp_username: input.idp_username,
-      },
-      { actor: newUuid, audit: this.auditPort }
+      }),
     );
 
     const uuid = (inserted as any)?.uuid ?? newUuid;

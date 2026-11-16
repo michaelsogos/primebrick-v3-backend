@@ -12,12 +12,22 @@ vi.mock("@primebrick/sdk", async (importOriginal) => {
 });
 
 // Mock @primebrick/dal-pg — preserve decorators via importOriginal, mock Repository
+// `svc` composes entityService over the dal — wire it against the same stub
+// repo; audit port is silenced (fire-and-forget writes are not under test).
+import { makeEntityService } from "@primebrick/dal-pg";
 const mockRepo = {
-  add: vi.fn(),
+  add: vi.fn(async (...args: any[]) => args[1]),
   find: vi.fn(),
   findAll: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
+  update: vi.fn(async (...args: any[]) => args[1]),
+  delete: vi.fn(async (...args: any[]) => args[1]),
+  entityService: (cfg: Record<string, unknown>) =>
+    makeEntityService({
+      ...cfg,
+      repo: mockRepo as never,
+      auditPort: () => ({ writeAudit: async () => 0n }),
+    } as never),
+  tableAuditPort: () => ({ writeAudit: async () => 0n }),
 };
 
 // The service reaches the DB through the inherited lazy `_dal` field
@@ -89,7 +99,9 @@ describe("InvitationService — user_invitations ops", () => {
       expect(data.status).toBe("PENDING");
       expect(data.email).toBe("user@example.com");
       expect(data.otp_attempts).toBe(0);
-      expect(data.created_by).toBe("test-actor-uuid");
+      // created_by/updated_by are NOT in the body — the `{ actor }` option
+      // stamps them automatically at the repo layer.
+      expect(data.created_by).toBeUndefined();
       expect(options.actor).toBe("test-actor-uuid");
     });
   });

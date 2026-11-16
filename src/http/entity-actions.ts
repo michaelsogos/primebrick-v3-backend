@@ -18,8 +18,10 @@
  * `rbacHandler(...)` injects on every declared route. `permissions` are
  * copied verbatim from the route declaration (OR-groups preserved).
  *
- * Hand-written `actions_overrides` in `*.meta.ts` may only toggle `enabled`
- * (visibility) — never permissions and never invent ops.
+ * Hand-written `actions_overrides` in `*.meta.ts` toggle `enabled`
+ * (visibility) and carry the same action chrome the US SDK router merges
+ * (`label_key`/`icon`/`color`/`confirm_key`/`busy_key`) — never permissions
+ * and never invent ops.
  *
  * The canonical type/vocabulary definitions live in `@primebrick/core`
  * (re-exported via `@primebrick/sdk`) — this file owns only the BE-side
@@ -171,6 +173,16 @@ export function deriveEntityActions(
   for (const a of result) {
     const o = overrides?.[a.op];
     if (o?.enabled === false) a.enabled = false;
+    // Chrome overrides ride the same `actions_overrides` contract the US
+    // SDK router merges (label/icon/color/confirm/busy travel together —
+    // a soft-delete-as-disable "Deactivate" needs all of them, not just
+    // `enabled`). Dropping them here made BE-served entities unable to
+    // override CTA chrome that US-served entities already could.
+    if (o?.label_key) a.label_key = o.label_key;
+    if (o?.icon) a.icon = o.icon;
+    if (o?.color) a.color = o.color;
+    if (o?.confirm_key) a.confirm_key = o.confirm_key;
+    if (o?.busy_key) a.busy_key = o.busy_key;
   }
   return result.sort((a, b) => a.op.localeCompare(b.op));
 }
