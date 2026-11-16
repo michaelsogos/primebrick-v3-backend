@@ -27,7 +27,7 @@ export const roleMappingsMeta: EntityMeta = withColumnConstraints({
     { key: "idp_org", label_key: "system.entities.role_mapping.fields.idp_org", type: "text", order: 2, default_visible: true },
     { key: "label_key", label_key: "system.entities.role_mapping.fields.label_key", type: "text", order: 3, default_visible: true },
     { key: "is_admin", label_key: "system.entities.role_mapping.fields.is_admin", type: "badge", order: 4, default_visible: true },
-    { key: "permissions", label_key: "system.entities.role_mapping.fields.permissions", type: "text", order: 5, sortable: false, default_visible: true, searchable: false, json_schema: { type: "array", items: { type: "string", format: "dotted_glob" } } },
+    { key: "permissions", label_key: "system.entities.role_mapping.fields.permissions", type: "text", order: 5, sortable: false, default_visible: true, json_schema: { type: "array", items: { type: "string", format: "dotted_glob" } } },
     { key: "last_synced_at", label_key: "system.entities.role_mapping.fields.last_synced_at", type: "datetime", order: 6, default_visible: false, audited: true },
   ],
   table: {
