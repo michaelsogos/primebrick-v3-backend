@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-16T10:17:46.322Z",
+  "issued_at": "2026-11-16T21:52:17.197Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -41,7 +41,8 @@
     "20261115225600_elt_preview_pane_i18n_cleanup": "8278e85b721bc372e6ac7a0e8cd95afceafe819d614b2110fcd6ef1d4733274f",
     "20261116010000_mapper_viewer_i18n": "131aad9ddf5472ae1c52d5e6d2286b91d4edf41c7402a6bf9c49562673d1a739",
     "20261116100000_audit_uuid_pk_retention": "9a657db20b555949fc2afca366bdede0bdb7cf949e4a0ae6b8575cdfa60e461a",
-    "20261116110000_partition_maintenance_callable_i18n": "475ed3c5c23ec9ec97fd4d53da2d1d07fe79fd27e9b2a4ce9caadf3c37f0e06d"
+    "20261116110000_partition_maintenance_callable_i18n": "475ed3c5c23ec9ec97fd4d53da2d1d07fe79fd27e9b2a4ce9caadf3c37f0e06d",
+    "20261116120000_entity_owner_unreachable_i18n": "cb9e3ba5a41f020f1a966919045415caf17b5fd1034cb09a6d5d9e51c49f8013"
   },
-  "signature": "AoqCjDpP6MqlIjdJ2m6HS8zWEqgA13crpQ8pKsKh7qXOoByf1RV716F1Sz7lQ0mKQXg8nwBGtyd9Tay5UzJ+BA=="
+  "signature": "F1CaHtAzQ45swiFI950C/hwYWLfbfkbQ7Idn6v8yoEH2I6X+d8bU4xMAk8/Gcgc+8h7XrSM7Bp8DYVAjaagPCA=="
 }
