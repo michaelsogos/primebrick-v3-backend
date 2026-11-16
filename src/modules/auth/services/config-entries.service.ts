@@ -314,6 +314,7 @@ export class ConfigEntriesService extends DomainService<
       entityUuid: uuid,
       page,
       limit,
+      entity: ConfigEntryEntity,
     });
   }
 

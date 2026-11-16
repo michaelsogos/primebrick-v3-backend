@@ -443,40 +443,13 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
   // --- Audit -----------------------------------------------------------------
 
-  private enrichAuditDeltaWithDisplayNames(
-    delta: Record<string, any>,
-    changedByName: string | null
-  ): Record<string, any> {
-    const enriched = { ...delta };
-    const auditFields = ['created_by', 'updated_by', 'deleted_by'];
-
-    for (const f of auditFields) {
-      if (f in enriched) {
-        const change = enriched[f];
-
-        // Add display_name alongside GUID if available
-        if (changedByName && this.isUuid(change.new)) {
-          change.new_display_name = changedByName;
-        }
-        if (changedByName && this.isUuid(change.old)) {
-          change.old_display_name = changedByName;
-        }
-      }
-    }
-
-    return enriched;
-  }
-
-  private isUuid(value: any): boolean {
-    return typeof value === 'string' && /^[0-9a-fA-F-]{36}$/.test(value);
-  }
-
   async getUserProfileAudit(uuid: string, page: number, limit: number) {
     const result = await findAuditPage(this.dal, {
       tableName: "user_profiles_audit",
       entityUuid: uuid,
       page,
       limit,
+      entity: UserProfileEntity,
     });
 
     return {
@@ -488,7 +461,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
         changed_by: row.changed_by,
         changed_by_name: row.changed_by_display_name,
         version: row.version,
-        delta: this.enrichAuditDeltaWithDisplayNames(row.delta as Record<string, any>, row.changed_by_display_name),
+        delta: row.delta as Record<string, any>,
       })),
       pagination: result.pagination,
     };

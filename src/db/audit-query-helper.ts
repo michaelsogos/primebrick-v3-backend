@@ -1,10 +1,10 @@
 import type { Repository } from "@primebrick/dal-pg";
-import { AuditLogEntity, Project, Filter, Sort, field, buildAuditTrailJoins, type FieldProjector } from "@primebrick/dal-pg";
+import { AuditLogEntity, Project, Filter, Sort, field, buildAuditTrailJoins, enrichAuditDeltaRefs, type EntityClass, type FieldProjector } from "@primebrick/dal-pg";
 
 /** Structural minimum the audit queries need — satisfied by both the
  *  gateway `Dal` and a tx-scoped `Repository`. Callers pass `getDal()`;
  *  the Repository is never exposed to services. */
-type AuditQueryable = Pick<Repository, "find" | "findByPage">;
+type AuditQueryable = Pick<Repository, "find" | "findByPage" | "findAll">;
 import { UserProfileEntity } from "../modules/auth/user_profile_entity.js";
 
 export interface AuditPageOptions {
@@ -12,6 +12,11 @@ export interface AuditPageOptions {
   entityUuid: string;
   page: number;
   limit: number;
+  /** The audited row's entity class — enables `@Ref` delta enrichment
+   *  (`old_display_name`/`new_display_name` on ref-valued changes, the
+   *  same contract the shared `EntityService.audit()` emits). Optional:
+   *  omitted → delta passes through raw. */
+  entity?: EntityClass;
 }
 
 export interface AuditRow {
@@ -92,8 +97,11 @@ export async function findAuditPage(repo: AuditQueryable, opts: AuditPageOptions
     }
   );
 
+  const deltas = page.entities.map((row) => (row.delta ?? {}) as Record<string, unknown>);
+  const enriched = opts.entity ? await enrichAuditDeltaRefs(repo, opts.entity, deltas) : deltas;
+
   return {
-    data: page.entities.map((row) => ({
+    data: page.entities.map((row, i) => ({
       id: row.id,
       entity_uuid: row.entity_uuid,
       action: row.action,
@@ -102,7 +110,7 @@ export async function findAuditPage(repo: AuditQueryable, opts: AuditPageOptions
       changed_by_display_name: (row as any).changed_by_display_name ?? null,
       changed_by_idp_code: (row as any).changed_by_idp_code ?? null,
       version: row.version,
-      delta: row.delta ?? {},
+      delta: enriched[i] ?? deltas[i]!,
     })),
     pagination: {
       page: opts.page,
