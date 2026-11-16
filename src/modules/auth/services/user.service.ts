@@ -415,21 +415,17 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   }
 
   async softDeleteProfile(uuid: string, version: number): Promise<UserProfileDetailDto> {
-    const row = await this.dal.delete<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort }
-    );
-    return this.toDto(row);
+    const row = await this.svc.delete(uuid, version);
+    return this.toDto(row as unknown as UserProfileDetailRow);
   }
 
   /**
    * Restore a soft-deleted profile. Overrides `svc.restore` — same signature —
    * returning the joined + DTO-mapped row (audit display names, ISO dates).
    */
-  override async restore(uuid: string, version: number): Promise<UserProfileDetailDto> {
-    const row = await this.dal.restore<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort }
-    );
-    return this.toDto(row);
+  override async restore(uuid: string, version?: number): Promise<UserProfileDetailDto> {
+    const row = await this.svc.restore(uuid, version);
+    return this.toDto(row as unknown as UserProfileDetailRow);
   }
 
   // --- Audit -----------------------------------------------------------------

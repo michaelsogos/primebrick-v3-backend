@@ -286,23 +286,16 @@ export class MfaService extends DomainService<Record<string, unknown>> {
     is_enabled: boolean;
     is_preferred: boolean;
   }): Promise<string> {
-    const actor = requireActor();
-    const row = await this.dal.add<UserMfaFactorEntity>(
-      UserMfaFactorEntity,
-      {
-        user_profile_uuid: data.user_profile_uuid,
-        factor_type: data.factor_type,
-        casdoor_mfa_type: data.casdoor_mfa_type,
-        totp_secret_encrypted: data.totp_secret_encrypted,
-        label: data.label,
-        is_enabled: data.is_enabled,
-        is_preferred: data.is_preferred,
-        created_by: actor,
-        updated_by: actor,
-      },
-      { actor },
-    );
-    return row.uuid;
+    const row = await this.svc.create({
+      user_profile_uuid: data.user_profile_uuid,
+      factor_type: data.factor_type,
+      casdoor_mfa_type: data.casdoor_mfa_type,
+      totp_secret_encrypted: data.totp_secret_encrypted,
+      label: data.label,
+      is_enabled: data.is_enabled,
+      is_preferred: data.is_preferred,
+    });
+    return row.uuid as string;
   }
 
   /** Find a factor by UUID. Returns null if not found. */

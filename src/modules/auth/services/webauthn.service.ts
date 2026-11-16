@@ -243,26 +243,19 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
     os?: string;
     device_model?: string;
   }): Promise<string> {
-    const actor = requireActor();
-    const row = await this.dal.add<UserPasskeyEntity>(
-      UserPasskeyEntity,
-      {
-        user_profile_uuid: data.user_profile_uuid,
-        credential_id: data.credential_id,
-        aaguid: data.aaguid,
-        transports: data.transports,
-        label: data.label,
-        last_used_at: data.last_used_at,
-        authenticator_attachment: data.authenticator_attachment,
-        user_agent: data.user_agent,
-        os: data.os,
-        device_model: data.device_model,
-        created_by: actor,
-        updated_by: actor,
-      },
-      { actor },
-    );
-    return row.uuid;
+    const row = await this.svc.create({
+      user_profile_uuid: data.user_profile_uuid,
+      credential_id: data.credential_id,
+      aaguid: data.aaguid,
+      transports: data.transports,
+      label: data.label,
+      last_used_at: data.last_used_at,
+      authenticator_attachment: data.authenticator_attachment,
+      user_agent: data.user_agent,
+      os: data.os,
+      device_model: data.device_model,
+    });
+    return row.uuid as string;
   }
 
   /**

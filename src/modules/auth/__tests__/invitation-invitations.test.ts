@@ -99,7 +99,9 @@ describe("InvitationService — user_invitations ops", () => {
       expect(data.status).toBe("PENDING");
       expect(data.email).toBe("user@example.com");
       expect(data.otp_attempts).toBe(0);
-      expect(data.created_by).toBe("test-actor-uuid");
+      // created_by/updated_by are NOT in the body — the `{ actor }` option
+      // stamps them automatically at the repo layer.
+      expect(data.created_by).toBeUndefined();
       expect(options.actor).toBe("test-actor-uuid");
     });
   });

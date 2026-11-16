@@ -91,22 +91,15 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
     email: string;
     expires_at: Date;
   }): Promise<string> {
-    const actor = requireActor();
-    const row = await this.dal.add<UserInvitationEntity>(
-      UserInvitationEntity,
-      {
-        user_profile_uuid: data.user_profile_uuid,
-        token_hash: data.token_hash,
-        status: "PENDING" as InvitationStatus,
-        email: data.email,
-        expires_at: data.expires_at,
-        otp_attempts: 0,
-        created_by: actor,
-        updated_by: actor,
-      },
-      { actor },
-    );
-    return row.uuid;
+    const row = await this.svc.create({
+      user_profile_uuid: data.user_profile_uuid,
+      token_hash: data.token_hash,
+      status: "PENDING" as InvitationStatus,
+      email: data.email,
+      expires_at: data.expires_at,
+      otp_attempts: 0,
+    });
+    return row.uuid as string;
   }
 
   /**

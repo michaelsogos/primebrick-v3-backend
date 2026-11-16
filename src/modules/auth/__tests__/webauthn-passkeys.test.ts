@@ -92,7 +92,9 @@ describe("WebauthnService — user_passkeys ops", () => {
       expect(data.aaguid).toBe("aaguid-456");
       expect(data.transports).toEqual(["internal", "hybrid"]);
       expect(data.label).toBe("iPhone");
-      expect(data.created_by).toBe("test-actor-uuid");
+      // created_by/updated_by are NOT in the body — the `{ actor }` option
+      // stamps them automatically at the repo layer.
+      expect(data.created_by).toBeUndefined();
       expect(options.actor).toBe("test-actor-uuid");
     });
 
