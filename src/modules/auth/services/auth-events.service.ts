@@ -117,7 +117,9 @@ export class AuthEventsService extends DomainService<AuthEventDto> {
     };
 
     try {
-      await this.dal.add(AuthEventEntity, record, {});
+      // `auth_events` is non-auditable — the system session exists only so
+      // `requireActor` resolves on unauthenticated paths (login flow).
+      await this.runAs("system", () => this.svc.create(record));
     } catch (err) {
       // Best-effort — never break the auth flow over an audit log failure.
       logger.error("Failed to insert auth event:", {

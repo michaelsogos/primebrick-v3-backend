@@ -253,18 +253,18 @@ export class RoleService extends DomainService<RoleMappingDto> {
     labelKey?: string,
     extras?: { idp_org?: string; last_synced_at?: Date; actor?: string; tx?: Repository }
   ): Promise<void> {
-    const repo = extras?.tx ?? this.dal;
-    await repo.add(
-      RoleMappingEntity,
-      {
-        idp_role: idpRole,
-        idp_org: extras?.idp_org,
-        label_key: labelKey,
-        permissions,
-        is_admin: isAdmin,
-        last_synced_at: extras?.last_synced_at,
-      },
-      { actor: extras?.actor ?? "system", audit: new EntityAuditPort(repo) }
+    await this.runAs(extras?.actor ?? "system", () =>
+      this.svc.create(
+        {
+          idp_role: idpRole,
+          idp_org: extras?.idp_org,
+          label_key: labelKey,
+          permissions,
+          is_admin: isAdmin,
+          last_synced_at: extras?.last_synced_at,
+        },
+        extras?.tx,
+      ),
     );
     if (!extras?.tx) await this.invalidateRoleMappingsCache();
   }
@@ -281,18 +281,18 @@ export class RoleService extends DomainService<RoleMappingDto> {
     version: number,
     extras?: { last_synced_at?: Date; actor?: string; tx?: Repository }
   ): Promise<void> {
-    const repo = extras?.tx ?? this.dal;
-    await repo.update(
-      RoleMappingEntity,
-      {
+    await this.runAs(extras?.actor ?? "system", () =>
+      this.svc.update(
         uuid,
-        label_key: labelKey,
-        permissions,
-        is_admin: isAdmin,
-        last_synced_at: extras?.last_synced_at,
-        version,
-      },
-      { actor: extras?.actor ?? "system", matchBy: "uuid" as any, audit: new EntityAuditPort(repo) }
+        {
+          label_key: labelKey,
+          permissions,
+          is_admin: isAdmin,
+          last_synced_at: extras?.last_synced_at,
+          version,
+        },
+        extras?.tx,
+      ),
     );
     if (!extras?.tx) await this.invalidateRoleMappingsCache();
   }
@@ -309,10 +309,8 @@ export class RoleService extends DomainService<RoleMappingDto> {
    * Delete a role mapping.
    */
   async deleteMapping(uuid: string, actor?: string, version?: number): Promise<void> {
-    await this.dal.hardDelete(
-      RoleMappingEntity,
-      { uuid, version },
-      { actor: actor ?? "system", matchBy: "uuid", audit: this.auditPort }
+    await this.runAs(actor ?? "system", () =>
+      this.svc.purge(uuid, version as number),
     );
     await this.invalidateRoleMappingsCache();
   }

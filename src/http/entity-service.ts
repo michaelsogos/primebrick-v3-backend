@@ -83,7 +83,9 @@ export function makeEntityService<TEntity extends Record<string, unknown>>(
       const dal = getDal();
       inner = dal.entityService<TEntity>({
         ...cfg,
-        auditPort: new EntityAuditPort(dal),
+        // FACTORY form — audit + markers bind the ACTIVE repo, so a
+        // `create(body, tx)` keeps the audit row inside the caller's tx.
+        auditPort: (repo) => new EntityAuditPort(repo),
         actor: requireActor,
       });
     }
@@ -113,6 +115,8 @@ export function makeEntityService<TEntity extends Record<string, unknown>>(
     duplicate: (uuids) => resolve().duplicate(uuids),
     bulkDelete: (items) => resolve().bulkDelete(items),
     bulkRestore: (items) => resolve().bulkRestore(items),
+    bulkUpdate: (items) => resolve().bulkUpdate(items),
+    bulkPurge: (items) => resolve().bulkPurge(items),
     audit: (uuid, page, limit) => resolve().audit(uuid, page, limit),
     auditActors: async () => (await resolve().auditActors?.()) ?? [],
     stream: (query) => resolve().stream(query),

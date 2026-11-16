@@ -336,7 +336,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
       },
     );
     if (existing) {
-      await this.dal.delete(UserPasskeyEntity, { uuid: existing.uuid, version: existing.version }, { actor: requireActor() });
+      await this.svc.delete(existing.uuid, existing.version);
     }
   }
 
@@ -347,24 +347,15 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
   private async deletePasskeyByCredentialId(credentialId: string): Promise<void> {
     const existing = await this.findPasskeyByCredentialId(credentialId);
     if (existing) {
-      await this.dal.delete(UserPasskeyEntity, { uuid: existing.uuid, version: existing.version }, { actor: requireActor() });
+      await this.svc.delete(existing.uuid, existing.version);
     }
   }
 
   /** Update the label of a passkey. */
   private async updatePasskeyLabel(uuid: string, label: string): Promise<void> {
-    const actor = requireActor();
     const existing = await this.findPasskeyByUuid(uuid);
     if (!existing) return;
-    await this.dal.update(
-      UserPasskeyEntity,
-      {
-        uuid,
-        label,
-        version: existing.version,
-      },
-      { actor },
-    );
+    await this.svc.update(uuid, { label, version: existing.version });
   }
 
   /**
@@ -376,24 +367,15 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
   private async updatePasskeyLastUsed(credentialId: string, when: Date): Promise<void> {
     const existing = await this.findPasskeyByCredentialId(credentialId);
     if (!existing) return;
-    const actor = requireActor();
-    await this.dal.update(
-      UserPasskeyEntity,
-      {
-        credential_id: credentialId,
-        last_used_at: when,
-        // Required for optimistic locking — UserPasskeyEntity is auditable so
-        // the DAL rejects updates without a `version` field (MissingVersionError,
-        // code ERR02). We pass the version we just read; if another write
-        // happened in between, the guard will reject with a 409 — acceptable
-        // for a best-effort last_used_at bump.
-        // NOTE: do NOT set `updated_by` here — the `{ actor }` option below
-        // already writes it, and setting it in both places yields
-        // "multiple assignments to same column" (PG error 42601).
-        version: existing.version,
-      },
-      { actor, matchBy: "credential_id" as any },
-    );
+    // Match by uuid — the row was just read by credential_id, so the uuid
+    // match is strictly equivalent (and the only match svc performs).
+    await this.svc.update(existing.uuid, {
+      last_used_at: when,
+      // Required for optimistic locking — the `version` guard still applies;
+      // a concurrent write in between rejects with ERR02 — acceptable for a
+      // best-effort last_used_at bump.
+      version: existing.version,
+    });
   }
 
   /**
@@ -410,15 +392,10 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
       device_model?: string;
     },
   ): Promise<void> {
-    await this.dal.update(
-      UserPasskeyEntity,
-      {
-        uuid: existing.uuid,
-        version: existing.version,
-        ...patch,
-      },
-      { actor: requireActor() },
-    );
+    await this.svc.update(existing.uuid, {
+      version: existing.version,
+      ...patch,
+    });
   }
 
   // --- Signin --------------------------------------------------------------

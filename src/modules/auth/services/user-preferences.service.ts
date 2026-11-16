@@ -99,25 +99,15 @@ export class UserPreferencesService extends DomainService<Record<string, unknown
   async set(userUuid: string, key: string, value: unknown, actor: string): Promise<UserPreferenceEntity> {
     const existing = await this.findByKey(userUuid, key);
     if (existing) {
-      const row = await this.dal.update(
-        UserPreferenceEntity,
-        { uuid: existing.uuid, version: existing.version, value },
-        { actor, audit: this.auditPort },
+      const row = await this.runAs(actor, () =>
+        this.svc.update(existing.uuid, { version: existing.version, value }),
       );
-      return row as UserPreferenceEntity;
+      return row as unknown as UserPreferenceEntity;
     }
-    const row = await this.dal.add(
-      UserPreferenceEntity,
-      {
-        user_uuid: userUuid,
-        key,
-        value,
-        created_by: actor,
-        updated_by: actor,
-      },
-      { actor, audit: this.auditPort },
+    const row = await this.runAs(actor, () =>
+      this.svc.create({ user_uuid: userUuid, key, value }),
     );
-    return row as UserPreferenceEntity;
+    return row as unknown as UserPreferenceEntity;
   }
 
   /** Hard delete — 404 when the caller does not own a row for `key`. */
@@ -128,10 +118,6 @@ export class UserPreferencesService extends DomainService<Record<string, unknown
         internal_code: "USER_PREFERENCE_NOT_FOUND",
       });
     }
-    await this.dal.hardDelete(
-      UserPreferenceEntity,
-      { uuid: existing.uuid, version: existing.version },
-      { actor, audit: this.auditPort },
-    );
+    await this.runAs(actor, () => this.svc.purge(existing.uuid, existing.version));
   }
 }

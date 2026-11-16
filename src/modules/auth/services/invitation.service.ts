@@ -171,19 +171,9 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
     otp_attempts?: number;
     otp_verified_at?: Date;
   }): Promise<void> {
-    const actor = requireActor();
     const existing = await this.findInvitationByUuid(uuid);
     if (!existing) return;
-    await this.dal.update(
-      UserInvitationEntity,
-      {
-        uuid,
-        status,
-        ...extra,
-        version: existing.version,
-      },
-      { actor },
-    );
+    await this.svc.update(uuid, { status, ...extra, version: existing.version });
   }
 
   /**
@@ -192,24 +182,18 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
    * immutable identity records).
    */
   private async resetInvitationForResend(uuid: string, tokenHash: string, expiresAt: Date): Promise<void> {
-    const actor = requireActor();
     const existing = await this.findInvitationByUuid(uuid);
     if (!existing) return;
-    await this.dal.update(
-      UserInvitationEntity,
-      {
-        uuid,
-        token_hash: tokenHash,
-        expires_at: expiresAt,
-        status: "PENDING",
-        otp_hash: null,
-        otp_expires_at: null,
-        otp_attempts: 0,
-        otp_verified_at: null,
-        version: existing.version,
-      } as unknown as Partial<UserInvitationEntity>,
-      { actor },
-    );
+    await this.svc.update(uuid, {
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+      status: "PENDING",
+      otp_hash: null,
+      otp_expires_at: null,
+      otp_attempts: 0,
+      otp_verified_at: null,
+      version: existing.version,
+    });
   }
 
   /**
@@ -218,18 +202,12 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
    * to decide if max attempts has been reached.
    */
   private async incrementInvitationOtpAttempts(uuid: string): Promise<void> {
-    const actor = requireActor();
     const existing = await this.findInvitationByUuid(uuid);
     if (!existing) return;
-    await this.dal.update(
-      UserInvitationEntity,
-      {
-        uuid,
-        otp_attempts: existing.otp_attempts + 1,
-        version: existing.version,
-      },
-      { actor },
-    );
+    await this.svc.update(uuid, {
+      otp_attempts: existing.otp_attempts + 1,
+      version: existing.version,
+    });
   }
 
   /**
@@ -237,58 +215,40 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
    * Resets the attempt counter to 0.
    */
   private async setInvitationOtp(uuid: string, otpHash: string, otpExpiresAt: Date): Promise<void> {
-    const actor = requireActor();
     const existing = await this.findInvitationByUuid(uuid);
     if (!existing) return;
-    await this.dal.update(
-      UserInvitationEntity,
-      {
-        uuid,
-        otp_hash: otpHash,
-        otp_expires_at: otpExpiresAt,
-        otp_attempts: 0,
-        status: "OTP_SENT" as InvitationStatus,
-        version: existing.version,
-      },
-      { actor },
-    );
+    await this.svc.update(uuid, {
+      otp_hash: otpHash,
+      otp_expires_at: otpExpiresAt,
+      otp_attempts: 0,
+      status: "OTP_SENT" as InvitationStatus,
+      version: existing.version,
+    });
   }
 
   /**
    * Mark the OTP as verified (sets otp_verified_at).
    */
   private async markInvitationOtpVerified(uuid: string): Promise<void> {
-    const actor = requireActor();
     const existing = await this.findInvitationByUuid(uuid);
     if (!existing) return;
-    await this.dal.update(
-      UserInvitationEntity,
-      {
-        uuid,
-        otp_verified_at: new Date(),
-        version: existing.version,
-      },
-      { actor },
-    );
+    await this.svc.update(uuid, {
+      otp_verified_at: new Date(),
+      version: existing.version,
+    });
   }
 
   /**
    * Mark the invitation as completed (sets completed_at + status).
    */
   private async markInvitationCompleted(uuid: string): Promise<void> {
-    const actor = requireActor();
     const existing = await this.findInvitationByUuid(uuid);
     if (!existing) return;
-    await this.dal.update(
-      UserInvitationEntity,
-      {
-        uuid,
-        status: "COMPLETED" as InvitationStatus,
-        completed_at: new Date(),
-        version: existing.version,
-      },
-      { actor },
-    );
+    await this.svc.update(uuid, {
+      status: "COMPLETED" as InvitationStatus,
+      completed_at: new Date(),
+      version: existing.version,
+    });
   }
 
   private get configService() {

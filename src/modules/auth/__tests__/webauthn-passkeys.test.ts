@@ -12,12 +12,22 @@ vi.mock("@primebrick/sdk", async (importOriginal) => {
 });
 
 // Mock @primebrick/dal-pg — preserve decorators via importOriginal, mock Repository
+// `svc` composes entityService over the dal — wire it against the same stub
+// repo; audit port is silenced (fire-and-forget writes are not under test).
+import { makeEntityService } from "@primebrick/dal-pg";
 const mockRepo = {
-  add: vi.fn(),
+  add: vi.fn(async (...args: any[]) => args[1]),
   find: vi.fn(),
   findAll: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
+  update: vi.fn(async (...args: any[]) => args[1]),
+  delete: vi.fn(async (...args: any[]) => args[1]),
+  entityService: (cfg: Record<string, unknown>) =>
+    makeEntityService({
+      ...cfg,
+      repo: mockRepo as never,
+      auditPort: () => ({ writeAudit: async () => 0n }),
+    } as never),
+  tableAuditPort: () => ({ writeAudit: async () => 0n }),
 };
 
 // The service reaches the DB through the inherited lazy `_dal` field
@@ -262,7 +272,9 @@ describe("WebauthnService — user_passkeys ops", () => {
       expect(mockRepo.find).toHaveBeenCalledTimes(1);
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
       const [, data, options] = mockRepo.update.mock.calls[0];
-      expect(data.credential_id).toBe("cred-abc");
+      // svc.update matches by uuid — the row was resolved by credential_id
+      // first, so the uuid match is strictly equivalent.
+      expect(data.uuid).toBe(row.uuid);
       expect(data.last_used_at).toBe(when);
       // version is required for optimistic locking (auditable entity)
       expect(data.version).toBe(1);
