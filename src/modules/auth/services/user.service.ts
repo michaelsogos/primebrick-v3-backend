@@ -454,7 +454,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
     return {
       data: result.data.map((row) => ({
-        id: row.id.toString(),
+        uuid: row.uuid,
         entity_uuid: row.entity_uuid,
         action: row.action,
         changed_at: row.changed_at,

@@ -20,7 +20,7 @@ export interface AuditPageOptions {
 }
 
 export interface AuditRow {
-  id: bigint;
+  uuid: string;
   entity_uuid: string;
   action: string;
   changed_at: string;       // ISO string
@@ -47,7 +47,7 @@ function entityDateToApiIso(date: Date): string {
 }
 
 const AUDIT_PROJECTIONS = [
-  Project.field(field(AuditLogEntity, "id")),
+  Project.field(field(AuditLogEntity, "uuid")),
   Project.field(field(AuditLogEntity, "entity_uuid")),
   Project.field(field(AuditLogEntity, "action")),
   Project.field(field(AuditLogEntity, "changed_at")),
@@ -92,7 +92,7 @@ export async function findAuditPage(repo: AuditQueryable, opts: AuditPageOptions
       filters: [Filter.fieldValue(field(AuditLogEntity, "entity_uuid"), "=", opts.entityUuid)],
       sorting: [
         Sort.by(field(AuditLogEntity, "changed_at"), "DESC"),
-        Sort.by(field(AuditLogEntity, "id"), "DESC"),
+        Sort.by(field(AuditLogEntity, "uuid"), "DESC"),
       ],
     }
   );
@@ -102,7 +102,7 @@ export async function findAuditPage(repo: AuditQueryable, opts: AuditPageOptions
 
   return {
     data: page.entities.map((row, i) => ({
-      id: row.id,
+      uuid: row.uuid,
       entity_uuid: row.entity_uuid,
       action: row.action,
       changed_at: entityDateToApiIso(row.changed_at),

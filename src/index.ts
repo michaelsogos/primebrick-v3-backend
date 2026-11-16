@@ -40,7 +40,9 @@ import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js
 import { ModuleDiscoveryService } from "./modules/system/module-discovery.service.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
 import { initBackendTelemetry, getTelemetryShared } from "./observability/telemetry.js";
-import { shutdownTelemetry, flushLogsSync } from "@primebrick/sdk";
+import { shutdownTelemetry, flushLogsSync, mountPartitionMaintenanceJob } from "@primebrick/sdk";
+import { makePartitionMaintenanceJob } from "@primebrick/dal-pg";
+import { ENTITY_REGISTRY } from "./domain/entities/registry.js";
 
 // Closed-set env contract: DATABASE_URL + DATABASE_SCHEMA are the ONLY
 // env vars this service may consume — any violation crashes before listen.
@@ -492,6 +494,13 @@ async function startServiceLifecycle(): Promise<void> {
     await subscriber.start();
     await startInternalRequestRoutes();
     await initSecretEngine();
+    // Partition/retention maintenance — the same SDK-mounted system job
+    // the microservices get via createMicroservice (BE boots manually).
+    // `api.partition_maintenance` mounts + materializes only when the
+    // registry carries a maintained surface (@Partition / @AuditTrail /
+    // @Retention); currentServiceCode resolves `api` from package name.
+    const partitionJob = makePartitionMaintenanceJob(ENTITY_REGISTRY);
+    if (partitionJob.needed) await mountPartitionMaintenanceJob(partitionJob);
     staleJob.start();
   } catch (err) {
     logger.warn(
