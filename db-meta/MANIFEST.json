@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-3",
-  "issued_at": "2026-11-17T20:22:07.523Z",
+  "issued_at": "2026-11-17T20:58:32.991Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -46,7 +46,8 @@
     "20261117193000_version_history_disabled_i18n": "5da70f4e34afecc1fe30f52654df290e8a159f491c7bd399491ae5f6ec39235f",
     "20261207000000_api_gateway_module_name_i18n": "1439a10af6ef3c3d68c7304439ffc1b1f73bcd6e656adba496de9ab182fc614f",
     "20261207110000_gateway_public_secret_i18n": "ef8d5ac83ba6a85308de8d66428c90cd3a4a95dab81c7959fa03e527038d5e4f",
-    "20261207210000_i18n_segregation_app_chrome": "f875971c77d6e0e9d4e3fcb8b5c4fc22bc0d1ee977ac0d87df8b8f869dccef3f"
+    "20261207210000_i18n_segregation_app_chrome": "f875971c77d6e0e9d4e3fcb8b5c4fc22bc0d1ee977ac0d87df8b8f869dccef3f",
+    "20261208210000_i18n_segregation_config_cleanup": "ad826340de39ae4282e1e8b78a17f8e9f4b5fdaffcd3c4632d60c27b8ff0b8a5"
   },
-  "signature": "2pBu5cUVFWOk+ZPH7DXp9aNNnpi5EqAK93TQqxbEoBoIfNT2TphRRdBpVluxd0EyEjlkY5XxFw8xXSLeG08TAA=="
+  "signature": "pDn3vrkGI+Q9oCR/6x6wz5rrvZBM2Z2MgfSFiVkUic/ZcUjrt0Uo+FfZHKp69kZWbixFIUSv1I65aTKw37qIAA=="
 }
