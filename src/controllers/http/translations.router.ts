@@ -5,6 +5,7 @@
  *   PUBLIC READ (no auth):
  *     GET /api/v1/system/translations/public/:language
  *   RUNTIME READ (authenticated):
+ *     GET /api/v1/system/translations/find?matches[]=…&language=…
  *     GET /api/v1/system/translations/:module/:language
  *   ADMIN CRUD (translation.* perms — standard entity pattern):
  *     GET    /api/v1/entities/translation/list?module={code}
@@ -85,6 +86,17 @@ const ModuleQuerySchema = z.object({
   module: ModuleCodeSchema,
 });
 
+// findTranslations — `matches` arrives as `matches[]=a&matches[]=b`
+// (Express array) or `matches=a,b` (csv); the SERVICE owns the matcher
+// grammar + namespace gate — transport validates shape only.
+const FindQuerySchema = z.object({
+  matches: z
+    .union([z.string(), z.array(z.string())])
+    .transform((v) => (Array.isArray(v) ? v : v.split(",")))
+    .pipe(z.array(z.string()).min(1).max(64)),
+  language: LanguageSchema.optional(),
+});
+
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, detail: string): T {
   const r = schema.safeParse(value);
   if (!r.success) {
@@ -133,6 +145,18 @@ export function translationsRouter() {
   );
 
   // ─── RUNTIME READ (authenticated user) ──────────────────────────────────
+  // findTranslations — the one documented cross-domain translation read:
+  // only the caller-requested keys, one query surface, never a full dump.
+  // Registered BEFORE /:module/:language — 'find' would otherwise bind :module.
+  router.get(
+    "/api/v1/system/translations/find",
+    rbacHandler([Permission.AUTHENTICATED_USER]),
+    asyncHandler(async (req, res) => {
+      const query = parseOrThrow(FindQuerySchema, req.query, "Invalid query parameters");
+      res.json(await service.findTranslations(query.matches, query.language));
+    }),
+  );
+
   router.get(
     "/api/v1/system/translations/:module/:language",
     rbacHandler([Permission.AUTHENTICATED_USER]),
