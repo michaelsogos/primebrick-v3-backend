@@ -40,9 +40,10 @@ import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js
 import { ModuleDiscoveryService } from "./modules/system/module-discovery.service.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
 import { initBackendTelemetry, getTelemetryShared } from "./observability/telemetry.js";
-import { shutdownTelemetry, flushLogsSync, mountPartitionMaintenanceJob } from "@primebrick/sdk";
-import { makePartitionMaintenanceJob } from "@primebrick/dal-pg";
+import { shutdownTelemetry, flushLogsSync, mountPartitionMaintenanceJob, entityEventPayloadSchema } from "@primebrick/sdk";
+import { makePartitionMaintenanceJob, entityApiName, getEntityPersistenceMeta } from "@primebrick/dal-pg";
 import { ENTITY_REGISTRY } from "./domain/entities/registry.js";
+import { servedEntityDecl } from "./db/entity-name-registry.js";
 
 // Closed-set env contract: DATABASE_URL + DATABASE_SCHEMA are the ONLY
 // env vars this service may consume — any violation crashes before listen.
@@ -534,6 +535,38 @@ async function enrollBackendIdentity(): Promise<void> {
 }
 
 /**
+ * `endpoints.events.emits` + `endpoints.entities` for the api row — the
+ * SAME declaration shape `createMicroservice` auto-derives for US
+ * services from `entityDecls`. The BE owns no `entityDecls` (routers are
+ * hand-composed), so the census derives from `ENTITY_REGISTRY` — every
+ * governed `dal.entityService` write emits `events.api.<entity>.<uuid>`
+ * on these classes regardless of HTTP serving, so declaring only routed
+ * entities would understate what the stream actually carries. Served
+ * entities contribute their meta (typed payload_schema + entity label);
+ * the rest declare the generic contract — honest, never silent.
+ */
+function apiEventEmissions() {
+  const emits = [];
+  for (const cls of ENTITY_REGISTRY) {
+    const pm = getEntityPersistenceMeta(cls);
+    // Audit-trail tables are internal bookkeeping — they never emit by
+    // construction; `events:false` opt-outs are equally silent.
+    if (pm.isAuditTrailEntity || pm.events === false) continue;
+    const entity = entityApiName(cls);
+    const meta = servedEntityDecl(cls)?.meta;
+    emits.push({
+      subject: `events.api.${entity}.>`,
+      ...(meta
+        ? { label_key: `${meta.entities_ns ?? "system"}.entities.${meta.translation_key ?? entity}.singular` }
+        : {}),
+      payload_schema: entityEventPayloadSchema(meta),
+      entity: { key: "after", entity },
+    });
+  }
+  return emits;
+}
+
+/**
  * Self-enroll the BE into public.service_registry (`code='api'`). The BE
  * never sends `service.register` — it owns the registry — but its own
  * audit writes stamp `system:api`, and the `system:<code>` convention
@@ -542,8 +575,13 @@ async function enrollBackendIdentity(): Promise<void> {
  * Idempotent: re-asserted every boot, self-corrects drift.
  */
 async function enrollServiceRegistryIdentity(): Promise<void> {
+  const emits = apiEventEmissions();
   const outcome = await new ServiceRegistryService().enrollApiGatewayRow(
     detectPackageIdentity(),
+    {
+      events: { emits },
+      entities: emits.map((e) => e.entity.entity),
+    },
   );
   logger.info(`service_registry self-enrollment (api): ${outcome}`, { tags: ["core"] });
 }

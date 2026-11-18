@@ -10,6 +10,7 @@
  */
 
 import { Project, field, Filter } from "@primebrick/dal-pg";
+import { extJsonStringify } from "@primebrick/sdk";
 
 import {getDal} from "../../db/dal-gateway.js";
 import { ServiceRegistryEntity } from "./service_registry_entity.js";
@@ -143,14 +144,17 @@ export class ServiceRegistryService {
    * re-asserts the row each boot and self-corrects drift (including a
    * soft-deleted row — the platform identity can never stay tombstoned).
    */
-  async enrollApiGatewayRow(identity: { name: string; version?: string }): Promise<"enrolled" | "updated" | "ok"> {
+  async enrollApiGatewayRow(
+    identity: { name: string; version?: string },
+    endpoints?: Record<string, unknown>,
+  ): Promise<"enrolled" | "updated" | "ok"> {
     const wanted: Partial<ServiceRegistryEntry> = {
       code: "api",
       // No base_url — the BE is the host process serving this registry;
       // proxied modules carry one, platform rows (`settings`) stay empty.
       base_url: "",
       part_of: "system",
-      endpoints: {},
+      endpoints: endpoints ?? {},
       name: "API Gateway",
       status: "active",
       is_enabled: true,
@@ -181,7 +185,10 @@ export class ServiceRegistryService {
       existing.status !== wanted.status ||
       existing.service_version !== wanted.service_version ||
       existing.part_of !== wanted.part_of ||
-      existing.is_enabled !== wanted.is_enabled;
+      existing.is_enabled !== wanted.is_enabled ||
+      // Self-declared endpoints (events.emits / entities census) re-assert
+      // on every boot — drift in the declaration IS drift to correct.
+      extJsonStringify(existing.endpoints ?? {}) !== extJsonStringify(wanted.endpoints ?? {});
     if (drift) {
       await this.updateByCode("api", wanted);
       return "updated";
@@ -192,12 +199,15 @@ export class ServiceRegistryService {
   async updateByCode(code: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
     const existing = await this.findByCode(code);
     if (!existing) return;
-    // `code` is pinned AFTER the row spread — identity is path-derived and
-    // can never be overridden by payload content (defense in depth).
+    // `code` is not a @Unique/@Key column — the DAL write selector must
+    // uniquely identify the row, so the update matches by uuid PK (same
+    // pattern as updateByCodeAndBaseUrl). `code` is pinned AFTER the row
+    // spread — identity is path-derived and can never be overridden by
+    // payload content (defense in depth).
     await getDal().update(
       ServiceRegistryEntity,
-      { ...row, code, version: existing.version } as any,
-      { actor: "system", matchBy: "code" },
+      { ...row, code, uuid: existing.uuid, version: existing.version } as any,
+      { actor: "system" },
     );
   }
 

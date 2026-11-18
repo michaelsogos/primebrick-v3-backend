@@ -163,7 +163,7 @@ export function makeEntityRouter<TEntity, S extends object>(
   const base = `/api/v1/entities/${config.entityName}`;
   // Link the entity class to its API name so the audit port can publish
   // collaboration markers under the API namespace (not the physical table).
-  registerEntityName(config.entity, config.entityName);
+  registerEntityName(config.entity, config.entityName, config.meta);
 
   // Capability is a class fact, never authored: `/duplicate` exists iff the
   // entity uses the Clonable mixin — there is no flag and no override (the

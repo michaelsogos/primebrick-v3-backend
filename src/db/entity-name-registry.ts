@@ -13,18 +13,36 @@
  */
 
 import { getEntityPersistenceMeta, type EntityClass } from "@primebrick/dal-pg";
-import { logger } from "@primebrick/sdk";
+import { logger, type EntityMeta } from "@primebrick/sdk";
 
 const byClassName = new Map<string, string>();
 const byTableName = new Map<string, string>();
+/** Served-entity census — `{entityName, meta}` per mounted entity router.
+ *  Feeds the api-gateway `endpoints.events`/`endpoints.entities`
+ *  self-declaration: the wire emits for every governed write, the census
+ *  is what makes a subject selectable as a trigger source. */
+const servedEntities = new Map<string, { entityName: string; meta?: EntityMeta }>();
 
-export function registerEntityName(entity: new () => unknown, entityName: string): void {
+export function registerEntityName(
+  entity: new () => unknown,
+  entityName: string,
+  meta?: EntityMeta,
+): void {
   byClassName.set(entity.name, entityName);
+  servedEntities.set(entity.name, meta === undefined ? { entityName } : { entityName, meta });
   try {
     byTableName.set(getEntityPersistenceMeta(entity as EntityClass).tableName, entityName);
   } catch {
     // non-persistence class — className key still registered
   }
+}
+
+/** Served-entity declaration for a class — `{entityName, meta}` when the
+ *  entity was mounted through `makeEntityRouter`, `undefined` otherwise. */
+export function servedEntityDecl(
+  entity: new () => unknown,
+): { entityName: string; meta?: EntityMeta } | undefined {
+  return servedEntities.get(entity.name);
 }
 
 /**
