@@ -212,17 +212,17 @@ export class AuthEventsService extends DomainService<AuthEventDto> {
 
     const pageNum = Math.max(1, page ?? 1);
     const pageSize = Math.min(page_size ?? 25, 100);
-    // `findByPage` computes `total_records` via COUNT(*) OVER() — over a
-    // GROUP BY result that counts the number of groups (same semantic as
-    // the removed `COUNT(*) FROM (… GROUP BY)` count query).
-    const page_ = await this.dal.findByPage<
-      AuthEventEntity,
-      Record<string, unknown> & { agg_value: unknown }
-    >(AuthEventEntity, pageNum, pageSize, fields, {
+    // Grouped stats via svc.query — the group cardinality is bounded by
+    // the GROUP BY key values (stats rows, not a row table), so the page
+    // window applies in memory and `total` is the group count — same
+    // semantic findByPage's COUNT(*) OVER() produced over groups.
+    const groups = await this.svc.query<Record<string, unknown> & { agg_value: unknown }>(fields, {
       filters: filterExprs,
       groupBy: groupBy.map((f) => field(AuthEventEntity, f as never)),
       sorting,
     });
+    const total = BigInt(groups.length);
+    const page_ = { entities: groups.slice((pageNum - 1) * pageSize, pageNum * pageSize), total_records: total };
 
     const results = page_.entities.map((row) => {
       const group: Record<string, unknown> = {};
@@ -238,7 +238,7 @@ export class AuthEventsService extends DomainService<AuthEventDto> {
       };
     });
 
-    return { results, total: page_.total_records };
+    return { results, total };
   }
 }
 

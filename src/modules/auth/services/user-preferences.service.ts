@@ -46,17 +46,13 @@ export class UserPreferencesService extends DomainService<Record<string, unknown
    * `/me/preferences` payload, ETag-carried (`CacheEntry`).
    */
   async getAll(userUuid: string): Promise<CacheEntry<{ preferences: UserPreferencesMap }>> {
-    const rows = await this.dal.findAll<UserPreferenceEntity, UserPreferenceEntity>(
-      UserPreferenceEntity,
-      null,
-      {
-        filters: [
-          Filter.fieldValue(field(UserPreferenceEntity, "user_uuid"), "=", userUuid),
-        ],
-      },
-    );
+    const rows = await this.svc.query<UserPreferenceEntity>(null, {
+      filters: [
+        Filter.fieldValue(field(UserPreferenceEntity, "user_uuid"), "=", userUuid),
+      ],
+    });
     const preferences: UserPreferencesMap = {};
-    for (const row of rows as UserPreferenceEntity[]) {
+    for (const row of rows) {
       preferences[row.key] = row.value;
     }
     return wrapCacheEntry({ preferences });
@@ -78,16 +74,14 @@ export class UserPreferencesService extends DomainService<Record<string, unknown
 
   /** One preference row for the caller, or null. */
   async findByKey(userUuid: string, key: string): Promise<UserPreferenceEntity | null> {
-    return this.dal.find<UserPreferenceEntity, UserPreferenceEntity>(
-      UserPreferenceEntity,
-      null,
-      {
+    return (
+      (await this.svc.query<UserPreferenceEntity>(null, {
         filters: [
           Filter.fieldValue(field(UserPreferenceEntity, "user_uuid"), "=", userUuid),
           Filter.fieldValue(field(UserPreferenceEntity, "key"), "=", key),
         ],
         throwIfNotFound: false,
-      },
+      }))[0] ?? null
     );
   }
 
