@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "key_id": "dev-micha-2",
-  "issued_at": "2026-11-18T18:27:41.653Z",
+  "key_id": "dev-micha-3",
+  "issued_at": "2026-11-18T20:01:36.874Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -49,7 +49,8 @@
     "20261207210000_i18n_segregation_app_chrome": "f875971c77d6e0e9d4e3fcb8b5c4fc22bc0d1ee977ac0d87df8b8f869dccef3f",
     "20261208210000_i18n_segregation_config_cleanup": "ad826340de39ae4282e1e8b78a17f8e9f4b5fdaffcd3c4632d60c27b8ff0b8a5",
     "20261208220000_i18n_segregation_scope_api": "8353ef79e0b16b1c17da4587c0fe30ac9bcd26fe65543dd4b26e978c0fe1f0d7",
-    "20261218200000_rule_filter_builder_i18n": "3061c3c2c0e149f0d25fbf923e0372c656ed95def4cf49898e321650c0705502"
+    "20261218200000_rule_filter_builder_i18n": "3061c3c2c0e149f0d25fbf923e0372c656ed95def4cf49898e321650c0705502",
+    "20261221120000_entity_events_envelope_i18n": "92bf604dec18fff4cb3a210e80f1580d472b0073e32cb39a008f9a8e89d728e9"
   },
-  "signature": "zgmxYNtceLjr/YbCBTPK3dU4P2bVP2mSnqhhLIeA4VeuEmwh64eNMCM8Z8mT287HocLqajRWii2mcQOk2/OqBw=="
+  "signature": "bWJkPQW2ygIPFN0eyzGGABT+4EcGUkxWoews4cyoO0WFBHotLY7zTHTU/wUpguP3QclT+Gv43Z/w57BR0f68CA=="
 }
