@@ -490,6 +490,12 @@ async function startServiceLifecycle(): Promise<void> {
     // and internal routes serve shield-verified calls — every NATS publish
     // must already carry the BE's client-shield identity.
     await enrollBackendIdentity();
+    // Entity-event emission: governed svc writes publish
+    // `events.api.<entity>.<uuid>` onto ENTITY_EVENTS from here on —
+    // identity enrolled, NATS connected, stream ensured (idempotent;
+    // also re-ensures on the reconnect-retry path).
+    const { wireEntityEventEmission } = await import("@primebrick/sdk");
+    await wireEntityEventEmission(getDal(), "api");
     // Registry self-enrollment SECOND: `system:api` audit writers resolve
     // through service_registry — without the platform row every such actor
     // is an unresolvable token (no display name, no record drill).
