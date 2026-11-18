@@ -107,8 +107,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
    * Returns null if not found.
    */
   private async findInvitationByTokenHash(tokenHash: string): Promise<UserInvitationEntity | null> {
-    return this.dal.find<UserInvitationEntity, UserInvitationEntity>(
-      UserInvitationEntity,
+    return this.svc.find<UserInvitationEntity>(
       null,
       {
         filters: [
@@ -124,8 +123,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
    * Returns null if not found.
    */
   private async findInvitationByUuid(uuid: string): Promise<UserInvitationEntity | null> {
-    return this.dal.find<UserInvitationEntity, UserInvitationEntity>(
-      UserInvitationEntity,
+    return this.svc.find<UserInvitationEntity>(
       null,
       {
         filters: [
@@ -141,8 +139,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
    * Ordered by created_at descending (most recent first).
    */
   private async findInvitationsByUserProfileUuid(userProfileUuid: string): Promise<UserInvitationEntity[]> {
-    const rows = await this.dal.findAll<UserInvitationEntity, UserInvitationEntity>(
-      UserInvitationEntity,
+    const rows = await this.svc.query<UserInvitationEntity>(
       null,
       {
         filters: [

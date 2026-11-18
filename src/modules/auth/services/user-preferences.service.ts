@@ -74,15 +74,13 @@ export class UserPreferencesService extends DomainService<Record<string, unknown
 
   /** One preference row for the caller, or null. */
   async findByKey(userUuid: string, key: string): Promise<UserPreferenceEntity | null> {
-    return (
-      (await this.svc.query<UserPreferenceEntity>(null, {
-        filters: [
-          Filter.fieldValue(field(UserPreferenceEntity, "user_uuid"), "=", userUuid),
-          Filter.fieldValue(field(UserPreferenceEntity, "key"), "=", key),
-        ],
-        throwIfNotFound: false,
-      }))[0] ?? null
-    );
+    return this.svc.find<UserPreferenceEntity>(null, {
+      filters: [
+        Filter.fieldValue(field(UserPreferenceEntity, "user_uuid"), "=", userUuid),
+        Filter.fieldValue(field(UserPreferenceEntity, "key"), "=", key),
+      ],
+      throwIfNotFound: false,
+    });
   }
 
   /**

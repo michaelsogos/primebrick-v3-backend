@@ -42,9 +42,7 @@ import {
 } from "@primebrick/sdk";
 
 import { DomainService } from "../../../db/domain-service.js";
-import { EntityAuditPort } from "../../../db/entity-audit-port.js";
 import { getCachePort } from "../../../cache/cache-port-holder.js";
-import { findAuditPage } from "../../../db/audit-query-helper.js";
 import { ApiError, ValidationError } from "../../../http/api-errors.js";
 import { ConfigEntryEntity } from "../config_entry_entity.js";
 import { configEntriesMeta } from "../config-entries.meta.js";
@@ -253,8 +251,7 @@ export class ConfigEntriesService extends DomainService<
       } catch { /* best-effort — fall through to DB */ }
     }
 
-    const rows = await this.dal.findAll<ConfigEntryEntity, ConfigEntryEntity>(
-      ConfigEntryEntity,
+    const rows = await this.svc.query<ConfigEntryEntity>(
       null,
       {
         sorting: [
@@ -280,8 +277,7 @@ export class ConfigEntriesService extends DomainService<
 
   /** Find a single config row by key. Returns `null` if not found. */
   async findByKey(key: string): Promise<ConfigEntryEntity | null> {
-    return this.dal.find<ConfigEntryEntity, ConfigEntryEntity>(
-      ConfigEntryEntity,
+    return this.svc.find<ConfigEntryEntity>(
       null,
       {
         filters: [
@@ -294,10 +290,12 @@ export class ConfigEntriesService extends DomainService<
 
   /** Find a single config row by uuid. Returns `null` if not found. */
   async findByUuid(uuid: string): Promise<ConfigEntryEntity | null> {
-    return this.dal.findByUUID<ConfigEntryEntity, ConfigEntryEntity>(
-      ConfigEntryEntity,
-      uuid,
-      { throwIfNotFound: false }
+    return this.svc.find<ConfigEntryEntity>(
+      null,
+      {
+        filters: [Filter.fieldValue(field(ConfigEntryEntity, "uuid" as any), "=", uuid)],
+        throwIfNotFound: false,
+      }
     );
   }
 
@@ -309,13 +307,7 @@ export class ConfigEntriesService extends DomainService<
 
   async getAudit(uuid: string, page: number, limit: number) {
     await this.getByUuid(uuid); // verifies the config entry exists
-    return findAuditPage(this.dal, {
-      tableName: "config_entries_audit",
-      entityUuid: uuid,
-      page,
-      limit,
-      entity: ConfigEntryEntity,
-    });
+    return this.svc.audit(uuid, page, limit);
   }
 
   /**
@@ -737,8 +729,7 @@ export class ConfigEntriesService extends DomainService<
       // the per-row `version` is the caller-observed optimistic-concurrency
       // guard (ERR01/ERR03 per row, single pg_raise, all-or-nothing).
       const uuids = items.map((i) => i.uuid);
-      const rows = (await this.dal.findAll<ConfigEntryEntity, ConfigEntryEntity>(
-        ConfigEntryEntity,
+      const rows = (await this.svc.query<ConfigEntryEntity>(
         null,
         {
           filters: [
@@ -773,10 +764,13 @@ export class ConfigEntriesService extends DomainService<
   async restoreEntry(uuid: string, version: number, updatedBy: string): Promise<ConfigEntryEntity> {
     try {
       // Read for not-found only — version is caller-observed (ERR02/ERR01).
-      const existing = await this.dal.findByUUID<ConfigEntryEntity, ConfigEntryEntity>(
-        ConfigEntryEntity,
-        uuid,
-        { deletedRecords: "INCLUDED", throwIfNotFound: false }
+      const existing = await this.svc.find<ConfigEntryEntity>(
+        null,
+        {
+          filters: [Filter.fieldValue(field(ConfigEntryEntity, "uuid" as any), "=", uuid)],
+          deletedRecords: "INCLUDED",
+          throwIfNotFound: false,
+        }
       );
       if (!existing) {
         throw new Error(`Auth config row with uuid ${uuid} not found`);

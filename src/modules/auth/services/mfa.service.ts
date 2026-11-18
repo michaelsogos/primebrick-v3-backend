@@ -300,8 +300,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
 
   /** Find a factor by UUID. Returns null if not found. */
   private async findFactorByUuid(uuid: string): Promise<UserMfaFactorEntity | null> {
-    return this.dal.find<UserMfaFactorEntity, UserMfaFactorEntity>(
-      UserMfaFactorEntity,
+    return this.svc.find<UserMfaFactorEntity>(
       null,
       {
         filters: [
@@ -314,8 +313,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
 
   /** Find all factors for a user profile (by user_profile_uuid). */
   private async findFactorsByUserProfileUuid(userProfileUuid: string): Promise<UserMfaFactorEntity[]> {
-    const rows = await this.dal.findAll<UserMfaFactorEntity, UserMfaFactorEntity>(
-      UserMfaFactorEntity,
+    const rows = await this.svc.query<UserMfaFactorEntity>(
       null,
       {
         filters: [
@@ -331,8 +329,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
    * Used by login MFA and step-up MFA to determine available challenges.
    */
   async findEnabledFactorsByUserProfileUuid(userProfileUuid: string): Promise<UserMfaFactorEntity[]> {
-    const rows = await this.dal.findAll<UserMfaFactorEntity, UserMfaFactorEntity>(
-      UserMfaFactorEntity,
+    const rows = await this.svc.query<UserMfaFactorEntity>(
       null,
       {
         filters: [
@@ -423,8 +420,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
    * Returns null if not found.
    */
   private async findActionAuthorizationByJti(jti: string): Promise<MfaActionAuthorizationEntity | null> {
-    return this.dal.find<MfaActionAuthorizationEntity, MfaActionAuthorizationEntity>(
-      MfaActionAuthorizationEntity,
+    return this.svcFor(MfaActionAuthorizationEntity).find<MfaActionAuthorizationEntity>(
       null,
       {
         filters: [
@@ -455,8 +451,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
    * Called periodically for cleanup (same pattern as sessionRelay cleanup).
    */
   async deleteExpiredActionAuthorizations(): Promise<number> {
-    const expired = (await this.dal.findAll<MfaActionAuthorizationEntity, MfaActionAuthorizationEntity>(
-      MfaActionAuthorizationEntity,
+    const expired = (await this.svcFor(MfaActionAuthorizationEntity).query<MfaActionAuthorizationEntity>(
       null,
       {
         filters: [

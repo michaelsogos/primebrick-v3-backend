@@ -263,8 +263,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
    * Returns null if not found.
    */
   private async findPasskeyByCredentialId(credentialId: string): Promise<UserPasskeyEntity | null> {
-    return this.dal.find<UserPasskeyEntity, UserPasskeyEntity>(
-      UserPasskeyEntity,
+    return this.svc.find<UserPasskeyEntity>(
       null,
       {
         filters: [
@@ -277,8 +276,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
 
   /** Find a passkey by UUID. */
   private async findPasskeyByUuid(uuid: string): Promise<UserPasskeyEntity | null> {
-    return this.dal.find<UserPasskeyEntity, UserPasskeyEntity>(
-      UserPasskeyEntity,
+    return this.svc.find<UserPasskeyEntity>(
       null,
       {
         filters: [
@@ -291,8 +289,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
 
   /** Find all passkeys for a user profile (by user_profile_uuid). */
   private async findPasskeysByUserProfileUuid(userProfileUuid: string): Promise<UserPasskeyEntity[]> {
-    const rows = await this.dal.findAll<UserPasskeyEntity, UserPasskeyEntity>(
-      UserPasskeyEntity,
+    const rows = await this.svc.query<UserPasskeyEntity>(
       null,
       {
         filters: [
@@ -318,8 +315,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
    * removes the row.
    */
   private async deletePasskeyByUuid(uuid: string): Promise<void> {
-    const existing = await this.dal.find<UserPasskeyEntity, UserPasskeyEntity>(
-      UserPasskeyEntity,
+    const existing = await this.svc.find<UserPasskeyEntity>(
       null,
       {
         filters: [
