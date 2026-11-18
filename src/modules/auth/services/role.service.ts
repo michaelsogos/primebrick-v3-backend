@@ -224,13 +224,7 @@ export class RoleService extends DomainService<RoleMappingDto> {
    * Returns null when not found (does NOT throw).
    */
   async findByUuid(uuid: string): Promise<RoleMappingDetailed | null> {
-    const row = await this.svc.find<RoleMappingDetailed>(
-      ROLE_MAPPING_PROJECTED_FIELDS,
-      {
-        filters: [Filter.fieldValue(field(RoleMappingEntity, "uuid" as any), "=", uuid)],
-        throwIfNotFound: false,
-      },
-    );
+    const row = await this.svc.get(uuid, { throwIfNotFound: false });
     return (row as RoleMappingDetailed | null) ?? null;
   }
 

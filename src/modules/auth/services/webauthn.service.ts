@@ -276,15 +276,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
 
   /** Find a passkey by UUID. */
   private async findPasskeyByUuid(uuid: string): Promise<UserPasskeyEntity | null> {
-    return this.svc.find<UserPasskeyEntity>(
-      null,
-      {
-        filters: [
-          Filter.fieldValue(field(UserPasskeyEntity, "uuid" as any), "=", uuid),
-        ],
-        throwIfNotFound: false,
-      },
-    );
+    return this.svc.get(uuid, { throwIfNotFound: false }) as Promise<UserPasskeyEntity | null>;
   }
 
   /** Find all passkeys for a user profile (by user_profile_uuid). */
@@ -315,17 +307,9 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
    * removes the row.
    */
   private async deletePasskeyByUuid(uuid: string): Promise<void> {
-    const existing = await this.svc.find<UserPasskeyEntity>(
-      null,
-      {
-        filters: [
-          Filter.fieldValue(field(UserPasskeyEntity, "uuid" as any), "=", uuid),
-        ],
-        throwIfNotFound: false,
-      },
-    );
+    const existing = await this.svc.get(uuid, { throwIfNotFound: false });
     if (existing) {
-      await this.svc.delete(existing.uuid, existing.version);
+      await this.svc.delete(existing.uuid as string, existing.version as number);
     }
   }
 

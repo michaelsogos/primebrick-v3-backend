@@ -300,15 +300,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
 
   /** Find a factor by UUID. Returns null if not found. */
   private async findFactorByUuid(uuid: string): Promise<UserMfaFactorEntity | null> {
-    return this.svc.find<UserMfaFactorEntity>(
-      null,
-      {
-        filters: [
-          Filter.fieldValue(field(UserMfaFactorEntity, "uuid" as any), "=", uuid),
-        ],
-        throwIfNotFound: false,
-      },
-    );
+    return this.svc.get(uuid, { throwIfNotFound: false }) as Promise<UserMfaFactorEntity | null>;
   }
 
   /** Find all factors for a user profile (by user_profile_uuid). */

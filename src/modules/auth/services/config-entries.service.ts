@@ -290,13 +290,7 @@ export class ConfigEntriesService extends DomainService<
 
   /** Find a single config row by uuid. Returns `null` if not found. */
   async findByUuid(uuid: string): Promise<ConfigEntryEntity | null> {
-    return this.svc.find<ConfigEntryEntity>(
-      null,
-      {
-        filters: [Filter.fieldValue(field(ConfigEntryEntity, "uuid" as any), "=", uuid)],
-        throwIfNotFound: false,
-      }
-    );
+    return this.svc.get(uuid, { throwIfNotFound: false }) as Promise<ConfigEntryEntity | null>;
   }
 
   async getByUuid(uuid: string): Promise<ConfigEntryEntity> {
@@ -764,14 +758,10 @@ export class ConfigEntriesService extends DomainService<
   async restoreEntry(uuid: string, version: number, updatedBy: string): Promise<ConfigEntryEntity> {
     try {
       // Read for not-found only — version is caller-observed (ERR02/ERR01).
-      const existing = await this.svc.find<ConfigEntryEntity>(
-        null,
-        {
-          filters: [Filter.fieldValue(field(ConfigEntryEntity, "uuid" as any), "=", uuid)],
-          deletedRecords: "INCLUDED",
-          throwIfNotFound: false,
-        }
-      );
+      const existing = await this.svc.get(uuid, {
+        deletedRecords: "INCLUDED",
+        throwIfNotFound: false,
+      });
       if (!existing) {
         throw new Error(`Auth config row with uuid ${uuid} not found`);
       }

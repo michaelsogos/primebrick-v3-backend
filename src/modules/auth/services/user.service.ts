@@ -24,7 +24,6 @@ import {
   type Repository,
   field, Filter, Join,
   buildAuditableJoins,
-  Project,
   type WithAuditableDisplayNames,
 } from "@primebrick/dal-pg";
 
@@ -175,66 +174,45 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   }
 
   async getByUuid(uuid: string): Promise<UserProfileDetailDto | null> {
-    const row = await this.svc.find<any>(
-      null,
-      {
-        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        joins: buildAuditableJoins(UserProfileEntity, UserProfileEntity),
-        throwIfNotFound: false,
-      }
-    );
-    return row ? this.toDto(row) : null;
+    const row = await this.svc.get(uuid, { throwIfNotFound: false });
+    return row ? this.toDto(row as never) : null;
   }
 
   /**
    * Light existence check — sibling services (MFA, sessions, invitations,
    * webauthn) verify the profile exists before child-table writes.
-   * Returns the uuid when the profile exists, null otherwise.
+   * Boolean probe — `SELECT EXISTS(SELECT 1 …)`, no row materialized.
    */
-  async assertExistsByUuid(uuid: string): Promise<string | null> {
-    const row = await this.svc.find<{ uuid: string }>(
-      [Project.field(field(UserProfileEntity, "uuid" as any))],
-      {
-        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        throwIfNotFound: false,
-      },
-    );
-    return row?.uuid ?? null;
+  async assertExistsByUuid(uuid: string): Promise<boolean> {
+    return this.svc.exists({
+      filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
+    });
   }
 
   /** Casdoor identity triplet — MFA owner/name resolution. */
   async getIdpIdentityByUuid(
     uuid: string,
   ): Promise<{ idp_org?: string; idp_username?: string; idp_code?: string } | null> {
-    return await this.svc.find<{ idp_org?: string; idp_username?: string; idp_code?: string }>(
-      [
-        Project.field(field(UserProfileEntity, "idp_org" as any)),
-        Project.field(field(UserProfileEntity, "idp_username" as any)),
-        Project.field(field(UserProfileEntity, "idp_code" as any)),
-      ],
-      {
-        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        deletedRecords: "INCLUDED",
-        throwIfNotFound: false,
-      },
-    );
+    const row = await this.svc.get(uuid, {
+      deletedRecords: "INCLUDED",
+      throwIfNotFound: false,
+    });
+    return row
+      ? { idp_org: row.idp_org as string | undefined, idp_username: row.idp_username as string | undefined, idp_code: row.idp_code as string | undefined }
+      : null;
   }
 
   /** Session bootstrap pair — profile uuid + auth-method-enforcer flag. */
   async getSessionStateByUuid(
     uuid: string,
   ): Promise<{ uuid: string; auth_method_enforcer_dismissed: boolean } | null> {
-    return await this.svc.find<{ uuid: string; auth_method_enforcer_dismissed: boolean }>(
-      [
-        Project.field(field(UserProfileEntity, "uuid" as any)),
-        Project.field(field(UserProfileEntity, "auth_method_enforcer_dismissed" as any)),
-      ],
-      {
-        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        deletedRecords: "INCLUDED",
-        throwIfNotFound: false,
-      },
-    );
+    const row = await this.svc.get(uuid, {
+      deletedRecords: "INCLUDED",
+      throwIfNotFound: false,
+    });
+    return row
+      ? { uuid: row.uuid as string, auth_method_enforcer_dismissed: (row as Record<string, unknown>).auth_method_enforcer_dismissed as boolean }
+      : null;
   }
 
   async getByIdpCode(idpCode: string): Promise<UserProfileDetailDto | null> {
@@ -395,12 +373,8 @@ export class UserService extends DomainService<UserProfileDetailDto> {
           filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
           deletedRecords: "INCLUDED",
         })
-      : await this.svc.find<UserProfileEntity>(null, {
-          filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-          deletedRecords: "INCLUDED",
-        });
-    if (!row) throw new NotFoundError(`User profile ${uuid} not found`);
-    return row;
+      : await this.svc.get(uuid, { deletedRecords: "INCLUDED" });
+    return row as UserProfileEntity;
   }
 
   async softDeleteProfile(uuid: string, version: number): Promise<UserProfileDetailDto> {
@@ -838,16 +812,11 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   // --- Restore (un-soft-delete) --------------------------------------------
 
   private async getByUuidIncludingDeleted(uuid: string): Promise<UserProfileDetailDto | null> {
-    const row = await this.svc.find<any>(
-      null,
-      {
-        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        joins: buildAuditableJoins(UserProfileEntity, UserProfileEntity),
-        deletedRecords: "INCLUDED",
-        throwIfNotFound: false,
-      }
-    );
-    return row ? this.toDto(row) : null;
+    const row = await this.svc.get(uuid, {
+      deletedRecords: "INCLUDED",
+      throwIfNotFound: false,
+    });
+    return row ? this.toDto(row as never) : null;
   }
 
   async restoreUser(uuid: string, version: number): Promise<UserProfileDetailDto> {

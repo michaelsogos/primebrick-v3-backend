@@ -106,7 +106,8 @@ export function makeEntityService<TEntity extends Record<string, unknown>>(
       }
       return resolve().list(q);
     },
-    get: (uuid) => resolve().get(uuid),
+    get: (uuid, options) => resolve().get(uuid, options as never),
+    exists: (options) => resolve().exists(options),
     query: (fields, options) => resolve().query(fields, options),
     find: (fields, options) => resolve().find(fields, options),
     transaction: (fn, options) => resolve().transaction(fn, options),

@@ -123,15 +123,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
    * Returns null if not found.
    */
   private async findInvitationByUuid(uuid: string): Promise<UserInvitationEntity | null> {
-    return this.svc.find<UserInvitationEntity>(
-      null,
-      {
-        filters: [
-          Filter.fieldValue(field(UserInvitationEntity, "uuid" as any), "=", uuid),
-        ],
-        throwIfNotFound: false,
-      },
-    );
+    return this.svc.get(uuid, { throwIfNotFound: false }) as Promise<UserInvitationEntity | null>;
   }
 
   /**
