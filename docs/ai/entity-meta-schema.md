@@ -137,6 +137,8 @@ required fields (`type_capabilities`).
 | `sparkline` | | `type:"sparkline"` — `{ endpoint, request_field, row_key, response_field?, bucket_field?, bucket_unit_field?, series: {field,color,label_key?}[] }`; virtual column, the list engine batch-POSTs row keys to `serviceApiBase(basePath)+endpoint` after every load |
 | `tooltip`, `tooltip_priority`, `tooltip_title` | | Tooltip content/priority/title keys |
 | `show_form_tooltip`, `show_list_tooltip` | | Tooltip visibility per context |
+| `format` | | Semantic renderer discriminator — FE switches on it **before** `type` (`schedule_spec`, `nats_subject`, `json`, `identifier`, `display_name`); closed additive union in `MetaColumnFormat` |
+| `uom` | | `type:"number"` unit semantics — `MetaColumnUom` (`@primebrick/core`): `percent` (canonical fraction), `currency{field}` (sibling ISO column), `custom{field,source}` (per-row code + picker), `custom{unit}` (FIXED Intl-sanctioned id — `Intl.supportedValuesOf('unit')`, e.g. `millisecond` → `"24 ms"`), `custom{symbol}` (FIXED arbitrary suffix for non-Intl units). `field`/`unit`/`symbol` are XOR — `withColumnConstraints` enforces at meta bind; absent → plain decimal |
 
 ## Standard operation vocabulary (`deriveEntityActions`)
 
