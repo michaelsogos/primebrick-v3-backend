@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-19T19:12:12.710Z",
+  "issued_at": "2026-11-19T19:57:29.966Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -54,7 +54,8 @@
     "20261221130000_entity_events_event_label_i18n": "1ffa1d3f829fbf41e4d621fe457b12cee017d0b77c14e05354f6b7c6f834a515",
     "20261221140000_entity_events_batch_uuid_label_i18n": "a19d1b81f715371928b431f8591831e338707eacf7d7926a0ead06d116a1785c",
     "20261221150000_entity_events_delta_labels_i18n": "62e33d0901667503b1a0be2f57d1271435117bce73654f3e067e4e3f56b3cad2",
-    "20261221160000_operators_exists_sentence_case": "7dbe1097e42386f3d055898f0e1c0a4c02516b50a4013c277ada9ee7279c3e67"
+    "20261221160000_operators_exists_sentence_case": "7dbe1097e42386f3d055898f0e1c0a4c02516b50a4013c277ada9ee7279c3e67",
+    "20261221170000_entity_events_entities_i18n": "3a6eb0506d8f6dbcf0e491d7fb44385092675c7539f74d2ea89543e2ec384b6a"
   },
-  "signature": "7oAg/Gib7+fNgc6Wsh3G0UEdhhnIFAXUFPG63/POjgCUeHfKreDzyNHEyRa5baTE7RUhk7PxPx5ExDS0shDYBQ=="
+  "signature": "DTr2bq7KGlIbxHwgQPbBbnAbAM6hILy3s6cA4BmP7DBZKbMW8Hf68pnYxVLtOS7r6iB9WYzs6xUmcUo+6GJxBg=="
 }
