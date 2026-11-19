@@ -22,19 +22,13 @@ import { randomUUID, randomBytes } from "node:crypto";
 import {
   entityDateToApiIso,
   type Repository,
-  field, Filter, Sort, Join,
+  field, Filter, Join,
   buildAuditableJoins,
-  Project,
-  translateFilterConditions,
-  type FilterExpr,
   type WithAuditableDisplayNames,
 } from "@primebrick/dal-pg";
 
 import { DomainService } from "../../../db/domain-service.js";
-import { EntityAuditPort } from "../../../db/entity-audit-port.js";
-import { findAuditPage } from "../../../db/audit-query-helper.js";
 import { getCachePort } from "../../../cache/cache-port-holder.js";
-import { deriveListWireSets } from "@primebrick/dal-pg";
 import { UserProfileEntity } from "../user_profile_entity.js";
 import { userProfileMeta } from "../user-profiles.meta.js";
 import { CasdoorService } from "./casdoor.service.js";
@@ -46,18 +40,6 @@ import { parsePasswordPolicy, type PasswordPolicy } from "../password-policy.js"
 import { requireActor } from "@primebrick/sdk";
 import { ApiError, NotFoundError, ValidationError } from "../../../http/api-errors.js";
 import type { CreateUserBody, UserUpdateBody } from "../dto.js";
-
-// The custom findByPage path below answers to the same served contract as
-// DomainService.list — the wire sets come from the SAME derivation
-// (`deriveListWireSets` over the resolved meta), never a parallel list.
-const USER_PROFILE_WIRE_SETS = deriveListWireSets(userProfileMeta.columns, UserProfileEntity);
-const DEFAULT_SEARCH_KEYS = [...USER_PROFILE_WIRE_SETS.searchable];
-const SEARCH_IN_ALLOWED = new Set([...USER_PROFILE_WIRE_SETS.searchable, "uuid"]);
-// uid + `*_by` audit columns are wire-filterable on top of the domain
-// fields — the uid powers ref/actor label `IN` lookups and the `*_by`
-// columns feed `options_source:"audit.actors"` (same contract the
-// generic entity-service merges via `wireAlwaysFilterable`).
-const USER_PROFILE_FILTERABLE_FIELDS = new Set([...USER_PROFILE_WIRE_SETS.filterable, "uuid", "created_by", "updated_by", "deleted_by"]);
 
 const USER_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
 
@@ -177,84 +159,64 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   // --- Profile reads ---------------------------------------------------------
 
   private toDto(r: UserProfileDetailRow): UserProfileDetailDto {
+    // `dal.find*` reads return DB rows (timestamptz → Date); `svc.*`
+    // writes return WIRE rows — the entity-service DTO step already
+    // serialized dates to ISO. Normalize both; the row spread above can
+    // carry either shape.
+    const iso = (v: unknown): string | undefined =>
+      v instanceof Date ? entityDateToApiIso(v) : typeof v === "string" ? v : undefined;
     return {
       ...r,
-      created_at: entityDateToApiIso(r.created_at),
-      updated_at: entityDateToApiIso(r.updated_at),
-      deleted_at: r.deleted_at ? entityDateToApiIso(r.deleted_at) : undefined,
+      created_at: iso(r.created_at)!,
+      updated_at: iso(r.updated_at)!,
+      deleted_at: iso(r.deleted_at),
     };
   }
 
   async getByUuid(uuid: string): Promise<UserProfileDetailDto | null> {
-    const row = await this.dal.find<any, any>(
-      UserProfileEntity,
-      null,
-      {
-        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        joins: buildAuditableJoins(UserProfileEntity, UserProfileEntity),
-        throwIfNotFound: false,
-      }
-    );
-    return row ? this.toDto(row) : null;
+    const row = await this.svc.get(uuid, { throwIfNotFound: false });
+    return row ? this.toDto(row as never) : null;
   }
 
   /**
    * Light existence check — sibling services (MFA, sessions, invitations,
    * webauthn) verify the profile exists before child-table writes.
-   * Returns the uuid when the profile exists, null otherwise.
+   * Boolean probe — `SELECT EXISTS(SELECT 1 …)`, no row materialized.
    */
-  async assertExistsByUuid(uuid: string): Promise<string | null> {
-    const row = await this.dal.find<any, { uuid: string }>(
-      UserProfileEntity,
-      [Project.field(field(UserProfileEntity, "uuid" as any))],
-      {
-        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        throwIfNotFound: false,
-      },
-    );
-    return row?.uuid ?? null;
+  async assertExistsByUuid(uuid: string): Promise<boolean> {
+    return this.svc.exists({
+      filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
+    });
   }
 
   /** Casdoor identity triplet — MFA owner/name resolution. */
   async getIdpIdentityByUuid(
     uuid: string,
   ): Promise<{ idp_org?: string; idp_username?: string; idp_code?: string } | null> {
-    return (await this.dal.find<any, { idp_org?: string; idp_username?: string; idp_code?: string }>(
-      UserProfileEntity,
-      [
-        Project.field(field(UserProfileEntity, "idp_org" as any)),
-        Project.field(field(UserProfileEntity, "idp_username" as any)),
-        Project.field(field(UserProfileEntity, "idp_code" as any)),
-      ],
-      {
-        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        deletedRecords: "INCLUDED",
-        throwIfNotFound: false,
-      },
-    )) ?? null;
+    const row = await this.svc.get(uuid, {
+      deletedRecords: "INCLUDED",
+      throwIfNotFound: false,
+    });
+    return row
+      ? { idp_org: row.idp_org as string | undefined, idp_username: row.idp_username as string | undefined, idp_code: row.idp_code as string | undefined }
+      : null;
   }
 
   /** Session bootstrap pair — profile uuid + auth-method-enforcer flag. */
   async getSessionStateByUuid(
     uuid: string,
   ): Promise<{ uuid: string; auth_method_enforcer_dismissed: boolean } | null> {
-    return (await this.dal.find<any, { uuid: string; auth_method_enforcer_dismissed: boolean }>(
-      UserProfileEntity,
-      [
-        Project.field(field(UserProfileEntity, "uuid" as any)),
-        Project.field(field(UserProfileEntity, "auth_method_enforcer_dismissed" as any)),
-      ],
-      {
-        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        deletedRecords: "INCLUDED",
-        throwIfNotFound: false,
-      },
-    )) ?? null;
+    const row = await this.svc.get(uuid, {
+      deletedRecords: "INCLUDED",
+      throwIfNotFound: false,
+    });
+    return row
+      ? { uuid: row.uuid as string, auth_method_enforcer_dismissed: (row as Record<string, unknown>).auth_method_enforcer_dismissed as boolean }
+      : null;
   }
 
   async getByIdpCode(idpCode: string): Promise<UserProfileDetailDto | null> {
-    const row = await this.dal.find<any, any>(
-      UserProfileEntity,
+    const row = await this.svc.find<any>(
       null,
       {
         filters: [Filter.fieldValue(field(UserProfileEntity, "idp_code" as any), "=", idpCode)] as any,
@@ -285,8 +247,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   }
 
   async getByEmail(email: string): Promise<UserProfileDetailDto | null> {
-    const row = await this.dal.find<any, any>(
-      UserProfileEntity,
+    const row = await this.svc.find<any>(
       null,
       {
         filters: [Filter.fieldValue(field(UserProfileEntity, "email" as any), "=", email)] as any,
@@ -334,27 +295,22 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     roles?: string[] | null;
     last_synced_at?: Date;
   }): Promise<void> {
-    const actor = requireActor();
-    await this.dal.add(
-      UserProfileEntity,
-      {
-        uuid: data.uuid,
-        idp_code: data.idp_code,
-        email: data.email,
-        display_name: data.display_name,
-        idp_org: data.idp_org,
-        idp_username: data.idp_username,
-        avatar_color: data.avatar_color,
-        avatar_initials: data.avatar_initials,
-        idp_is_admin: data.idp_is_admin,
-        idp_is_verified: data.idp_is_verified,
-        idp_email_verified: data.idp_email_verified,
-        idp_issuer: data.idp_issuer,
-        roles: data.roles,
-        last_synced_at: data.last_synced_at,
-      },
-      { actor, audit: this.auditPort }
-    );
+    await this.svc.create({
+      uuid: data.uuid,
+      idp_code: data.idp_code,
+      email: data.email,
+      display_name: data.display_name,
+      idp_org: data.idp_org,
+      idp_username: data.idp_username,
+      avatar_color: data.avatar_color,
+      avatar_initials: data.avatar_initials,
+      idp_is_admin: data.idp_is_admin,
+      idp_is_verified: data.idp_is_verified,
+      idp_email_verified: data.idp_email_verified,
+      idp_issuer: data.idp_issuer,
+      roles: data.roles,
+      last_synced_at: data.last_synced_at,
+    });
   }
 
   async updateProfile(
@@ -362,15 +318,13 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     body: UserProfileWriteBody,
     tx?: Repository
   ): Promise<UserProfileDetailDto> {
-    const repo = tx ?? this.dal;
     // API path: `body.version` is the caller-observed version. If absent the
-    // Repository.update() version guard throws ERR02 — we NEVER manufacture a
+    // update's version guard throws ERR02 — we NEVER manufacture a
     // version by re-reading the row (that would elide the concurrency check).
-    const row = await repo.update<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { ...body, uuid },
-      { actor: requireActor(), audit: new EntityAuditPort(repo) }
+    const row = await this.svc.update(
+      uuid, { ...body } as Record<string, unknown> & { version: number }, tx,
     );
-    return this.toDto(row);
+    return this.toDto(row as never);
   }
 
   /**
@@ -383,13 +337,11 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     body: UserProfileWriteBody,
     tx?: Repository
   ): Promise<UserProfileDetailDto> {
-    const repo = tx ?? this.dal;
-    const version = (await this.freshRowByUuid(uuid, repo))!.version;
-    const row = await repo.update<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { ...body, uuid, version },
-      { actor: requireActor(), audit: new EntityAuditPort(repo) }
+    const version = (await this.freshRowByUuid(uuid, tx)).version;
+    const row = await this.svc.update(
+      uuid, { ...body, version } as Record<string, unknown> & { version: number }, tx,
     );
-    return this.toDto(row);
+    return this.toDto(row as never);
   }
 
   /**
@@ -402,93 +354,61 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   ): Promise<UserProfileDetailDto> {
     // Internal FK-driven write — the read below is the observation step of this
     // unit of work (the caller legitimately has `uuid`, not a prior version).
-    const version = body.version ?? (await this.dal.find<UserProfileEntity, UserProfileEntity>(
-      UserProfileEntity,
-      null,
-      { filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any, deletedRecords: "INCLUDED" }
-    ))!.version;
-    const row = await this.dal.update<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { ...body, uuid, version }, { actor: requireActor(), audit: this.auditPort }
+    const version = body.version ?? (await this.freshRowByUuid(uuid)).version;
+    const row = await this.svc.update(
+      uuid, { ...body, version } as Record<string, unknown> & { version: number },
     );
-    return this.toDto(row);
+    return this.toDto(row as never);
   }
 
   // DB-first read — `findByUUID`/`findById` may serve a stale cached row
   // (@Cached entities) whose `version` would trip the optimistic-concurrency
   // guard (ERR01) on the write that follows.
-  private async freshRowByUuid(uuid: string, repo?: Pick<Repository, "find">): Promise<UserProfileEntity> {
-    return (await (repo ?? this.dal).find<UserProfileEntity, UserProfileEntity>(UserProfileEntity, null, {
-      filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-      deletedRecords: "INCLUDED",
-    }))!;
+  private async freshRowByUuid(uuid: string, tx?: Repository): Promise<UserProfileEntity> {
+    // Inside a tx the version read MUST run on the tx client (read-your-writes);
+    // outside, svc.query wraps the default repo. `find`'s throwIfNotFound default
+    // used to throw on a missing row — preserve it or callers lose the guard.
+    const row = tx
+      ? await tx.find<UserProfileEntity, UserProfileEntity>(UserProfileEntity, null, {
+          filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
+          deletedRecords: "INCLUDED",
+        })
+      : await this.svc.get(uuid, { deletedRecords: "INCLUDED" });
+    return row as UserProfileEntity;
   }
 
   async softDeleteProfile(uuid: string, version: number): Promise<UserProfileDetailDto> {
-    const row = await this.dal.delete<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort }
-    );
-    return this.toDto(row);
+    const row = await this.svc.delete(uuid, version);
+    return this.toDto(row as unknown as UserProfileDetailRow);
   }
 
   /**
    * Restore a soft-deleted profile. Overrides `svc.restore` — same signature —
    * returning the joined + DTO-mapped row (audit display names, ISO dates).
    */
-  override async restore(uuid: string, version: number): Promise<UserProfileDetailDto> {
-    const row = await this.dal.restore<UserProfileEntity, UserProfileDetailRow>(
-      UserProfileEntity, { uuid, version }, { actor: requireActor(), audit: this.auditPort }
-    );
-    return this.toDto(row);
+  override async restore(uuid: string, version?: number): Promise<UserProfileDetailDto> {
+    const row = await this.svc.restore(uuid, version);
+    return this.toDto(row as unknown as UserProfileDetailRow);
   }
 
   // --- Audit -----------------------------------------------------------------
 
-  private enrichAuditDeltaWithDisplayNames(
-    delta: Record<string, any>,
-    changedByName: string | null
-  ): Record<string, any> {
-    const enriched = { ...delta };
-    const auditFields = ['created_by', 'updated_by', 'deleted_by'];
-
-    for (const f of auditFields) {
-      if (f in enriched) {
-        const change = enriched[f];
-
-        // Add display_name alongside GUID if available
-        if (changedByName && this.isUuid(change.new)) {
-          change.new_display_name = changedByName;
-        }
-        if (changedByName && this.isUuid(change.old)) {
-          change.old_display_name = changedByName;
-        }
-      }
-    }
-
-    return enriched;
-  }
-
-  private isUuid(value: any): boolean {
-    return typeof value === 'string' && /^[0-9a-fA-F-]{36}$/.test(value);
-  }
-
   async getUserProfileAudit(uuid: string, page: number, limit: number) {
-    const result = await findAuditPage(this.dal, {
-      tableName: "user_profiles_audit",
-      entityUuid: uuid,
-      page,
-      limit,
-    });
+    const result = (await this.svc.audit(uuid, page, limit)) as {
+      data: { uuid: string; entity_uuid: string; action: string; changed_at: unknown; changed_by: string | null; changed_by_display_name?: string | null; version: number; delta: unknown }[];
+      pagination: unknown;
+    };
 
     return {
       data: result.data.map((row) => ({
-        id: row.id.toString(),
+        uuid: row.uuid,
         entity_uuid: row.entity_uuid,
         action: row.action,
         changed_at: row.changed_at,
         changed_by: row.changed_by,
         changed_by_name: row.changed_by_display_name,
         version: row.version,
-        delta: this.enrichAuditDeltaWithDisplayNames(row.delta as Record<string, any>, row.changed_by_display_name),
+        delta: row.delta as Record<string, any>,
       })),
       pagination: result.pagination,
     };
@@ -497,74 +417,18 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   // --- Admin list -------------------------------------------------------------
 
   async listUsers(query: UserListQuery): Promise<UserListResponse> {
-    const {
-      search,
-      search_in,
-      sort_key,
-      sort_dir = "asc",
-      page = 1,
-      page_size = 25,
-      filters,
-      connector = "AND",
-      deleted_records = "EXCLUDED",
-    } = query;
-
-    // Build base filters
-    const baseFilters: FilterExpr[] = [];
-
-    // Deletion filter
-    if (deleted_records === "ONLY") {
-      baseFilters.push(Filter.fieldValue(field(UserProfileEntity, "deleted_at" as any), "IS NOT", null));
-    } else if (deleted_records === "EXCLUDED") {
-      baseFilters.push(Filter.fieldValue(field(UserProfileEntity, "deleted_at" as any), "IS", null));
-    }
-
-    // Search filter
-    if (search && search.trim()) {
-      const searchFields =
-        search_in && search_in.length > 0
-          ? search_in.filter((f) => SEARCH_IN_ALLOWED.has(f))
-          : DEFAULT_SEARCH_KEYS;
-      const searchFilters = searchFields.map((f) =>
-        Filter.fieldValue(field(UserProfileEntity, f as any), "ILIKE", `%${search}%`)
-      );
-      // A `search_in` scope that survives the allowlist as empty must not
-      // render an empty OR group — it would produce `()` in SQL (500).
-      if (searchFilters.length > 0) {
-        baseFilters.push(Filter.group(searchFilters, "OR"));
-      }
-    }
-
-    // Custom filters
-    if (filters && filters.length > 0) {
-      const translatedFilters = translateFilterConditions(UserProfileEntity, filters, { allowedFields: USER_PROFILE_FILTERABLE_FIELDS, connector });
-      if (translatedFilters) {
-        baseFilters.push(...translatedFilters);
-      }
-    }
-
-    const sort_key_final = (sort_key ?? "created_at") as keyof UserProfileDetailRow & string;
-    const sort_dir_final = (sort_dir ?? "desc").toUpperCase() === "ASC" ? "ASC" : "DESC";
-    const sorting = [Sort.by(field(UserProfileEntity, sort_key_final as any), sort_dir_final as any)];
-
-    const result = await this.dal.findByPage<UserProfileDetailRow, UserProfileDetailRow>(
-      UserProfileEntity,
-      page,
-      page_size,
-      null,
-      {
-        filters: baseFilters.length > 0 ? baseFilters : undefined,
-        sorting,
-        deletedRecords: deleted_records as any,
-        joins: buildAuditableJoins(UserProfileEntity, UserProfileEntity),
-      }
-    );
-
+    // The hand-rolled translation this replaced answered to the SAME served
+    // contract svc.list runs: identical wire sets (deriveListWireSets over
+    // userProfileMeta + unique/audit extras), same display joins, same
+    // deleted_records semantics. Divergences: sort_key is now validated
+    // (invalid → ValidationError, previously silent) and every unique
+    // column is wire-filterable (email — superset of the old allowlist).
+    const result = await this.svc.list({ ...query, sort_key: query.sort_key ?? undefined });
     return {
-      rows: result.entities.map((r) => this.toDto(r)),
-      page,
-      page_size,
-      total: result.total_records,
+      rows: result.rows.map((r) => this.toDto(r as never)),
+      page: result.page,
+      page_size: result.page_size,
+      total: result.total,
     };
   }
 
@@ -605,8 +469,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     }
 
     // 2. Try a fast SELECT first — most requests hit existing users.
-    const row = await this.dal.find<UserProfileEntity, { uuid: string; idp_org?: string; idp_username?: string; version?: number }>(
-      UserProfileEntity,
+    const row = await this.svc.find<{ uuid: string; idp_org?: string; idp_username?: string; version?: number }>(
       [
         { kind: "field", field: field(UserProfileEntity, "uuid" as any) },
         { kind: "field", field: field(UserProfileEntity, "idp_org" as any) },
@@ -632,10 +495,10 @@ export class UserService extends DomainService<UserProfileDetailDto> {
         if (input.idp_username !== undefined && input.idp_username !== null) {
           updates.idp_username = input.idp_username;
         }
-        await this.dal.update(
-          UserProfileEntity,
-          updates,
-          { actor: row.uuid, matchBy: "idp_code", audit: this.auditPort }
+        // Self-attribution: the sync write stamps the profile's own uuid
+        // (no user session exists yet on the JIT path).
+        await this.runAs(row.uuid, () =>
+          this.svc.update(row.uuid, updates as Record<string, unknown> & { version: number }),
         );
       }
       // 3. Cache the result in Redis
@@ -656,17 +519,16 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     // find→NULL above proved absence → this is a pure INSERT. A concurrent
     // first-login for the same idp_code loses the race with a unique violation —
     // visible failure, correct per the optimistic-concurrency contract.
-    const inserted = await this.dal.add(
-      UserProfileEntity,
-      {
+    // Self-attribution: the just-provisioned profile stamps its own uuid.
+    const inserted = await this.runAs(newUuid, () =>
+      this.svc.create({
         uuid: newUuid,
         idp_code: input.idp_code,
         email: input.email,
         display_name: input.display_name,
         idp_org: input.idp_org,
         idp_username: input.idp_username,
-      },
-      { actor: newUuid, audit: this.auditPort }
+      }),
     );
 
     const uuid = (inserted as any)?.uuid ?? newUuid;
@@ -950,17 +812,11 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   // --- Restore (un-soft-delete) --------------------------------------------
 
   private async getByUuidIncludingDeleted(uuid: string): Promise<UserProfileDetailDto | null> {
-    const row = await this.dal.find<any, any>(
-      UserProfileEntity,
-      null,
-      {
-        filters: [Filter.fieldValue(field(UserProfileEntity, "uuid" as any), "=", uuid)] as any,
-        joins: buildAuditableJoins(UserProfileEntity, UserProfileEntity),
-        deletedRecords: "INCLUDED",
-        throwIfNotFound: false,
-      }
-    );
-    return row ? this.toDto(row) : null;
+    const row = await this.svc.get(uuid, {
+      deletedRecords: "INCLUDED",
+      throwIfNotFound: false,
+    });
+    return row ? this.toDto(row as never) : null;
   }
 
   async restoreUser(uuid: string, version: number): Promise<UserProfileDetailDto> {

@@ -25,6 +25,7 @@ export const AUTH_APIKEY_BY_HASH_SUBJECT = "auth.apikey.byHash";
 export const AUTH_RESOLVE_USER_SUBJECT = "auth.ctl.resolve_user";
 export const SERVICE_REGISTRY_GET_SUBJECT = "service.registry.get";
 export const SYSTEM_DICT_GET_SUBJECT = "system.dict.get";
+export const SYSTEM_TRANSLATIONS_FIND_SUBJECT = "system.translations.find";
 
 export async function startInternalRequestRoutes(): Promise<void> {
   const verifier = createPublisherVerifier();
@@ -164,6 +165,21 @@ export async function startInternalRequestRoutes(): Promise<void> {
         },
       },
       {
+        // findTranslations — the one governed cross-domain translation read:
+        // `matches` (required prefix/exact matchers like 'job.*' or
+        // 'app.common.ok') names the keys to return — the wired filter is
+        // service-owned so a caller can never dump a whole table. Successor
+        // to dict.get for multi-key / foreign-ns label resolution.
+        subject: SYSTEM_TRANSLATIONS_FIND_SUBJECT,
+        permissions: [],
+        verify,
+        handler: async ({ request }) => {
+          const { matches, language } = (request ?? {}) as { matches?: string[]; language?: string };
+          if (!Array.isArray(matches) || !matches.every((m) => typeof m === "string")) return null;
+          return translationsSvc.findTranslations(matches, language);
+        },
+      },
+      {
         // Resolve a FRESH AuthUser by internal uuid for scheduled/triggered
         // dispatch — job-handler calls this at arm time (`me` lane, author
         // identity) and at fire time when the Redis auth checkpoint misses
@@ -205,7 +221,7 @@ export async function startInternalRequestRoutes(): Promise<void> {
     { serviceCode: "primebrick-api" },
   );
   logger.done(
-    `Subscribed to ${AUTH_APIKEY_BY_HASH_SUBJECT}, ${AUTH_RESOLVE_USER_SUBJECT}, ${CLIENT_SHIELD_REGISTRY_SUBJECTS.GET}, ${SERVICE_REGISTRY_GET_SUBJECT}, ${SYSTEM_DICT_GET_SUBJECT} (governed correlation-reply)`,
+    `Subscribed to ${AUTH_APIKEY_BY_HASH_SUBJECT}, ${AUTH_RESOLVE_USER_SUBJECT}, ${CLIENT_SHIELD_REGISTRY_SUBJECTS.GET}, ${SERVICE_REGISTRY_GET_SUBJECT}, ${SYSTEM_DICT_GET_SUBJECT}, ${SYSTEM_TRANSLATIONS_FIND_SUBJECT} (governed correlation-reply)`,
     { tags: ["nats"] },
   );
 }

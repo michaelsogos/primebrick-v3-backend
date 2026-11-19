@@ -306,7 +306,7 @@ describe("ModuleDiscoveryService — labels seed", () => {
   it("resolves every declared label_key — module, nav, hidden leaves, routes, sheets", async () => {
     const row = svc({
       code: "job",
-      name: "Process Manager",
+      name: "Process Management",
       label_key: "job.module.name",
       endpoints: {
         nav: {
@@ -330,7 +330,7 @@ describe("ModuleDiscoveryService — labels seed", () => {
     setup([row]);
     setupDicts({
       job: {
-        "job.module.name": "Process Manager",
+        "job.module.name": "Process Management",
         "job.jobs.nav": "Schedules",
         "job.rules.nav": "Rules",
         "job.rules.new": "New rule",
@@ -339,7 +339,7 @@ describe("ModuleDiscoveryService — labels seed", () => {
     });
     const { labels } = await list(["access.system.job.triggers"]); // only 'triggers' survives the filter
     expect(labels).toEqual({
-      "job.module.name": "Process Manager",
+      "job.module.name": "Process Management",
       "job.jobs.nav": "Schedules",
       "job.rules.nav": "Rules",
       "job.rules.new": "New rule",

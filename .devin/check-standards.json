@@ -3,6 +3,7 @@
     "dal-access": {
       "allowPaths": [
         "db/dal-gateway.ts",
+        "db/domain-service.ts",
         "http/entity-service.ts",
         "http/entity-write.ts",
         "index.ts",
@@ -19,6 +20,16 @@
       "appliesTo": [
         "controllers/",
         "modules/mcp/"
+      ]
+    },
+    "pg-import": {
+      "allowPaths": [
+        "db/dal-gateway.ts"
+      ]
+    },
+    "raw-query": {
+      "allowPaths": [
+        "http/entity-service.ts"
       ]
     }
   },

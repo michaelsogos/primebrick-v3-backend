@@ -20,8 +20,10 @@
  *   - `debugCode`  — `PB_<CODE>_FORCE_EMPTY`/`FORCE_ERROR` dev toggles on
  *                    `list` (BE-only: the library bans env reads)
  *
- * Custom queries live as methods on the subclass using `this.dal.*` —
- * never in a `*Dal`/`*Repo` wrapper class, never via a second `getDal()`.
+ * Custom queries live as methods on the subclass using the governed
+ * facade — `this.svc.find`/`this.svc.query` reads, `this.svc.*` writes,
+ * `this.svcFor(entity)` cross-entity. `this.dal` is private to the
+ * library base; `getDal()` is the infra seam (never a consumer door).
  */
 
 import {
@@ -30,9 +32,10 @@ import {
   type EntityListQuery,
   type EntityListResult,
 } from "@primebrick/dal-pg";
-import { requireActor } from "@primebrick/sdk";
+import { requireActor, runWithSession, type Session } from "@primebrick/sdk";
 
 import { EntityAuditPort } from "./entity-audit-port.js";
+import { getDal } from "./dal-gateway.js";
 import { NotFoundError } from "../http/api-errors.js";
 
 /**
@@ -64,13 +67,14 @@ export abstract class DomainService<
   }
 
   /**
-   * Audit port bound to the non-tx gateway repo — for direct `this.dal.*`
-   * writes in custom methods (`{ actor, audit: this.auditPort }`). Tx-scoped
-   * writes MUST bind a fresh `new EntityAuditPort(tx)` instead so audit rows
-   * land inside the same transaction.
+   * Audit port bound to the non-tx gateway repo (`getDal()` — the same
+   * singleton the base resolves; the infra seam, not a consumer door) —
+   * for tx-unscoped write paths (`{ actor, audit: this.auditPort }`).
+   * Tx-scoped writes MUST bind a fresh `new EntityAuditPort(tx)` instead so
+   * audit rows land inside the same transaction.
    */
   protected get auditPort(): EntityAuditPort {
-    return (this._auditPort ??= new EntityAuditPort(this.dal));
+    return (this._auditPort ??= new EntityAuditPort(getDal()));
   }
 
   /**
@@ -80,10 +84,30 @@ export abstract class DomainService<
    * (`userEntity` is gone — the library hardwires `public.user_profiles`
    * joins on every auditable read.)
    */
+  /**
+   * Run `fn` under a synthetic session carrying the declared actor — the
+   * governed door for writes whose attribution is not the ambient user
+   * (self-attribution on JIT provisioning, `system:*` background work).
+   * `svc` resolves `requireActor` from it exactly as a request resolves
+   * the real session.
+   */
+  protected runAs<T>(actor: string, fn: () => T): T {
+    const session: Session = {
+      actor,
+      roles: [],
+      idpCode: null,
+      idpOrg: null,
+      idpUsername: null,
+    };
+    return runWithSession(session, fn);
+  }
+
   protected override buildConfig(): DalEntityServiceConfig<TEntity> {
     return {
       ...this.cfg,
-      auditPort: new EntityAuditPort(this.dal),
+      // FACTORY form — resolved per write on the ACTIVE repo, so a
+      // `svc.op(…, tx)` lands audit rows + markers inside the caller's tx.
+      auditPort: (repo) => new EntityAuditPort(repo),
       actor: requireActor,
     };
   }

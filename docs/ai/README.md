@@ -32,6 +32,7 @@ These files help humans and agents collaborate consistently on the **Primebrick 
 | [`entity-meta-schema.md`](./entity-meta-schema.md) | Canonical Entity Meta Schema (`EntityMeta`) |
 | [`entity-router-factory.md`](./entity-router-factory.md) | Entity Router Factory (`makeEntityRouter`) |
 | [`file-operations.md`](./file-operations.md) | File Operations |
+| [`i18n-namespace-segregation.md`](./i18n-namespace-segregation.md) | i18n Namespace Segregation — who may cite `app`/`system`/`{schema}`/`custom`, gated cross-reads |
 | [`internal-client.md`](./internal-client.md) | Internal HTTP Client (mandatory) |
 | [`logging-telemetry.md`](./logging-telemetry.md) | Logging & Telemetry |
 | [`no-coalesce-writes.md`](./no-coalesce-writes.md) | No Coalesce Writes (CREATE and UPDATE are separate calls) |

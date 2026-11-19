@@ -83,7 +83,9 @@ export function makeEntityService<TEntity extends Record<string, unknown>>(
       const dal = getDal();
       inner = dal.entityService<TEntity>({
         ...cfg,
-        auditPort: new EntityAuditPort(dal),
+        // FACTORY form — audit + markers bind the ACTIVE repo, so a
+        // `create(body, tx)` keeps the audit row inside the caller's tx.
+        auditPort: (repo) => new EntityAuditPort(repo),
         actor: requireActor,
       });
     }
@@ -104,7 +106,12 @@ export function makeEntityService<TEntity extends Record<string, unknown>>(
       }
       return resolve().list(q);
     },
-    get: (uuid) => resolve().get(uuid),
+    get: (uuid, options) => resolve().get(uuid, options as never),
+    exists: (options) => resolve().exists(options),
+    query: (fields, options) => resolve().query(fields, options),
+    find: (fields, options) => resolve().find(fields, options),
+    transaction: (fn, options) => resolve().transaction(fn, options),
+    beginTransaction: (options) => resolve().beginTransaction(options),
     create: (body, tx) => resolve().create(body, tx),
     update: (uuid, body, tx) => resolve().update(uuid, body, tx),
     delete: (uuid, version) => resolve().delete(uuid, version),
@@ -113,8 +120,10 @@ export function makeEntityService<TEntity extends Record<string, unknown>>(
     duplicate: (uuids) => resolve().duplicate(uuids),
     bulkDelete: (items) => resolve().bulkDelete(items),
     bulkRestore: (items) => resolve().bulkRestore(items),
+    bulkUpdate: (items) => resolve().bulkUpdate(items),
+    bulkPurge: (items) => resolve().bulkPurge(items),
     audit: (uuid, page, limit) => resolve().audit(uuid, page, limit),
-    auditActors: () => resolve().auditActors(),
+    auditActors: async () => (await resolve().auditActors?.()) ?? [],
     stream: (query) => resolve().stream(query),
   };
 }

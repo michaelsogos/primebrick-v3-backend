@@ -137,6 +137,8 @@ required fields (`type_capabilities`).
 | `sparkline` | | `type:"sparkline"` — `{ endpoint, request_field, row_key, response_field?, bucket_field?, bucket_unit_field?, series: {field,color,label_key?}[] }`; virtual column, the list engine batch-POSTs row keys to `serviceApiBase(basePath)+endpoint` after every load |
 | `tooltip`, `tooltip_priority`, `tooltip_title` | | Tooltip content/priority/title keys |
 | `show_form_tooltip`, `show_list_tooltip` | | Tooltip visibility per context |
+| `format` | | Semantic renderer discriminator — FE switches on it **before** `type` (`schedule_spec`, `nats_subject`, `json`, `identifier`, `display_name`); closed additive union in `MetaColumnFormat` |
+| `uom` | | `type:"number"` unit semantics — `MetaColumnUom` (`@primebrick/core`): `percent` (canonical fraction), `currency{field}` (sibling ISO column), `{kind:'<category>', unit}` (FIXED Intl-sanctioned id — `UNIT_CATEGORIES` census: `time`, `length`, `mass`, `volume`, `area`, `temperature`, `digital`, `angle`; e.g. `{kind:'time', unit:'millisecond'}` → `"24 ms"`), `{kind:'<category>', field}` (per-row code on a sibling — the category IS the picker vocabulary), `custom{field,source}` (non-standard per-row vocabulary), `custom{symbol}` (FIXED arbitrary suffix). XORs — `withColumnConstraints` enforces at meta bind; absent → plain decimal |
 
 ## Standard operation vocabulary (`deriveEntityActions`)
 

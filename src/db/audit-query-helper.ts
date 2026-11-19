@@ -1,10 +1,10 @@
 import type { Repository } from "@primebrick/dal-pg";
-import { AuditLogEntity, Project, Filter, Sort, field, buildAuditTrailJoins, type FieldProjector } from "@primebrick/dal-pg";
+import { AuditLogEntity, Project, Filter, Sort, field, buildAuditTrailJoins, enrichAuditDeltaRefs, type EntityClass, type FieldProjector } from "@primebrick/dal-pg";
 
 /** Structural minimum the audit queries need — satisfied by both the
  *  gateway `Dal` and a tx-scoped `Repository`. Callers pass `getDal()`;
  *  the Repository is never exposed to services. */
-type AuditQueryable = Pick<Repository, "find" | "findByPage">;
+type AuditQueryable = Pick<Repository, "find" | "findByPage" | "findAll">;
 import { UserProfileEntity } from "../modules/auth/user_profile_entity.js";
 
 export interface AuditPageOptions {
@@ -12,10 +12,15 @@ export interface AuditPageOptions {
   entityUuid: string;
   page: number;
   limit: number;
+  /** The audited row's entity class — enables `@Ref` delta enrichment
+   *  (`old_display_name`/`new_display_name` on ref-valued changes, the
+   *  same contract the shared `EntityService.audit()` emits). Optional:
+   *  omitted → delta passes through raw. */
+  entity?: EntityClass;
 }
 
 export interface AuditRow {
-  id: bigint;
+  uuid: string;
   entity_uuid: string;
   action: string;
   changed_at: string;       // ISO string
@@ -42,7 +47,7 @@ function entityDateToApiIso(date: Date): string {
 }
 
 const AUDIT_PROJECTIONS = [
-  Project.field(field(AuditLogEntity, "id")),
+  Project.field(field(AuditLogEntity, "uuid")),
   Project.field(field(AuditLogEntity, "entity_uuid")),
   Project.field(field(AuditLogEntity, "action")),
   Project.field(field(AuditLogEntity, "changed_at")),
@@ -87,14 +92,17 @@ export async function findAuditPage(repo: AuditQueryable, opts: AuditPageOptions
       filters: [Filter.fieldValue(field(AuditLogEntity, "entity_uuid"), "=", opts.entityUuid)],
       sorting: [
         Sort.by(field(AuditLogEntity, "changed_at"), "DESC"),
-        Sort.by(field(AuditLogEntity, "id"), "DESC"),
+        Sort.by(field(AuditLogEntity, "uuid"), "DESC"),
       ],
     }
   );
 
+  const deltas = page.entities.map((row) => (row.delta ?? {}) as Record<string, unknown>);
+  const enriched = opts.entity ? await enrichAuditDeltaRefs(repo, opts.entity, deltas) : deltas;
+
   return {
-    data: page.entities.map((row) => ({
-      id: row.id,
+    data: page.entities.map((row, i) => ({
+      uuid: row.uuid,
       entity_uuid: row.entity_uuid,
       action: row.action,
       changed_at: entityDateToApiIso(row.changed_at),
@@ -102,7 +110,7 @@ export async function findAuditPage(repo: AuditQueryable, opts: AuditPageOptions
       changed_by_display_name: (row as any).changed_by_display_name ?? null,
       changed_by_idp_code: (row as any).changed_by_idp_code ?? null,
       version: row.version,
-      delta: row.delta ?? {},
+      delta: enriched[i] ?? deltas[i]!,
     })),
     pagination: {
       page: opts.page,

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-15T19:46:12.783Z",
+  "issued_at": "2026-11-19T19:57:29.966Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -37,7 +37,25 @@
     "20261114162000_job_schedule_system_key_revert": "d305869d0d2176d3df7293358514f93360146ee5deb7ed654a1063dadecfadeb",
     "20261114170000_schedule_spec_min_interval": "b1a4af97d31a62b55d06ffc2f78122cff64d67786a632dedaefcae20d798ec52",
     "20261115100000_system_trigger_immutable": "86ac7e34e0ca506bdda23c3ca4c08161ca2efe9a0152e4787f98b9c438efc5ee",
-    "20261115204500_version_history_prose_actions": "f37a790710716dbb274212ac23b69ea0e3f7f9ec19e584b28d485f8d45647fc0"
+    "20261115204500_version_history_prose_actions": "f37a790710716dbb274212ac23b69ea0e3f7f9ec19e584b28d485f8d45647fc0",
+    "20261115225600_elt_preview_pane_i18n_cleanup": "8278e85b721bc372e6ac7a0e8cd95afceafe819d614b2110fcd6ef1d4733274f",
+    "20261116010000_mapper_viewer_i18n": "131aad9ddf5472ae1c52d5e6d2286b91d4edf41c7402a6bf9c49562673d1a739",
+    "20261116100000_audit_uuid_pk_retention": "9a657db20b555949fc2afca366bdede0bdb7cf949e4a0ae6b8575cdfa60e461a",
+    "20261116110000_partition_maintenance_callable_i18n": "475ed3c5c23ec9ec97fd4d53da2d1d07fe79fd27e9b2a4ce9caadf3c37f0e06d",
+    "20261116120000_entity_owner_unreachable_i18n": "cb9e3ba5a41f020f1a966919045415caf17b5fd1034cb09a6d5d9e51c49f8013",
+    "20261117193000_version_history_disabled_i18n": "5da70f4e34afecc1fe30f52654df290e8a159f491c7bd399491ae5f6ec39235f",
+    "20261207000000_api_gateway_module_name_i18n": "1439a10af6ef3c3d68c7304439ffc1b1f73bcd6e656adba496de9ab182fc614f",
+    "20261207110000_gateway_public_secret_i18n": "ef8d5ac83ba6a85308de8d66428c90cd3a4a95dab81c7959fa03e527038d5e4f",
+    "20261207210000_i18n_segregation_app_chrome": "f875971c77d6e0e9d4e3fcb8b5c4fc22bc0d1ee977ac0d87df8b8f869dccef3f",
+    "20261208210000_i18n_segregation_config_cleanup": "ad826340de39ae4282e1e8b78a17f8e9f4b5fdaffcd3c4632d60c27b8ff0b8a5",
+    "20261208220000_i18n_segregation_scope_api": "8353ef79e0b16b1c17da4587c0fe30ac9bcd26fe65543dd4b26e978c0fe1f0d7",
+    "20261218200000_rule_filter_builder_i18n": "3061c3c2c0e149f0d25fbf923e0372c656ed95def4cf49898e321650c0705502",
+    "20261221120000_entity_events_envelope_i18n": "92bf604dec18fff4cb3a210e80f1580d472b0073e32cb39a008f9a8e89d728e9",
+    "20261221130000_entity_events_event_label_i18n": "1ffa1d3f829fbf41e4d621fe457b12cee017d0b77c14e05354f6b7c6f834a515",
+    "20261221140000_entity_events_batch_uuid_label_i18n": "a19d1b81f715371928b431f8591831e338707eacf7d7926a0ead06d116a1785c",
+    "20261221150000_entity_events_delta_labels_i18n": "62e33d0901667503b1a0be2f57d1271435117bce73654f3e067e4e3f56b3cad2",
+    "20261221160000_operators_exists_sentence_case": "7dbe1097e42386f3d055898f0e1c0a4c02516b50a4013c277ada9ee7279c3e67",
+    "20261221170000_entity_events_entities_i18n": "3a6eb0506d8f6dbcf0e491d7fb44385092675c7539f74d2ea89543e2ec384b6a"
   },
-  "signature": "Es5k5oOhWsP3idEpDVLcDwa1aYwqhVKDaRsMcjSqAVsMb01pefusxvyQiHNj6NqrgrC90Z2d3DgWdABtmomfAQ=="
+  "signature": "DTr2bq7KGlIbxHwgQPbBbnAbAM6hILy3s6cA4BmP7DBZKbMW8Hf68pnYxVLtOS7r6iB9WYzs6xUmcUo+6GJxBg=="
 }

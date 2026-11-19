@@ -191,7 +191,7 @@ export function configEntriesRouter() {
   const bulkUpdate: RequestHandler = asyncHandler(async (req, res) => {
     const body = req.body as z.infer<typeof BulkUpdateBodySchema>;
     const userUuid = requireUserUuid(req);
-    const updated = await service.bulkUpdate(body.updates, userUuid);
+    const updated = await service.bulkUpdateEntries(body.updates, userUuid);
     res.json({ success: true, updated });
   });
 

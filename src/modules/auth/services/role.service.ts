@@ -168,8 +168,7 @@ export class RoleService extends DomainService<RoleMappingDto> {
    * Returns a map of idp_role → { permissions, is_admin, label_key }.
    */
   async loadAllMappings(): Promise<Map<string, { permissions: string[]; is_admin: boolean; label_key?: string }>> {
-    const rows = await this.dal.findAll<RoleMappingEntity, RoleMappingRow>(
-      RoleMappingEntity,
+    const rows = await this.svc.query<RoleMappingRow>(
       [
         Project.field(field(RoleMappingEntity, "idp_role" as any)),
         Project.field(field(RoleMappingEntity, "label_key" as any)),
@@ -196,8 +195,7 @@ export class RoleService extends DomainService<RoleMappingDto> {
    * Sorted by idp_role ascending.
    */
   async listAllDetailed(): Promise<RoleMappingDetailed[]> {
-    const rows = await this.dal.findAll<RoleMappingEntity, RoleMappingDetailed>(
-      RoleMappingEntity,
+    const rows = await this.svc.query<RoleMappingDetailed>(
       ROLE_MAPPING_PROJECTED_FIELDS,
       {
         sorting: [Sort.by(field(RoleMappingEntity, "idp_role" as any), "ASC")],
@@ -211,8 +209,7 @@ export class RoleService extends DomainService<RoleMappingDto> {
    * Returns null when not found (does NOT throw).
    */
   async findByIdpRole(idpRole: string): Promise<RoleMappingDetailed | null> {
-    const row = await this.dal.find<RoleMappingEntity, RoleMappingDetailed>(
-      RoleMappingEntity,
+    const row = await this.svc.find<RoleMappingDetailed>(
       ROLE_MAPPING_PROJECTED_FIELDS,
       {
         filters: [Filter.fieldValue(field(RoleMappingEntity, "idp_role" as any), "=", idpRole)],
@@ -227,14 +224,7 @@ export class RoleService extends DomainService<RoleMappingDto> {
    * Returns null when not found (does NOT throw).
    */
   async findByUuid(uuid: string): Promise<RoleMappingDetailed | null> {
-    const row = await this.dal.find<RoleMappingEntity, RoleMappingDetailed>(
-      RoleMappingEntity,
-      ROLE_MAPPING_PROJECTED_FIELDS,
-      {
-        filters: [Filter.fieldValue(field(RoleMappingEntity, "uuid" as any), "=", uuid)],
-        throwIfNotFound: false,
-      },
-    );
+    const row = await this.svc.get(uuid, { throwIfNotFound: false });
     return (row as RoleMappingDetailed | null) ?? null;
   }
 
@@ -253,18 +243,18 @@ export class RoleService extends DomainService<RoleMappingDto> {
     labelKey?: string,
     extras?: { idp_org?: string; last_synced_at?: Date; actor?: string; tx?: Repository }
   ): Promise<void> {
-    const repo = extras?.tx ?? this.dal;
-    await repo.add(
-      RoleMappingEntity,
-      {
-        idp_role: idpRole,
-        idp_org: extras?.idp_org,
-        label_key: labelKey,
-        permissions,
-        is_admin: isAdmin,
-        last_synced_at: extras?.last_synced_at,
-      },
-      { actor: extras?.actor ?? "system", audit: new EntityAuditPort(repo) }
+    await this.runAs(extras?.actor ?? "system", () =>
+      this.svc.create(
+        {
+          idp_role: idpRole,
+          idp_org: extras?.idp_org,
+          label_key: labelKey,
+          permissions,
+          is_admin: isAdmin,
+          last_synced_at: extras?.last_synced_at,
+        },
+        extras?.tx,
+      ),
     );
     if (!extras?.tx) await this.invalidateRoleMappingsCache();
   }
@@ -281,18 +271,18 @@ export class RoleService extends DomainService<RoleMappingDto> {
     version: number,
     extras?: { last_synced_at?: Date; actor?: string; tx?: Repository }
   ): Promise<void> {
-    const repo = extras?.tx ?? this.dal;
-    await repo.update(
-      RoleMappingEntity,
-      {
+    await this.runAs(extras?.actor ?? "system", () =>
+      this.svc.update(
         uuid,
-        label_key: labelKey,
-        permissions,
-        is_admin: isAdmin,
-        last_synced_at: extras?.last_synced_at,
-        version,
-      },
-      { actor: extras?.actor ?? "system", matchBy: "uuid" as any, audit: new EntityAuditPort(repo) }
+        {
+          label_key: labelKey,
+          permissions,
+          is_admin: isAdmin,
+          last_synced_at: extras?.last_synced_at,
+          version,
+        },
+        extras?.tx,
+      ),
     );
     if (!extras?.tx) await this.invalidateRoleMappingsCache();
   }
@@ -309,10 +299,8 @@ export class RoleService extends DomainService<RoleMappingDto> {
    * Delete a role mapping.
    */
   async deleteMapping(uuid: string, actor?: string, version?: number): Promise<void> {
-    await this.dal.hardDelete(
-      RoleMappingEntity,
-      { uuid, version },
-      { actor: actor ?? "system", matchBy: "uuid", audit: this.auditPort }
+    await this.runAs(actor ?? "system", () =>
+      this.svc.purge(uuid, version as number),
     );
     await this.invalidateRoleMappingsCache();
   }

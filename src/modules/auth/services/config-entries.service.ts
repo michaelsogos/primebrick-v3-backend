@@ -42,9 +42,7 @@ import {
 } from "@primebrick/sdk";
 
 import { DomainService } from "../../../db/domain-service.js";
-import { EntityAuditPort } from "../../../db/entity-audit-port.js";
 import { getCachePort } from "../../../cache/cache-port-holder.js";
-import { findAuditPage } from "../../../db/audit-query-helper.js";
 import { ApiError, ValidationError } from "../../../http/api-errors.js";
 import { ConfigEntryEntity } from "../config_entry_entity.js";
 import { configEntriesMeta } from "../config-entries.meta.js";
@@ -253,8 +251,7 @@ export class ConfigEntriesService extends DomainService<
       } catch { /* best-effort — fall through to DB */ }
     }
 
-    const rows = await this.dal.findAll<ConfigEntryEntity, ConfigEntryEntity>(
-      ConfigEntryEntity,
+    const rows = await this.svc.query<ConfigEntryEntity>(
       null,
       {
         sorting: [
@@ -280,8 +277,7 @@ export class ConfigEntriesService extends DomainService<
 
   /** Find a single config row by key. Returns `null` if not found. */
   async findByKey(key: string): Promise<ConfigEntryEntity | null> {
-    return this.dal.find<ConfigEntryEntity, ConfigEntryEntity>(
-      ConfigEntryEntity,
+    return this.svc.find<ConfigEntryEntity>(
       null,
       {
         filters: [
@@ -294,11 +290,7 @@ export class ConfigEntriesService extends DomainService<
 
   /** Find a single config row by uuid. Returns `null` if not found. */
   async findByUuid(uuid: string): Promise<ConfigEntryEntity | null> {
-    return this.dal.findByUUID<ConfigEntryEntity, ConfigEntryEntity>(
-      ConfigEntryEntity,
-      uuid,
-      { throwIfNotFound: false }
-    );
+    return this.svc.get(uuid, { throwIfNotFound: false }) as Promise<ConfigEntryEntity | null>;
   }
 
   async getByUuid(uuid: string): Promise<ConfigEntryEntity> {
@@ -309,12 +301,7 @@ export class ConfigEntriesService extends DomainService<
 
   async getAudit(uuid: string, page: number, limit: number) {
     await this.getByUuid(uuid); // verifies the config entry exists
-    return findAuditPage(this.dal, {
-      tableName: "config_entries_audit",
-      entityUuid: uuid,
-      page,
-      limit,
-    });
+    return this.svc.audit(uuid, page, limit);
   }
 
   /**
@@ -473,25 +460,25 @@ export class ConfigEntriesService extends DomainService<
   ): Promise<ConfigEntryEntity> {
     // When tx is provided, the write is appended to the open transaction and
     // the cache reload is deferred — the caller must run it post-commit.
-    const repo = tx ?? this.dal;
-    const row = await repo.add(
-      ConfigEntryEntity,
-      {
-        key: params.key,
-        value: params.value,
-        type: params.type,
-        type_config: params.type_config ?? null,
-        label_key: params.label_key ?? null,
-        description_key: params.description_key ?? null,
-        group_key: params.group_key ?? null,
-        reserved: params.reserved ?? false,
-        created_by: updatedBy,
-        updated_by: updatedBy,
-      },
-      { actor: updatedBy, audit: new EntityAuditPort(repo) }
+    // svc under the declared actor session: created_by/updated_by stamp via
+    // the audit columns, the audit row lands inside `tx` (factory port).
+    const row = await this.runAs(updatedBy, () =>
+      this.svc.create(
+        {
+          key: params.key,
+          value: params.value,
+          type: params.type,
+          type_config: params.type_config ?? null,
+          label_key: params.label_key ?? null,
+          description_key: params.description_key ?? null,
+          group_key: params.group_key ?? null,
+          reserved: params.reserved ?? false,
+        },
+        tx,
+      ),
     );
     if (!tx) await this.reloadCache();
-    return row as ConfigEntryEntity;
+    return row as unknown as ConfigEntryEntity;
   }
 
   /**
@@ -589,11 +576,8 @@ export class ConfigEntriesService extends DomainService<
       if (Object.keys(updateEntity).length > 1) {
         // When tx is provided, the write is appended to the open transaction
         // and the cache reload is deferred to the caller (post-commit).
-        const repo = tx ?? this.dal;
-        await repo.update(
-          ConfigEntryEntity,
-          updateEntity as Partial<ConfigEntryEntity> & { id: bigint },
-          { actor: updatedBy, audit: new EntityAuditPort(repo) }
+        await this.runAs(updatedBy, () =>
+          this.svc.update(uuid, updateEntity as Record<string, unknown> & { version: number }, tx),
         );
         if (!tx) await this.reloadCache();
       }
@@ -606,7 +590,7 @@ export class ConfigEntriesService extends DomainService<
    * Bulk update: per-item validation + reserved-row rule, then a single
    * transactional `updateMany` (temp-table strategy). Returns affected count.
    */
-  async bulkUpdate(
+  async bulkUpdateEntries(
     items: Array<ConfigEntryUpdateInput & { uuid: string; version: number | bigint }>,
     userUuid: string,
   ): Promise<number> {
@@ -681,16 +665,16 @@ export class ConfigEntriesService extends DomainService<
     if (validUpdates.length > 0) {
       // `updateMany` (TEMP TABLE strategy) — `version` is the caller-observed
       // per-row optimistic-concurrency guard (never a SET column).
-      await this.dal.updateMany(
-        ConfigEntryEntity,
-        validUpdates.map((u) => {
-          const entity: Record<string, unknown> = { uuid: u.uuid, version: u.version };
-          if (u.value !== undefined) entity.value = u.value;
-          if (u.type !== undefined) entity.type = u.type;
-          if (u.type_config !== undefined) entity.type_config = u.type_config;
-          return entity as Partial<ConfigEntryEntity> & { uuid: string };
-        }),
-        { actor: userUuid, matchBy: "uuid" }
+      await this.runAs(userUuid, () =>
+        this.svc.bulkUpdate(
+          validUpdates.map((u) => {
+            const entity: Record<string, unknown> = { uuid: u.uuid, version: u.version };
+            if (u.value !== undefined) entity.value = u.value;
+            if (u.type !== undefined) entity.type = u.type;
+            if (u.type_config !== undefined) entity.type_config = u.type_config;
+            return entity as import("@primebrick/dal-pg").BulkUpdateItem;
+          }),
+        ),
       );
       await this.reloadCache();
     }
@@ -714,13 +698,9 @@ export class ConfigEntriesService extends DomainService<
       if (existing.reserved) {
         throw new ReservedConfigError(existing.key);
       }
-      const row = await this.dal.delete(
-        ConfigEntryEntity,
-        { uuid, version },
-        { actor: deletedBy, audit: new EntityAuditPort(this.dal) }
-      );
+      const row = await this.runAs(deletedBy, () => this.svc.delete(uuid, version));
       await this.reloadCache();
-      return row as ConfigEntryEntity;
+      return row as unknown as ConfigEntryEntity;
     } catch (err) {
       throw this.mapDeleteError(err);
     }
@@ -743,8 +723,7 @@ export class ConfigEntriesService extends DomainService<
       // the per-row `version` is the caller-observed optimistic-concurrency
       // guard (ERR01/ERR03 per row, single pg_raise, all-or-nothing).
       const uuids = items.map((i) => i.uuid);
-      const rows = (await this.dal.findAll<ConfigEntryEntity, ConfigEntryEntity>(
-        ConfigEntryEntity,
+      const rows = (await this.svc.query<ConfigEntryEntity>(
         null,
         {
           filters: [
@@ -762,13 +741,11 @@ export class ConfigEntriesService extends DomainService<
           throw new ReservedConfigError(row.key);
         }
       }
-      const result = await this.dal.deleteMany(
-        ConfigEntryEntity,
-        items.map((i) => ({ uuid: i.uuid, version: Number(i.version) })),
-        { actor: deletedBy, matchBy: "uuid" as never },
+      const result = await this.runAs(deletedBy, () =>
+        this.svc.bulkDelete(items.map((i) => ({ uuid: i.uuid, version: Number(i.version) }))),
       );
       await this.reloadCache();
-      return result;
+      return result as { received: number; affected: number };
     } catch (err) {
       throw this.mapDeleteError(err);
     }
@@ -781,21 +758,16 @@ export class ConfigEntriesService extends DomainService<
   async restoreEntry(uuid: string, version: number, updatedBy: string): Promise<ConfigEntryEntity> {
     try {
       // Read for not-found only — version is caller-observed (ERR02/ERR01).
-      const existing = await this.dal.findByUUID<ConfigEntryEntity, ConfigEntryEntity>(
-        ConfigEntryEntity,
-        uuid,
-        { deletedRecords: "INCLUDED", throwIfNotFound: false }
-      );
+      const existing = await this.svc.get(uuid, {
+        deletedRecords: "INCLUDED",
+        throwIfNotFound: false,
+      });
       if (!existing) {
         throw new Error(`Auth config row with uuid ${uuid} not found`);
       }
-      const row = await this.dal.restore(
-        ConfigEntryEntity,
-        { uuid, version },
-        { actor: updatedBy, audit: new EntityAuditPort(this.dal) }
-      );
+      const row = await this.runAs(updatedBy, () => this.svc.restore(uuid, version));
       await this.reloadCache();
-      return row as ConfigEntryEntity;
+      return row as unknown as ConfigEntryEntity;
     } catch (err) {
       if (err instanceof Error && err.message.includes("not found")) {
         throw new ApiError("/errors/not-found", "Config entry not found", 404, err.message, {

@@ -17,9 +17,10 @@
  * connection and `NODE_ENV` for the cookie `secure` attribute).
  */
 
-import { ConfigEntityBase, Entity } from "@primebrick/dal-pg";
+import { ConfigEntityBase, Entity, AuditTrail } from "@primebrick/dal-pg";
 import { Cached } from "@primebrick/sdk";
 
 @Entity("config_entries")
+@AuditTrail()
 @Cached(300_000) // 5 min TTL — same as other cached entities
 export class ConfigEntryEntity extends ConfigEntityBase {}

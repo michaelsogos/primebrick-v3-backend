@@ -23,12 +23,15 @@ import {
   field,
   Filter,
   Project,
+  Sort,
   getEntityPersistenceMeta,
   TranslationEntityBase,
   type Repository,
   type EntityClass,
   type EntityListQuery,
+  type EntityListResult,
   type EntityService,
+  type FilterExpr,
 } from "@primebrick/dal-pg";
 import {
   requireActor,
@@ -147,6 +150,84 @@ export interface TranslationUpdateBody {
   key?: string;
   language?: string;
   value?: string;
+}
+
+// ─── findTranslations — the ONE documented cross-domain read exception ────
+//
+// Translations are the ONLY data allowed to cross the module-segregation
+// boundary, by deliberate platform decision: every other cross-module read
+// is forbidden. The exception is centralized HERE — one method, filter-gated
+// by required match strings — so the surface stays observable and minimal:
+// the caller names the keys it needs and can never download a whole table.
+//
+// Matcher grammar (a match string carries the namespace it targets):
+//   `{ns}`              → whole namespace   (`key LIKE 'ns.%'`)
+//   `{ns}.*`            → whole namespace   (`key LIKE 'ns.%'`)
+//   `{ns}.seg[.seg…]`   → exact key         (`key = 'ns.seg…'`)
+//   `{ns}.seg[.seg…].*` → subtree prefix    (`key LIKE 'ns.seg.…%'`)
+// `ns` must resolve via resolveEntity (registered service or app/system/
+// custom core) — unknown → NotFoundError, same contract as list/dict.
+// Interior `*`/`%`, unbounded matchers, empty/oversized input → 400.
+//
+// Mechanics (DAL-only — no raw SQL): matches group by namespace → ONE
+// `dal.findAll` projection per involved schema, `Filter.group(…, "OR")` for
+// the matcher's terms, executed with bounded concurrency (4 at a time —
+// module count is unbounded and the PG pool must never be saturated by one
+// RPC), then concatenated into the canonical EntityListResult envelope.
+/** Row shape returned by findTranslations — a projection, not the entity. */
+export interface TranslationMatchRow {
+  uuid: string;
+  /** Owning module/namespace discriminator (`app`, `job`, `system`, …). */
+  module: string;
+  key: string;
+  language: string;
+  value: string;
+}
+
+/** Hard cap on match strings per call — bounds every per-schema OR clause. */
+export const FIND_TRANSLATIONS_MAX_MATCHES = 64;
+/** Max concurrent per-schema findAll — module count is unbounded by design,
+ *  the pool (`max:10`) must never be saturated by a single RPC. */
+const FIND_TRANSLATIONS_FANOUT = 4;
+
+type FindTerm = { exact: boolean; value: string };
+const MATCHER_GRAMMAR = /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*(?:\.\*)?$/;
+
+/**
+ * Parse match strings into per-namespace filter terms — the fixed, wired
+ * filter the caller never sees (matches are INPUT, not a FilterExpr).
+ * Exported for the namespace-boundary spec; throws ValidationError on
+ * empty/oversized input or grammar violations.
+ */
+export function parseTranslationMatchers(matches: string[]): Map<string, FindTerm[]> {
+  if (!Array.isArray(matches) || matches.length === 0) {
+    throw new ValidationError("findTranslations requires at least one match string", {
+      internal_code: "TRANSLATIONS_FIND_MATCHES_REQUIRED",
+    });
+  }
+  if (matches.length > FIND_TRANSLATIONS_MAX_MATCHES) {
+    throw new ValidationError(
+      `findTranslations accepts at most ${FIND_TRANSLATIONS_MAX_MATCHES} match strings (got ${matches.length})`,
+      { internal_code: "TRANSLATIONS_FIND_MATCHES_LIMIT" },
+    );
+  }
+  const byModule = new Map<string, FindTerm[]>();
+  for (const raw of new Set(matches)) {
+    if (typeof raw !== "string" || !MATCHER_GRAMMAR.test(raw)) {
+      throw new ValidationError(
+        `Invalid match '${raw}' — grammar is '{ns}', '{ns}.*', '{ns}.seg[.seg…]' or '{ns}.seg[.seg…].*' (e.g. 'job.*', 'job.settings.config.*', 'app.common.ok')`,
+        { internal_code: "TRANSLATIONS_FIND_MATCHER_GRAMMAR" },
+      );
+    }
+    const ns = raw.split(".")[0]!;
+    const term: FindTerm = raw.endsWith(".*")
+      ? { exact: false, value: raw.slice(0, -1) }     // 'job.a.*' → LIKE 'job.a.%'
+      : raw.includes(".")
+        ? { exact: true, value: raw }                 // 'job.a.b' → key = 'job.a.b'
+        : { exact: false, value: `${raw}.` };         // bare 'job' → LIKE 'job.%'
+    (byModule.get(ns) ?? byModule.set(ns, []).get(ns)!).push(term);
+  }
+  return byModule;
 }
 
 export class TranslationsService {
@@ -295,6 +376,66 @@ export class TranslationsService {
   async list(moduleCode: string, query: TranslationListQuery) {
     const entity = await this.resolveEntity(moduleCode);
     return this.listServiceFor(entity).list({ ...query, sort_key: query.sort_key ?? undefined });
+  }
+
+  /**
+   * findTranslations — the ONE documented cross-domain translation read
+   * (see the contract comment above {@link TranslationMatchRow}).
+   *
+   * Match strings (NOT a FilterExpr — the filter is wired here, always the
+   * same shape): `key` exact-match or `LIKE` prefix per matcher, OR'd inside
+   * the owning schema's group; `language` narrows when present. One
+   * `dal.findAll` projection per involved schema, chunked `Promise.all`
+   * (4 at a time) — never a full table, never raw SQL.
+   *
+   * Returns the canonical `EntityListResult` envelope, unpaged: the match
+   * surface IS the page bound (≤64 matchers, `{ns}`-minimum granularity).
+   */
+  async findTranslations(
+    matches: string[],
+    language?: string,
+  ): Promise<EntityListResult<TranslationMatchRow>> {
+    const byModule = parseTranslationMatchers(matches);
+    const groups: { module: string; entity: TranslationEntityCtor; terms: FindTerm[] }[] = [];
+    for (const [module, terms] of byModule) {
+      // resolveEntity is the ns gate: unknown module codes → NotFoundError,
+      // identical contract to list/dict. Sequential resolves are cheap —
+      // discovery is cached after the first call.
+      groups.push({ module, entity: await this.resolveEntity(module), terms });
+    }
+    const rows: TranslationMatchRow[] = [];
+    for (let i = 0; i < groups.length; i += FIND_TRANSLATIONS_FANOUT) {
+      const batch = await Promise.all(
+        groups.slice(i, i + FIND_TRANSLATIONS_FANOUT).map(async (g) => {
+          const entity = g.entity;
+          const filters: FilterExpr[] = [
+            Filter.group(
+              g.terms.map((t) =>
+                Filter.fieldValue(field(entity, "key"), t.exact ? "=" : "LIKE", t.exact ? t.value : `${t.value}%`),
+              ),
+              "OR",
+            ),
+          ];
+          if (language) filters.push(Filter.fieldValue(field(entity, "language"), "=", language));
+          return (await getDal().findAll(
+            entity,
+            [
+              Project.field(field(entity, "uuid")),
+              Project.field(field(entity, "key")),
+              Project.field(field(entity, "language")),
+              Project.field(field(entity, "value")),
+              Project.expr("?", "module", [g.module]),
+            ],
+            {
+              filters,
+              sorting: [Sort.by(field(entity, "key"), "ASC")],
+            },
+          )) as TranslationMatchRow[];
+        }),
+      );
+      for (const r of batch) rows.push(...r);
+    }
+    return { rows, page: 1, page_size: rows.length, total: BigInt(rows.length) };
   }
 
   /**

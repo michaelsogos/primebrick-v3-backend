@@ -243,26 +243,19 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
     os?: string;
     device_model?: string;
   }): Promise<string> {
-    const actor = requireActor();
-    const row = await this.dal.add<UserPasskeyEntity>(
-      UserPasskeyEntity,
-      {
-        user_profile_uuid: data.user_profile_uuid,
-        credential_id: data.credential_id,
-        aaguid: data.aaguid,
-        transports: data.transports,
-        label: data.label,
-        last_used_at: data.last_used_at,
-        authenticator_attachment: data.authenticator_attachment,
-        user_agent: data.user_agent,
-        os: data.os,
-        device_model: data.device_model,
-        created_by: actor,
-        updated_by: actor,
-      },
-      { actor },
-    );
-    return row.uuid;
+    const row = await this.svc.create({
+      user_profile_uuid: data.user_profile_uuid,
+      credential_id: data.credential_id,
+      aaguid: data.aaguid,
+      transports: data.transports,
+      label: data.label,
+      last_used_at: data.last_used_at,
+      authenticator_attachment: data.authenticator_attachment,
+      user_agent: data.user_agent,
+      os: data.os,
+      device_model: data.device_model,
+    });
+    return row.uuid as string;
   }
 
   /**
@@ -270,8 +263,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
    * Returns null if not found.
    */
   private async findPasskeyByCredentialId(credentialId: string): Promise<UserPasskeyEntity | null> {
-    return this.dal.find<UserPasskeyEntity, UserPasskeyEntity>(
-      UserPasskeyEntity,
+    return this.svc.find<UserPasskeyEntity>(
       null,
       {
         filters: [
@@ -284,22 +276,12 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
 
   /** Find a passkey by UUID. */
   private async findPasskeyByUuid(uuid: string): Promise<UserPasskeyEntity | null> {
-    return this.dal.find<UserPasskeyEntity, UserPasskeyEntity>(
-      UserPasskeyEntity,
-      null,
-      {
-        filters: [
-          Filter.fieldValue(field(UserPasskeyEntity, "uuid" as any), "=", uuid),
-        ],
-        throwIfNotFound: false,
-      },
-    );
+    return this.svc.get(uuid, { throwIfNotFound: false }) as Promise<UserPasskeyEntity | null>;
   }
 
   /** Find all passkeys for a user profile (by user_profile_uuid). */
   private async findPasskeysByUserProfileUuid(userProfileUuid: string): Promise<UserPasskeyEntity[]> {
-    const rows = await this.dal.findAll<UserPasskeyEntity, UserPasskeyEntity>(
-      UserPasskeyEntity,
+    const rows = await this.svc.query<UserPasskeyEntity>(
       null,
       {
         filters: [
@@ -325,18 +307,9 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
    * removes the row.
    */
   private async deletePasskeyByUuid(uuid: string): Promise<void> {
-    const existing = await this.dal.find<UserPasskeyEntity, UserPasskeyEntity>(
-      UserPasskeyEntity,
-      null,
-      {
-        filters: [
-          Filter.fieldValue(field(UserPasskeyEntity, "uuid" as any), "=", uuid),
-        ],
-        throwIfNotFound: false,
-      },
-    );
+    const existing = await this.svc.get(uuid, { throwIfNotFound: false });
     if (existing) {
-      await this.dal.delete(UserPasskeyEntity, { uuid: existing.uuid, version: existing.version }, { actor: requireActor() });
+      await this.svc.delete(existing.uuid as string, existing.version as number);
     }
   }
 
@@ -347,24 +320,15 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
   private async deletePasskeyByCredentialId(credentialId: string): Promise<void> {
     const existing = await this.findPasskeyByCredentialId(credentialId);
     if (existing) {
-      await this.dal.delete(UserPasskeyEntity, { uuid: existing.uuid, version: existing.version }, { actor: requireActor() });
+      await this.svc.delete(existing.uuid, existing.version);
     }
   }
 
   /** Update the label of a passkey. */
   private async updatePasskeyLabel(uuid: string, label: string): Promise<void> {
-    const actor = requireActor();
     const existing = await this.findPasskeyByUuid(uuid);
     if (!existing) return;
-    await this.dal.update(
-      UserPasskeyEntity,
-      {
-        uuid,
-        label,
-        version: existing.version,
-      },
-      { actor },
-    );
+    await this.svc.update(uuid, { label, version: existing.version });
   }
 
   /**
@@ -376,24 +340,15 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
   private async updatePasskeyLastUsed(credentialId: string, when: Date): Promise<void> {
     const existing = await this.findPasskeyByCredentialId(credentialId);
     if (!existing) return;
-    const actor = requireActor();
-    await this.dal.update(
-      UserPasskeyEntity,
-      {
-        credential_id: credentialId,
-        last_used_at: when,
-        // Required for optimistic locking — UserPasskeyEntity is auditable so
-        // the DAL rejects updates without a `version` field (MissingVersionError,
-        // code ERR02). We pass the version we just read; if another write
-        // happened in between, the guard will reject with a 409 — acceptable
-        // for a best-effort last_used_at bump.
-        // NOTE: do NOT set `updated_by` here — the `{ actor }` option below
-        // already writes it, and setting it in both places yields
-        // "multiple assignments to same column" (PG error 42601).
-        version: existing.version,
-      },
-      { actor, matchBy: "credential_id" as any },
-    );
+    // Match by uuid — the row was just read by credential_id, so the uuid
+    // match is strictly equivalent (and the only match svc performs).
+    await this.svc.update(existing.uuid, {
+      last_used_at: when,
+      // Required for optimistic locking — the `version` guard still applies;
+      // a concurrent write in between rejects with ERR02 — acceptable for a
+      // best-effort last_used_at bump.
+      version: existing.version,
+    });
   }
 
   /**
@@ -410,15 +365,10 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
       device_model?: string;
     },
   ): Promise<void> {
-    await this.dal.update(
-      UserPasskeyEntity,
-      {
-        uuid: existing.uuid,
-        version: existing.version,
-        ...patch,
-      },
-      { actor: requireActor() },
-    );
+    await this.svc.update(existing.uuid, {
+      version: existing.version,
+      ...patch,
+    });
   }
 
   // --- Signin --------------------------------------------------------------

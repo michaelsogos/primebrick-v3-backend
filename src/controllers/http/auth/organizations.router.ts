@@ -49,15 +49,15 @@ import { OrganizationsService } from "../../../modules/auth/services/organizatio
 
 // Write-payload standard: `{entity, translations?}` (src/http/entity-write.ts)
 const CreateBodySchema = entityWriteBody(z.object({
-  idp_owner: z.string().min(1).max(255).optional().default("admin"),
+  idp_owner: z.string().min(1, { message: "app.common.validation.required" }).max(255, { message: 'app.common.validation.too_long|{"max": 255}' }).optional().default("admin"),
   idp_name: idpNameSchema(z.string()),
   display_name: displayNameSchema(z.string()).optional(),
-  website_url: z.string().url().max(2048).optional().or(z.literal("")),
+  website_url: z.string().url({ message: "app.common.validation.invalid_url" }).max(2048, { message: 'app.common.validation.too_long|{"max": 2048}' }).optional().or(z.literal("")),
 }));
 
 const UpdateBodySchema = entityWriteBody(z.object({
   display_name: displayNameSchema(z.string()).optional(),
-  website_url: z.string().url().max(2048).optional().or(z.literal("")),
+  website_url: z.string().url({ message: "app.common.validation.invalid_url" }).max(2048, { message: 'app.common.validation.too_long|{"max": 2048}' }).optional().or(z.literal("")),
   version: zBoundedInt(0, Number.MAX_SAFE_INTEGER),
 }));
 

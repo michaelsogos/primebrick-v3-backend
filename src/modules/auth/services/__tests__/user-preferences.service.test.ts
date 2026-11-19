@@ -4,12 +4,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // (DomainService.dal → dal-pg's process-singleton getDal()). Node-modules
 // internals can't be vi.mock'ed, so tests inject the seam directly
 // (same pattern as webauthn-passkeys.test.ts).
+// `svc` composes entityService over the dal — wire it against the same stub
+// repo; audit port is silenced (fire-and-forget writes are not under test).
+import { makeEntityService } from "@primebrick/dal-pg";
 const mockRepo = {
   findAll: vi.fn(),
   find: vi.fn(),
-  add: vi.fn(),
-  update: vi.fn(),
-  hardDelete: vi.fn(),
+  add: vi.fn(async (...args: any[]) => args[1]),
+  update: vi.fn(async (...args: any[]) => args[1]),
+  hardDelete: vi.fn(async (...args: any[]) => args[1]),
+  entityService: (cfg: Record<string, unknown>) =>
+    makeEntityService({
+      ...cfg,
+      repo: mockRepo as never,
+      auditPort: () => ({ writeAudit: async () => 0n }),
+    } as never),
+  tableAuditPort: () => ({ writeAudit: async () => 0n }),
 };
 
 import { UserPreferencesService } from "../user-preferences.service.js";
@@ -126,7 +136,7 @@ describe("UserPreferencesService", () => {
 
     it("hard-deletes the owned row", async () => {
       mockRepo.find.mockResolvedValue(prefRow());
-      mockRepo.hardDelete.mockResolvedValue(undefined);
+      mockRepo.hardDelete.mockResolvedValue(prefRow());
       await svc.remove(USER_UUID, "favorite_pages", "actor-1");
       expect(mockRepo.hardDelete).toHaveBeenCalledWith(
         expect.anything(),
