@@ -105,7 +105,6 @@ function fetchWithHost(
           ok: res.statusCode! >= 200 && res.statusCode! < 300,
           status: res.statusCode!,
           text: async () => body,
-          // standards-exempt: ext-json — external wire payload (IdP response, fetch shim) — must not bigint-ify
           json: async () => JSON.parse(body),
           headers: {
             get(name: string): string | null {
@@ -452,7 +451,6 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
         Origin: origin,
         Accept: "application/json",
       },
-      // standards-exempt: ext-json — external wire payload (Casdoor webauthn) — strict plain JSON, bigint must throw loudly
       body: JSON.stringify(credential),
       hostOverride: browserHost,
     });
@@ -742,7 +740,6 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
         Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      // standards-exempt: ext-json — external wire payload (Casdoor webauthn) — strict plain JSON, bigint must throw loudly
       body: JSON.stringify(credential),
       hostOverride: browserHost,
     });
@@ -1338,7 +1335,6 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
     const parts = token.split(".");
     const encodedPayload = parts[1];
     const rawPayload = Buffer.from(encodedPayload, "base64").toString("utf-8");
-    // standards-exempt: ext-json — external wire payload (JWT RFC7519) — must not bigint-ify
     return JSON.parse(rawPayload);
   }
 
@@ -1362,7 +1358,6 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
     let code = "webauthn_ceremony_failed";
 
     try {
-      // standards-exempt: ext-json — external wire payload (IdP error body) — must not bigint-ify
       const json = JSON.parse(errorText);
       detail = json.msg || json.error || json.error_description || detail;
       // Detect "no credentials" case (signin begin for a user with no passkey)

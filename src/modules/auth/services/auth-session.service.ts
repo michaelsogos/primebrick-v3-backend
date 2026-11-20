@@ -458,7 +458,6 @@ export class AuthSessionService {
     const parts = token.split(".");
     const encodedPayload = parts[1];
     const rawPayload = Buffer.from(encodedPayload, "base64").toString("utf-8");
-    // standards-exempt: ext-json — external wire payload (JWT RFC7519) — must not bigint-ify
     return JSON.parse(rawPayload);
   }
 
@@ -480,7 +479,6 @@ export class AuthSessionService {
     let errorDetail = "Authentication failed";
     let errorCode = "AUTH_FAILED";
     try {
-      // standards-exempt: ext-json — external wire payload (Casdoor error body) — must not bigint-ify
       const errorJson = JSON.parse(errorText);
       errorDetail = errorJson.error_description || errorJson.error || errorDetail;
       errorCode = errorJson.error || errorCode;
