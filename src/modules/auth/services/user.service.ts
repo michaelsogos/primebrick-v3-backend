@@ -18,13 +18,14 @@
  */
 
 import { extJsonStringify, logger } from "@primebrick/sdk";
-import { randomUUID, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import {
   entityDateToApiIso,
   type Repository,
   field, Filter, Join,
   buildAuditableJoins,
   type WithAuditableDisplayNames,
+  newUuidV7,
 } from "@primebrick/dal-pg";
 
 import { DomainService } from "../../../db/domain-service.js";
@@ -514,7 +515,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
     // 4. Not found → just-in-time provisioning. The user that performs the very
     // first auth bootstraps their own profile, hence `actor = newUuid`.
-    const newUuid = randomUUID();
+    const newUuid = newUuidV7();
 
     // find→NULL above proved absence → this is a pure INSERT. A concurrent
     // first-login for the same idp_code loses the race with a unique violation —
@@ -630,7 +631,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
     // 2. Create local profile via DAL (repo.add — no manual audit field setting)
     const idpCode = casdoorUserId;
-    const newUuid = randomUUID();
+    const newUuid = newUuidV7();
     const idp_issuer = cfg.idp_endpoint || null;
 
     await this.createProfile({
