@@ -47,6 +47,26 @@
 If port 3001 is wedged by a leftover process of THIS repo, the sanctioned
 cleanup is `pnpm run dev:kill` (`scripts/kill-port-3001.mjs`) — then restart.
 
+## Dev consumption mode — libs are loaded from SRC
+
+`pnpm run dev` runs `tsx watch --tsconfig tsconfig.dev.json -C development
+src/index.ts`: the `development` export condition resolves
+`@primebrick/{dal-pg,sdk}` — and transitively core/decimal — into the
+sibling repos' `src/` trees, exactly like `bun --conditions=development`
+does for the US microservices. `tsx watch` watches the whole imported
+module graph, so **an edit in a lib `src/` reboots the backend
+automatically** — no `pnpm build` in the lib, no manual restart.
+
+`tsconfig.dev.json` exists because tsx applies the loaded tsconfig only
+to files inside its `include`: it widens the scope to the sibling src
+trees so they get `experimentalDecorators`/`emitDecoratorMetadata`
+(without it dal's legacy property decorators crash with
+`target.constructor` undefined). Flag order matters:
+`--tsconfig` must precede `-C` or tsx forwards it to node.
+
+Production still consumes `dist` via the default `import` condition —
+the dev mode only changes how sources resolve under the watcher.
+
 ## Dependency-graph changes
 
 Installs run at the **workspace root**, never inside a single repo dir.

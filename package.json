@@ -7,7 +7,7 @@
     "node": "24"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --tsconfig tsconfig.dev.json -C development src/index.ts",
     "dev:kill": "node scripts/kill-port-3001.mjs",
     "version:auto": "node scripts/version-sync.mjs",
     "check": "tsc --noEmit",

@@ -1,0 +1,18 @@
+{
+  // Dev-only tsconfig for `pnpm dev` (tsx watch -C development).
+  //
+  // The `development` export condition resolves @primebrick/* packages into
+  // the sibling repos' src trees. tsx applies the loaded tsconfig ONLY to
+  // files inside its include scope — sibling sources fall outside and would
+  // transpile with STANDARD decorators (target === undefined in legacy
+  // property decorators → boot crash). Widening `include` to the lib src
+  // trees gives them the same decorator semantics as the app sources.
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/**/*",
+    "../primebrick-dal-v3/src/**/*",
+    "../primebrick-v3-core/src/**/*",
+    "../primebrick-v3-sdk/src/**/*",
+    "../primebrick-decimal/src/**/*"
+  ]
+}
