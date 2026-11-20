@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-3",
-  "issued_at": "2026-11-20T15:32:01.939Z",
+  "issued_at": "2026-11-20T15:37:01.299Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -57,7 +57,8 @@
     "20261221160000_operators_exists_sentence_case": "7dbe1097e42386f3d055898f0e1c0a4c02516b50a4013c277ada9ee7279c3e67",
     "20261221170000_entity_events_entities_i18n": "3a6eb0506d8f6dbcf0e491d7fb44385092675c7539f74d2ea89543e2ec384b6a",
     "20261222100000_i18n_restore_config_ui_keys": "095b7e6c98405683ca8b413411746920a5b0b9e79db7defacba942064c9fce8c",
-    "20261223100000_i18n_confirm_gate_keys": "f89452eb612171f2e0fcaea7e00a7ae4d8a5c822f5e28bb2e5d01276c18c2d22"
+    "20261223100000_i18n_confirm_gate_keys": "f89452eb612171f2e0fcaea7e00a7ae4d8a5c822f5e28bb2e5d01276c18c2d22",
+    "20261223110000_i18n_user_suspend_confirm_keys": "aec56e9123e4bc2f2ec216ca595527f90a65700d30977042f9cea86f577d1d0b"
   },
-  "signature": "aZm+0OF65UBN5RsMEmBPLe9digOwcmw0bFDnNG5Ta6Ks2c0oE5JKoLf/fGoCASppKx4j9vm2iy020+7eoNCnDQ=="
+  "signature": "y5TOoRobSWT/imBK8j+UCf2mS11EnzL6yJLgHpZfoWuGEI3ymwkfGxmPqDip1BPc2/Y8mhamkfzt+XaawD4uAA=="
 }

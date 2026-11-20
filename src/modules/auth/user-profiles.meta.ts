@@ -42,6 +42,27 @@ export const userProfileMeta: EntityMeta = withColumnConstraints({
     { key: "suspended_at", label_key: "system.entities.user_profile.fields.suspended_at", type: "datetime", order: 18, default_visible: false, audited: true },
     { key: "suspended_by", label_key: "system.entities.user_profile.fields.suspended_by", type: "ref", order: 19, default_visible: false, audited: true, ref: { entity: "user_profile" } },
   ],
+  // Governed confirm for the destructive-direction lifecycle ops — the
+  // op entries are route-derived (`/api/v1/auth/users/:uuid/suspend` /
+  // `reactivate`); the overrides only attach chrome, never invent ops.
+  // `suspend` is reversible → `warning`; `reactivate` is the enable
+  // direction → `success`.
+  actions_overrides: {
+    suspend: {
+      label_key: "system.settings.users.suspend",
+      icon: "pause",
+      confirm_key: "system.settings.users.suspend_confirm",
+      busy_key: "system.settings.users.suspending",
+      color: "warning",
+    },
+    reactivate: {
+      label_key: "system.settings.users.reactivate",
+      icon: "play",
+      confirm_key: "system.settings.users.reactivate_confirm",
+      busy_key: "system.settings.users.reactivating",
+      color: "success",
+    },
+  },
   table: {
     default_view: "table",
     default_sort: { key: "created_at", dir: "desc" },
