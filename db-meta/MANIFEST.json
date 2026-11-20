@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-20T20:25:15.265Z",
+  "issued_at": "2026-11-20T20:32:36.866Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -67,7 +67,8 @@
     "20261225180000_i18n_dict_footer_edited": "b9522a2796e39346bf46919423acbcc14169d190efc7fad9e66916d964388ec2",
     "20261225200000_i18n_dict_footer_edited_drop": "d8948cfd3a35812d706fb14303cd3160bed801d1c062a0b3a687e669b22fbe18",
     "20261225210000_i18n_app_common_modified": "ca7aa61d3a6e79b4e49805a3e892fd40cb8b6a632924f5d7af0a19275c602511",
-    "20261225220000_i18n_app_common_plural": "d39ad546f6184bcc96fd609b16dfbd7e9c27fbaccd41348fedf053ba228b1505"
+    "20261225220000_i18n_app_common_plural": "d39ad546f6184bcc96fd609b16dfbd7e9c27fbaccd41348fedf053ba228b1505",
+    "20261225230000_i18n_dict_filtered_views": "2fe40578f208fd440ca17a4ca7b068b7072d03a6fc009078c574e30f10309e9f"
   },
-  "signature": "V3H1caiozO+rIekmSQgSGQJR+Wdo0rxS74arX/XfP75z2hhAFnJ6SEOtClXoNU4ne2FVxVIX7CHsPPGcg1ZhBw=="
+  "signature": "+MC1288wdneTaMMAFN19W8gwlveAZH0H3gpZg2CEr61hDuiB3Sg2MR8+bdIFAgMpKm2svhwh4x3VG08Y8LkhBg=="
 }
