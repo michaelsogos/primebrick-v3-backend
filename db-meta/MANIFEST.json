@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-3",
-  "issued_at": "2026-11-20T16:22:43.875Z",
+  "issued_at": "2026-11-20T19:01:00.665Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -59,7 +59,8 @@
     "20261222100000_i18n_restore_config_ui_keys": "095b7e6c98405683ca8b413411746920a5b0b9e79db7defacba942064c9fce8c",
     "20261223100000_i18n_confirm_gate_keys": "f89452eb612171f2e0fcaea7e00a7ae4d8a5c822f5e28bb2e5d01276c18c2d22",
     "20261223110000_i18n_user_suspend_confirm_keys": "aec56e9123e4bc2f2ec216ca595527f90a65700d30977042f9cea86f577d1d0b",
-    "20261224120000_i18n_dict_composer_open": "1b0bf4603fead9e9004e07a5064458a7bc1d7a4c091f61dfad28176b724f674e"
+    "20261224120000_i18n_dict_composer_open": "1b0bf4603fead9e9004e07a5064458a7bc1d7a4c091f61dfad28176b724f674e",
+    "20261225120000_i18n_dict_code_exists": "cebf332b793217bbf08d7ca421219f95550d5752e7d32efa17837812301e471e"
   },
-  "signature": "kMBDRRsIt7lK3Ec8wltf0/ysG5cQWQB+yaL5dVI7v6q3n4CMciobMJuRKMT1x7b0yZVZmEp0xYNgKLa8XBijDQ=="
+  "signature": "4TrvpqklY3cUkFAaPrWwIluT7h8k9jR2H032QXpj3XsJB+guNahZ7PWwwLcVjC24AFy0gsqQPJQS2ffbTl6eDA=="
 }
