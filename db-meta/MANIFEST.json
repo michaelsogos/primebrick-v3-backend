@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-20T19:21:17.642Z",
+  "issued_at": "2026-11-20T19:40:02.158Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -62,7 +62,8 @@
     "20261224120000_i18n_dict_composer_open": "1b0bf4603fead9e9004e07a5064458a7bc1d7a4c091f61dfad28176b724f674e",
     "20261225120000_i18n_dict_code_exists": "cebf332b793217bbf08d7ca421219f95550d5752e7d32efa17837812301e471e",
     "20261225130000_i18n_dict_extras": "91158ef93e8537c4be68ddd819fc9a1f1e977692672dfa6698149424885be485",
-    "20261225140000_i18n_dict_draft_code_help": "32533ec377ae2d9124fb1cdbe1da21de5ceff09f3db429b83baad6d6968d614f"
+    "20261225140000_i18n_dict_draft_code_help": "32533ec377ae2d9124fb1cdbe1da21de5ceff09f3db429b83baad6d6968d614f",
+    "20261225150000_i18n_customer_link_type_rename_it": "0182e70585608b2fc72bfc822827e8bb8cccdaee8d35300d8286f9c228a8a62a"
   },
-  "signature": "JP96mmuStdga+yXdbWlP7kkxS+DZOavEkN7QE9EygSIUr81loJZo0jaICTjw2PUx7badh7JSUACIoY6aUji7AQ=="
+  "signature": "PSh7VusZaW/tbGhMNDemCeUwOEJvYO5bHUdd5z2xSVntrHsE/6iPh5sVkpO70Ju6BpKM3b5ChIoyRrPTCn0XAg=="
 }
