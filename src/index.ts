@@ -1,5 +1,5 @@
 import "dotenv/config"; // must stay first — loads .env before any module reads it
-import { logger, assertDbEnv, detectPackageIdentity } from "@primebrick/sdk";
+import { logger, assertDbEnv, detectPackageIdentity } from '@primebrick/sdk';
 import "./observability/logging-init.js"; // must stay first import — async console bridge
 import cors from "cors";
 import express, { type Response } from "express";
@@ -132,7 +132,7 @@ async function checkIdp(): Promise<HealthCheckResult> {
       return { ok: false };
     }
 
-    const versionData = await versionResponse.json() as { status?: string; msg?: string; data?: { version?: string; commitId?: string; commitOffset?: number } };
+    const versionData = await versionResponse.text().then((t) => extJsonParse<any>(t)) as { status?: string; msg?: string; data?: { version?: string; commitId?: string; commitOffset?: number } };
     return {
       ok: true,
       type: "Casdoor",
@@ -202,7 +202,7 @@ async function checkLlm(): Promise<HealthCheckResult> {
       return { ok: false, error: `AI microservice health failed: HTTP ${res.status}` };
     }
 
-    const json = (await res.json()) as {
+    const json = (await res.text().then((t) => extJsonParse<any>(t))) as {
       ok: boolean;
       checks?: { llm?: { ok: boolean; model?: string; version?: string; error?: string } };
     };

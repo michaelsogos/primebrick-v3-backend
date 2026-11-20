@@ -65,6 +65,7 @@ vi.mock("../../../modules/mcp/tools/entity-registry.js", () => ({
 
 import { ServiceLifecycleSubscriber } from "../service-lifecycle-subscriber.js";
 
+import { extJsonStringify } from '@primebrick/sdk';
 function registerPayload(entities: unknown) {
   return {
     code: "svc_a",
@@ -104,7 +105,7 @@ describe("service.register — endpoints.entities enrollment gate", () => {
   it("malformed entries + duplicates → rejected", async () => {
     for (const bad of [["JobSchedule"], ["job-schedule"], [42], ["job_run", "job_run"]]) {
       const res = (await captured.handler!({ request: registerPayload(bad) })) as { registered: boolean; error?: string };
-      expect(res.registered, JSON.stringify(bad)).toBe(false);
+      expect(res.registered, extJsonStringify(bad)).toBe(false);
       expect(res.error).toMatch(/endpoints\.entities/);
     }
     expect(mockRepo.insert).not.toHaveBeenCalled();

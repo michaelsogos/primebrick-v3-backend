@@ -13,7 +13,7 @@
  *     enforce their own RBAC)
  */
 
-import { isPermissionGranted, internalFetch, extJsonStringify, type Permission } from "@primebrick/sdk";
+import { isPermissionGranted, internalFetch, extJsonStringify, type Permission, extJsonParse } from '@primebrick/sdk';
 import type { AuthInfo } from "@modelcontextprotocol/server";
 import { authInfoToUser } from "../token-verifier.js";
 import { entityRegistry, type Operation } from "./entity-registry.js";
@@ -343,7 +343,7 @@ export async function proxyToMicroservice(
 
   const contentType = response.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
-    return response.json();
+    return response.text().then((t) => extJsonParse<any>(t));
   }
   return response.text();
 }

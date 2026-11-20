@@ -18,7 +18,7 @@
  * For refresh_token grant, the BE forwards the refresh_token to Casdoor.
  */
 
-import { extJsonStringify, logger } from "@primebrick/sdk";
+import { extJsonStringify, logger, extJsonParse } from '@primebrick/sdk';
 import { Router, type Request, type Response, type NextFunction } from "express";
 import express from "express";
 import { getAuthConfig } from "@primebrick/sdk";
@@ -168,7 +168,7 @@ export function tokenRouter(): Router {
         body: formData.toString(),
       });
 
-      const casdoorData = await casdoorResponse.json() as Record<string, unknown>;
+      const casdoorData = await casdoorResponse.text().then((t) => extJsonParse<any>(t)) as Record<string, unknown>;
 
       if (!casdoorResponse.ok) {
         // Forward the error from Casdoor

@@ -7,7 +7,7 @@
  * microservice entities in the MCP entity registry when services come online.
  */
 
-import { logger, internalFetch } from "@primebrick/sdk";
+import { logger, internalFetch, extJsonParse } from '@primebrick/sdk';
 import type { Operation } from "./entity-registry.js";
 
 /** Entity info extracted from a microservice's OpenAPI spec. */
@@ -158,7 +158,7 @@ export async function discoverEntitiesFromService(baseUrl: string, serviceRef?: 
         // UNKNOWN_CLIENT, INVALID_CLIENT_SHIELD_KEY) instead of a bare status.
         let reason = "request rejected";
         try {
-          const problem = (await response.json()) as { internal_code?: string; code?: string; title?: string };
+          const problem = (await response.text().then((t) => extJsonParse<any>(t))) as { internal_code?: string; code?: string; title?: string };
           reason = problem.internal_code ?? problem.code ?? problem.title ?? reason;
         } catch { /* body not json */ }
         // 404 = the service does not publish a spec — not an identity
@@ -175,7 +175,7 @@ export async function discoverEntitiesFromService(baseUrl: string, serviceRef?: 
         logger.warn(`OpenAPI discovery rejected by ${target}`, { tags: ["mcp", `${response.status}`], reason });
         return [];
       }
-      const spec = await response.json();
+      const spec = await response.text().then((t) => extJsonParse<any>(t));
       const pathCount = Object.keys((spec as { paths?: object }).paths ?? {}).length;
       const entities = discoverEntitiesFromSpec(spec);
       logger.done(`Fetched ${pathCount} paths from OpenAPI spec for ${target}`, { tags: ["mcp"] });

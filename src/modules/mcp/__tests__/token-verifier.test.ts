@@ -6,7 +6,8 @@ const mockVerifyAuth = vi.fn();
 const mockGetAuthConfig = vi.fn();
 const mockRunWithSession = vi.fn();
 
-vi.mock("@primebrick/sdk", () => ({
+vi.mock("@primebrick/sdk", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@primebrick/sdk")>()),
   verifyAuth: (...args: unknown[]) => mockVerifyAuth(...args),
   getAuthConfig: (...args: unknown[]) => mockGetAuthConfig(...args),
   runWithSession: <T>(session: unknown, cb: () => T) => {
@@ -19,6 +20,7 @@ vi.mock("@primebrick/sdk", () => ({
 import { tokenVerifier, setAuthPorts, authInfoToUser } from "../token-verifier.js";
 import type { AuthPorts, AuthUser } from "@primebrick/sdk";
 
+import { extJsonStringify } from '@primebrick/sdk';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function makeAuthUser(overrides: Partial<AuthUser> = {}): AuthUser {
@@ -40,8 +42,8 @@ function makeAuthUser(overrides: Partial<AuthUser> = {}): AuthUser {
 
 /** Build a fake JWT payload (base64url-encoded) with the given exp claim. */
 function makeFakeJwt(exp: number): string {
-  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
-  const payload = Buffer.from(JSON.stringify({ exp })).toString("base64url");
+  const header = Buffer.from(extJsonStringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(extJsonStringify({ exp })).toString("base64url");
   const signature = "fake-signature";
   return `${header}.${payload}.${signature}`;
 }
@@ -202,8 +204,8 @@ describe("MCP Token Verifier — tokenVerifier.verifyAccessToken", () => {
     mockVerifyAuth.mockResolvedValue(user);
 
     // JWT with no exp claim
-    const header = Buffer.from(JSON.stringify({ alg: "RS256" })).toString("base64url");
-    const payload = Buffer.from(JSON.stringify({ sub: "test" })).toString("base64url");
+    const header = Buffer.from(extJsonStringify({ alg: "RS256" })).toString("base64url");
+    const payload = Buffer.from(extJsonStringify({ sub: "test" })).toString("base64url");
     const token = `${header}.${payload}.sig`;
 
     const before = Math.floor(Date.now() / 1000) + 3600;

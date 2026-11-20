@@ -7,6 +7,7 @@ vi.stubGlobal("fetch", mockFetch);
 // Import after mocks
 import { CasdoorApiClient } from "../casdoor-api-client.js";
 
+import { extJsonStringify, extJsonParse } from '@primebrick/sdk';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function makeClient(): CasdoorApiClient {
@@ -24,7 +25,7 @@ function mockResponse(body: unknown, status = 200): Response {
     status,
     statusText: "OK",
     json: () => Promise.resolve(body),
-    text: () => Promise.resolve(JSON.stringify(body)),
+    text: () => Promise.resolve(extJsonStringify(body)),
   } as Response;
 }
 
@@ -185,7 +186,7 @@ describe("CasdoorApiClient — setApplicationWebAuthn", () => {
     const result = await client.setApplicationWebAuthn("primebrick-api", "admin", true);
     expect(result).toBe(true);
     // Verify the update call had enableWebAuthn=true
-    const updateBody = JSON.parse(mockFetch.mock.calls[1][1].body);
+    const updateBody = extJsonParse<any>(mockFetch.mock.calls[1][1].body);
     expect(updateBody.enableWebAuthn).toBe(true);
   });
 
@@ -254,7 +255,7 @@ describe("CasdoorApiClient — addRole", () => {
     await client.addRole({ owner: "ACME", name: "sales", displayName: "Sales" });
     const url = mockFetch.mock.calls[0][0] as string;
     expect(url).toContain("/api/add-role?id=ACME%2Fsales");
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const body = extJsonParse<any>(mockFetch.mock.calls[0][1].body);
     expect(body.owner).toBe("ACME");
     expect(body.name).toBe("sales");
     expect(body.displayName).toBe("Sales");
@@ -300,7 +301,7 @@ describe("CasdoorApiClient — updateRole", () => {
     mockFetch.mockResolvedValue(mockResponse({ status: "ok" }));
     const client = makeClient();
     await client.updateRole({ owner: "ACME", name: "sales", displayName: "Sales Team", description: "Updated" });
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const body = extJsonParse<any>(mockFetch.mock.calls[0][1].body);
     expect(body.owner).toBe("ACME");
     expect(body.name).toBe("sales");
     expect(body.displayName).toBe("Sales Team");
@@ -334,7 +335,7 @@ describe("CasdoorApiClient — deleteRole", () => {
     await client.deleteRole("sales", "ACME");
     const url = mockFetch.mock.calls[0][0] as string;
     expect(url).toContain("/api/delete-role?id=ACME%2Fsales");
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const body = extJsonParse<any>(mockFetch.mock.calls[0][1].body);
     expect(body.owner).toBe("ACME");
     expect(body.name).toBe("sales");
   });

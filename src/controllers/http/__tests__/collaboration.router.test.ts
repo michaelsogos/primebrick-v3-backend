@@ -43,6 +43,7 @@ vi.mock("../../../modules/auth/rbac.middleware.js", () => ({
 import { collaborationRouter } from "../collaboration.router.js";
 import { mountRouter, type TestApp } from "./harness.js";
 
+import { extJsonStringify, extJsonParse } from '@primebrick/sdk';
 let app: TestApp;
 beforeAll(async () => {
   app = await mountRouter(collaborationRouter());
@@ -56,7 +57,7 @@ describe("collaboration router", () => {
     const res = await fetch(`${app.baseUrl}${E}/presence`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "READING" }),
+      body: extJsonStringify({ action: "READING" }),
     });
     expect(res.status).toBe(204);
     expect(mocks.service.handleSignal).toHaveBeenCalledWith(
@@ -71,7 +72,7 @@ describe("collaboration router", () => {
     const res = await fetch(`${app.baseUrl}${E}/presence`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "NOPE" }),
+      body: extJsonStringify({ action: "NOPE" }),
     });
     expect(res.status).toBe(400);
   });
@@ -80,7 +81,7 @@ describe("collaboration router", () => {
     mocks.service.getSnapshot.mockResolvedValue({ readers: [], editors: [], changed: null, current_version: 3 });
     const res = await fetch(`${app.baseUrl}${E}/presence`);
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.current_version).toBe(3);
+    const body = await res.text().then((t) => extJsonParse<any>(t));
+    expect(body.current_version).toBe(3n);
   });
 });
