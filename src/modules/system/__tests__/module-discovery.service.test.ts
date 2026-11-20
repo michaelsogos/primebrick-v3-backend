@@ -430,7 +430,7 @@ describe("ModuleDiscoveryService — labels seed", () => {
 describe("ModuleDiscoveryService — icon materialization", () => {
   /**
    * `icon` is OPTIONAL in the declaration — emission fills nulls from
-   * the kind map: dict→list, list→table-2, create/detail→text-cursor-input,
+   * the kind map: dict→table-dictionary, list→table-2, create/detail→text-cursor-input,
    * everything else→file-box. An authored icon always wins; nav leaves
    * inherit the icon of the route they point at. These assertions fail
    * against an emit that leaves `icon` undefined.
@@ -462,14 +462,14 @@ describe("ModuleDiscoveryService — icon materialization", () => {
     },
   });
 
-  it("fills unset icons from kind — dict→list — nav leaves inherit the pointed route's icon", async () => {
+  it("fills unset icons from kind — dict→table-dictionary — nav leaves inherit the pointed route's icon", async () => {
     setup([dictSvc]);
     const { modules } = await list(["access.crm.*"]);
     const m = modules[0];
-    expect(m.routes?.find((r) => r.kind === "dict")?.icon).toBe("list");
-    expect(m.nav?.find((l) => l.id === "types")?.icon).toBe("list");
+    expect(m.routes?.find((r) => r.kind === "dict")?.icon).toBe("table-dictionary");
+    expect(m.nav?.find((l) => l.id === "types")?.icon).toBe("table-dictionary");
     // Child leaves resolve through the same census map.
-    expect(m.nav?.find((l) => l.id === "group")?.children?.[0]?.icon).toBe("list");
+    expect(m.nav?.find((l) => l.id === "group")?.children?.[0]?.icon).toBe("table-dictionary");
     // The group parent keeps its declared (absent) icon — it is not a page.
     expect(m.nav?.find((l) => l.id === "group")?.icon).toBeUndefined();
     // A leaf with no matching route decl falls back to file-box.
@@ -519,7 +519,7 @@ describe("ModuleDiscoveryService — icon materialization", () => {
     // but still resolves its declared route's kind icon.
     const { modules } = await list(["access.crm.extras"]);
     const m = modules[0];
-    expect(m.nav_hidden?.find((l) => l.href === "/crm/settings/customer_types")?.icon).toBe("list");
+    expect(m.nav_hidden?.find((l) => l.href === "/crm/settings/customer_types")?.icon).toBe("table-dictionary");
   });
 });
 

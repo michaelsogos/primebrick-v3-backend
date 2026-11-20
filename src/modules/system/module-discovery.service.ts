@@ -148,7 +148,7 @@ function filterNavLinks(
 /**
  * Icon materialization — `icon` is OPTIONAL in the declaration: a dev
  * authors one only to override the convention. Emission fills nulls from
- * the kind map ({@link defaultRouteIcon}): dict→list, list→table-2,
+ * the kind map ({@link defaultRouteIcon}): dict→table-dictionary, list→table-2,
  * forms→text-cursor-input, everything else→file-box. An authored `icon`
  * always wins — this never overrides.
  */
