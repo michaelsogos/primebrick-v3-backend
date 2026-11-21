@@ -1,0 +1,95 @@
+-- Primebrick: app.widgets.sequence.set.* — the SequenceSetDialog
+-- vocabulary (the sequence_set row-CTA parametric surface on the
+-- entity_list archetype): title/description, analysis strip labels,
+-- next/at field labels, submit. All 7 supported languages.
+
+INSERT INTO public.translations (uuid, key, language, value, created_at, created_by, updated_at, updated_by, version)
+VALUES
+  (uuidv7(), 'app.widgets.sequence.set.title', 'en-GB', 'Set counter', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.title', 'en-US', 'Set counter', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.title', 'it-IT', 'Imposta contatore', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.title', 'fr-FR', 'Définir le compteur', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.title', 'es-ES', 'Establecer contador', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.title', 'de-DE', 'Zähler setzen', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.title', 'pt-PT', 'Definir contador', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+
+  (uuidv7(), 'app.widgets.sequence.set.description', 'en-GB', 'Choose the next number this sequence will emit. This changes the counter state only — no existing values are rewritten.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.description', 'en-US', 'Choose the next number this sequence will emit. This changes the counter state only — no existing values are rewritten.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.description', 'it-IT', 'Scegli il prossimo numero che questa sequenza emetterà. Modifica solo lo stato del contatore — nessun valore esistente viene riscritto.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.description', 'fr-FR', 'Choisissez le prochain numéro que cette séquence émettra. Cela ne modifie que l''état du compteur — aucune valeur existante n''est réécrite.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.description', 'es-ES', 'Elige el próximo número que emitirá esta secuencia. Solo cambia el estado del contador — no se reescriben valores existentes.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.description', 'de-DE', 'Wählen Sie die nächste Nummer, die diese Sequenz ausgibt. Dies ändert nur den Zählerstand — vorhandene Werte werden nicht überschrieben.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.description', 'pt-PT', 'Escolha o próximo número que esta sequência emitirá. Altera apenas o estado do contador — nenhum valor existente é reescrito.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+
+  (uuidv7(), 'app.widgets.sequence.set.in_use', 'en-GB', 'Values in use', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.in_use', 'en-US', 'Values in use', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.in_use', 'it-IT', 'Valori in uso', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.in_use', 'fr-FR', 'Valeurs en cours', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.in_use', 'es-ES', 'Valores en uso', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.in_use', 'de-DE', 'Werte in Verwendung', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.in_use', 'pt-PT', 'Valores em uso', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+
+  (uuidv7(), 'app.widgets.sequence.set.max', 'en-GB', 'Current max', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.max', 'en-US', 'Current max', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.max', 'it-IT', 'Massimo attuale', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.max', 'fr-FR', 'Maximum actuel', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.max', 'es-ES', 'Máximo actual', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.max', 'de-DE', 'Aktuelles Maximum', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.max', 'pt-PT', 'Máximo atual', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+
+  (uuidv7(), 'app.widgets.sequence.set.next_in_use', 'en-GB', 'The proposed next value already exists in the column — the next allocation will collide.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.next_in_use', 'en-US', 'The proposed next value already exists in the column — the next allocation will collide.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.next_in_use', 'it-IT', 'Il prossimo valore proposto esiste già nella colonna — la prossima allocazione andrà in collisione.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.next_in_use', 'fr-FR', 'La prochaine valeur proposée existe déjà dans la colonne — la prochaine allocation entrera en collision.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.next_in_use', 'es-ES', 'El próximo valor propuesto ya existe en la columna — la próxima asignación colisionará.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.next_in_use', 'de-DE', 'Der vorgeschlagene nächste Wert existiert bereits in der Spalte — die nächste Vergabe kollidiert.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.next_in_use', 'pt-PT', 'O próximo valor proposto já existe na coluna — a próxima alocação irá colidir.', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+
+  (uuidv7(), 'app.widgets.sequence.set.conflicts', 'en-GB', '{count} existing values sit above the current counter', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.conflicts', 'en-US', '{count} existing values sit above the current counter', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.conflicts', 'it-IT', '{count} valori esistenti sono oltre il contatore attuale', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.conflicts', 'fr-FR', '{count} valeurs existantes dépassent le compteur actuel', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.conflicts', 'es-ES', '{count} valores existentes superan el contador actual', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.conflicts', 'de-DE', '{count} vorhandene Werte liegen über dem aktuellen Zähler', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.conflicts', 'pt-PT', '{count} valores existentes estão acima do contador atual', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+
+  (uuidv7(), 'app.widgets.sequence.set.ambiguous', 'en-GB', 'Some values also match other sequences: {codes}', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.ambiguous', 'en-US', 'Some values also match other sequences: {codes}', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.ambiguous', 'it-IT', 'Alcuni valori corrispondono anche ad altre sequenze: {codes}', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.ambiguous', 'fr-FR', 'Certaines valeurs correspondent aussi à d''autres séquences : {codes}', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.ambiguous', 'es-ES', 'Algunos valores también coinciden con otras secuencias: {codes}', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.ambiguous', 'de-DE', 'Einige Werte passen auch zu anderen Sequenzen: {codes}', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.ambiguous', 'pt-PT', 'Alguns valores também correspondem a outras sequências: {codes}', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+
+  (uuidv7(), 'app.widgets.sequence.set.analyze_failed', 'en-GB', 'Analysis unavailable', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.analyze_failed', 'en-US', 'Analysis unavailable', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.analyze_failed', 'it-IT', 'Analisi non disponibile', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.analyze_failed', 'fr-FR', 'Analyse indisponible', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.analyze_failed', 'es-ES', 'Análisis no disponible', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.analyze_failed', 'de-DE', 'Analyse nicht verfügbar', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.analyze_failed', 'pt-PT', 'Análise indisponível', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+
+  (uuidv7(), 'app.widgets.sequence.set.next_label', 'en-GB', 'Next value', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.next_label', 'en-US', 'Next value', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.next_label', 'it-IT', 'Prossimo valore', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.next_label', 'fr-FR', 'Prochaine valeur', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.next_label', 'es-ES', 'Próximo valor', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.next_label', 'de-DE', 'Nächster Wert', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.next_label', 'pt-PT', 'Próximo valor', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+
+  (uuidv7(), 'app.widgets.sequence.set.at_label', 'en-GB', 'Period reference (optional)', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.at_label', 'en-US', 'Period reference (optional)', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.at_label', 'it-IT', 'Riferimento periodo (opzionale)', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.at_label', 'fr-FR', 'Référence de période (optionnel)', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.at_label', 'es-ES', 'Referencia de período (opcional)', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.at_label', 'de-DE', 'Periodenreferenz (optional)', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.at_label', 'pt-PT', 'Referência de período (opcional)', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+
+  (uuidv7(), 'app.widgets.sequence.set.submit', 'en-GB', 'Set counter', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.submit', 'en-US', 'Set counter', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.submit', 'it-IT', 'Imposta contatore', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.submit', 'fr-FR', 'Définir le compteur', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.submit', 'es-ES', 'Establecer contador', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.submit', 'de-DE', 'Zähler setzen', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1),
+  (uuidv7(), 'app.widgets.sequence.set.submit', 'pt-PT', 'Definir contador', now(), 'migration-sequence-set-dialog', now(), 'migration-sequence-set-dialog', 1)
+ON CONFLICT (key, language) DO NOTHING;
