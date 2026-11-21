@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "devin-bulk-editor",
-  "issued_at": "2026-11-21T00:28:59.519Z",
+  "issued_at": "2026-11-21T16:11:58.371Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -69,7 +69,8 @@
     "20261225210000_i18n_app_common_modified": "ca7aa61d3a6e79b4e49805a3e892fd40cb8b6a632924f5d7af0a19275c602511",
     "20261225220000_i18n_app_common_plural": "d39ad546f6184bcc96fd609b16dfbd7e9c27fbaccd41348fedf053ba228b1505",
     "20261225230000_i18n_dict_filtered_views": "2fe40578f208fd440ca17a4ca7b068b7072d03a6fc009078c574e30f10309e9f",
+    "20261227120000_i18n_sequence_directive": "8d9be9143787255d7bb8c3f1449a0ca794bacbb138bfcfa4171cb334cf7c43fd",
     "20261229120000_i18n_bulk_editor": "9112194a5e692b5565916524cc8440e148184bd750a5d042fd8013f26755d522"
   },
-  "signature": "oVrVO0C8OwUQ192XaSB8P5UNSYKpflYnxIfgyXIo2S/i5jEjfG6s3hdQliG6R8qelPms/5Mi4qndD+Qy4D3cCA=="
+  "signature": "ylqfioSDr5pKbXkidn5Md7FVWZ9AATjmGzM3ynhkdodkTK3oUNbuAuwbyeQetn8HNRE24P0Seid2BESjGJYTCw=="
 }
