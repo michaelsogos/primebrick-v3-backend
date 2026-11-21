@@ -159,8 +159,8 @@ export function deriveEntityActions(
           ...(op === "duplicate.bulk" ? { color: "violet" as const, icon: "copy" } : {}),
           // `update.bulk` — a write across N rows: confirm-gated by
           // served default (overridable via actions_overrides), primary
-          // color + square-pen glyph like update.single's affordance.
-          ...(op === "update.bulk" ? { color: "primary" as const, icon: "square-pen", confirm_key: "app.common.update_entities_confirm" } : {}),
+          // color + pencil glyph like update.single's affordance.
+          ...(op === "update.bulk" ? { color: "primary" as const, icon: "pencil", confirm_key: "app.common.update_entities_confirm" } : {}),
         });
       }
     }
