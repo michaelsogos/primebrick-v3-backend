@@ -157,6 +157,10 @@ export function deriveEntityActions(
           // Violet IS the clone semantic — duplicate.bulk carries it (and
           // its Copy icon) by served default, same as the US SDK router.
           ...(op === "duplicate.bulk" ? { color: "violet" as const, icon: "copy" } : {}),
+          // `update.bulk` — a write across N rows: confirm-gated by
+          // served default (overridable via actions_overrides), primary
+          // color + square-pen glyph like update.single's affordance.
+          ...(op === "update.bulk" ? { color: "primary" as const, icon: "square-pen", confirm_key: "app.common.update_entities_confirm" } : {}),
         });
       }
     }
