@@ -258,6 +258,12 @@ export class TranslationsService {
     const map = new Map<string, TranslationEntityCtor>();
     for (const s of await new ServiceRegistryService().findAll()) {
       const code = s.code.toLowerCase();
+      // Reserved platform rows (`api` gateway self-enrollment, `settings`
+      // shell) and schema-less services own no `translations` table —
+      // their identity labels ride the `system` dict (`system.api.title`).
+      // Synthesizing an entity for them turned a benign dict fetch into a
+      // 503 on a nonexistent schema table.
+      if (s.is_reserved || (s.schemas?.length ?? 0) === 0) continue;
       if (MODULE_ENTITIES[code] || map.has(code)) continue;
       const cls = class extends TranslationEntityBase {} as unknown as TranslationEntityCtor;
       Entity("translations", code)(cls as unknown as Function);
