@@ -85,6 +85,7 @@ function routeToOp(method: string, suffix: string): string | null {
   if (method === "get" && last === "export") return "export";
   if (method === "post" && last === "bulk-delete") return "delete.bulk";
   if (method === "post" && last === "bulk-restore") return "restore.bulk";
+  if (method === "post" && last === "bulk-update") return "update.bulk";
   if (method === "post" && last === "duplicate") return "duplicate.bulk";
   return last; // non-standard collection action (e.g. check-availability)
 }
