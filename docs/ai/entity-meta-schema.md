@@ -31,6 +31,8 @@ required fields (`type_capabilities`).
   // ── Root: entity identity + display contract (required) ──────────────
   "entity": "user_profile",            // snake_case singular, matches route segment
   "translation_key": "user_profile",   // snake_case singular i18n prefix
+  "entities_ns": "system",             // OPTIONAL — namespace owning the entity's
+                                       // label keys (module entities → their own ns)
   "title_key": "system.entities.user_profile.title",  // OPTIONAL override — omit on
                                        // standard CRUD metas: list/create/edit titles
                                        // come from system.entities.page_title.* templates
@@ -45,6 +47,11 @@ required fields (`type_capabilities`).
   "actions_overrides": {               // OPTIONAL escape hatch — may only set
     "duplicate.bulk": { "enabled": false }  // `enabled` on EXISTING standard ops;
   },                                     // never invents operations
+
+  "create": { "surface": "sheet" },      // OPTIONAL — "form" (default) census
+                                       // kind:"create" route → form page; "sheet"
+                                       // → create CTA opens entity.record in
+                                       // mode:"create" (no route needed)
 
   // ── Root: field dictionary — transversal to ALL page types ───────────
   "columns": [
@@ -116,7 +123,12 @@ required fields (`type_capabilities`).
       "endpoint": { "method": "DELETE", "path": "/api/v1/auth/users/:uuid" } },
     { "op": "duplicate.bulk", "enabled": false }   // route absent → explicit false, no endpoint
   ],
-  "collaboration": { "enabled": true, "expose_editing_value": true }
+  "collaboration": { "enabled": true, "expose_editing_value": true },
+  // Facets — injected when the entity class carries the marker decorators:
+  "dict": { "group_field": "…", "order_field": "sort" },   // @Dict → kind:"dict"
+                                                           // inline-editable pages
+  "relation": { "parent_field": "…", "child_field": "…" }  // @Relation → directed
+                                                           // edge entity (no display_field)
 }
 ```
 
@@ -126,18 +138,35 @@ required fields (`type_capabilities`).
 |------|----------|---------|
 | `key` | yes | Row field key (snake_case) |
 | `label_key` | yes | i18n key for header/form label |
-| `type` | yes | `text` \| `badge` \| `date` \| `datetime` \| `color` \| `boolean` \| `number` \| `sparkline` |
+| `type` | yes | `text` \| `badge` \| `boolean` \| `color` \| `date` \| `datetime` \| `number` \| `sparkline` \| `ref` \| `ref_count` \| `avatar` (+ consumer-registered custom types) |
 | `order` | yes | Explicit position inside its group (sticky → normal → audited). Array position in `columns` MUST NOT matter. Standard: `uuid` is `order: -1` — the canonical first sticky column, hidden but selectable; `display_field` column is `order: 0` |
 | `sticky` | | Pinned left, first group (`uuid` + `display_field` are the standard sticky pair) |
 | `audited` | | System audit column — rendered last group |
 | `sortable` / `searchable` / `filterable` / `hideable` | | Capability flags (default `true` when omitted — set `false` explicitly to disable) |
 | `default_visible` | | `false` = selectable but hidden by default (e.g. `uuid`) |
+| `hidden` | | `true` = total suppression — dropped from served meta + blocks auto-derivation of the class column |
+| `color` | | Semantic color token — never `text-*`/`bg-*` classes (dead-render) |
+| `null_label` | | `{ label_key, when?{field,equals\|not} }` — red-italic alarm on null cells; gate it or leave unset |
+| `kind` | | `"calculated"` (SQL projection — flags stay on) / `"virtual"` (post-query — sort/filter/search FORCED OFF). Read-only, never in `page_props.form` |
+| `nullable` / `max_length` / `pg_type` | derived | Class-derived physical constraints — authoring throws |
+| `managed` | derived | DB-filled (`@Key` identity) — never client-supplied |
+| `immutable` | | Set-once/process-derived — editable on create, disabled + excluded from PUT on update |
 | `badge` | | `{ values: Record<string, { label_key?, label_text?, color? }> }` |
 | `datetime_iana_toggle` | | `{ record_iana_field }` — browser/record timezone toggle |
 | `sparkline` | | `type:"sparkline"` — `{ endpoint, request_field, row_key, response_field?, bucket_field?, bucket_unit_field?, series: {field,color,label_key?}[] }`; virtual column, the list engine batch-POSTs row keys to `serviceApiBase(basePath)+endpoint` after every load |
 | `tooltip`, `tooltip_priority`, `tooltip_title` | | Tooltip content/priority/title keys |
 | `show_form_tooltip`, `show_list_tooltip` | | Tooltip visibility per context |
-| `format` | | Semantic renderer discriminator — FE switches on it **before** `type` (`schedule_spec`, `nats_subject`, `json`, `identifier`, `display_name`); closed additive union in `MetaColumnFormat` |
+| `format` | | Semantic input discriminator — control archetype + validation before `type`; closed union in `MetaColumnFormat` (`schedule_spec`, `nats_subject`, `service_code`, `json`, `identifier`, `display_name`, `sequence`, `i18n_key`, …) |
+| `pattern` / `min_length` / `min` / `max` / `unsigned` | | Authored validation facets — zod regex/length/bounds/negative rejection |
+| `avatar` | | `type:"avatar"` — `{ color_field, initials_field? }` sibling-persisted color + live initials |
+| `depends_on` | | Sibling pivot edge — `filter_field` (scoped ref options), `disabled_when` (gate), `control_prop` (pivot-resolved format) |
+| `json_schema` | | `format:"json"` — editor lint + structural validation |
+| `seq` | | `format:"sequence"` — `uuid`/`name` DERIVED (authoring throws), `modes`/`default_mode`/`allow_create` authored. Wire: `{seq:{…}}` directive only |
+| `widget` | | Control override — host registry key, bypasses format derivation on every surface |
+| `options_source` | | Combo vocabulary — `"census.emits"`/`"census.callables"`/`"audit.actors"`/`"system.roles"` |
+| `allow_create` | | ComboSelect free-entry — forbidden with `census.*` sources |
+| `ref` | | `type:"ref"` — `{entity\|entity_field, key_field?, route?, filter_field?, value_field?, presentation?}` static/lazy drill target |
+| `reverse_ref` | | `type:"ref_count"` — `{entity, filter_field, value_template}` 1:N badge + filtered link |
 | `uom` | | `type:"number"` unit semantics — `MetaColumnUom` (`@primebrick/core`): `percent` (canonical fraction), `currency{field}` (sibling ISO column), `{kind:'<category>', unit}` (FIXED Intl-sanctioned id — `UNIT_CATEGORIES` census: `time`, `length`, `mass`, `volume`, `area`, `temperature`, `digital`, `angle`; e.g. `{kind:'time', unit:'millisecond'}` → `"24 ms"`), `{kind:'<category>', field}` (per-row code on a sibling — the category IS the picker vocabulary), `custom{field,source}` (non-standard per-row vocabulary), `custom{symbol}` (FIXED arbitrary suffix). XORs — `withColumnConstraints` enforces at meta bind; absent → plain decimal |
 
 ## Standard operation vocabulary (`deriveEntityActions`)
@@ -145,9 +174,9 @@ required fields (`type_capabilities`).
 The generated `actions` array ALWAYS contains every standard op — missing
 routes produce explicit `{ enabled: false }` entries, never absent ops:
 
-`list`, `meta`, `get`, `create.single`, `update.single`, `delete.single`,
-`restore.single`, `read.audit`, `export`, `delete.bulk`, `restore.bulk`,
-`duplicate.single`, `duplicate.bulk`
+`list`, `meta`, `get`, `create.single`, `update.single`, `update.bulk`,
+`delete.single`, `purge.single`, `restore.single`, `read.audit`, `export`,
+`delete.bulk`, `restore.bulk`, `duplicate.bulk`
 
 Non-standard routes (e.g. `change-password`) surface as additional bare ops.
 
