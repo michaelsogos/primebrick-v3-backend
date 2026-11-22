@@ -109,6 +109,7 @@ comboboxes, related-object labels. It supports `${field}` template syntax
 | `kind` | | Materialization — `"calculated"` (SQL projection, sortable/filterable stay on) / `"virtual"` (post-query decoration, sort/filter/search FORCED OFF). Read-only: never in `page_props.form` |
 | `nullable` / `max_length` / `pg_type` | derived | Physical constraints from the entity class — authoring them throws (`withColumnConstraints` rejects restated class facts) |
 | `managed` | derived | DB-filled value (`@Key` identity) — never client-supplied, excluded from forms and write payloads |
+| `default` | derived | Create-form initial value — from `@Column({defaultSql})` constants (typed per `pg_type`), or authored here as the legal column-level override (outranked per-surface by `placement.default_value`; update forms ignore it) |
 | `immutable` | | Set-once / process-derived — editable on create, disabled + excluded from PUT on update |
 | `badge` | | `{ values: Record<string, { label_key?, label_text?, color? }> }` |
 | `datetime_iana_toggle` | | `{ record_iana_field }` |

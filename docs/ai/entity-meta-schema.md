@@ -150,6 +150,7 @@ required fields (`type_capabilities`).
 | `kind` | | `"calculated"` (SQL projection — flags stay on) / `"virtual"` (post-query — sort/filter/search FORCED OFF). Read-only, never in `page_props.form` |
 | `nullable` / `max_length` / `pg_type` | derived | Class-derived physical constraints — authoring throws |
 | `managed` | derived | DB-filled (`@Key` identity) — never client-supplied |
+| `default` | derived | Create-form initial value — from `@Column({defaultSql})` constant literals (typed per `pg_type`), or AUTHORED as the legal column override; `placement.default_value` outranks it per-surface; update forms ignore it |
 | `immutable` | | Set-once/process-derived — editable on create, disabled + excluded from PUT on update |
 | `badge` | | `{ values: Record<string, { label_key?, label_text?, color? }> }` |
 | `datetime_iana_toggle` | | `{ record_iana_field }` — browser/record timezone toggle |
