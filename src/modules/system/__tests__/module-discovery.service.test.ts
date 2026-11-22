@@ -541,6 +541,26 @@ describe("ModuleDiscoveryService — entity ownership (endpoints.entities)", () 
     expect(modules[0].entities).toBeUndefined();
   });
 
+  it("the gateway row delegates its dict to 'system' — api owns no translations schema", async () => {
+    setup([
+      svc({
+        code: "api",
+        name: "API Gateway",
+        is_reserved: true,
+        endpoints: { events: { emits: [{ subject: "events.api.user.>" }] } },
+      }),
+    ]);
+    const { modules } = await list([]);
+    expect(modules[0].id).toBe("api");
+    expect(modules[0].translations_module).toBe("system");
+  });
+
+  it("services without a dict delegate omit translations_module — id IS the schema", async () => {
+    setup([svc({ code: "crm", name: "CRM" })]);
+    const { modules } = await list([]);
+    expect(modules[0].translations_module).toBeUndefined();
+  });
+
   it("a headless service still publishes its owned entities — the page-less case the map exists for", async () => {
     const headless = svc({
       code: "emailsender",
