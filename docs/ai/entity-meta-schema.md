@@ -157,7 +157,7 @@ required fields (`type_capabilities`).
 | `sparkline` | | `type:"sparkline"` — `{ endpoint, request_field, row_key, response_field?, bucket_field?, bucket_unit_field?, series: {field,color,label_key?}[] }`; virtual column, the list engine batch-POSTs row keys to `serviceApiBase(basePath)+endpoint` after every load |
 | `tooltip`, `tooltip_priority`, `tooltip_title` | | Tooltip content/priority/title keys |
 | `show_form_tooltip`, `show_list_tooltip` | | Tooltip visibility per context |
-| `format` | | Semantic input discriminator — control archetype + validation before `type`; closed union in `MetaColumnFormat` (`schedule_spec`, `nats_subject`, `service_code`, `json`, `identifier`, `display_name`, `sequence`, `i18n_key`, …) |
+| `format` | | Semantic input discriminator — control archetype + validation before `type`; closed union in `MetaColumnFormat` (`schedule_spec`, `nats_subject`, `service_code`, `json`, `identifier`, `display_name`, `sequence`, `sequence_pattern`, `i18n_key`, …) |
 | `pattern` / `min_length` / `min` / `max` / `unsigned` | | Authored validation facets — zod regex/length/bounds/negative rejection |
 | `avatar` | | `type:"avatar"` — `{ color_field, initials_field? }` sibling-persisted color + live initials |
 | `depends_on` | | Sibling pivot edge — `filter_field` (scoped ref options), `disabled_when` (gate), `control_prop` (pivot-resolved format) |
