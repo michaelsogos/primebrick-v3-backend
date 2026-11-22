@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-22T22:32:19.089Z",
+  "issued_at": "2026-11-22T23:03:46.884Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -74,7 +74,8 @@
     "20261229130000_i18n_sequence_widget": "ce82f7f169f8b064e438afd2e882f02bed8d2525695ac8096e171bbd761c76bd",
     "20261230100000_i18n_entity_list_scope": "145eb6bfe3bbf4a05ab6ee490071ca61edf61afb68c7b3df1bab5774fa442119",
     "20261230110000_i18n_sequence_set_dialog": "3a15df11046ad5a012850bcc8ef10310301d80966d32858f516a717de2a650dd",
-    "20261230120000_i18n_sequence_pattern_widget": "bc43cda06d9a3c6b9327929c103e951b066852251407da0814d520d260b5d6ea"
+    "20261230120000_i18n_sequence_pattern_widget": "bc43cda06d9a3c6b9327929c103e951b066852251407da0814d520d260b5d6ea",
+    "20261231120000_i18n_sequence_pattern_time_tokens": "5db8fd1bf176051eb1c7b08e96c94c46d4f75bee5380e45617aa885ebdd2ee11"
   },
-  "signature": "4AgK0bVuAFeFBT9D8KWDT7v6jp5301E7QxHGmLTQ0kOZxy9Qjdt3ouJiM70BLj0zKsV3nznKtlNw/XjpoVMEAg=="
+  "signature": "BnUrDz1Jo+YrtkyRhGD4/QVw36WzBpIHlSJI9sJWdCLClAM6In3gm5bwGr+T7gciXXSYUkVHnmIWCfaWi5znAw=="
 }
