@@ -33,6 +33,7 @@ import { PERMISSION_DECLARED } from "../modules/auth/rbac.middleware.js";
 import {
   isPermissionSentinel,
   STANDARD_OPS,
+  validateActionChrome,
   type ActionsOverrides,
   type EntityAction,
   type EntityActionSentinel,
@@ -161,6 +162,10 @@ export function deriveEntityActions(
           // served default (overridable via actions_overrides), primary
           // color + pencil glyph like update.single's affordance.
           ...(op === "update.bulk" ? { color: "primary" as const, icon: "pencil", confirm_key: "app.common.update_entities_confirm" } : {}),
+          // `export` is a SECONDARY affordance by served default — primary
+          // color but outline shape (the ghost-gradient CTA), same as the
+          // US SDK router; overridable via actions_overrides.
+          ...(op === "export" ? { color: "primary" as const, variant: "outline" as const } : {}),
         });
       }
     }
@@ -186,8 +191,13 @@ export function deriveEntityActions(
     if (o?.label_key) a.label_key = o.label_key;
     if (o?.icon) a.icon = o.icon;
     if (o?.color) a.color = o.color;
+    if (o?.variant) a.variant = o.variant;
     if (o?.confirm_key) a.confirm_key = o.confirm_key;
     if (o?.busy_key) a.busy_key = o.busy_key;
+    // Icon↔color + variant contract on the RESOLVED triple — same guard
+    // the US SDK router applies at construction.
+    const chromeErr = validateActionChrome(a.icon, a.color, a.variant);
+    if (chromeErr) throw new Error(`entity-actions action "${a.op}": ${chromeErr}`);
   }
   return result.sort((a, b) => a.op.localeCompare(b.op));
 }
