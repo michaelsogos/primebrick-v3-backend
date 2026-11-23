@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-2",
-  "issued_at": "2026-11-23T00:07:37.272Z",
+  "issued_at": "2026-11-23T00:33:18.760Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -76,7 +76,8 @@
     "20261230110000_i18n_sequence_set_dialog": "3a15df11046ad5a012850bcc8ef10310301d80966d32858f516a717de2a650dd",
     "20261230120000_i18n_sequence_pattern_widget": "bc43cda06d9a3c6b9327929c103e951b066852251407da0814d520d260b5d6ea",
     "20261231120000_i18n_sequence_pattern_time_tokens": "5db8fd1bf176051eb1c7b08e96c94c46d4f75bee5380e45617aa885ebdd2ee11",
-    "20261231200000_i18n_app_dict_hints": "d7cfb90a7ef88c0725a77a38ee2102689d8a14b3d6833998d97944e5d83b46dd"
+    "20261231200000_i18n_app_dict_hints": "d7cfb90a7ef88c0725a77a38ee2102689d8a14b3d6833998d97944e5d83b46dd",
+    "20261231210000_i18n_sequence_pattern_label_cleanup": "a162d61d4b698b0271596fd4681854c47f6dd2eab1adf594d661241c1eb5d619"
   },
-  "signature": "PYGhwrbWdacBERAxrwZwb+R5I3At1siFYoy4Z/854Gv5uLbY8NDTr9LlkvhMyh6s+H0KNbBNKgLDRX2+FVffCw=="
+  "signature": "6wMMhjbBYzaB2v9MfneoeYoGGYq/YSkyPslJs5UrYgRnvmH9o1qYW12p5op/Rv24bOgJByGY/K7VWX+bcOlIBg=="
 }
