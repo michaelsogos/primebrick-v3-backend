@@ -40,8 +40,8 @@ import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js
 import { ModuleDiscoveryService } from "./modules/system/module-discovery.service.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
 import { initBackendTelemetry, getTelemetryShared } from "./observability/telemetry.js";
-import { shutdownTelemetry, flushLogsSync, mountPartitionMaintenanceJob, entityEventPayloadSchema } from "@primebrick/sdk";
-import { makePartitionMaintenanceJob, entityApiName, getEntityPersistenceMeta } from "@primebrick/dal-pg";
+import { shutdownTelemetry, flushLogsSync, mountPartitionMaintenanceJob, mountSequenceReviveJob, entityEventPayloadSchema } from "@primebrick/sdk";
+import { makePartitionMaintenanceJob, makeSequenceReviveJob, entityApiName, getEntityPersistenceMeta } from "@primebrick/dal-pg";
 import { ENTITY_REGISTRY } from "./domain/entities/registry.js";
 import { servedEntityDecl } from "./db/entity-name-registry.js";
 
@@ -512,6 +512,11 @@ async function startServiceLifecycle(): Promise<void> {
     // @Retention); currentServiceCode resolves `api` from package name.
     const partitionJob = makePartitionMaintenanceJob(ENTITY_REGISTRY);
     if (partitionJob.needed) await mountPartitionMaintenanceJob(partitionJob);
+    // Sequence-revive twin — the api schema owns the builtin sequences
+    // table; JH coordinates the schedule, the api service hosts the
+    // executor (the algorithm lives once in dal-pg).
+    const reviveJob = makeSequenceReviveJob();
+    if (reviveJob.needed) await mountSequenceReviveJob(reviveJob);
     staleJob.start();
   } catch (err) {
     logger.warn(
