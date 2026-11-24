@@ -10,7 +10,10 @@
 
 import { randomBytes, createHmac } from "node:crypto";
 
-import { Project, field, Filter, type Repository } from "@primebrick/dal-pg";
+import { Project, field, Filter, type Repository, 
+  DAL_NOW,
+  type DalNow,
+} from "@primebrick/dal-pg";
 import { clientKeyHash, deriveClientKey } from "@primebrick/sdk";
 
 import {getDal} from "../../db/dal-gateway.js";
@@ -174,7 +177,7 @@ export class ClientShieldRegistryService {
             ? {
                 previous_key_hash: existing.client_key_hash,
                 previous_valid_until: new Date(now.getTime() + ROTATION_GRACE_MS),
-                key_rotated_at: now,
+                key_rotated_at: DAL_NOW,
               }
             : {}),
           version,
@@ -349,7 +352,7 @@ export class ClientShieldRegistryService {
           previous_key_hash: row.client_key_hash,
           previous_valid_until: new Date(now.getTime() + ROTATION_GRACE_MS),
           key_generation: generation,
-          key_rotated_at: now,
+          key_rotated_at: DAL_NOW,
           version: row.version,
         } as Record<string, unknown> & { version: number },
         tx,

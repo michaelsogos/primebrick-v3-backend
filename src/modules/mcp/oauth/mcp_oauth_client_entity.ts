@@ -43,7 +43,7 @@ export class McpOauthClientEntity extends Auditable(EntityBase) {
   scope?: string;
 
   /** DB-fills with `now()` on registration insert when not passed. */
-  @Column({ nullable: true, jsType: "instant", defaultSql: "now()" })
+  @Column({ nullable: true, jsType: "instant", defaultSql: "clock_timestamp()" })
   client_id_issued_at?: Date;
 
   @Column({ nullable: true, jsType: "instant" })

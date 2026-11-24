@@ -14,7 +14,7 @@ vi.mock("@primebrick/sdk", async (importOriginal) => {
 // Mock @primebrick/dal-pg — preserve decorators via importOriginal, mock Repository
 // `svc` composes entityService over the dal — wire it against the same stub
 // repo; audit port is silenced (fire-and-forget writes are not under test).
-import { makeEntityService } from "@primebrick/dal-pg";
+import { makeEntityService, DAL_NOW } from "@primebrick/dal-pg";
 const mockRepo = {
   add: vi.fn(async (...args: any[]) => args[1]),
   find: vi.fn(),
@@ -267,9 +267,8 @@ describe("WebauthnService — user_passkeys ops", () => {
     it("should bump last_used_at for an existing credential", async () => {
       const row = makePasskeyRow({ credential_id: "cred-abc", version: 1 });
       mockRepo.find.mockResolvedValue(row);
-      const when = new Date("2026-07-25T12:00:00Z");
 
-      await (svc as any).updatePasskeyLastUsed("cred-abc", when);
+      await (svc as any).updatePasskeyLastUsed("cred-abc");
 
       expect(mockRepo.find).toHaveBeenCalledTimes(1);
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
@@ -277,7 +276,7 @@ describe("WebauthnService — user_passkeys ops", () => {
       // svc.update matches by uuid — the row was resolved by credential_id
       // first, so the uuid match is strictly equivalent.
       expect(data.uuid).toBe(row.uuid);
-      expect(data.last_used_at).toBe(when);
+      expect(data.last_used_at).toBe(DAL_NOW);
       // version is required for optimistic locking (auditable entity)
       expect(data.version).toBe(1);
       // updated_by is NOT set in the body — the `{ actor }` option writes it

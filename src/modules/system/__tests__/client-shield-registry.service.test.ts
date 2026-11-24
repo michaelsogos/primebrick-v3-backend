@@ -9,6 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { clientKeyHash, deriveClientKey } from "@primebrick/sdk";
+import { DAL_NOW } from "@primebrick/dal-pg";
 
 const mocks = vi.hoisted(() => ({
   dal: {
@@ -120,7 +121,7 @@ describe("enrollRegistryRow — generation semantics", () => {
     expect(patch.previous_key_hash).toBe(derivedHash(3));
     expect(patch.key_generation).toBe(4);
     expect(patch.previous_valid_until).toBeInstanceOf(Date);
-    expect(patch.key_rotated_at).toBeInstanceOf(Date);
+    expect(patch.key_rotated_at).toBe(DAL_NOW);
   });
 
   it("upgrades a static row to derived on first derived claim", async () => {

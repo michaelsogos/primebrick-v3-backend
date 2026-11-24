@@ -27,6 +27,7 @@ import { getAuthConfig } from "../config.js";
 import { UserService } from "./user.service.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { requireActor } from "@primebrick/sdk";
+import { DAL_NOW } from "@primebrick/dal-pg";
 import {
   ApiError,
   NotFoundError,
@@ -391,7 +392,6 @@ export class AuthSessionService {
     }
 
     // Sync to Casdoor first (non-best-effort: fail if sync fails).
-    const syncTimestamp = new Date();
     const cdClient = await this.casdoor.getClient();
     if (cdClient) {
       let svgDataUri: string | undefined;
@@ -436,7 +436,7 @@ export class AuthSessionService {
       }
     }
 
-    updateBody.last_synced_at = syncTimestamp;
+    updateBody.last_synced_at = DAL_NOW;
     await this.users.updateProfileInternal(userUuid, updateBody as any);
 
     const updated = await this.users.getByUuid(userUuid);

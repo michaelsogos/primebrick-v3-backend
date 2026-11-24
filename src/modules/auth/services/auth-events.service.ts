@@ -109,7 +109,6 @@ export class AuthEventsService extends DomainService<AuthEventDto> {
       user_profile_uuid: user_profile_uuid ?? null,
       attempted_username: attempted_username ?? null,
       event_type,
-      event_at: new Date(),
       ip_address: request_ctx?.ip_address ?? null,
       user_agent: request_ctx?.user_agent ?? null,
       success,

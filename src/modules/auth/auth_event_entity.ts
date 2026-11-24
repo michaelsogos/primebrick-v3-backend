@@ -46,7 +46,7 @@ export class AuthEventEntity {
   event_type: string;
 
   /** When the event occurred. */
-  @Column({ nullable: false, jsType: "instant" })
+  @Column({ nullable: false, jsType: "instant", defaultSql: "clock_timestamp()" })
   event_at: Date;
 
   /** Client IP address. */

@@ -12,6 +12,7 @@
  */
 
 import { logger } from "@primebrick/sdk";
+import { DAL_NOW } from "@primebrick/dal-pg";
 import { OWNED_SCHEMAS } from "../../db/owned-schemas.js";
 import { NatsClient, SERVICE_SUBJECTS, CLIENT_SHIELD_REGISTRY_SUBJECTS, makeNatsRequestRoute, setNatsShieldRegistry, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
 import { createPublisherVerifier } from "./publisher-identity.js";
@@ -325,7 +326,6 @@ export class ServiceLifecycleSubscriber {
   private async handleRegister(payload: ServiceRegisterPayload): Promise<{ registered: boolean; error?: string; key_generation?: number }> {
     const { code, base_url, is_behind_scaler } = payload;
     const status = this.deriveStatus(payload.http_healthy, payload.nats_connected, payload.checks);
-    const now = new Date();
     const ref = this.serviceRef(payload, code);
     logger.info(`The service ${ref} is registering`, { tags: ["nats", base_url] });
 
@@ -403,7 +403,7 @@ export class ServiceLifecycleSubscriber {
       icon_type: payload.icon_type,
       label_key: payload.label_key,
       status,
-      last_health_check_at: now,
+      last_health_check_at: DAL_NOW,
     };
 
     if (is_behind_scaler) {
@@ -512,7 +512,6 @@ export class ServiceLifecycleSubscriber {
   private async handleHeartbeat(payload: ServiceHeartbeatPayload): Promise<void> {
     const { code, base_url, is_behind_scaler } = payload;
     const status = this.deriveStatus(payload.http_healthy, payload.nats_connected, payload.checks);
-    const now = new Date();
 
     // If the service transitioned to online, discover and register its MCP entities.
     if (status === "online" && !this.registeredServices.has(code)) {
@@ -527,7 +526,7 @@ export class ServiceLifecycleSubscriber {
           service_version: payload.service_version,
           pkg_name: payload.pkg_name,
           status,
-          last_health_check_at: now,
+          last_health_check_at: DAL_NOW,
         });
         this.logStatusChange(this.serviceRef(payload, code), base_url, oldStatus, status);
         const updated = await this.repo.findByCode(code);
@@ -543,7 +542,7 @@ export class ServiceLifecycleSubscriber {
           service_version: payload.service_version,
           pkg_name: payload.pkg_name,
           status,
-          last_health_check_at: now,
+          last_health_check_at: DAL_NOW,
         });
         this.logStatusChange(this.serviceRef(payload, code), base_url, oldStatus, status);
         const updated = await this.repo.findByCodeAndBaseUrl(code, base_url);
@@ -567,7 +566,6 @@ export class ServiceLifecycleSubscriber {
 
   private async handleUnregister(payload: ServiceUnregisterPayload): Promise<void> {
     const { code, base_url, is_behind_scaler } = payload;
-    const now = new Date();
 
     // Unregister MCP entities for this service
     if (this.registeredServices.has(code)) {
@@ -581,13 +579,13 @@ export class ServiceLifecycleSubscriber {
     if (is_behind_scaler) {
       await this.repo.updateByCode(code, {
         status: "offline",
-        last_health_check_at: now,
+        last_health_check_at: DAL_NOW,
         schemas: [],
       });
     } else {
       await this.repo.updateByCodeAndBaseUrl(code, base_url, {
         status: "offline",
-        last_health_check_at: now,
+        last_health_check_at: DAL_NOW,
         schemas: [],
       });
     }

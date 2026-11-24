@@ -45,7 +45,10 @@ import { InvitationService } from "./invitation.service.js";
 import { getUserService } from "./user.service.js";
 import { DomainService } from "../../../db/domain-service.js";
 import { UserPasskeyEntity } from "../user_passkey_entity.js";
-import { field, Filter } from "@primebrick/dal-pg";
+import { field, Filter, 
+  DAL_NOW,
+  type DalNow,
+} from "@primebrick/dal-pg";
 import { sendEmail } from "./email-sender.js";
 import { requireActor, runAsSystem } from "@primebrick/sdk";
 import { parseUserAgent, truncateUserAgent } from "../utils/ua-parser.js";
@@ -336,13 +339,13 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
    * credential was last used. Best-effort: callers should catch errors
    * and log them without failing the signin.
    */
-  private async updatePasskeyLastUsed(credentialId: string, when: Date): Promise<void> {
+  private async updatePasskeyLastUsed(credentialId: string): Promise<void> {
     const existing = await this.findPasskeyByCredentialId(credentialId);
     if (!existing) return;
     // Match by uuid — the row was just read by credential_id, so the uuid
     // match is strictly equivalent (and the only match svc performs).
     await this.svc.update(existing.uuid, {
-      last_used_at: when,
+      last_used_at: DAL_NOW,
       // Required for optimistic locking — the `version` guard still applies;
       // a concurrent write in between rejects with ERR02 — acceptable for a
       // best-effort last_used_at bump.
@@ -611,7 +614,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
           const allPks = await this.findPasskeysByUserProfileUuid(profile.uuid);
           debugLog(`all PG passkeys for profile ${profile.uuid}: ${extJsonStringify(allPks.map(p => ({ uuid: p.uuid, cred: p.credential_id, last_used: p.last_used_at })))}`);
         }
-        await runAsSystem(() => this.updatePasskeyLastUsed(credentialId, new Date()));
+        await runAsSystem(() => this.updatePasskeyLastUsed(credentialId));
         debugLog(`updateLastUsed DONE`);
       }
     } catch (lastUsedErr) {

@@ -15,7 +15,7 @@
  */
 
 import { logger } from "@primebrick/sdk";
-import type { Repository } from "@primebrick/dal-pg";
+import { DAL_NOW, type Repository } from "@primebrick/dal-pg";
 
 import { makeEntityService, type EntityService } from "../../../http/entity-service.js";
 import { OrganizationEntity } from "../organization_entity.js";
@@ -234,7 +234,7 @@ export class OrganizationsService {
     // substitute for the caller's concurrency token).
     const updateBody: Record<string, unknown> = {
       version: input.version,
-      last_synced_at: new Date(),
+      last_synced_at: DAL_NOW,
     };
     if (display_name !== undefined) updateBody.display_name = display_name;
     if (website_url !== undefined) updateBody.website_url = website_url || undefined;

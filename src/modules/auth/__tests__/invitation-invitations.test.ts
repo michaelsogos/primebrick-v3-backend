@@ -14,7 +14,7 @@ vi.mock("@primebrick/sdk", async (importOriginal) => {
 // Mock @primebrick/dal-pg — preserve decorators via importOriginal, mock Repository
 // `svc` composes entityService over the dal — wire it against the same stub
 // repo; audit port is silenced (fire-and-forget writes are not under test).
-import { makeEntityService } from "@primebrick/dal-pg";
+import { makeEntityService, DAL_NOW } from "@primebrick/dal-pg";
 const mockRepo = {
   add: vi.fn(async (...args: any[]) => args[1]),
   find: vi.fn(),
@@ -238,33 +238,27 @@ describe("InvitationService — user_invitations ops", () => {
   describe("markOtpVerified", () => {
     it("should set otp_verified_at to current time", async () => {
       mockRepo.find.mockResolvedValue(makeInvitationRow());
-      const before = new Date();
       await (svc as any).markInvitationOtpVerified("inv-uuid");
-      const after = new Date();
 
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
       const [, data] = mockRepo.update.mock.calls[0];
       expect(data.uuid).toBe("inv-uuid");
-      expect(data.otp_verified_at).toBeInstanceOf(Date);
-      expect(data.otp_verified_at.getTime()).toBeGreaterThanOrEqual(before.getTime());
-      expect(data.otp_verified_at.getTime()).toBeLessThanOrEqual(after.getTime());
+      // DB-clock stamp — the sentinel renders clock_timestamp() in SQL.
+      expect(data.otp_verified_at).toBe(DAL_NOW);
     });
   });
 
   describe("markCompleted", () => {
     it("should set status to COMPLETED and completed_at to current time", async () => {
       mockRepo.find.mockResolvedValue(makeInvitationRow());
-      const before = new Date();
       await (svc as any).markInvitationCompleted("inv-uuid");
-      const after = new Date();
 
       expect(mockRepo.update).toHaveBeenCalledTimes(1);
       const [, data] = mockRepo.update.mock.calls[0];
       expect(data.uuid).toBe("inv-uuid");
       expect(data.status).toBe("COMPLETED");
-      expect(data.completed_at).toBeInstanceOf(Date);
-      expect(data.completed_at!.getTime()).toBeGreaterThanOrEqual(before.getTime());
-      expect(data.completed_at!.getTime()).toBeLessThanOrEqual(after.getTime());
+      // DB-clock stamp — the sentinel renders clock_timestamp() in SQL.
+      expect(data.completed_at).toBe(DAL_NOW);
     });
   });
 });

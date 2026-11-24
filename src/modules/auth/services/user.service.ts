@@ -26,6 +26,8 @@ import {
   buildAuditableJoins,
   type WithAuditableDisplayNames,
   newUuidV7,
+  DAL_NOW,
+  type DalNow,
 } from "@primebrick/dal-pg";
 
 import { DomainService } from "../../../db/domain-service.js";
@@ -63,11 +65,11 @@ export type UserProfileWriteBody = {
   idp_email_verified?: boolean;
   idp_issuer?: string;
   roles?: string[];
-  last_synced_at?: Date;
+  last_synced_at?: Date | DalNow;
   idp_code?: string;
   auth_method_enforcer_dismissed?: boolean;
   onboarding_completed?: boolean;
-  suspended_at?: Date | null;
+  suspended_at?: Date | DalNow | null;
   suspended_by?: string | null;
   version?: number;
 };
@@ -294,7 +296,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     idp_email_verified: boolean;
     idp_issuer?: string | null;
     roles?: string[] | null;
-    last_synced_at?: Date;
+    last_synced_at?: Date | DalNow;
   }): Promise<void> {
     await this.svc.create({
       uuid: data.uuid,
@@ -648,7 +650,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
       idp_email_verified,
       idp_issuer,
       roles: roles ?? null,
-      last_synced_at: new Date(),
+      last_synced_at: DAL_NOW,
     });
 
     const profile = await this.getByUuid(newUuid);
@@ -760,7 +762,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     }
 
     const updated = await this.updateProfile(uuid, {
-      suspended_at: new Date(),
+      suspended_at: DAL_NOW,
       suspended_by: requireActor(),
       version,
     });
@@ -906,7 +908,6 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     }
 
     const cdClient = await this.casdoor.getClient();
-    const syncTimestamp = new Date();
     if (cdClient) {
       let svgDataUri: string | undefined;
       if (body.avatar_color && body.avatar_initials) {
@@ -945,7 +946,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     }
 
     // Caller-observed version forwarded as-is — the DAL enforces ERR02/ERR01.
-    const updateBody: Record<string, unknown> = { last_synced_at: syncTimestamp, version: body.version };
+    const updateBody: Record<string, unknown> = { last_synced_at: DAL_NOW, version: body.version };
     if (body.display_name !== undefined) updateBody.display_name = body.display_name;
     if (body.email !== undefined) updateBody.email = body.email || undefined;
     if (body.avatar_color !== undefined) updateBody.avatar_color = body.avatar_color;

@@ -9,7 +9,7 @@
  * domain rules, not in per-caller wrappers.
  */
 
-import { Project, field, Filter } from "@primebrick/dal-pg";
+import { Project, field, Filter, type DalNow } from "@primebrick/dal-pg";
 import { extJsonStringify } from "@primebrick/sdk";
 
 import {getDal} from "../../db/dal-gateway.js";
@@ -32,6 +32,7 @@ export interface ServiceRegistryEntry {
   is_behind_scaler: boolean;
   status: string;
   last_health_check_at?: Date;
+
   created_at?: Date;
   is_enabled: boolean;
   icon?: string;
@@ -45,6 +46,12 @@ export interface ServiceRegistryEntry {
   version?: number;
   deleted_at?: Date | null;
 }
+
+/** Write-side shape: `last_health_check_at` also accepts the `DAL_NOW`
+ *  sentinel (DB-clock stamp) — read rows always carry a real `Date`. */
+export type ServiceRegistryEntryWrite = Omit<ServiceRegistryEntry, "last_health_check_at"> & {
+  last_health_check_at?: Date | DalNow;
+};
 
 const FULL_PROJECTION = [
   Project.field(field(ServiceRegistryEntity, "code" as any)),
@@ -131,7 +138,7 @@ export class ServiceRegistryService {
     return rows as ServiceRegistryEntry[];
   }
 
-  async insert(row: Partial<ServiceRegistryEntry>): Promise<void> {
+  async insert(row: Partial<ServiceRegistryEntryWrite>): Promise<void> {
     await getDal().add(ServiceRegistryEntity, row as any, { actor: "system" });
   }
 
@@ -148,7 +155,7 @@ export class ServiceRegistryService {
     identity: { name: string; version?: string },
     endpoints?: Record<string, unknown>,
   ): Promise<"enrolled" | "updated" | "ok"> {
-    const wanted: Partial<ServiceRegistryEntry> = {
+    const wanted: Partial<ServiceRegistryEntryWrite> = {
       code: "api",
       // No base_url — the BE is the host process serving this registry;
       // proxied modules carry one, platform rows (`settings`) stay empty.
@@ -196,7 +203,7 @@ export class ServiceRegistryService {
     return "ok";
   }
 
-  async updateByCode(code: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
+  async updateByCode(code: string, row: Partial<ServiceRegistryEntryWrite>): Promise<void> {
     const existing = await this.findByCode(code);
     if (!existing) return;
     // `code` is not a @Unique/@Key column — the DAL write selector must
@@ -211,7 +218,7 @@ export class ServiceRegistryService {
     );
   }
 
-  async updateByCodeAndBaseUrl(code: string, baseUrl: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
+  async updateByCodeAndBaseUrl(code: string, baseUrl: string, row: Partial<ServiceRegistryEntryWrite>): Promise<void> {
     // DAL update matches by a single column. Find the row first to get its
     // UUID, then update by UUID — composite key lookup without raw SQL.
     const existing = await this.findByCodeAndBaseUrl(code, baseUrl);
@@ -375,7 +382,7 @@ export class ServiceRegistryService {
     }
   }
 
-  async updateByCodeAdmin(code: string, row: Partial<ServiceRegistryEntry>): Promise<void> {
+  async updateByCodeAdmin(code: string, row: Partial<ServiceRegistryEntryWrite>): Promise<void> {
     const existing = await this.findByCode(code);
     if (!existing) return;
     // `code` LAST — admin rows never carry identity; even if one slips
