@@ -1,7 +1,7 @@
 {
   "version": 1,
   "key_id": "dev-micha-3",
-  "issued_at": "2026-11-24T14:45:46.998Z",
+  "issued_at": "2026-11-24T16:19:15.827Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -45,6 +45,7 @@
     "20261116120000_entity_owner_unreachable_i18n": "cb9e3ba5a41f020f1a966919045415caf17b5fd1034cb09a6d5d9e51c49f8013",
     "20261117193000_version_history_disabled_i18n": "5da70f4e34afecc1fe30f52654df290e8a159f491c7bd399491ae5f6ec39235f",
     "20261124144443_create_public_sequences_public_sequence_counters": "8ddacd297338cd0a8bfef4d2b8a61648b094924cfe14c7f5bde7f156cd25e69a",
+    "20261124161755_noop": "e1a29a0504e50e1ff22486ef3bc0fde07da5bf56a53abc6c9dcde94a838dabc6",
     "20261207000000_api_gateway_module_name_i18n": "1439a10af6ef3c3d68c7304439ffc1b1f73bcd6e656adba496de9ab182fc614f",
     "20261207110000_gateway_public_secret_i18n": "ef8d5ac83ba6a85308de8d66428c90cd3a4a95dab81c7959fa03e527038d5e4f",
     "20261207210000_i18n_segregation_app_chrome": "f875971c77d6e0e9d4e3fcb8b5c4fc22bc0d1ee977ac0d87df8b8f869dccef3f",
@@ -82,5 +83,5 @@
     "20261231220000_i18n_purge_deleted_translations": "e7e4561a3969fab6ea12562893dc3231a89bb832d47cea7cb191aef1e8b1b705",
     "20261231230000_i18n_translation_key_labels": "a8e4bff93e91a2f654d37660dbb89a79caecd7060f2f9e2b307fbc99ce43a6de"
   },
-  "signature": "JlY5tvFWDuT4sX4B+5A4BoQi1McxJwvYB9Mf8z3o1kfew8LRf9ZS8bqim17xSZ71lrBHI/fljTDmj8SrtnmgBg=="
+  "signature": "nU+OnCDQfasawaFdW89qbBAiW/Y0vxmKo1Kuuo6x3o9VTsbDnm8GdX2NgdkuRrOoqcCCiO73MY54QL+4C/wmBA=="
 }

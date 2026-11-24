@@ -123,6 +123,23 @@ Bulk ops (`updateMany`/`deleteMany`) currently emit no per-row audit rows —
 do not fake them with `audit:` (the option is ignored); if a bulk path needs
 audit, extend the library first.
 
+## Unique constraints (declared, never hand-made)
+
+Every unique index lives in the entity class — a DB-only unique index is
+drift (WARN) and never dropped automatically:
+
+- **bare `@Unique()`** on a column → single-col index `<table>_<col>_uq`.
+- **`@UniqueIndex({name, where?, aliveOnly?, nullsNotDistinct?})`** at
+  class level + `@Unique(name, order)` on each member column — required
+  for composite indexes, partial predicates (`where`), and every opt-out
+  (`aliveOnly: false`). Options live ONLY on the class decl.
+- **`aliveOnly` default is ON for `Deletable` entities** — uniques emit
+  `WHERE deleted_at IS NULL` so tombstones never block re-creation.
+- One column may join N indexes — canonical example
+  `service_registry.code` (solo-unique among scaler rows, pair-unique
+  with `base_url` among direct rows, both `aliveOnly`). Full contract:
+  `primebrick-dal-v3` dev-guide `entities.mdx` (`@Unique`/`@UniqueIndex`).
+
 ## Audit vs events (do NOT conflate)
 
 - **Audit trail** — the persistent `{table}_audit` row written by dal-pg's

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-24T14:44:42.914Z",
+  "generatedAt": "2026-11-24T16:17:54.950Z",
   "source": "entities",
   "tables": {
     "public.auth_events": {
@@ -309,7 +309,8 @@
             "key"
           ],
           "using": "btree",
-          "isUnique": true
+          "isUnique": true,
+          "where": "deleted_at IS NULL"
         }
       ]
     },
@@ -667,7 +668,8 @@
             "idp_code"
           ],
           "using": "btree",
-          "isUnique": true
+          "isUnique": true,
+          "where": "deleted_at IS NULL"
         }
       ]
     },
@@ -1825,7 +1827,8 @@
             "idp_code"
           ],
           "using": "btree",
-          "isUnique": true
+          "isUnique": true,
+          "where": "deleted_at IS NULL"
         }
       ]
     },
@@ -2286,7 +2289,7 @@
           "dataType": "varchar(100)",
           "typname": "varchar(100)",
           "isPrimaryKey": false,
-          "isUnique": false,
+          "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "code",
           "isNullable": false
@@ -2297,7 +2300,7 @@
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
-          "isUnique": false,
+          "isUnique": true,
           "isPostgresIdentity": false,
           "propertyKey": "base_url",
           "isNullable": false
@@ -2519,7 +2522,28 @@
           "isNullable": false,
           "defaultSql": "false"
         }
-      }
+      },
+      "indexes": [
+        {
+          "name": "service_registry_code_base_url_uq",
+          "columns": [
+            "code",
+            "base_url"
+          ],
+          "using": "btree",
+          "isUnique": true,
+          "where": "(is_behind_scaler = false) AND (deleted_at IS NULL)"
+        },
+        {
+          "name": "service_registry_code_uq_scaler",
+          "columns": [
+            "code"
+          ],
+          "using": "btree",
+          "isUnique": true,
+          "where": "(is_behind_scaler = true) AND (deleted_at IS NULL)"
+        }
+      ]
     },
     "system.client_shield_registry": {
       "kind": "table",
@@ -2727,12 +2751,13 @@
       },
       "indexes": [
         {
-          "name": "client_shield_registry_ua_prefix_uq",
+          "name": "client_shield_registry_ua_prefix_uidx",
           "columns": [
             "ua_prefix"
           ],
           "using": "btree",
-          "isUnique": true
+          "isUnique": true,
+          "where": "deleted_at IS NULL"
         }
       ]
     },

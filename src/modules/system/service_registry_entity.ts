@@ -5,6 +5,7 @@ import {
   Entity,
   Key,
   Unique,
+  UniqueIndex,
   EntityBase,
   Auditable,
   Deletable,
@@ -21,15 +22,28 @@ import {
  * liveness) and are intentionally NOT conflated with deletion.
  */
 @Entity("service_registry")
+@UniqueIndex({ name: "service_registry_code_uq_scaler", where: "is_behind_scaler = true" })
+@UniqueIndex({ name: "service_registry_code_base_url_uq", where: "is_behind_scaler = false" })
 export class ServiceRegistryEntity
   extends Deletable(Auditable(EntityBase)) {
   @Key()
   @Column({ pgType: "uuid" })
   uuid!: UUID;
 
+  /**
+   * Unique-per-partition: `code` alone is unique among scaler-fronted rows
+   * (`is_behind_scaler = true` — the scaler owns one public code per service),
+   * while the pair (`code`, `base_url`) is unique among direct rows
+   * (`is_behind_scaler = false` — same code may run N direct instances on
+   * distinct base_urls). `aliveOnly` (default on Deletable) scopes both to
+   * live rows — tombstones never block re-registration.
+   */
+  @Unique("service_registry_code_uq_scaler", 0)
+  @Unique("service_registry_code_base_url_uq", 0)
   @Column({ length: 100, nullable: false })
   code: string;
 
+  @Unique("service_registry_code_base_url_uq", 1)
   @Column({ nullable: false })
   base_url: string;
 

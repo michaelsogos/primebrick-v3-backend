@@ -1,92 +1,33 @@
 {
   "version": 2,
-  "generatedAt": "2026-11-24T14:44:43.033Z",
-  "onlyInEntityTables": [
-    "public.sequences",
-    "public.sequence_counters"
-  ],
+  "generatedAt": "2026-11-24T16:17:55.111Z",
+  "onlyInEntityTables": [],
   "onlyInDatabaseTables": [],
   "tables": {
-    "public.auth_events": {
-      "onlyInEntityColumns": [],
-      "onlyInDatabaseColumns": [],
-      "likelyRenames": [],
-      "typeMismatches": [],
-      "nullabilityMismatches": [],
-      "defaultMismatches": [
-        {
-          "column": "event_at",
-          "entityDefault": null,
-          "databaseDefault": "now()"
-        }
-      ],
-      "onlyInEntityIndexes": [],
-      "onlyInDatabaseIndexes": [
-        "auth_events_user_profile_uuid_event_at_idx",
-        "auth_events_event_type_event_at_idx",
-        "auth_events_attempted_username_event_at_idx"
-      ],
-      "indexMismatches": [],
-      "onlyInEntityForeignKeys": [],
-      "onlyInDatabaseForeignKeys": [],
-      "foreignKeyMismatches": []
-    },
     "public.config_entries": {
       "onlyInEntityColumns": [],
       "onlyInDatabaseColumns": [],
       "likelyRenames": [],
       "typeMismatches": [],
       "nullabilityMismatches": [],
-      "defaultMismatches": [
-        {
-          "column": "created_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "updated_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "type",
-          "entityDefault": null,
-          "databaseDefault": "'string'"
-        }
-      ],
+      "defaultMismatches": [],
       "onlyInEntityIndexes": [],
       "onlyInDatabaseIndexes": [
         "config_entries_deleted_at_idx"
       ],
-      "indexMismatches": [],
-      "onlyInEntityForeignKeys": [],
-      "onlyInDatabaseForeignKeys": [],
-      "foreignKeyMismatches": []
-    },
-    "public.mfa_action_authorizations": {
-      "onlyInEntityColumns": [],
-      "onlyInDatabaseColumns": [],
-      "likelyRenames": [],
-      "typeMismatches": [],
-      "nullabilityMismatches": [],
-      "defaultMismatches": [
+      "indexMismatches": [
         {
-          "column": "created_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "updated_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
+          "name": "config_entries_key_uq",
+          "entityUsing": "btree",
+          "databaseUsing": "btree",
+          "entityColumns": [
+            "key"
+          ],
+          "databaseColumns": [
+            "key"
+          ]
         }
       ],
-      "onlyInEntityIndexes": [],
-      "onlyInDatabaseIndexes": [
-        "mfa_action_authorizations_expires_at_idx",
-        "mfa_action_authorizations_user_profile_uuid_idx"
-      ],
-      "indexMismatches": [],
       "onlyInEntityForeignKeys": [],
       "onlyInDatabaseForeignKeys": [],
       "foreignKeyMismatches": []
@@ -97,173 +38,22 @@
       "likelyRenames": [],
       "typeMismatches": [],
       "nullabilityMismatches": [],
-      "defaultMismatches": [
-        {
-          "column": "created_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "updated_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        }
-      ],
+      "defaultMismatches": [],
       "onlyInEntityIndexes": [],
       "onlyInDatabaseIndexes": [],
-      "indexMismatches": [],
-      "onlyInEntityForeignKeys": [],
-      "onlyInDatabaseForeignKeys": [],
-      "foreignKeyMismatches": []
-    },
-    "public.role_mappings": {
-      "onlyInEntityColumns": [],
-      "onlyInDatabaseColumns": [],
-      "likelyRenames": [],
-      "typeMismatches": [],
-      "nullabilityMismatches": [],
-      "defaultMismatches": [
+      "indexMismatches": [
         {
-          "column": "created_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "updated_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "is_admin",
-          "entityDefault": null,
-          "databaseDefault": "false"
+          "name": "organizations_idp_code_uq",
+          "entityUsing": "btree",
+          "databaseUsing": "btree",
+          "entityColumns": [
+            "idp_code"
+          ],
+          "databaseColumns": [
+            "idp_code"
+          ]
         }
       ],
-      "onlyInEntityIndexes": [],
-      "onlyInDatabaseIndexes": [],
-      "indexMismatches": [],
-      "onlyInEntityForeignKeys": [],
-      "onlyInDatabaseForeignKeys": [],
-      "foreignKeyMismatches": []
-    },
-    "public.user_invitations": {
-      "onlyInEntityColumns": [],
-      "onlyInDatabaseColumns": [],
-      "likelyRenames": [],
-      "typeMismatches": [],
-      "nullabilityMismatches": [],
-      "defaultMismatches": [
-        {
-          "column": "created_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "updated_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "status",
-          "entityDefault": null,
-          "databaseDefault": "'PENDING'"
-        }
-      ],
-      "onlyInEntityIndexes": [],
-      "onlyInDatabaseIndexes": [
-        "user_invitations_status_idx",
-        "user_invitations_user_profile_uuid_idx"
-      ],
-      "indexMismatches": [],
-      "onlyInEntityForeignKeys": [],
-      "onlyInDatabaseForeignKeys": [],
-      "foreignKeyMismatches": []
-    },
-    "public.user_mfa_factors": {
-      "onlyInEntityColumns": [],
-      "onlyInDatabaseColumns": [],
-      "likelyRenames": [],
-      "typeMismatches": [],
-      "nullabilityMismatches": [],
-      "defaultMismatches": [
-        {
-          "column": "created_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "updated_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "is_enabled",
-          "entityDefault": null,
-          "databaseDefault": "true"
-        },
-        {
-          "column": "is_preferred",
-          "entityDefault": null,
-          "databaseDefault": "false"
-        }
-      ],
-      "onlyInEntityIndexes": [],
-      "onlyInDatabaseIndexes": [
-        "user_mfa_factors_user_profile_uuid_idx"
-      ],
-      "indexMismatches": [],
-      "onlyInEntityForeignKeys": [],
-      "onlyInDatabaseForeignKeys": [],
-      "foreignKeyMismatches": []
-    },
-    "public.user_passkeys": {
-      "onlyInEntityColumns": [],
-      "onlyInDatabaseColumns": [],
-      "likelyRenames": [],
-      "typeMismatches": [],
-      "nullabilityMismatches": [],
-      "defaultMismatches": [
-        {
-          "column": "created_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "updated_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        }
-      ],
-      "onlyInEntityIndexes": [],
-      "onlyInDatabaseIndexes": [
-        "user_passkeys_user_profile_uuid_idx"
-      ],
-      "indexMismatches": [],
-      "onlyInEntityForeignKeys": [],
-      "onlyInDatabaseForeignKeys": [],
-      "foreignKeyMismatches": []
-    },
-    "public.user_preferences": {
-      "onlyInEntityColumns": [],
-      "onlyInDatabaseColumns": [],
-      "likelyRenames": [],
-      "typeMismatches": [],
-      "nullabilityMismatches": [],
-      "defaultMismatches": [
-        {
-          "column": "created_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "updated_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        }
-      ],
-      "onlyInEntityIndexes": [],
-      "onlyInDatabaseIndexes": [],
-      "indexMismatches": [],
       "onlyInEntityForeignKeys": [],
       "onlyInDatabaseForeignKeys": [],
       "foreignKeyMismatches": []
@@ -274,150 +64,22 @@
       "likelyRenames": [],
       "typeMismatches": [],
       "nullabilityMismatches": [],
-      "defaultMismatches": [
-        {
-          "column": "created_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "updated_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        }
-      ],
+      "defaultMismatches": [],
       "onlyInEntityIndexes": [],
       "onlyInDatabaseIndexes": [],
-      "indexMismatches": [],
-      "onlyInEntityForeignKeys": [],
-      "onlyInDatabaseForeignKeys": [],
-      "foreignKeyMismatches": []
-    },
-    "public.api_keys": {
-      "onlyInEntityColumns": [],
-      "onlyInDatabaseColumns": [],
-      "likelyRenames": [],
-      "typeMismatches": [],
-      "nullabilityMismatches": [],
-      "defaultMismatches": [
+      "indexMismatches": [
         {
-          "column": "created_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "updated_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "permissions",
-          "entityDefault": null,
-          "databaseDefault": "'[]'"
-        },
-        {
-          "column": "is_system",
-          "entityDefault": null,
-          "databaseDefault": "false"
-        },
-        {
-          "column": "is_active",
-          "entityDefault": null,
-          "databaseDefault": "true"
+          "name": "user_profiles_idp_code_uq",
+          "entityUsing": "btree",
+          "databaseUsing": "btree",
+          "entityColumns": [
+            "idp_code"
+          ],
+          "databaseColumns": [
+            "idp_code"
+          ]
         }
       ],
-      "onlyInEntityIndexes": [],
-      "onlyInDatabaseIndexes": [],
-      "indexMismatches": [],
-      "onlyInEntityForeignKeys": [],
-      "onlyInDatabaseForeignKeys": [],
-      "foreignKeyMismatches": []
-    },
-    "public.mcp_oauth_clients": {
-      "onlyInEntityColumns": [],
-      "onlyInDatabaseColumns": [],
-      "likelyRenames": [],
-      "typeMismatches": [],
-      "nullabilityMismatches": [],
-      "defaultMismatches": [
-        {
-          "column": "redirect_uris",
-          "entityDefault": null,
-          "databaseDefault": "'[]'"
-        },
-        {
-          "column": "grant_types",
-          "entityDefault": null,
-          "databaseDefault": "'[\"authorization_code\", \"refresh_token\"]'"
-        },
-        {
-          "column": "response_types",
-          "entityDefault": null,
-          "databaseDefault": "'[\"code\"]'"
-        },
-        {
-          "column": "token_endpoint_auth_method",
-          "entityDefault": null,
-          "databaseDefault": "'client_secret_post'"
-        },
-        {
-          "column": "scope",
-          "entityDefault": null,
-          "databaseDefault": "'mcp:tools'"
-        },
-        {
-          "column": "client_id_issued_at",
-          "entityDefault": null,
-          "databaseDefault": "now()"
-        },
-        {
-          "column": "created_at",
-          "entityDefault": null,
-          "databaseDefault": "now()"
-        },
-        {
-          "column": "updated_at",
-          "entityDefault": null,
-          "databaseDefault": "now()"
-        },
-        {
-          "column": "version",
-          "entityDefault": null,
-          "databaseDefault": "1"
-        }
-      ],
-      "onlyInEntityIndexes": [],
-      "onlyInDatabaseIndexes": [],
-      "indexMismatches": [],
-      "onlyInEntityForeignKeys": [],
-      "onlyInDatabaseForeignKeys": [],
-      "foreignKeyMismatches": []
-    },
-    "public.service_registry": {
-      "onlyInEntityColumns": [],
-      "onlyInDatabaseColumns": [],
-      "likelyRenames": [],
-      "typeMismatches": [],
-      "nullabilityMismatches": [],
-      "defaultMismatches": [
-        {
-          "column": "created_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "updated_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        }
-      ],
-      "onlyInEntityIndexes": [],
-      "onlyInDatabaseIndexes": [
-        "service_registry_deleted_at_idx",
-        "service_registry_code_uq_scaler",
-        "service_registry_code_base_url_uq"
-      ],
-      "indexMismatches": [],
       "onlyInEntityForeignKeys": [],
       "onlyInDatabaseForeignKeys": [],
       "foreignKeyMismatches": []
@@ -428,23 +90,22 @@
       "likelyRenames": [],
       "typeMismatches": [],
       "nullabilityMismatches": [],
-      "defaultMismatches": [
+      "defaultMismatches": [],
+      "onlyInEntityIndexes": [],
+      "onlyInDatabaseIndexes": [],
+      "indexMismatches": [
         {
-          "column": "created_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
-        },
-        {
-          "column": "updated_by",
-          "entityDefault": "'system'",
-          "databaseDefault": null
+          "name": "client_shield_registry_ua_prefix_uidx",
+          "entityUsing": "btree",
+          "databaseUsing": "btree",
+          "entityColumns": [
+            "ua_prefix"
+          ],
+          "databaseColumns": [
+            "ua_prefix"
+          ]
         }
       ],
-      "onlyInEntityIndexes": [],
-      "onlyInDatabaseIndexes": [
-        "client_shield_registry_ua_prefix_uidx"
-      ],
-      "indexMismatches": [],
       "onlyInEntityForeignKeys": [],
       "onlyInDatabaseForeignKeys": [],
       "foreignKeyMismatches": []
