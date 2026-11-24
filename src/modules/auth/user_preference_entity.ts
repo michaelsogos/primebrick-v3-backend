@@ -24,6 +24,7 @@ import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
+  PublicEntity,
   Key,
   Unique,
   UniqueIndex,
@@ -32,7 +33,7 @@ import {
 } from "@primebrick/dal-pg";
 import { Cached } from "@primebrick/sdk";
 
-@Entity("user_preferences")
+@PublicEntity("user_preferences")
 @UniqueIndex({ name: "user_preferences_user_key_uidx" })
 @Cached(300_000) // 5 min TTL — mutations write through the DAL cache
 export class UserPreferenceEntity extends Auditable(EntityBase) {

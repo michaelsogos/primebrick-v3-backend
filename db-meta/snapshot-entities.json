@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-24T16:17:54.950Z",
+  "generatedAt": "2026-11-24T18:15:36.284Z",
   "source": "entities",
   "tables": {
     "public.auth_events": {
@@ -109,11 +109,49 @@
           "propertyKey": "failure_reason",
           "isNullable": true
         }
-      }
+      },
+      "indexes": [
+        {
+          "name": "auth_events_attempted_username_event_at_idx",
+          "columns": [
+            "attempted_username",
+            "event_at"
+          ],
+          "using": "btree",
+          "sort": [
+            "asc",
+            "desc"
+          ]
+        },
+        {
+          "name": "auth_events_event_type_event_at_idx",
+          "columns": [
+            "event_type",
+            "event_at"
+          ],
+          "using": "btree",
+          "sort": [
+            "asc",
+            "desc"
+          ]
+        },
+        {
+          "name": "auth_events_user_profile_uuid_event_at_idx",
+          "columns": [
+            "user_profile_uuid",
+            "event_at"
+          ],
+          "using": "btree",
+          "sort": [
+            "asc",
+            "desc"
+          ]
+        }
+      ]
     },
-    "public.config_entries": {
+    "system.config_entries": {
       "kind": "table",
-      "schema": "public",
+      "schema": "system",
       "name": "config_entries",
       "entityClassName": "ConfigEntryEntity",
       "isAuditable": true,
@@ -805,7 +843,8 @@
           "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "is_admin",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "false"
         },
         "last_synced_at": {
           "name": "last_synced_at",
@@ -1186,7 +1225,8 @@
           "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "is_preferred",
-          "isNullable": false
+          "isNullable": false,
+          "defaultSql": "false"
         },
         "last_used_at": {
           "name": "last_used_at",
@@ -1963,7 +2003,8 @@
           "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "permissions",
-          "isNullable": true
+          "isNullable": false,
+          "defaultSql": "'[]'::jsonb"
         },
         "is_system": {
           "name": "is_system",
@@ -1974,7 +2015,8 @@
           "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "is_system",
-          "isNullable": true
+          "isNullable": false,
+          "defaultSql": "false"
         },
         "is_active": {
           "name": "is_active",
@@ -1985,7 +2027,8 @@
           "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "is_active",
-          "isNullable": true
+          "isNullable": false,
+          "defaultSql": "false"
         },
         "expires_at": {
           "name": "expires_at",
@@ -2016,9 +2059,69 @@
       "name": "mcp_oauth_clients",
       "entityClassName": "McpOauthClientEntity",
       "columns": {
+        "created_at": {
+          "name": "created_at",
+          "ordinalPosition": 1,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "created_at",
+          "isNullable": false,
+          "defaultSql": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "ordinalPosition": 2,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "created_by",
+          "isNullable": false,
+          "defaultSql": "'system'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "ordinalPosition": 3,
+          "dataType": "timestamptz",
+          "typname": "timestamptz",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "updated_at",
+          "isNullable": false,
+          "defaultSql": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "ordinalPosition": 4,
+          "dataType": "text",
+          "typname": "text",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "updated_by",
+          "isNullable": false,
+          "defaultSql": "'system'"
+        },
+        "version": {
+          "name": "version",
+          "ordinalPosition": 5,
+          "dataType": "int4",
+          "typname": "int4",
+          "isPrimaryKey": false,
+          "isUnique": false,
+          "isPostgresIdentity": false,
+          "propertyKey": "version",
+          "isNullable": false,
+          "defaultSql": "1"
+        },
         "uuid": {
           "name": "uuid",
-          "ordinalPosition": 1,
+          "ordinalPosition": 6,
           "dataType": "uuid",
           "typname": "uuid",
           "isPrimaryKey": true,
@@ -2030,7 +2133,7 @@
         },
         "client_id": {
           "name": "client_id",
-          "ordinalPosition": 2,
+          "ordinalPosition": 7,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -2041,7 +2144,7 @@
         },
         "client_secret": {
           "name": "client_secret",
-          "ordinalPosition": 3,
+          "ordinalPosition": 8,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2052,7 +2155,7 @@
         },
         "client_name": {
           "name": "client_name",
-          "ordinalPosition": 4,
+          "ordinalPosition": 9,
           "dataType": "varchar(255)",
           "typname": "varchar(255)",
           "isPrimaryKey": false,
@@ -2063,7 +2166,7 @@
         },
         "redirect_uris": {
           "name": "redirect_uris",
-          "ordinalPosition": 5,
+          "ordinalPosition": 10,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -2074,7 +2177,7 @@
         },
         "grant_types": {
           "name": "grant_types",
-          "ordinalPosition": 6,
+          "ordinalPosition": 11,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -2085,7 +2188,7 @@
         },
         "response_types": {
           "name": "response_types",
-          "ordinalPosition": 7,
+          "ordinalPosition": 12,
           "dataType": "jsonb",
           "typname": "jsonb",
           "isPrimaryKey": false,
@@ -2096,7 +2199,7 @@
         },
         "token_endpoint_auth_method": {
           "name": "token_endpoint_auth_method",
-          "ordinalPosition": 8,
+          "ordinalPosition": 13,
           "dataType": "varchar(50)",
           "typname": "varchar(50)",
           "isPrimaryKey": false,
@@ -2107,7 +2210,7 @@
         },
         "scope": {
           "name": "scope",
-          "ordinalPosition": 9,
+          "ordinalPosition": 14,
           "dataType": "text",
           "typname": "text",
           "isPrimaryKey": false,
@@ -2118,18 +2221,19 @@
         },
         "client_id_issued_at": {
           "name": "client_id_issued_at",
-          "ordinalPosition": 10,
+          "ordinalPosition": 15,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
           "isUnique": false,
           "isPostgresIdentity": false,
           "propertyKey": "client_id_issued_at",
-          "isNullable": true
+          "isNullable": true,
+          "defaultSql": "now()"
         },
         "client_secret_expires_at": {
           "name": "client_secret_expires_at",
-          "ordinalPosition": 11,
+          "ordinalPosition": 16,
           "dataType": "timestamptz",
           "typname": "timestamptz",
           "isPrimaryKey": false,
@@ -2137,39 +2241,6 @@
           "isPostgresIdentity": false,
           "propertyKey": "client_secret_expires_at",
           "isNullable": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "ordinalPosition": 12,
-          "dataType": "timestamptz",
-          "typname": "timestamptz",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "created_at",
-          "isNullable": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "ordinalPosition": 13,
-          "dataType": "timestamptz",
-          "typname": "timestamptz",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "updated_at",
-          "isNullable": false
-        },
-        "version": {
-          "name": "version",
-          "ordinalPosition": 14,
-          "dataType": "int4",
-          "typname": "int4",
-          "isPrimaryKey": false,
-          "isUnique": false,
-          "isPostgresIdentity": false,
-          "propertyKey": "version",
-          "isNullable": false
         }
       },
       "indexes": [
@@ -2761,9 +2832,9 @@
         }
       ]
     },
-    "public.sequences": {
+    "system.sequences": {
       "kind": "table",
-      "schema": "public",
+      "schema": "system",
       "name": "sequences",
       "entityClassName": "SequenceEntity",
       "isAuditable": true,
@@ -3074,11 +3145,30 @@
           "propertyKey": "revived_by",
           "isNullable": true
         }
-      }
+      },
+      "indexes": [
+        {
+          "name": "sequences_binding_key_default_from_idx",
+          "columns": [
+            "binding_key",
+            "default_from"
+          ],
+          "using": "btree",
+          "where": "deleted_at IS NULL",
+          "sort": [
+            "asc",
+            "desc"
+          ],
+          "nulls": [
+            "last",
+            "last"
+          ]
+        }
+      ]
     },
-    "public.sequence_counters": {
+    "system.sequence_counters": {
       "kind": "table",
-      "schema": "public",
+      "schema": "system",
       "name": "sequence_counters",
       "entityClassName": "SequenceCounterEntity",
       "columns": {

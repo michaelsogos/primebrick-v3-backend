@@ -18,6 +18,7 @@ import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
+  PublicEntity,
   Key,
   Unique,
   AuditTrail,
@@ -27,7 +28,7 @@ import {
 
 export type InvitationStatus = "PENDING" | "OTP_SENT" | "COMPLETED" | "EXPIRED" | "REVOKED";
 
-@Entity("user_invitations")
+@PublicEntity("user_invitations")
 @AuditTrail()
 export class UserInvitationEntity
   extends Auditable(EntityBase) {

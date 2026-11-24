@@ -1,7 +1,7 @@
 import type { UUID } from "@primebrick/dal-pg";
 import { Column, Entity, Key, Unique, UniqueIndex, EntityBase, Auditable, Deletable } from "@primebrick/dal-pg";
 
-@Entity("client_shield_registry", "system")
+@Entity("client_shield_registry")
 @UniqueIndex({ name: "client_shield_registry_ua_prefix_uidx" })
 export class ClientShieldRegistryEntity extends Deletable(Auditable(EntityBase)) {
   @Key()

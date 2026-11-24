@@ -11,13 +11,14 @@ import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
+  PublicEntity,
   Key,
   Unique,
   EntityBase,
   Auditable,
 } from "@primebrick/dal-pg";
 
-@Entity("api_keys")
+@PublicEntity("api_keys")
 export class ApiKeyEntity
   extends Auditable(EntityBase) {
   @Key()
@@ -38,14 +39,14 @@ export class ApiKeyEntity
   @Column({ nullable: true })
   description?: string | null;
 
-  @Column({ pgType: "jsonb", nullable: true })
-  permissions?: string[];
+  @Column({ pgType: "jsonb", nullable: false, defaultSql: "'[]'::jsonb" })
+  permissions!: string[];
 
-  @Column({ pgType: "boolean", nullable: true })
-  is_system?: boolean;
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
+  is_system!: boolean;
 
-  @Column({ pgType: "boolean", nullable: true })
-  is_active?: boolean;
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
+  is_active!: boolean;
 
   @Column({ nullable: true, jsType: "instant" })
   expires_at?: Date | null;

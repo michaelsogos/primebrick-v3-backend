@@ -15,6 +15,7 @@ import { getPool } from "./dal-gateway.js";
 import { ENTITY_REGISTRY } from "../domain/entities/registry.js";
 import type { EntityClass } from "@primebrick/dal-pg";
 import { checkDrift, isDriftClean } from "@primebrick/dal-pg";
+import { OWNED_SCHEMAS } from "./owned-schemas.js";
 import { logger } from "@primebrick/sdk";
 
 export interface ModuleMigrationState {
@@ -33,7 +34,7 @@ export async function runModuleMigrations(): Promise<ModuleMigrationState> {
     const result = await runMigrations({
       // standards-exempt: getPool — migration engine needs the raw pool (advisory locks, DDL)
       pool: getPool(),
-      schema: "public",
+      schema: OWNED_SCHEMAS[0],
       patchesDir: join(process.cwd(), "db-meta", "patches"),
       allowedTrust:
         process.env.NODE_ENV === "production" ? ["release"] : ["dev", "release"],

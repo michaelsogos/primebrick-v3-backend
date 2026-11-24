@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-24T16:17:54.960Z",
+  "generatedAt": "2026-11-24T18:15:36.294Z",
   "source": "database",
   "capturesDefaults": true,
   "tables": {
@@ -137,6 +137,14 @@
             "attempted_username",
             "event_at"
           ],
+          "sort": [
+            "asc",
+            "desc"
+          ],
+          "nulls": [
+            "last",
+            "first"
+          ],
           "definition": "CREATE INDEX auth_events_attempted_username_event_at_idx ON public.auth_events USING btree (attempted_username, event_at DESC)"
         },
         {
@@ -146,6 +154,14 @@
           "columns": [
             "event_type",
             "event_at"
+          ],
+          "sort": [
+            "asc",
+            "desc"
+          ],
+          "nulls": [
+            "last",
+            "first"
           ],
           "definition": "CREATE INDEX auth_events_event_type_event_at_idx ON public.auth_events USING btree (event_type, event_at DESC)"
         },
@@ -157,13 +173,21 @@
             "user_profile_uuid",
             "event_at"
           ],
+          "sort": [
+            "asc",
+            "desc"
+          ],
+          "nulls": [
+            "last",
+            "first"
+          ],
           "definition": "CREATE INDEX auth_events_user_profile_uuid_event_at_idx ON public.auth_events USING btree (user_profile_uuid, event_at DESC)"
         }
       ]
     },
-    "public.config_entries": {
+    "system.config_entries": {
       "kind": "table",
-      "schema": "public",
+      "schema": "system",
       "name": "config_entries",
       "columns": {
         "uuid": {
@@ -390,16 +414,8 @@
           "columns": [
             "key"
           ],
-          "definition": "CREATE UNIQUE INDEX config_entries_key_uq ON public.config_entries USING btree (key)"
-        },
-        {
-          "name": "config_entries_deleted_at_idx",
-          "using": "btree",
-          "isUnique": false,
-          "columns": [
-            "deleted_at"
-          ],
-          "definition": "CREATE INDEX config_entries_deleted_at_idx ON public.config_entries USING btree (deleted_at)"
+          "where": "(deleted_at IS NULL)",
+          "definition": "CREATE UNIQUE INDEX config_entries_key_uq ON system.config_entries USING btree (key) WHERE (deleted_at IS NULL)"
         }
       ]
     },
@@ -829,7 +845,8 @@
           "columns": [
             "idp_code"
           ],
-          "definition": "CREATE UNIQUE INDEX organizations_idp_code_uq ON public.organizations USING btree (idp_code)"
+          "where": "(deleted_at IS NULL)",
+          "definition": "CREATE UNIQUE INDEX organizations_idp_code_uq ON public.organizations USING btree (idp_code) WHERE (deleted_at IS NULL)"
         }
       ]
     },
@@ -875,7 +892,8 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": false,
+          "defaultSql": "false"
         },
         "created_at": {
           "name": "created_at",
@@ -1346,7 +1364,8 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": false,
+          "defaultSql": "false"
         },
         "last_used_at": {
           "name": "last_used_at",
@@ -1457,18 +1476,7 @@
           "isNullable": false,
           "isPrimaryKey": false
         }
-      },
-      "indexes": [
-        {
-          "name": "user_mfa_factors_user_profile_uuid_idx",
-          "using": "btree",
-          "isUnique": false,
-          "columns": [
-            "user_profile_uuid"
-          ],
-          "definition": "CREATE INDEX user_mfa_factors_user_profile_uuid_idx ON public.user_mfa_factors USING btree (user_profile_uuid)"
-        }
-      ]
+      }
     },
     "public.user_passkeys": {
       "kind": "table",
@@ -2203,7 +2211,8 @@
           "columns": [
             "idp_code"
           ],
-          "definition": "CREATE UNIQUE INDEX user_profiles_idp_code_uq ON public.user_profiles USING btree (idp_code)"
+          "where": "(deleted_at IS NULL)",
+          "definition": "CREATE UNIQUE INDEX user_profiles_idp_code_uq ON public.user_profiles USING btree (idp_code) WHERE (deleted_at IS NULL)"
         }
       ]
     },
@@ -2288,8 +2297,9 @@
           "formatType": "jsonb",
           "numericPrecision": null,
           "numericScale": null,
-          "isNullable": true,
-          "isPrimaryKey": false
+          "isNullable": false,
+          "isPrimaryKey": false,
+          "defaultSql": "'[]'::jsonb"
         },
         "is_system": {
           "name": "is_system",
@@ -2301,8 +2311,9 @@
           "formatType": "boolean",
           "numericPrecision": null,
           "numericScale": null,
-          "isNullable": true,
-          "isPrimaryKey": false
+          "isNullable": false,
+          "isPrimaryKey": false,
+          "defaultSql": "false"
         },
         "is_active": {
           "name": "is_active",
@@ -2314,8 +2325,9 @@
           "formatType": "boolean",
           "numericPrecision": null,
           "numericScale": null,
-          "isNullable": true,
-          "isPrimaryKey": false
+          "isNullable": false,
+          "isPrimaryKey": false,
+          "defaultSql": "false"
         },
         "expires_at": {
           "name": "expires_at",
@@ -2547,7 +2559,8 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": true,
-          "isPrimaryKey": false
+          "isPrimaryKey": false,
+          "defaultSql": "now()"
         },
         "client_secret_expires_at": {
           "name": "client_secret_expires_at",
@@ -2573,7 +2586,8 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": false,
+          "defaultSql": "now()"
         },
         "updated_at": {
           "name": "updated_at",
@@ -2586,7 +2600,8 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": false,
+          "defaultSql": "now()"
         },
         "version": {
           "name": "version",
@@ -2599,7 +2614,36 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": false,
+          "defaultSql": "1"
+        },
+        "created_by": {
+          "name": "created_by",
+          "ordinalPosition": 16,
+          "dataType": "text",
+          "typname": "text",
+          "typeOid": 25,
+          "typcategory": "S",
+          "formatType": "text",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false,
+          "defaultSql": "'system'::text"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "ordinalPosition": 17,
+          "dataType": "text",
+          "typname": "text",
+          "typeOid": 25,
+          "typcategory": "S",
+          "formatType": "text",
+          "numericPrecision": null,
+          "numericScale": null,
+          "isNullable": false,
+          "isPrimaryKey": false,
+          "defaultSql": "'system'::text"
         }
       },
       "indexes": [
@@ -3032,15 +3076,6 @@
           ],
           "where": "((is_behind_scaler = false) AND (deleted_at IS NULL))",
           "definition": "CREATE UNIQUE INDEX service_registry_code_base_url_uq ON public.service_registry USING btree (code, base_url) WHERE ((is_behind_scaler = false) AND (deleted_at IS NULL))"
-        },
-        {
-          "name": "service_registry_deleted_at_idx",
-          "using": "btree",
-          "isUnique": false,
-          "columns": [
-            "deleted_at"
-          ],
-          "definition": "CREATE INDEX service_registry_deleted_at_idx ON public.service_registry USING btree (deleted_at)"
         }
       ]
     },
@@ -3289,13 +3324,14 @@
           "columns": [
             "ua_prefix"
           ],
-          "definition": "CREATE UNIQUE INDEX client_shield_registry_ua_prefix_uidx ON system.client_shield_registry USING btree (ua_prefix)"
+          "where": "(deleted_at IS NULL)",
+          "definition": "CREATE UNIQUE INDEX client_shield_registry_ua_prefix_uidx ON system.client_shield_registry USING btree (ua_prefix) WHERE (deleted_at IS NULL)"
         }
       ]
     },
-    "public.sequences": {
+    "system.sequences": {
       "kind": "table",
-      "schema": "public",
+      "schema": "system",
       "name": "sequences",
       "columns": {
         "created_at": {
@@ -3658,11 +3694,32 @@
           "isNullable": true,
           "isPrimaryKey": false
         }
-      }
+      },
+      "indexes": [
+        {
+          "name": "sequences_binding_key_default_from_idx",
+          "using": "btree",
+          "isUnique": false,
+          "columns": [
+            "binding_key",
+            "default_from"
+          ],
+          "sort": [
+            "asc",
+            "desc"
+          ],
+          "nulls": [
+            "last",
+            "last"
+          ],
+          "where": "(deleted_at IS NULL)",
+          "definition": "CREATE INDEX sequences_binding_key_default_from_idx ON system.sequences USING btree (binding_key, default_from DESC NULLS LAST) WHERE (deleted_at IS NULL)"
+        }
+      ]
     },
-    "public.sequence_counters": {
+    "system.sequence_counters": {
       "kind": "table",
-      "schema": "public",
+      "schema": "system",
       "name": "sequence_counters",
       "columns": {
         "created_at": {
@@ -3853,7 +3910,7 @@
             "period_key",
             "partition_key"
           ],
-          "definition": "CREATE UNIQUE INDEX sequence_counters_identity ON public.sequence_counters USING btree (sequence_uuid, period_key, partition_key)"
+          "definition": "CREATE UNIQUE INDEX sequence_counters_identity ON system.sequence_counters USING btree (sequence_uuid, period_key, partition_key)"
         }
       ]
     }

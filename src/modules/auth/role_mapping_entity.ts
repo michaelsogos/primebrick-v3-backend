@@ -2,6 +2,7 @@
 import type { UUID } from "@primebrick/dal-pg";
 import {
   Entity,
+  PublicEntity,
   Key,
   Column,
   Unique,
@@ -42,7 +43,7 @@ import {
  * (role exists locally but not in Casdoor). This is a deliberate, documented
  * deviation from the org/user soft-delete pattern.
  */
-@Entity("role_mappings")
+@PublicEntity("role_mappings")
 @AuditTrail()
 export class RoleMappingEntity
   extends Auditable(EntityBase) {
@@ -63,7 +64,7 @@ export class RoleMappingEntity
   @Column({ pgType: "jsonb", nullable: false })
   permissions!: string[];
 
-  @Column({ pgType: "boolean", nullable: false })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   is_admin!: boolean;
 
   @SynchronizableField(SynchronizableFieldType.LAST_SYNCED_AT)

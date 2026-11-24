@@ -7,8 +7,8 @@
  * is immutable product data — it can never come from env (DATABASE_SCHEMA
  * is a boot violation under the closed-set contract).
  *
- * ORDER NOTE: `public` is primary today. The system-primary flip (closed
- * schema model, phase 3) reorders this list AND marks business entities
- * @PublicEntity — the two changes must land together or entities drift.
+ * ORDER NOTE: `system` is primary (closed schema model) — it hosts the dal
+ * builtins (config_entries, sequences, sequence_counters) and the patch
+ * registry. Business entities carry @PublicEntity to stay on `public`.
  */
-export const OWNED_SCHEMAS = ["public", "system", "custom"] as const;
+export const OWNED_SCHEMAS = ["system", "public", "custom"] as const;

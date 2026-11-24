@@ -24,6 +24,7 @@ import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
+  PublicEntity,
   Key,
   Unique,
   SynchronizableField,
@@ -36,7 +37,7 @@ import {
 } from "@primebrick/dal-pg";
 import { Cached } from "@primebrick/sdk";
 
-@Entity("user_profiles")
+@PublicEntity("user_profiles")
 @AuditTrail()
 @Cached(300_000) // 5 min TTL — mutable (JIT provisioning, sync)
 export class UserProfileEntity

@@ -3,6 +3,7 @@ import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
+  PublicEntity,
   Key,
   Unique,
   UniqueIndex,
@@ -21,7 +22,7 @@ import {
  * admin purge. `is_enabled`/`status` are operational axes (admin toggle /
  * liveness) and are intentionally NOT conflated with deletion.
  */
-@Entity("service_registry")
+@PublicEntity("service_registry")
 @UniqueIndex({ name: "service_registry_code_uq_scaler", where: "is_behind_scaler = true" })
 @UniqueIndex({ name: "service_registry_code_base_url_uq", where: "is_behind_scaler = false" })
 export class ServiceRegistryEntity

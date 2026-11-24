@@ -285,8 +285,8 @@ export class ServiceRegistryService {
     if (!existing) return;
     await getDal().delete(
       ServiceRegistryEntity,
-      { code, version: existing.version } as any,
-      { actor: "system", matchBy: "code" },
+      { uuid: existing.uuid, version: existing.version } as any,
+      { actor: "system", matchBy: "uuid" },
     );
   }
 
@@ -316,8 +316,8 @@ export class ServiceRegistryService {
     if (!existing) return;
     await getDal().hardDelete(
       ServiceRegistryEntity,
-      { code, version: existing.version } as any,
-      { actor: "system", matchBy: "code" },
+      { uuid: existing.uuid, version: existing.version } as any,
+      { actor: "system", matchBy: "uuid" },
     );
   }
 
@@ -326,8 +326,8 @@ export class ServiceRegistryService {
     if (!existing) return;
     await getDal().update(
       ServiceRegistryEntity,
-      { code, is_enabled: isEnabled, version: existing.version } as any,
-      { actor: "system", matchBy: "code" },
+      { uuid: existing.uuid, is_enabled: isEnabled, version: existing.version } as any,
+      { actor: "system", matchBy: "uuid" },
     );
   }
 
@@ -369,8 +369,8 @@ export class ServiceRegistryService {
     for (const h of holders) {
       await getDal().update(
         ServiceRegistryEntity,
-        { code: h.code, is_default: false, version: h.version } as any,
-        { actor: "system", matchBy: "code" },
+        { uuid: h.uuid, is_default: false, version: h.version } as any,
+        { actor: "system", matchBy: "uuid" },
       );
     }
   }
@@ -382,8 +382,8 @@ export class ServiceRegistryService {
     // through validation it cannot rename the service.
     await getDal().update(
       ServiceRegistryEntity,
-      { ...row, code, version: existing.version } as any,
-      { actor: "system", matchBy: "code" },
+      { ...row, uuid: existing.uuid, code, version: existing.version } as any,
+      { actor: "system", matchBy: "uuid" },
     );
     if (row.is_default === true) {
       await this.demoteOtherDefaults(existing.part_of, code);

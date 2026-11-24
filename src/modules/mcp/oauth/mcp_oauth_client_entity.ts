@@ -2,16 +2,17 @@
  * `public.mcp_oauth_clients` — RFC 7591 Dynamic Client Registration store
  * for the MCP OAuth 2.1 server (Claude Desktop, Cursor, VS Code clients).
  *
- * Plain (non-auditable) entity — the DDL carries `version` + timestamps but
- * no `*_by` actor columns; registration churn is low and rows are deleted
- * physically on client removal.
+ * Auditable entity (no soft-delete — rows are physically deleted on client
+ * removal). `created_by`/`updated_by` record the registering admin.
  */
-import { Column, Entity, Key, Unique,
+import { Column,
+  PublicEntity, Key, Unique,
+  Auditable, EntityBase,
   type UUID,
 } from "@primebrick/dal-pg";
 
-@Entity("mcp_oauth_clients")
-export class McpOauthClientEntity {
+@PublicEntity("mcp_oauth_clients")
+export class McpOauthClientEntity extends Auditable(EntityBase) {
   @Key()
   @Column({ pgType: "uuid" })
   uuid!: UUID;
@@ -41,22 +42,10 @@ export class McpOauthClientEntity {
   @Column({ nullable: true })
   scope?: string;
 
-  @Column({ nullable: true, jsType: "instant" })
+  /** DB-fills with `now()` on registration insert when not passed. */
+  @Column({ nullable: true, jsType: "instant", defaultSql: "now()" })
   client_id_issued_at?: Date;
 
   @Column({ nullable: true, jsType: "instant" })
   client_secret_expires_at?: Date | null;
-
-  /** NOT NULL + `now()` default in DDL — always present on read, DB-fills on write. */
-  @Column({ nullable: false, jsType: "instant" })
-  created_at: Date;
-
-  @Column({ nullable: false, jsType: "instant" })
-  updated_at: Date;
-
-  /** DDL-compat version column — plain entity, no audit semantics (int4 per
-   *  the audit-column contract; explicit pgType because `number`→float8).
-   *  NOT NULL + default `1` in DDL. */
-  @Column({ pgType: "int4", nullable: false })
-  version: number;
 }
