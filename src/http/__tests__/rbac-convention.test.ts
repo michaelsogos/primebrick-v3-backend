@@ -151,6 +151,7 @@ describe("deriveEntityActions", () => {
     router.get(`${E}/export`, declaredHandler([Permission.CUSTOMER_EXPORT]));
     router.post(`${E}/bulk-delete`, declaredHandler([Permission.CUSTOMER_DELETE_BULK]));
     router.post(`${E}/bulk-restore`, declaredHandler([Permission.CUSTOMER_RESTORE_BULK]));
+    router.post(`${E}/bulk-update`, declaredHandler([Permission.CUSTOMER_UPDATE_BULK]));
     router.post(`${E}/duplicate`, declaredHandler([Permission.CUSTOMER_DUPLICATE_BULK]));
 
     const actions = deriveEntityActions(router, "customer");
@@ -170,6 +171,7 @@ describe("deriveEntityActions", () => {
     expect(byOp.get("export")?.permissions).toEqual([Permission.CUSTOMER_EXPORT]);
     expect(byOp.get("delete.bulk")?.permissions).toEqual([Permission.CUSTOMER_DELETE_BULK]);
     expect(byOp.get("restore.bulk")?.permissions).toEqual([Permission.CUSTOMER_RESTORE_BULK]);
+    expect(byOp.get("update.bulk")?.permissions).toEqual([Permission.CUSTOMER_UPDATE_BULK]);
     expect(byOp.get("duplicate.bulk")?.permissions).toEqual([Permission.CUSTOMER_DUPLICATE_BULK]);
     for (const a of actions) expect(a.enabled).toBe(true);
   });

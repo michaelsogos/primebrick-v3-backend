@@ -22,7 +22,7 @@ import { initCache, closeCache, getRedisHealth, getCachePort } from "./cache/cac
 import { initPresenceStore, closePresenceStore } from "./modules/collaboration/presence-store-holder.js";
 import { collaborationBusRegistry } from "./modules/collaboration/collaboration-bus-registry.js";
 import { startKeyspaceListener } from "./modules/collaboration/keyspace-listener.js";
-import { startMarkerPersister } from "./modules/collaboration/marker-persister.js";
+import { startMarkerPersister, stopMarkerPersister } from "./modules/collaboration/marker-persister.js";
 import { initMcpModule } from "./modules/mcp/index.js";
 import { mountMcp } from "./controllers/http/mcp/index.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
@@ -624,6 +624,13 @@ async function gracefulShutdown(): Promise<void> {
     collaborationBusRegistry.closeAll();
   } catch (err) {
     logger.warn("collaborationBusRegistry.closeAll failed:", { tags: ["core"], error: err });
+  }
+  try {
+    // Unsubscribe + disarm the NATS-not-connected retry — without this a
+    // re-armed 5s timer would keep the subscriber alive past close.
+    stopMarkerPersister();
+  } catch (err) {
+    logger.warn("stopMarkerPersister failed:", { tags: ["core"], error: err });
   }
   if (stopKeyspaceListener) {
     try {
