@@ -57,6 +57,14 @@ Consumers MUST NOT — NO EXCEPTIONS, EVER:
 
 ## Library authoring (enforced by visibility)
 
+- `src/db/owned-schemas.ts` is a zero-dependency leaf module declaring
+  `OWNED_SCHEMAS` — the SINGLE source of schema identity
+  (`["public","system","custom"]`, `[0]` = primary). The dal config, the
+  db-subscriber ownership gate, `index.ts` boot wiring and the
+  `scripts/database-patch-{check,apply}.ts`/`db:meta:compare` wrappers all
+  read it. Leaf-by-design so scripts import it without pulling the
+  redis-cached gateway chain. `DATABASE_SCHEMA` in env is a reserved
+  violation (`assertDbEnv` throws) — see `env-policy.md`.
 - `src/db/dal-gateway.ts` owns the entry points: `initDal()` (bootstrap-only,
   `index.ts`) and the re-exported `getDal()` singleton accessor. Its
   `repoDecorator` (`withCache` over the lazy `CachePort`) already gives every
