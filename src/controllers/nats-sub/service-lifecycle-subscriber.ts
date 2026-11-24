@@ -11,7 +11,8 @@
  *   one true, one false → 'going_live'
  */
 
-import { assertDbEnv, logger } from "@primebrick/sdk";
+import { logger } from "@primebrick/sdk";
+import { OWNED_SCHEMAS } from "../../db/owned-schemas.js";
 import { NatsClient, SERVICE_SUBJECTS, CLIENT_SHIELD_REGISTRY_SUBJECTS, makeNatsRequestRoute, setNatsShieldRegistry, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
 import { createPublisherVerifier } from "./publisher-identity.js";
 import { ServiceRegistryService } from "../../modules/system/service-registry.service.js";
@@ -266,9 +267,9 @@ export class ServiceLifecycleSubscriber {
   /**
    * Schema ownership gate for `service.register`.
    *
-   * A service claims the PG schemas of its DATABASE_SCHEMA env contract.
+   * A service claims the PG schemas of its OWNED_SCHEMAS code contract.
    * The claim is refused (`SCHEMA_OWNERSHIP_CONFLICT`) when:
-   *   1. it covers a platform schema — the BE's own DATABASE_SCHEMA list
+   *   1. it covers a platform schema — the BE's own OWNED_SCHEMAS list
    *      (public/system/custom) is owned by the platform, never claimable
    *      by a microservice;
    *   2. it overlaps the `schemas` of any registry row whose `code` differs
@@ -290,9 +291,9 @@ export class ServiceLifecycleSubscriber {
 
     const claimedSet = new Set(claimed);
 
-    // Platform schemas are reserved: the BE's own DATABASE_SCHEMA declares
-    // them (public/system/custom); a microservice claiming one is refused.
-    const platformHit = assertDbEnv().schemas.find((s) => claimedSet.has(s));
+    // Platform schemas are reserved: OWNED_SCHEMAS declares them
+    // (public/system/custom); a microservice claiming one is refused.
+    const platformHit = OWNED_SCHEMAS.find((s) => claimedSet.has(s));
     if (platformHit) {
       return `SCHEMA_OWNERSHIP_CONFLICT: schema '${platformHit}' is platform-owned and cannot be claimed by service '${payload.code}'`;
     }

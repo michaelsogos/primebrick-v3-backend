@@ -68,7 +68,7 @@ export class ServiceRegistryEntity
   @Column({ pgType: "jsonb", nullable: false, defaultSql: "'[]'" })
   capabilities: string[];
 
-  /** PG schema ownership claim from the service's DATABASE_SCHEMA env contract (first = owned schema). The BE rejects registration when a claimed schema is owned by a different code or is a platform schema. Claim persists while the row exists — released by unregister or admin purge only. */
+  /** PG schema ownership claim from the service's OWNED_SCHEMAS code contract (first = owned schema). The BE rejects registration when a claimed schema is owned by a different code or is a platform schema. Claim persists while the row exists — released by unregister or admin purge only. */
   @Column({ pgType: "text[]", nullable: false, defaultSql: "'{}'" })
   schemas: string[];
 

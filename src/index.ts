@@ -45,16 +45,18 @@ import { makePartitionMaintenanceJob, makeSequenceReviveJob, entityApiName, getE
 import { ENTITY_REGISTRY } from "./domain/entities/registry.js";
 import { servedEntityDecl } from "./db/entity-name-registry.js";
 
-// Closed-set env contract: DATABASE_URL + DATABASE_SCHEMA are the ONLY
-// env vars this service may consume — any violation crashes before listen.
+// Closed-set env contract: DATABASE_URL is the ONLY env var this
+// service may consume — any violation crashes before listen.
+// (assertDbEnv treats DATABASE_SCHEMA as a reserved violation — schema
+// identity lives in src/db/owned-schemas.ts, never in env.)
 assertDbEnv();
 
 // Keyspace listener cleanup function (set during startup, called during shutdown)
 let stopKeyspaceListener: (() => Promise<void>) | null = null;
 
 const app = express();
-// Closed-set env contract (assertDbEnv above): only DATABASE_URL and
-// DATABASE_SCHEMA may be consumed — the API port is a fixed product constant,
+// Closed-set env contract (assertDbEnv above): only DATABASE_URL may
+// be consumed — the API port is a fixed product constant,
 // not an env override.
 const port = 3001;
 
@@ -459,7 +461,7 @@ async function startServiceLifecycle(): Promise<void> {
   try {
     // nats_url lives in config_entries (seeded by patch
     // 20261022225000_seed_nats_url) — the env contract allows only
-    // DATABASE_URL + DATABASE_SCHEMA. Runs after initDal(); the row is
+    // DATABASE_URL. Runs after initDal(); the row is
     // mandatory — missing config means a misconfigured system, not a default.
     const natsEntry = await getConfigEntriesService().findByKey("nats_url");
     if (!natsEntry?.value) {

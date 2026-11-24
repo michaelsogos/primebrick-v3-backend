@@ -25,6 +25,7 @@ async function main() {
       patchesDir: PATCHES_DIR,
       allowedTrust:
         process.env.NODE_ENV === "production" ? ["release"] : ["dev", "release"],
+      firstBoot: process.argv.includes("--first-boot"),
       actor: `cli:${process.pid}`,
       logger,
     });
