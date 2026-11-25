@@ -83,7 +83,7 @@ export function clientRegistryRouter() {
     },
     hooks: {
       afterWrite: async () => {
-        await NatsClient.publish(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, {});
+        await NatsClient.publishEphemeralLossy(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, {});
       },
     },
     extraRoutes: [
@@ -102,7 +102,7 @@ export function clientRegistryRouter() {
           const result = await runEntityWrite(undefined, (tx) =>
             service.rotateClientKey(req.params.uuid as string, body, tx),
           );
-          await NatsClient.publish(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, {});
+          await NatsClient.publishEphemeralLossy(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, {});
           res.json(result);
         }),
       },

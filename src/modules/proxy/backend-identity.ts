@@ -60,7 +60,7 @@ export async function initBackendIdentity(): Promise<void> {
 
   const registry = new ClientShieldRegistryService();
   await registry.enrollRegistryRow(uaPrefix, clientKeyHash(currentKey));
-  await NatsClient.publish(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
+  await NatsClient.publishEphemeralLossy(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
   logger.done(`The service ${uaPrefix} has been registered and its protection shield key enrolled`, { tags: ["core"] });
 
   // Same allowlist visibility the microservices log — the BE's view of the

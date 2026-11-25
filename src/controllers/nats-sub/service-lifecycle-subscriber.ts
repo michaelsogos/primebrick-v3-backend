@@ -175,7 +175,7 @@ export class ServiceLifecycleSubscriber {
     // Announce the gateway is (back) online: every service already up
     // re-sends service.register, so a BE restart visibly re-ingests
     // identity/endpoints/capabilities and re-discovers OpenAPI — no polling.
-    await NatsClient.publish(SERVICE_SUBJECTS.GATEWAY_ONLINE, { at: new Date().toISOString() });
+    await NatsClient.publishEphemeralLossy(SERVICE_SUBJECTS.GATEWAY_ONLINE, { at: new Date().toISOString() });
 
     // Discover entities for services that are already online at startup.
     // This handles the case where the BE restarts while microservices are running.
@@ -502,7 +502,7 @@ export class ServiceLifecycleSubscriber {
     if (outcome.outcome === "enrolled") {
       logger.done(`The service ${uaPrefix} has been enrolled and its protection shield key registered`, { tags: ["nats"] });
       // Invalidate consumer-side allowlist caches.
-      await NatsClient.publish(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
+      await NatsClient.publishEphemeralLossy(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
     } else {
       logger.warn(`The service ${uaPrefix} registered with a stale key generation — issued generation ${outcome.key_generation} returned`, { tags: ["nats"] });
     }

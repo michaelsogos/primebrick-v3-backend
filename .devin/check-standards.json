@@ -42,6 +42,16 @@
         "modules/docs-pack/docs-pack.service.ts",
         "modules/mcp/token-verifier.ts"
       ]
+    },
+    "no-fnf-nats-publish": {
+      "allowPaths": [
+        "controllers/http/client-registry.router.ts",
+        "controllers/nats-sub/service-lifecycle-subscriber.ts",
+        "controllers/nats-sub/stale-detection-job.ts",
+        "modules/auth/services/email-sender.ts",
+        "modules/proxy/backend-identity.ts",
+        "observability/telemetry.ts"
+      ]
     }
   },
   "i18n_namespaces": [
