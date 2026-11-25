@@ -35,7 +35,16 @@ import { getPool } from "../../db/dal-gateway.js";
  *  second rotation interval. */
 let vault: SecretVault | null = null;
 
-export async function initSecretVault(): Promise<void> {
+/**
+ * Vault provisioning — PURE PG (ensureAll + rotation cadence). MUST run
+ * pre-NATS, before wireFabricKeyProvider: on a fresh database the material
+ * is provisioned before the provider's first refresh, so the fabric is
+ * encrypted from the very first publish — no plaintext boot window at all.
+ * The post-commit rotation hint fires into a not-yet-connected NATS and is
+ * tolerated by design (the engine catches hint failures; the reactive
+ * self-heal in every consumer makes hint loss irrelevant).
+ */
+export async function provisionSecretVault(): Promise<void> {
   // The governed raw-pool seam: the vault table is deliberately NOT a
   // governed entity, so the SDK engine owns plain parameterized SQL —
   // the Repository/entity DSL does not apply to it by construction.
@@ -59,9 +68,12 @@ export async function initSecretVault(): Promise<void> {
     });
   }
   instance.startAutoRotation();
+}
 
-  // Rotation-hint subscription — post-NATS (the subject broadcast loops
-  // back to the BE exactly like to every microservice).
+/** Post-NATS vault wiring — only the rotation-hint subscription is left:
+ *  provisioning is pure PG and runs earlier (see provisionSecretVault). */
+export async function initSecretVault(): Promise<void> {
+  await provisionSecretVault();
   await subscribeVaultHints();
 }
 
