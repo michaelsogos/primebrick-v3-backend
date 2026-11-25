@@ -36,7 +36,7 @@ import { startInternalRequestRoutes } from "./controllers/nats-sub/internal-requ
 import { createPublisherVerifier } from "./controllers/nats-sub/publisher-identity.js";
 import { initBackendIdentity } from "./modules/proxy/backend-identity.js";
 import { initSecretEngine } from "./modules/secrets/secret-engine.js";
-import { initSecretVault } from "./modules/secrets/secret-vault.js";
+import { initSecretVault, wireFabricKeyProvider } from "./modules/secrets/secret-vault.js";
 import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js";
 import { ModuleDiscoveryService } from "./modules/system/module-discovery.service.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
@@ -464,6 +464,8 @@ async function startServiceLifecycle(): Promise<void> {
     // 20261022225000_seed_nats_url) — the env contract allows only
     // DATABASE_URL. Runs after initDal(); the row is
     // mandatory — missing config means a misconfigured system, not a default.
+    // Fabric message-key provider BEFORE any governed publish — needs only the PG pool.
+    await wireFabricKeyProvider();
     const natsEntry = await getConfigEntriesService().findByKey("nats_url");
     if (!natsEntry?.value) {
       throw new Error('config_entries row "nats_url" missing — run pnpm db:migrate');

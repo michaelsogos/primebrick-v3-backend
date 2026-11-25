@@ -17,7 +17,14 @@
 
 import {
   SecretVault,
+  SecretVaultReader,
   MESSAGE_KEY_MATERIAL_POLICY,
+  MESSAGE_KEY_MATERIAL_REF,
+  VAULT_SUBJECTS,
+  MessageKeyProvider,
+  setMessageKeyProvider,
+  getMessageKeyProvider,
+  subscribeShielded,
   logger,
   type SqlPoolPort,
 } from "@primebrick/sdk";
@@ -52,4 +59,42 @@ export async function initSecretVault(): Promise<void> {
     });
   }
   instance.startAutoRotation();
+
+  // Rotation-hint subscription — post-NATS (the subject broadcast loops
+  // back to the BE exactly like to every microservice).
+  await subscribeVaultHints();
+}
+
+/**
+ * Fabric message-key provider wiring (WP-A6) — MUST run before the first
+ * governed publish, so it sits at the top of startServiceLifecycle, before
+ * the NATS connect: it needs only the PG pool. Tolerant at boot (the vault
+ * table may not exist yet on a fresh database — the provider's reactive
+ * debounced self-heal closes the gap on first traffic). Idempotent by
+ * construction: a lifecycle re-run simply replaces the singleton with a
+ * freshly refreshed provider — desirable after a NATS outage.
+ */
+export async function wireFabricKeyProvider(): Promise<void> {
+  // standards-exempt: getPool — same sanctioned raw-pool seam as initSecretVault above
+  const pool = getPool() as unknown as SqlPoolPort;
+  const reader = new SecretVaultReader({ pool, schema: "system" });
+  const provider = new MessageKeyProvider(() => reader.readGenerations(MESSAGE_KEY_MATERIAL_REF));
+  try {
+    await provider.refresh();
+  } catch (error) {
+    logger.warn("fabric message-key material not readable yet — reactive self-heal will retry on first traffic", {
+      tags: ["secret-vault"],
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  setMessageKeyProvider(provider);
+}
+
+async function subscribeVaultHints(): Promise<void> {
+  await subscribeShielded(VAULT_SUBJECTS.ROTATED, async (payload) => {
+    const hint = payload as { scope?: string; name?: string };
+    if (hint.scope === MESSAGE_KEY_MATERIAL_REF.scope && hint.name === MESSAGE_KEY_MATERIAL_REF.name) {
+      await getMessageKeyProvider()?.refresh();
+    }
+  });
 }
