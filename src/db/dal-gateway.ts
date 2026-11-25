@@ -67,9 +67,9 @@ export function initDal(): void {
 
 export { getDal };
 
-// standards-exempt: getPool — governed seam for migration/patch tooling ONLY (run-module-migrations, db-migration.service)
+// standards-exempt: getPool — governed seam for non-entity infrastructure SQL ONLY (migration/patch tooling, SecretVault wiring — never domain repositories)
 export function getPool(): Pool {
-  // standards-exempt: getPool — passthrough to the Dal-owned pool; callers are migration tooling
+  // standards-exempt: getPool — passthrough to the Dal-owned pool; callers are non-entity infrastructure
   return getDal().getPool();
 }
 

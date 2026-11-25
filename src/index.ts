@@ -36,6 +36,7 @@ import { startInternalRequestRoutes } from "./controllers/nats-sub/internal-requ
 import { createPublisherVerifier } from "./controllers/nats-sub/publisher-identity.js";
 import { initBackendIdentity } from "./modules/proxy/backend-identity.js";
 import { initSecretEngine } from "./modules/secrets/secret-engine.js";
+import { initSecretVault } from "./modules/secrets/secret-vault.js";
 import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js";
 import { ModuleDiscoveryService } from "./modules/system/module-discovery.service.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
@@ -507,6 +508,9 @@ async function startServiceLifecycle(): Promise<void> {
     await subscriber.start();
     await startInternalRequestRoutes();
     await initSecretEngine();
+    // Fabric message-key material vault (WP-A5): PG-owned rotating parte_B —
+    // boot self-heals missing material, hourly cadence, 7-day physical window.
+    await initSecretVault();
     // Partition/retention maintenance — the same SDK-mounted system job
     // the microservices get via createMicroservice (BE boots manually).
     // `api.partition_maintenance` mounts + materializes only when the
