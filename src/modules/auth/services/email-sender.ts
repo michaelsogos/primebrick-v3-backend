@@ -52,7 +52,7 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
       systemAuthUser(request.initiatedBy),
       await getAuthConfig(),
     );
-    await NatsClient.publishEphemeralLossy("emailsender.send", request, authHeaders);
+    await NatsClient.publish("emailsender.send", request, authHeaders);
   } catch (err) {
     logger.error(
       `Failed to publish email send request to NATS (template: ${params.template_code}):`,
