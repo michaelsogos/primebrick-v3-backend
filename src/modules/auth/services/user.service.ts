@@ -71,7 +71,7 @@ export type UserProfileWriteBody = {
   onboarding_completed?: boolean;
   suspended_at?: Date | DalNow | null;
   suspended_by?: string | null;
-  version?: number;
+  version?: bigint;
 };
 
 export type UserProfileDetailRow = WithAuditableDisplayNames<{
@@ -95,7 +95,7 @@ export type UserProfileDetailRow = WithAuditableDisplayNames<{
   created_by: string;
   updated_at: Date;
   updated_by: string;
-  version: number;
+  version: bigint;
   deleted_at?: Date;
   deleted_by?: string;
 }>;
@@ -325,7 +325,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     // update's version guard throws ERR02 — we NEVER manufacture a
     // version by re-reading the row (that would elide the concurrency check).
     const row = await this.svc.update(
-      uuid, { ...body } as Record<string, unknown> & { version: number }, tx,
+      uuid, { ...body } as Record<string, unknown> & { version: bigint }, tx,
     );
     return this.toDto(row as never);
   }
@@ -342,7 +342,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   ): Promise<UserProfileDetailDto> {
     const version = (await this.freshRowByUuid(uuid, tx)).version;
     const row = await this.svc.update(
-      uuid, { ...body, version } as Record<string, unknown> & { version: number }, tx,
+      uuid, { ...body, version } as Record<string, unknown> & { version: bigint }, tx,
     );
     return this.toDto(row as never);
   }
@@ -359,7 +359,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     // unit of work (the caller legitimately has `uuid`, not a prior version).
     const version = body.version ?? (await this.freshRowByUuid(uuid)).version;
     const row = await this.svc.update(
-      uuid, { ...body, version } as Record<string, unknown> & { version: number },
+      uuid, { ...body, version } as Record<string, unknown> & { version: bigint },
     );
     return this.toDto(row as never);
   }
@@ -380,7 +380,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     return row as UserProfileEntity;
   }
 
-  async softDeleteProfile(uuid: string, version: number): Promise<UserProfileDetailDto> {
+  async softDeleteProfile(uuid: string, version: bigint): Promise<UserProfileDetailDto> {
     const row = await this.svc.delete(uuid, version);
     return this.toDto(row as unknown as UserProfileDetailRow);
   }
@@ -389,7 +389,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
    * Restore a soft-deleted profile. Overrides `svc.restore` — same signature —
    * returning the joined + DTO-mapped row (audit display names, ISO dates).
    */
-  override async restore(uuid: string, version?: number): Promise<UserProfileDetailDto> {
+  override async restore(uuid: string, version?: bigint): Promise<UserProfileDetailDto> {
     const row = await this.svc.restore(uuid, version);
     return this.toDto(row as unknown as UserProfileDetailRow);
   }
@@ -398,7 +398,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
   async getUserProfileAudit(uuid: string, page: number, limit: number) {
     const result = (await this.svc.audit(uuid, page, limit)) as {
-      data: { uuid: string; entity_uuid: string; action: string; changed_at: unknown; changed_by: string | null; changed_by_display_name?: string | null; version: number; delta: unknown }[];
+      data: { uuid: string; entity_uuid: string; action: string; changed_at: unknown; changed_by: string | null; changed_by_display_name?: string | null; version: bigint; delta: unknown }[];
       pagination: unknown;
     };
 
@@ -472,7 +472,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     }
 
     // 2. Try a fast SELECT first — most requests hit existing users.
-    const row = await this.svc.find<{ uuid: string; idp_org?: string; idp_username?: string; version?: number }>(
+    const row = await this.svc.find<{ uuid: string; idp_org?: string; idp_username?: string; version?: bigint }>(
       [
         { kind: "field", field: field(UserProfileEntity, "uuid" as any) },
         { kind: "field", field: field(UserProfileEntity, "idp_org" as any) },
@@ -501,7 +501,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
         // Self-attribution: the sync write stamps the profile's own uuid
         // (no user session exists yet on the JIT path).
         await this.runAs(row.uuid, () =>
-          this.svc.update(row.uuid, updates as Record<string, unknown> & { version: number }),
+          this.svc.update(row.uuid, updates as Record<string, unknown> & { version: bigint }),
         );
       }
       // 3. Cache the result in Redis
@@ -682,7 +682,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
   // --- Delete (soft) --------------------------------------------------------
 
-  async deleteUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
+  async deleteUser(uuid: string, version: bigint): Promise<UserProfileDetailDto> {
     const existing = await this.getByUuid(uuid);
     if (!existing) {
       throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
@@ -731,7 +731,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
    * identity is forbidden. `isForbidden` derives as `suspended ∨ deleted` —
    * suspending an already-deleted user is refused (deleted wins).
    */
-  async suspendUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
+  async suspendUser(uuid: string, version: bigint): Promise<UserProfileDetailDto> {
     const existing = await this.getByUuid(uuid);
     if (!existing) {
       throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
@@ -775,7 +775,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
    * IDP identity — unless the record is also deleted (deleted wins: a
    * suspended+deleted user stays forbidden, only `restore` re-enables).
    */
-  async reactivateUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
+  async reactivateUser(uuid: string, version: bigint): Promise<UserProfileDetailDto> {
     const existing = await this.getByUuid(uuid);
     if (!existing) {
       throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
@@ -822,7 +822,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     return row ? this.toDto(row as never) : null;
   }
 
-  async restoreUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
+  async restoreUser(uuid: string, version: bigint): Promise<UserProfileDetailDto> {
     // The record being restored IS soft-deleted — the lookup must include
     // tombstoned rows or the existence check 404s on every restore.
     const existing = await this.getByUuidIncludingDeleted(uuid);

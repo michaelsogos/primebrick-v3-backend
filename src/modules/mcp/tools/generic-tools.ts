@@ -460,7 +460,7 @@ export function registerGenericTools(server: McpServer): void {
       inputSchema: z.object({
         ...moduleEntitySchema,
         uuid: z.string().describe("The UUID of the record to soft-delete."),
-        version: z.number().int().describe("The record's current version (from a prior read) — optimistic concurrency guard."),
+        version: z.number().int().transform(BigInt).describe("The record's current version (from a prior read) — optimistic concurrency guard."),
       }),
     },
     withErrorHandling(async (args, ctx) => {
@@ -490,7 +490,7 @@ export function registerGenericTools(server: McpServer): void {
       inputSchema: z.object({
         ...moduleEntitySchema,
         uuid: z.string().describe("The UUID of the soft-deleted record to restore."),
-        version: z.number().int().describe("The record's current version (from a prior read) — optimistic concurrency guard."),
+        version: z.number().int().transform(BigInt).describe("The record's current version (from a prior read) — optimistic concurrency guard."),
       }),
     },
     withErrorHandling(async (args, ctx) => {
@@ -623,7 +623,7 @@ export function registerGenericTools(server: McpServer): void {
         items: z
           .array(z.object({
             uuid: z.string().describe("The UUID of the record."),
-            version: z.number().int().describe("The record's current version (from a prior read) — optimistic concurrency guard."),
+            version: z.number().int().transform(BigInt).describe("The record's current version (from a prior read) — optimistic concurrency guard."),
           }))
           .min(1)
           .max(100)

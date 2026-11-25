@@ -27,7 +27,7 @@ export interface AuditRow {
   changed_by: string;
   changed_by_display_name: string | null;
   changed_by_idp_code: string | null;
-  version: number;
+  version: bigint;
   delta: Record<string, unknown>;
 }
 
@@ -109,7 +109,7 @@ export async function findAuditPage(repo: AuditQueryable, opts: AuditPageOptions
       changed_by: row.changed_by,
       changed_by_display_name: (row as any).changed_by_display_name ?? null,
       changed_by_idp_code: (row as any).changed_by_idp_code ?? null,
-      version: row.version,
+      version: BigInt(row.version),
       delta: enriched[i] ?? deltas[i]!,
     })),
     pagination: {

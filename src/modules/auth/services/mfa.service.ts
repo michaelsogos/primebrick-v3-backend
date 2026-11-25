@@ -354,7 +354,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
     // (the factor is loaded earlier in the flow). A missing version lets
     // the update's version guard throw MissingVersionError (ERR02) — we never
     // manufacture one by re-reading the row.
-    await this.svc.update(uuid, { ...data } as Record<string, unknown> & { version: number });
+    await this.svc.update(uuid, { ...data } as Record<string, unknown> & { version: bigint });
   }
 
   /**

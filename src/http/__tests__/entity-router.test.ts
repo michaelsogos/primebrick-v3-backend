@@ -146,7 +146,7 @@ describe("makeEntityRouter — soft-delete-only entity", () => {
   it("DELETE /:uuid?version=3 → service.delete(uuid, 3), entity returned", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}?version=3`, { method: "DELETE" });
     expect(res.status).toBe(200);
-    expect(service.delete).toHaveBeenCalledWith(UUID, 3);
+    expect(service.delete).toHaveBeenCalledWith(UUID, 3n);
     const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.deleted).toBe(true);
   });
@@ -165,7 +165,7 @@ describe("makeEntityRouter — soft-delete-only entity", () => {
   it("POST /:uuid/restore?version=3 → service.restore(uuid, 3)", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}/restore?version=3`, { method: "POST" });
     expect(res.status).toBe(200);
-    expect(service.restore).toHaveBeenCalledWith(UUID, 3);
+    expect(service.restore).toHaveBeenCalledWith(UUID, 3n);
   });
 
   it("meta.actions exposes delete.single enabled, purge.single disabled", async () => {
@@ -209,7 +209,7 @@ describe("makeEntityRouter — hard-delete-only entity", () => {
   it("DELETE /:uuid/purge?version=3 → service.purge(uuid, 3), entity returned", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}/purge?version=3`, { method: "DELETE" });
     expect(res.status).toBe(200);
-    expect(service.purge).toHaveBeenCalledWith(UUID, 3);
+    expect(service.purge).toHaveBeenCalledWith(UUID, 3n);
     const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.purged).toBe(true);
   });

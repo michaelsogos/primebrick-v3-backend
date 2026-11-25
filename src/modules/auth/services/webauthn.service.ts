@@ -311,7 +311,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
   private async deletePasskeyByUuid(uuid: string): Promise<void> {
     const existing = await this.svc.get(uuid, { throwIfNotFound: false });
     if (existing) {
-      await this.svc.delete(existing.uuid as string, existing.version as number);
+      await this.svc.delete(existing.uuid as string, existing.version as bigint);
     }
   }
 

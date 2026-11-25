@@ -235,7 +235,7 @@ export function makeEntityRouter<TEntity, S extends object>(
       res.json(await call("bulkRestore", body.items));
     }),
     bulkUpdate: asyncHandler(async (req, res) => {
-      const body = req.body as { items: Array<{ uuid: string; version: number }>; set: Record<string, unknown> };
+      const body = req.body as { items: Array<{ uuid: string; version: bigint }>; set: Record<string, unknown> };
       res.json(await call("bulkUpdate", body.items.map((i) => ({ ...i, ...body.set }))));
     }),
     get: asyncHandler(async (req, res) => {

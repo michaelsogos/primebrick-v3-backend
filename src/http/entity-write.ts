@@ -35,9 +35,9 @@ import { ForbiddenError, ValidationError } from "./api-errors.js";
  * auditable entity write: it is the caller's observed version, never fetched
  * server-side (that would elude the guard).
  */
-const VersionQuerySchema = z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+const VersionQuerySchema = z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER).transform(BigInt);
 
-export function requireVersionQuery(req: Request): number {
+export function requireVersionQuery(req: Request): bigint {
   const parsed = VersionQuerySchema.safeParse(req.query.version);
   if (!parsed.success) {
     throw new ValidationError("Query param 'version' (int) is required for this write", {

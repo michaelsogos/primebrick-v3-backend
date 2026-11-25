@@ -230,7 +230,7 @@ export type OrganizationDetailRow = WithAuditableDisplayNames<{
   created_by: string;
   updated_at: Date;
   updated_by: string;
-  version: number;
+  version: bigint;
   deleted_at?: Date;
   deleted_by?: string;
 }>;

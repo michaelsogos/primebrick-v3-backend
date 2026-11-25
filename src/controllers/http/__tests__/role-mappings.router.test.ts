@@ -97,7 +97,7 @@ describe("role-mappings router — hard delete (purge)", () => {
     mocks.service.deleteRoleByUuid.mockResolvedValue({ uuid: UUID, idp_role: "sales" });
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}/purge?version=5`, { method: "DELETE" });
     expect(res.status).toBe(200);
-    expect(mocks.service.deleteRoleByUuid).toHaveBeenCalledWith(UUID, "user-1", 5);
+    expect(mocks.service.deleteRoleByUuid).toHaveBeenCalledWith(UUID, "user-1", 5n);
     const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.idp_role).toBe("sales");
   });
@@ -148,7 +148,7 @@ describe("role-mappings router — overridden write bodies keep the chain", () =
     expect(res.status).toBe(200);
     expect(mocks.service.updateRoleByUuid).toHaveBeenCalledWith(
       UUID,
-      { label_key: "l", version: 2 },
+      { label_key: "l", version: 2n },
       "user-1",
       {},
     );

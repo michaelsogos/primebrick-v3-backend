@@ -43,7 +43,7 @@ export interface ServiceRegistryEntry {
   /** i18n key for the module's display name, resolved in its own namespace. */
   label_key?: string;
   uuid?: string;
-  version?: number;
+  version?: bigint;
   deleted_at?: Date | null;
 }
 
@@ -262,7 +262,7 @@ export class ServiceRegistryService {
   }
 
   /** Restore a soft-deleted registry row (unregister → re-register). */
-  async restoreByUuid(uuid: string, version?: number): Promise<void> {
+  async restoreByUuid(uuid: string, version?: bigint): Promise<void> {
     await getDal().restore(
       ServiceRegistryEntity,
       { uuid, version } as any,

@@ -100,7 +100,7 @@ export class ClientShieldRegistryService {
     for (let attempt = 0; attempt < 2; attempt++) {
       const existing = await repo.find<
         ClientShieldRegistryEntity,
-        ClientShieldRegistryRow & { version: number; deleted_at?: Date | null }
+        ClientShieldRegistryRow & { version: bigint; deleted_at?: Date | null }
       >(
         ClientShieldRegistryEntity,
         [
@@ -152,7 +152,7 @@ export class ClientShieldRegistryService {
 
       let version = existing.version;
       if (existing.deleted_at) {
-        const restored = await repo.restore<ClientShieldRegistryEntity, { version: number }>(
+        const restored = await repo.restore<ClientShieldRegistryEntity, { version: bigint }>(
           ClientShieldRegistryEntity,
           { uuid: existing.uuid, version } as never,
           { actor, matchBy: "uuid" as never },
@@ -260,15 +260,15 @@ export class ClientShieldRegistryService {
     const { client_key, ...rest } = body;
     const patch: Record<string, unknown> = { ...rest };
     if (client_key !== undefined) patch.client_key_hash = clientKeyHash(client_key);
-    return this.svc().update(uuid, patch as Record<string, unknown> & { version: number }, tx);
+    return this.svc().update(uuid, patch as Record<string, unknown> & { version: bigint }, tx);
   }
 
-  async deleteClient(uuid: string, version: number) {
+  async deleteClient(uuid: string, version: bigint) {
     await this.assertManual(uuid);
     return this.svc().delete(uuid, version);
   }
 
-  async restoreClient(uuid: string, version: number) {
+  async restoreClient(uuid: string, version: bigint) {
     return this.svc().restore(uuid, version);
   }
 
@@ -332,7 +332,7 @@ export class ClientShieldRegistryService {
    *     window.
    */
   async rotateClientKey(uuid: string, body: { client_key?: string }, tx?: Repository) {
-    const row = (await this.svc().get(uuid)) as unknown as ClientShieldRegistryRow & { version: number };
+    const row = (await this.svc().get(uuid)) as unknown as ClientShieldRegistryRow & { version: bigint };
     const now = new Date();
 
     if (row.key_mode === "derived" && body.client_key === undefined) {
@@ -354,7 +354,7 @@ export class ClientShieldRegistryService {
           key_generation: generation,
           key_rotated_at: DAL_NOW,
           version: row.version,
-        } as Record<string, unknown> & { version: number },
+        } as Record<string, unknown> & { version: bigint },
         tx,
       );
       return { ...updated, key_generation: generation };
@@ -376,7 +376,7 @@ export class ClientShieldRegistryService {
         previous_valid_until: new Date(now.getTime() + ROTATION_GRACE_MS),
         key_rotated_at: now,
         version: row.version,
-      } as Record<string, unknown> & { version: number },
+      } as Record<string, unknown> & { version: bigint },
       tx,
     );
     return body.client_key === undefined
