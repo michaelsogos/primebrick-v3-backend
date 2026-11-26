@@ -143,13 +143,13 @@ export function discoverEntitiesFromSpec(spec: {
 export async function discoverEntitiesFromService(baseUrl: string, serviceRef?: string): Promise<DiscoveredEntity[]> {
   const specUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/openapi.json`;
   const target = serviceRef ?? specUrl;
-  // Two attempts: the target's allowlist cache can lag the
-  // `client_shield_registry.changed` broadcast by a few ms right after enrollment —
+  // Two attempts: the target's provenance bootstrap can lag the
+  // registration by a few ms right after the peer comes online —
   // a single short retry absorbs the race without masking real rejections.
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       // Internal BE→US call via the SDK client — service identity (UA +
-      // client shield key) is injected automatically; the gate sees a known caller.
+      // proof-of-possession provenance) is injected automatically; the edge sees a verified caller.
       const response = await internalFetch(specUrl, {
         signal: AbortSignal.timeout(5000),
       });

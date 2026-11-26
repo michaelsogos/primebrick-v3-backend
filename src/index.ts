@@ -492,7 +492,7 @@ async function startServiceLifecycle(): Promise<void> {
     });
     // Identity FIRST: the lifecycle subscriber publishes service.gateway_online
     // and internal routes serve shield-verified calls — every NATS publish
-    // must already carry the BE's client-shield identity.
+    // must already carry the BE's User-Agent identity.
     await enrollBackendIdentity();
     // Entity-event emission: governed svc writes publish
     // `events.api.<entity>.<uuid>` onto ENTITY_EVENTS from here on —
@@ -533,12 +533,11 @@ async function startServiceLifecycle(): Promise<void> {
 }
 
 /**
- * Self-enroll the BE into system.client_shield_registry (B11): the BE never sends
- * `service.register`, so it upserts its own `source='registry'` row keyed
- * by `{pkg_name}/{version}` — the UA prefix it sends on proxied calls.
- * The client key comes from the `service_client_shield_key` config entry (module config,
- * not env). Delegates to `initBackendIdentity()` which also primes the
- * cached identity headers used by the proxy hot path.
+ * Prime the BE's outbound identity: the BE never sends `service.register`
+ * and no key material ever rides the wire — the User-Agent stamp
+ * (name+version+runtime) is observability metadata for logs and traces,
+ * trust itself is proof-of-possession. Delegates to `initBackendIdentity()`
+ * which also primes the cached identity headers used by the proxy hot path.
  */
 async function enrollBackendIdentity(): Promise<void> {
   await initBackendIdentity();

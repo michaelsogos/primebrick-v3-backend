@@ -75,7 +75,7 @@ export class ServiceRegistryEntity
   @Column({ nullable: true })
   service_version?: string;
 
-  /** Package name from the service's package.json (e.g. `primebrick-ai`) — with service_version it forms the canonical identity `{pkg_name}/{version}` used in client_shield_registry and logs. */
+  /** Package name from the service's package.json (e.g. `primebrick-ai`) — with service_version it forms the canonical identity `{pkg_name}/{version}` used in service_registry and logs. */
   @Column({ nullable: true })
   pkg_name?: string;
 

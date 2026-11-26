@@ -191,7 +191,7 @@ export class ServiceLifecycleSubscriber {
 
   /**
    * Canonical service identity for logs: `{pkg_name}/{version}` — the same
-   * value as `system.client_shield_registry.ua_prefix`. Falls back to the service
+   * value used in logs and stamped as User-Agent on outbound calls. Falls back to the service
    * code when the package name isn't known (pre-identity rows).
    */
   private serviceRef(svc: { pkg_name?: string; service_version?: string }, code: string): string {
