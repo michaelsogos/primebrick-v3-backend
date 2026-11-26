@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "key_id": "dev-micha-3",
-  "issued_at": "2026-11-25T21:26:58.904Z",
+  "key_id": "dev-micha-2",
+  "issued_at": "2026-11-26T14:02:30.435Z",
   "patches": {
     "00000000000000_init_database": "e7021d5473d69bc024ff2d2ef205215fce2f4f1eca48042ab2acb5bc295b2819",
     "00000000000001_seed_translations_en_gb": "7573061d7dee10bb8a2eb89df0e7fdf0e415368ebad9159d60f06801af1be4c6",
@@ -93,7 +93,8 @@
     "20270101110000_sequence_revive_labels_tooltips": "c44a42bdd22e6ff24705d3b447cabeb9cfa7c20153f527683bb6344ee7c28de3",
     "20270101120000_revive_interval_mode_keys": "db26720c8a54a3cfce63beb9f1d0755e502237c5371e56e50fb2b111f5b46d78",
     "20270101130000_revive_format_validation_keys": "2af93a8670f15672d51ef7bac1bed4dd91d8ea060cdd1479c322d8ff05cb4f77",
-    "20270101140000_secret_vault_generations": "dae44bc4e8665908002b67c0850c86e19b5eb25610aa388933cdbdc25c8f3a71"
+    "20270101140000_secret_vault_generations": "dae44bc4e8665908002b67c0850c86e19b5eb25610aa388933cdbdc25c8f3a71",
+    "20270101150000_shield_physical_cleanup": "f3141b3aa161d6b15ae72cc1001966ac677a00e461ae6166a61cd57742fa24d3"
   },
-  "signature": "hvdzN/YmYZ6w2XdEQqQvhsy/ym3OErBddyK0Khin9X7ivFOxEWovmhWOho8WrXoWbH6+qHYBLwud8ion1jk4AQ=="
+  "signature": "Gr3nHD5+KcVLW7IZu42TzE2R0Fe/DefjIPAv8OyONNTIcbNzrt+BnZjJ9Eu1QSg1tJ7ElIagsPpf2tqE5MEODw=="
 }
