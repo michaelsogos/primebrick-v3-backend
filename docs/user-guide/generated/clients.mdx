@@ -6,8 +6,6 @@ entity: client_registry
 
 List, search and manage all clients.
 
-Each row shows the User-Agent prefix, the Source, the Key mode, the Created at, plus the status flags Enabled.
-
 The page is visible with the `access.system.settings.clients` grant.
 
 ## Pages routes
@@ -28,43 +26,6 @@ The page is visible with the `access.system.settings.clients` grant.
 2. Update the fields — required: **ua prefix**.
 3. Click **Save** — the changes to the client are saved.
 
-### How to delete a client
-1. Open the row actions menu on the client and click **Delete**.
-2. Confirm the deletion in the dialog — the client is soft-deleted and can be restored.
-
-### How to restore a deleted client
-1. Set the deleted-records filter to **Deleted only** or **All records** to show recoverable records.
-2. Open the row actions menu on the client and click **Restore**.
-3. Confirm in the dialog — the client is active again.
-
-### How to view the change history of a client
-1. Open the row actions menu on the client and click **Audit history**.
-2. The version history of the client will appear on the right sheet panel.
-
-## Columns
-
-| Column | Visible | Sortable | Filterable | Notes |
-|--------|---------|----------|------------|-------|
-| **User-Agent prefix** | yes | yes | yes |  |
-| **UUID** | no | yes | yes |  |
-| **Source** | yes | yes | yes |  |
-| **Key mode** | yes | yes | yes |  |
-| **Key generation** | no | yes | yes |  |
-| **Enabled** | yes | yes | yes |  |
-| **client key hash** | no | yes | yes |  |
-| **previous key hash** | no | yes | yes |  |
-| **previous valid until** | no | yes | yes |  |
-
-- The User-Agent prefix column is shown by default and can be sorted and filtered.
-- The UUID column is hidden by default and can be sorted and filtered.
-- The Source column is shown by default and can be sorted and filtered.
-- The Key mode column is shown by default and can be sorted and filtered.
-- The Key generation column is hidden by default and can be sorted and filtered.
-- The Enabled column is shown by default and can be sorted and filtered.
-- The client key hash column is hidden by default and can be sorted and filtered.
-- The previous key hash column is hidden by default and can be sorted and filtered.
-- The previous valid until column is hidden by default and can be sorted and filtered.
-
 ## Actions
 
 ### Row actions
@@ -73,17 +34,17 @@ The page is visible with the `access.system.settings.clients` grant.
 |--------|--------|------------|--------------|----------------------|
 | **create** | ENABLED | `client_registry.create.single` | Creates a new client | no |
 | **update** | ENABLED | `client_registry.update.single` | Opens the client for editing | no |
-| **delete** | ENABLED | `client_registry.delete.single` | Marks the client as deleted but keeps it so it can be restored | no |
-| **restore** | ENABLED | `client_registry.restore.single` | Brings a soft-deleted client back | no |
+| **delete** | DISABLED | `client_registry.delete.single` | Marks the client as deleted but keeps it so it can be restored | no |
+| **restore** | DISABLED | `client_registry.restore.single` | Brings a soft-deleted client back | no |
 | **purge** | DISABLED | — | Removes the client forever | no |
-| **audit history** | ENABLED | `client_registry.read.audit` | Shows the change history of the client | no |
+| **audit history** | DISABLED | `client_registry.read.audit` | Shows the change history of the client | no |
 
 - Creating a new client is available on this page — the create action opens the create form in the same tab and it requires the `client_registry.create.single` permission.
 - Editing a client is available on this page — the row action opens the record in the same tab and it requires the `client_registry.update.single` permission.
-- Soft-deleting a client is available on this page — marks the client as deleted but keeps it so it can be restored and it requires the `client_registry.delete.single` permission.
-- Restoring a soft-deleted client is available on this page — brings a soft-deleted client back and it requires the `client_registry.restore.single` permission.
+- Soft-deleting a client is not available on this page — if enabled, it would require the `client_registry.delete.single` permission.
+- Restoring a soft-deleted client is not available on this page — if enabled, it would require the `client_registry.restore.single` permission.
 - Permanently deleting a client is not available on this page — no permission is declared for it on clients.
-- Viewing the change history of a client is available on this page — every client keeps a full version history and it requires the `client_registry.read.audit` permission.
+- Viewing the change history of a client is not available on this page — if enabled, it would require the `client_registry.read.audit` permission.
 
 ### Bulk actions
 

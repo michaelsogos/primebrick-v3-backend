@@ -18,7 +18,7 @@ The page is visible with the `access.system.settings.users` grant.
 
 ### How to edit a user
 1. On the **Users** list page, open the row actions menu on the user you want to edit and click **Edit**.
-2. Update the fields below — required: **Verified**, **Email Verified**, **auth method enforcer dismissed**, **Onboarding Completed**.
+2. Update the fields below — required: **Display Name**, **Verified**, **Email Verified**, **auth method enforcer dismissed**, **Onboarding Completed**.
 3. Click **Save** — the changes to the user are saved.
 
 ### How to grant admin rights to a user
@@ -32,7 +32,7 @@ The record opens in read mode first — click **Edit** to modify it. Concurrent 
 
 | Field | Required | Notes |
 |-------|----------|-------|
-| **Display Name** | optional | text input — max 255 |
+| **Display Name** | required | text input — max 255; min 5 |
 | **Email** | optional | text input — max 320 |
 | **Avatar Color** | optional | shown when no avatar image is set; max 7 |
 | **Avatar Initials** | optional | max 10 |
@@ -42,7 +42,7 @@ The record opens in read mode first — click **Edit** to modify it. Concurrent 
 | **auth method enforcer dismissed** | required | checkbox |
 | **Onboarding Completed** | required | — |
 
-- The **Display Name** field is an optional text input that allows up to 255 characters.
+- The **Display Name** field is a required text input that allows up to 255 characters and requires at least 5 characters.
 - The **Email** field is an optional text input that allows up to 320 characters.
 - The **Avatar Color** field is an optional field that allows up to 7 characters — shown when no avatar image is set.
 - The **Avatar Initials** field is an optional field that allows up to 10 characters.

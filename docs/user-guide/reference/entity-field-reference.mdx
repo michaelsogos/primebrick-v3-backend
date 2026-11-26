@@ -122,31 +122,4 @@ reference for the AI assistant when answering questions about entity fields.
 
 **Row actions:** change_password, suspend, reactivate
 
-## client_registry
-
-**Title key:** `entities.client_registry.title`
-**UID field:** `uuid`
-
-| Field | Type | Sortable | Filterable | Searchable | Label Key |
-|-------|------|----------|------------|------------|-----------|
-| `ua_prefix` | text | no | no | yes | `system.entities.client_registry.fields.ua_prefix` |
-| `uuid` | text | no | no | yes | `system.common.fields.uuid` |
-| `source` | text | no | no | yes | `system.entities.client_registry.fields.source` |
-| `key_mode` | text | no | no | yes | `system.entities.client_registry.fields.key_mode` |
-| `key_generation` | text | no | no | no | `system.entities.client_registry.fields.key_generation` |
-| `key_rotated_at` | datetime | no | no | no | `system.entities.client_registry.fields.key_rotated_at` |
-| `is_enabled` | boolean | no | no | no | `system.entities.client_registry.fields.is_enabled` |
-| `created_at` | datetime | no | no | no | `system.common.fields.created_at` |
-| `created_by` | ref | no | no | yes | `system.common.fields.created_by` |
-| `updated_at` | datetime | no | no | no | `system.common.fields.updated_at` |
-| `updated_by` | ref | no | no | yes | `system.common.fields.updated_by` |
-| `version` | number | no | no | no | `system.common.fields.version` |
-| `deleted_at` | datetime | no | no | no | `system.common.fields.deleted_at` |
-| `deleted_by` | ref | no | no | yes | `system.common.fields.deleted_by` |
-| `client_key_hash` | text | no | no | yes | `system.entities.client_registry.fields.client_key_hash` |
-| `previous_key_hash` | text | no | no | yes | `system.entities.client_registry.fields.previous_key_hash` |
-| `previous_valid_until` | datetime | no | no | no | `system.entities.client_registry.fields.previous_valid_until` |
-
-**Default sort:** `created_at` desc
-
 <!-- END -->

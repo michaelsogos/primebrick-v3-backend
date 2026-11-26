@@ -6,9 +6,9 @@ entity: role_mapping
 
 Manage role-to-permission mappings. Each role maps an IDP role to a set of Primebrick permissions.
 
-Each row shows the IDP Role, the Organization, the Label Key, the Admin, the Permissions.
+Each row shows the IDP Role, the Organization, the Label Translation, the Admin, the Permissions.
 
-This role mapping is backed by the identity provider (Casdoor) — its identity fields are managed there.
+This role mapping is backed by the identity provider — its identity fields are managed there.
 
 The page is visible with the `access.system.settings.roles` grant.
 
@@ -40,15 +40,15 @@ The page is visible with the `access.system.settings.roles` grant.
 |--------|---------|----------|------------|-------|
 | **IDP Role** | yes | yes | yes |  |
 | **UUID** | no | yes | yes |  |
-| **Organization** | yes | yes | yes | the Casdoor organization this row belongs to |
-| **Label Key** | yes | yes | yes |  |
+| **Organization** | yes | yes | yes | the identity-provider organization this row belongs to |
+| **Label Translation** | yes | yes | yes |  |
 | **Admin** | yes | yes | yes |  |
 | **Permissions** | yes | no | yes |  |
 
 - The IDP Role column is shown by default and can be sorted and filtered.
 - The UUID column is hidden by default and can be sorted and filtered.
-- The Organization column is shown by default and can be sorted and filtered — the Casdoor organization this row belongs to.
-- The Label Key column is shown by default and can be sorted and filtered.
+- The Organization column is shown by default and can be sorted and filtered — the identity-provider organization this row belongs to.
+- The Label Translation column is shown by default and can be sorted and filtered.
 - The Admin column is shown by default and can be sorted and filtered.
 - The Permissions column is shown by default and can be filtered but not sorted.
 

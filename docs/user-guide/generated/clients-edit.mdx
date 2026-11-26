@@ -22,19 +22,17 @@ The page is visible with the `access.system.settings.clients` grant.
 3. Click **Save** — the changes to the client are saved.
 
 
-The record opens in read mode first — click **Edit** to modify it. Concurrent edits are protected by optimistic locking: if someone else saves the client while you are editing it, the page tells you before overwriting their changes. The form warns before discarding unsaved changes.
-
 ## Fields
 
 | Field | Required | Notes |
 |-------|----------|-------|
-| **User-Agent prefix** | required | text input — max 120; min 2 |
+| **ua prefix** | required | text input — max 120; min 2 |
 | **client key** | optional | text input — max 256 |
-| **Enabled** | optional | button |
+| **is enabled** | optional | button |
 
-- The **User-Agent prefix** field is a required text input that allows up to 120 characters and requires at least 2 characters.
+- The **ua prefix** field is a required text input that allows up to 120 characters and requires at least 2 characters.
 - The **client key** field is an optional text input that allows up to 256 characters.
-- The **Enabled** field is an optional button.
+- The **is enabled** field is an optional button.
 
 ## Actions
 
