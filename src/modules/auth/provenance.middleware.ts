@@ -12,9 +12,10 @@
 import type { RequestHandler } from "express";
 import { verifyEdgeRequest, AuthError } from "@primebrick/sdk";
 import { logger } from "@primebrick/sdk";
+import { PERMISSION_DECLARED, type DeclaredHandler } from "./rbac.middleware.js";
 
-export function requireInternalProvenance(): RequestHandler {
-  return async (req, res, next): Promise<void> => {
+export function requireInternalProvenance(): DeclaredHandler {
+  const handler: RequestHandler = async (req, res, next): Promise<void> => {
     try {
       const url = new URL(req.originalUrl, "http://internal");
       await verifyEdgeRequest(req, url);
@@ -33,4 +34,13 @@ export function requireInternalProvenance(): RequestHandler {
       });
     }
   };
+  // The signature check IS the declaration — carrying the brand keeps
+  // makeProtectedRouter's default-deny from firing before the middleware runs.
+  Object.defineProperty(handler, PERMISSION_DECLARED, {
+    value: { declared: ["__service_to_service__"], mode: "any" },
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  return handler as DeclaredHandler;
 }

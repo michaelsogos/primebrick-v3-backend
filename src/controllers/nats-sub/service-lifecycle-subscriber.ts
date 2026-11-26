@@ -14,7 +14,7 @@
 import { logger } from "@primebrick/sdk";
 import { DAL_NOW } from "@primebrick/dal-pg";
 import { OWNED_SCHEMAS } from "../../db/owned-schemas.js";
-import { NatsClient, SERVICE_SUBJECTS, makeNatsRequestRoute, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
+import { NatsClient, SERVICE_SUBJECTS, makeNatsRequestRoute, serviceLaneVerify, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
 import { ServiceRegistryService } from "../../modules/system/service-registry.service.js";
 import { validateNavDeclaration } from "../../modules/module-nav-meta.js";
 import { validateEventsDeclaration, validateCallablesDeclaration, validateEntitiesDeclaration } from "@primebrick/sdk";
@@ -49,6 +49,7 @@ export class ServiceLifecycleSubscriber {
           subject: SERVICE_SUBJECTS.REGISTER,
           queue: "primebrick-api",
           permissions: [],
+          verify: serviceLaneVerify,
           handler: async ({ request: payload }) => {
             if (!payload?.code || !payload?.base_url || !payload?.part_of) {
               logger.warn(`service.register rejected for the brick '${payload?.code ?? "unknown"}' — missing required field(s): ${[!payload?.code && "code", !payload?.base_url && "base_url", !payload?.part_of && "part_of"].filter(Boolean).join(", ")}`, {

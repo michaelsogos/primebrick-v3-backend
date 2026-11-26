@@ -9,7 +9,7 @@
  * verbatim, no business rules.
  */
 
-import { logger, makeNatsRequestRoute, AUTH_MFA_CONSUME_SUBJECT, CachingApiKeyPort, buildAuthUser, expandPermissions, type MfaConsumeResult } from "@primebrick/sdk";
+import { logger, makeNatsRequestRoute, serviceLaneVerify, AUTH_MFA_CONSUME_SUBJECT, CachingApiKeyPort, buildAuthUser, expandPermissions, type MfaConsumeResult } from "@primebrick/sdk";
 import type { Msg } from "@nats-io/transport-node";
 import { ApiError } from "../../http/api-errors.js";
 import { DomainApiKeyPort, DomainRoleMappingPort } from "../../modules/auth/sdk-auth-ports.js";
@@ -42,6 +42,7 @@ export async function startInternalRequestRoutes(): Promise<void> {
         // API-key lookup for services without a database (webhook precheck).
         subject: AUTH_APIKEY_BY_HASH_SUBJECT,
         permissions: [],
+        verify: serviceLaneVerify,
         handler: async ({ request }) => {
           const { hash } = (request ?? {}) as { hash?: string };
           if (!hash || typeof hash !== "string") return null;
@@ -63,6 +64,7 @@ export async function startInternalRequestRoutes(): Promise<void> {
         // SOURCE side a `payload_map` `kind:"path"` reads at fire time.
         subject: SERVICE_REGISTRY_GET_SUBJECT,
         permissions: [],
+        verify: serviceLaneVerify,
         handler: async ({ request }): Promise<unknown> => {
           const { code, capability, census } = (request ?? {}) as { code?: string; capability?: string; census?: string };
           if (census === "callables") {
@@ -105,6 +107,7 @@ export async function startInternalRequestRoutes(): Promise<void> {
         // not error envelopes: they are an expected outcome.
         subject: AUTH_MFA_CONSUME_SUBJECT,
         permissions: [],
+        verify: serviceLaneVerify,
         handler: async ({ request }): Promise<MfaConsumeResult> => {
           const { token, action, target_resource } = (request ?? {}) as {
             token?: string;
@@ -137,6 +140,7 @@ export async function startInternalRequestRoutes(): Promise<void> {
         // needing `system.common.*` labels their own dict can't serve).
         subject: SYSTEM_DICT_GET_SUBJECT,
         permissions: [],
+        verify: serviceLaneVerify,
         handler: async ({ request }) => {
           const { module, language } = (request ?? {}) as { module?: string; language?: string };
           if (!module || typeof module !== "string" || !language || typeof language !== "string") return null;
@@ -152,6 +156,7 @@ export async function startInternalRequestRoutes(): Promise<void> {
         // to dict.get for multi-key / foreign-ns label resolution.
         subject: SYSTEM_TRANSLATIONS_FIND_SUBJECT,
         permissions: [],
+        verify: serviceLaneVerify,
         handler: async ({ request }) => {
           const { matches, language } = (request ?? {}) as { matches?: string[]; language?: string };
           if (!Array.isArray(matches) || !matches.every((m) => typeof m === "string")) return null;
@@ -166,6 +171,7 @@ export async function startInternalRequestRoutes(): Promise<void> {
         // disabled user must fail the fire closed.
         subject: AUTH_RESOLVE_USER_SUBJECT,
         permissions: [],
+        verify: serviceLaneVerify,
         handler: async ({ request }): Promise<unknown> => {
           const { user_uuid } = (request ?? {}) as { user_uuid?: string };
           if (!user_uuid || typeof user_uuid !== "string") return null;
