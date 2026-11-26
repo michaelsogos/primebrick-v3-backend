@@ -1,4 +1,4 @@
-import type { AuditPort, AuditParams, Repository } from "@primebrick/dal-pg";
+import type { AuditPort, AuditParams, AuditWriteResult, Repository } from "@primebrick/dal-pg";
 import { AuditLogEntity, AuditAction, Project, field } from "@primebrick/dal-pg";
 import { NatsClient, publishEntityChanged, getClientSessionId, type EntityChangedMarker } from "@primebrick/sdk";
 import { getPresenceStore } from "../modules/collaboration/presence-store-holder.js";
@@ -29,7 +29,7 @@ type AuditWriter = Pick<Repository, "add">;
 export class EntityAuditPort implements AuditPort {
   constructor(private repo: AuditWriter) {}
 
-  async writeAudit(params: AuditParams): Promise<bigint | string> {
+  async writeAudit(params: AuditParams): Promise<AuditWriteResult> {
     // AuditParams contains: entityClassName, tableName (e.g. "customers"),
     //   entityId, entityUuid, action, changedAt, version, changedBy, delta
     //
@@ -111,6 +111,6 @@ export class EntityAuditPort implements AuditPort {
         }
       }
     }
-    return inserted.uuid;
+    return { key: inserted.uuid, changed_at: inserted.changed_at as Date };
   }
 }
