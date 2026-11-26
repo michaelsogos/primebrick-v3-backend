@@ -18,7 +18,7 @@
  * MFA factor, the enrollment tests are skipped.
  */
 
-import { logger } from "@primebrick/sdk";
+import { logger, extJsonStringify, extJsonParse } from '@primebrick/sdk';
 import { describe, it, expect, beforeAll } from "vitest";
 import { createHmac } from "crypto";
 
@@ -79,9 +79,9 @@ async function apiCall(
       "Content-Type": "application/json",
       ...(options.cookies ? { Cookie: options.cookies } : {}),
     },
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body: options.body ? extJsonStringify(options.body) : undefined,
   });
-  const data = await resp.json().catch(() => null);
+  const data = await resp.text().then((t) => extJsonParse<any>(t)).catch(() => null);
   const setCookie = resp.headers.get("set-cookie") ?? undefined;
   return { status: resp.status, data, setCookie };
 }

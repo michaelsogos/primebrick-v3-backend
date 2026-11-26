@@ -18,13 +18,16 @@
  */
 
 import { extJsonStringify, logger } from "@primebrick/sdk";
-import { randomUUID, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import {
   entityDateToApiIso,
   type Repository,
   field, Filter, Join,
   buildAuditableJoins,
   type WithAuditableDisplayNames,
+  newUuidV7,
+  DAL_NOW,
+  type DalNow,
 } from "@primebrick/dal-pg";
 
 import { DomainService } from "../../../db/domain-service.js";
@@ -62,13 +65,13 @@ export type UserProfileWriteBody = {
   idp_email_verified?: boolean;
   idp_issuer?: string;
   roles?: string[];
-  last_synced_at?: Date;
+  last_synced_at?: Date | DalNow;
   idp_code?: string;
   auth_method_enforcer_dismissed?: boolean;
   onboarding_completed?: boolean;
-  suspended_at?: Date | null;
+  suspended_at?: Date | DalNow | null;
   suspended_by?: string | null;
-  version?: number;
+  version?: bigint;
 };
 
 export type UserProfileDetailRow = WithAuditableDisplayNames<{
@@ -92,7 +95,7 @@ export type UserProfileDetailRow = WithAuditableDisplayNames<{
   created_by: string;
   updated_at: Date;
   updated_by: string;
-  version: number;
+  version: bigint;
   deleted_at?: Date;
   deleted_by?: string;
 }>;
@@ -293,7 +296,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     idp_email_verified: boolean;
     idp_issuer?: string | null;
     roles?: string[] | null;
-    last_synced_at?: Date;
+    last_synced_at?: Date | DalNow;
   }): Promise<void> {
     await this.svc.create({
       uuid: data.uuid,
@@ -322,7 +325,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     // update's version guard throws ERR02 — we NEVER manufacture a
     // version by re-reading the row (that would elide the concurrency check).
     const row = await this.svc.update(
-      uuid, { ...body } as Record<string, unknown> & { version: number }, tx,
+      uuid, { ...body } as Record<string, unknown> & { version: bigint }, tx,
     );
     return this.toDto(row as never);
   }
@@ -339,7 +342,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
   ): Promise<UserProfileDetailDto> {
     const version = (await this.freshRowByUuid(uuid, tx)).version;
     const row = await this.svc.update(
-      uuid, { ...body, version } as Record<string, unknown> & { version: number }, tx,
+      uuid, { ...body, version } as Record<string, unknown> & { version: bigint }, tx,
     );
     return this.toDto(row as never);
   }
@@ -356,7 +359,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     // unit of work (the caller legitimately has `uuid`, not a prior version).
     const version = body.version ?? (await this.freshRowByUuid(uuid)).version;
     const row = await this.svc.update(
-      uuid, { ...body, version } as Record<string, unknown> & { version: number },
+      uuid, { ...body, version } as Record<string, unknown> & { version: bigint },
     );
     return this.toDto(row as never);
   }
@@ -377,7 +380,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     return row as UserProfileEntity;
   }
 
-  async softDeleteProfile(uuid: string, version: number): Promise<UserProfileDetailDto> {
+  async softDeleteProfile(uuid: string, version: bigint): Promise<UserProfileDetailDto> {
     const row = await this.svc.delete(uuid, version);
     return this.toDto(row as unknown as UserProfileDetailRow);
   }
@@ -386,7 +389,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
    * Restore a soft-deleted profile. Overrides `svc.restore` — same signature —
    * returning the joined + DTO-mapped row (audit display names, ISO dates).
    */
-  override async restore(uuid: string, version?: number): Promise<UserProfileDetailDto> {
+  override async restore(uuid: string, version?: bigint): Promise<UserProfileDetailDto> {
     const row = await this.svc.restore(uuid, version);
     return this.toDto(row as unknown as UserProfileDetailRow);
   }
@@ -395,7 +398,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
   async getUserProfileAudit(uuid: string, page: number, limit: number) {
     const result = (await this.svc.audit(uuid, page, limit)) as {
-      data: { uuid: string; entity_uuid: string; action: string; changed_at: unknown; changed_by: string | null; changed_by_display_name?: string | null; version: number; delta: unknown }[];
+      data: { uuid: string; entity_uuid: string; action: string; changed_at: unknown; changed_by: string | null; changed_by_display_name?: string | null; version: bigint; delta: unknown }[];
       pagination: unknown;
     };
 
@@ -469,7 +472,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     }
 
     // 2. Try a fast SELECT first — most requests hit existing users.
-    const row = await this.svc.find<{ uuid: string; idp_org?: string; idp_username?: string; version?: number }>(
+    const row = await this.svc.find<{ uuid: string; idp_org?: string; idp_username?: string; version?: bigint }>(
       [
         { kind: "field", field: field(UserProfileEntity, "uuid" as any) },
         { kind: "field", field: field(UserProfileEntity, "idp_org" as any) },
@@ -498,7 +501,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
         // Self-attribution: the sync write stamps the profile's own uuid
         // (no user session exists yet on the JIT path).
         await this.runAs(row.uuid, () =>
-          this.svc.update(row.uuid, updates as Record<string, unknown> & { version: number }),
+          this.svc.update(row.uuid, updates as Record<string, unknown> & { version: bigint }),
         );
       }
       // 3. Cache the result in Redis
@@ -514,7 +517,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
     // 4. Not found → just-in-time provisioning. The user that performs the very
     // first auth bootstraps their own profile, hence `actor = newUuid`.
-    const newUuid = randomUUID();
+    const newUuid = newUuidV7();
 
     // find→NULL above proved absence → this is a pure INSERT. A concurrent
     // first-login for the same idp_code loses the race with a unique violation —
@@ -630,7 +633,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
     // 2. Create local profile via DAL (repo.add — no manual audit field setting)
     const idpCode = casdoorUserId;
-    const newUuid = randomUUID();
+    const newUuid = newUuidV7();
     const idp_issuer = cfg.idp_endpoint || null;
 
     await this.createProfile({
@@ -647,7 +650,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
       idp_email_verified,
       idp_issuer,
       roles: roles ?? null,
-      last_synced_at: new Date(),
+      last_synced_at: DAL_NOW,
     });
 
     const profile = await this.getByUuid(newUuid);
@@ -679,7 +682,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
 
   // --- Delete (soft) --------------------------------------------------------
 
-  async deleteUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
+  async deleteUser(uuid: string, version: bigint): Promise<UserProfileDetailDto> {
     const existing = await this.getByUuid(uuid);
     if (!existing) {
       throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
@@ -728,7 +731,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
    * identity is forbidden. `isForbidden` derives as `suspended ∨ deleted` —
    * suspending an already-deleted user is refused (deleted wins).
    */
-  async suspendUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
+  async suspendUser(uuid: string, version: bigint): Promise<UserProfileDetailDto> {
     const existing = await this.getByUuid(uuid);
     if (!existing) {
       throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
@@ -759,7 +762,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     }
 
     const updated = await this.updateProfile(uuid, {
-      suspended_at: new Date(),
+      suspended_at: DAL_NOW,
       suspended_by: requireActor(),
       version,
     });
@@ -772,7 +775,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
    * IDP identity — unless the record is also deleted (deleted wins: a
    * suspended+deleted user stays forbidden, only `restore` re-enables).
    */
-  async reactivateUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
+  async reactivateUser(uuid: string, version: bigint): Promise<UserProfileDetailDto> {
     const existing = await this.getByUuid(uuid);
     if (!existing) {
       throw new NotFoundError("User profile not found in database", { internal_code: "USER_NOT_FOUND" });
@@ -819,7 +822,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     return row ? this.toDto(row as never) : null;
   }
 
-  async restoreUser(uuid: string, version: number): Promise<UserProfileDetailDto> {
+  async restoreUser(uuid: string, version: bigint): Promise<UserProfileDetailDto> {
     // The record being restored IS soft-deleted — the lookup must include
     // tombstoned rows or the existence check 404s on every restore.
     const existing = await this.getByUuidIncludingDeleted(uuid);
@@ -905,7 +908,6 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     }
 
     const cdClient = await this.casdoor.getClient();
-    const syncTimestamp = new Date();
     if (cdClient) {
       let svgDataUri: string | undefined;
       if (body.avatar_color && body.avatar_initials) {
@@ -944,7 +946,7 @@ export class UserService extends DomainService<UserProfileDetailDto> {
     }
 
     // Caller-observed version forwarded as-is — the DAL enforces ERR02/ERR01.
-    const updateBody: Record<string, unknown> = { last_synced_at: syncTimestamp, version: body.version };
+    const updateBody: Record<string, unknown> = { last_synced_at: DAL_NOW, version: body.version };
     if (body.display_name !== undefined) updateBody.display_name = body.display_name;
     if (body.email !== undefined) updateBody.email = body.email || undefined;
     if (body.avatar_color !== undefined) updateBody.avatar_color = body.avatar_color;

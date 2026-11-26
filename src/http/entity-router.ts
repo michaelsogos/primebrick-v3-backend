@@ -71,6 +71,7 @@ export type EntityAction =
   | "duplicate"
   | "bulkDelete"
   | "bulkRestore"
+  | "bulkUpdate"
   | "get"
   | "update"
   | "delete"
@@ -233,6 +234,10 @@ export function makeEntityRouter<TEntity, S extends object>(
       const body = req.body as z.infer<typeof BulkItemsSchema>;
       res.json(await call("bulkRestore", body.items));
     }),
+    bulkUpdate: asyncHandler(async (req, res) => {
+      const body = req.body as { items: Array<{ uuid: string; version: bigint }>; set: Record<string, unknown> };
+      res.json(await call("bulkUpdate", body.items.map((i) => ({ ...i, ...body.set }))));
+    }),
     get: asyncHandler(async (req, res) => {
       res.json(await call("get", req.params.uuid));
     }),
@@ -315,6 +320,14 @@ export function makeEntityRouter<TEntity, S extends object>(
     path: `${base}/bulk-restore`,
     middlewares: [validateBody(BulkItemsSchema), ...extraMw("bulkRestore")],
   });
+  push(literalDefs, "bulkUpdate", {
+    method: "post",
+    path: `${base}/bulk-update`,
+    // `set` is validated by the SAME meta-derived partial schema single
+    // update uses — audited/immutable/non-column keys fail here, values
+    // too (max_length, format, options …).
+    middlewares: [validateBody(z.object({ items: BulkItemsSchema.shape.items, set: updateBody })), ...extraMw("bulkUpdate")],
+  });
 
   push(paramDefs, "get", { method: "get", path: `${base}/:uuid`, middlewares: [validateUuidParam, ...extraMw("get")] });
   push(paramDefs, "update", {
@@ -384,7 +397,7 @@ const ACTION_TO_CRUD_OP = {
   meta: "meta", list: "list", get: "get", create: "create",
   update: "update", delete: "delete", purge: "purge", restore: "restore",
   audit: "audit", duplicate: "duplicate",
-  bulkDelete: "bulk_delete", bulkRestore: "bulk_restore",
+  bulkDelete: "bulk_delete", bulkRestore: "bulk_restore", bulkUpdate: "bulk_update",
 } as const;
 
 export interface EntitySpecEntry {

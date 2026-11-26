@@ -16,6 +16,7 @@
 import {
   Column,
   Entity,
+  PublicEntity,
   Key,
   Unique,
   AuditTrail,
@@ -24,7 +25,7 @@ import {
   type UUID,
 } from "@primebrick/dal-pg";
 
-@Entity("mfa_action_authorizations")
+@PublicEntity("mfa_action_authorizations")
 @AuditTrail()
 export class MfaActionAuthorizationEntity
   extends Auditable(EntityBase) {

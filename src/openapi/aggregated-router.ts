@@ -10,7 +10,7 @@
  * existing /api/v1/openapi.json endpoint.
  */
 
-import { logger, extJsonParse, extJsonStringify } from "@primebrick/sdk";
+import { logger, extJsonParse, extJsonStringify } from '@primebrick/sdk';
 import { Router } from "express";
 import { mergedOpenApiSpec } from "./spec.js";
 import { ServiceRegistryService } from "../modules/system/service-registry.service.js";
@@ -65,14 +65,14 @@ export function aggregatedOpenApiRouter() {
         if (!response.ok) {
           let reason: string | undefined;
           try {
-            const problem = (await response.json()) as { internal_code?: string };
+            const problem = (await response.text().then((t) => extJsonParse<any>(t))) as { internal_code?: string };
             reason = problem.internal_code;
           } catch { /* body not json */ }
           logger.error(`OpenAPI spec fetch rejected by ${svcRef}`, { tags: ["openapi", `${response.status}`], ...(reason ? { reason } : {}) });
           continue;
         }
 
-        const svcSpec = await response.json();
+        const svcSpec = await response.text().then((t) => extJsonParse<any>(t));
 
         // Inject x-badges and tag into every microservice operation before merging
         for (const path of Object.keys(svcSpec.paths || {})) {

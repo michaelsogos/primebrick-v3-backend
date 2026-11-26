@@ -524,7 +524,7 @@ export class ConfigEntriesService extends DomainService<
    */
   async updateEntry(
     uuid: string,
-    patch: { value?: string; type?: string; type_config?: string | null; version?: number | bigint },
+    patch: { value?: string; type?: string; type_config?: string | null; version?: bigint | bigint },
     updatedBy: string,
     tx?: Repository
   ): Promise<void> {
@@ -577,7 +577,7 @@ export class ConfigEntriesService extends DomainService<
         // When tx is provided, the write is appended to the open transaction
         // and the cache reload is deferred to the caller (post-commit).
         await this.runAs(updatedBy, () =>
-          this.svc.update(uuid, updateEntity as Record<string, unknown> & { version: number }, tx),
+          this.svc.update(uuid, updateEntity as Record<string, unknown> & { version: bigint }, tx),
         );
         if (!tx) await this.reloadCache();
       }
@@ -591,12 +591,12 @@ export class ConfigEntriesService extends DomainService<
    * transactional `updateMany` (temp-table strategy). Returns affected count.
    */
   async bulkUpdateEntries(
-    items: Array<ConfigEntryUpdateInput & { uuid: string; version: number | bigint }>,
+    items: Array<ConfigEntryUpdateInput & { uuid: string; version: bigint | bigint }>,
     userUuid: string,
   ): Promise<number> {
     const validUpdates: Array<{
       uuid: string;
-      version: number;
+      version: bigint;
       value?: string;
       type?: string;
       type_config?: string | null;
@@ -642,7 +642,7 @@ export class ConfigEntriesService extends DomainService<
       if (effectiveType === "secret" && valueStr === "") {
         validUpdates.push({
           uuid: item.uuid,
-          version: Number(item.version),
+          version: item.version,
           type: item.type,
           type_config: item.type_config,
         });
@@ -655,7 +655,7 @@ export class ConfigEntriesService extends DomainService<
 
       validUpdates.push({
         uuid: item.uuid,
-        version: Number(item.version),
+        version: item.version,
         value: valueStr,
         type: item.type,
         type_config: item.type_config,
@@ -686,7 +686,7 @@ export class ConfigEntriesService extends DomainService<
    * Rejects reserved rows (they are system-critical and cannot be deleted).
    * Invalidates + reloads the in-memory auth config cache.
    */
-  async softDelete(uuid: string, version: number, deletedBy: string): Promise<ConfigEntryEntity> {
+  async softDelete(uuid: string, version: bigint, deletedBy: string): Promise<ConfigEntryEntity> {
     try {
       // The read below exists ONLY for the reserved-row business rule and the
       // not-found check — it is NOT used to manufacture a version. The write is
@@ -712,7 +712,7 @@ export class ConfigEntriesService extends DomainService<
    * Invalidates + reloads the in-memory auth config cache.
    */
   async bulkSoftDelete(
-    items: Array<{ uuid: string; version: number | bigint }>,
+    items: Array<{ uuid: string; version: bigint | bigint }>,
     deletedBy: string,
   ): Promise<{ received: number; affected: number }> {
     try {
@@ -742,7 +742,7 @@ export class ConfigEntriesService extends DomainService<
         }
       }
       const result = await this.runAs(deletedBy, () =>
-        this.svc.bulkDelete(items.map((i) => ({ uuid: i.uuid, version: Number(i.version) }))),
+        this.svc.bulkDelete(items.map((i) => ({ uuid: i.uuid, version: i.version }))),
       );
       await this.reloadCache();
       return result as { received: number; affected: number };
@@ -755,7 +755,7 @@ export class ConfigEntriesService extends DomainService<
    * Restore a soft-deleted config row by uuid.
    * Invalidates + reloads the in-memory auth config cache.
    */
-  async restoreEntry(uuid: string, version: number, updatedBy: string): Promise<ConfigEntryEntity> {
+  async restoreEntry(uuid: string, version: bigint, updatedBy: string): Promise<ConfigEntryEntity> {
     try {
       // Read for not-found only — version is caller-observed (ERR02/ERR01).
       const existing = await this.svc.get(uuid, {

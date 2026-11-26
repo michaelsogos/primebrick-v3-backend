@@ -2,7 +2,7 @@
  * Unit tests for `marker-persister.ts` — NATS `entity.*.*.changed` markers
  * are persisted into the Redis presence store (setChanged + markEdited).
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   subscribe: vi.fn(),
@@ -37,12 +37,22 @@ async function freshModule() {
   return await import("../marker-persister.js");
 }
 
-describe("marker persister", () => {
+describe("marker persister", { timeout: 15_000 }, () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.isConnected.mockReturnValue(true);
     mocks.getStore.mockReturnValue(mocks.store);
     mocks.subscribe.mockResolvedValue({ unsubscribe: () => {} });
+  });
+
+  // `vi.resetModules` gives each test a fresh module instance but cannot
+  // disarm state armed inside it (retryTimer, NATS subscription). Without
+  // this a starved test's abandoned body leaks an armed retry into the
+  // next test's window — the phantom subscribe call that made this file
+  // flaky under suite load.
+  afterEach(async () => {
+    const m = await import("../marker-persister.js");
+    m.stopMarkerPersister();
   });
 
   it("subscribes to entity.*.*.changed and persists markers", async () => {

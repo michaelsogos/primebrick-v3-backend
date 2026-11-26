@@ -70,7 +70,7 @@ function toRegistrationResponse(client: OAuthClient): ClientRegistrationResponse
   return {
     client_id: client.client_id,
     client_secret: client.client_secret,
-    client_id_issued_at: Math.floor(client.client_id_issued_at.getTime() / 1000),
+    client_id_issued_at: Math.floor(client.client_id_issued_at!.getTime() / 1000),
     client_secret_expires_at: client.client_secret_expires_at
       ? Math.floor(client.client_secret_expires_at.getTime() / 1000)
       : 0, // 0 = never expires per RFC 7591
@@ -130,7 +130,7 @@ export function dcrRouter(): Router {
         response_types: body.response_types ?? ["code"],
         token_endpoint_auth_method: authMethod,
         scope: body.scope ?? "mcp:tools",
-        client_id_issued_at: new Date(),
+        client_id_issued_at: undefined,
         client_secret_expires_at: null, // Never expires
       };
 

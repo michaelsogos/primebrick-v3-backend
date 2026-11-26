@@ -145,7 +145,7 @@ export async function applyTelemetryConfigFromDb(): Promise<void> {
   applyLogOptions(cached);
   await restartTelemetry(toTelemetryConfig(cached), serviceName, serviceVersion);
   try {
-    await NatsClient.publish(CONFIG_CHANGED_SUBJECT, { keys: [...TELEMETRY_KEYS] });
+    await NatsClient.publishEphemeralLossy(CONFIG_CHANGED_SUBJECT, { keys: [...TELEMETRY_KEYS] });
   } catch (err) {
     logger.warn("config.changed broadcast failed (NATS down?)", { tags: ["telemetry"],
       error: err instanceof Error ? err.message : String(err),

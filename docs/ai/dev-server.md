@@ -18,8 +18,14 @@
 4. **The stack must survive the turn**: BE, FE, job-handler and CRM stay
    running across agent turns — a service started inside an agent shell
    dies with the session, so services MUST be started **detached** via
-   `primebrick-workspace/scripts/dev-stack.ps1` (idempotent, skips ports
-   already listening, logs to `primebrick-workspace/temp/logs/`). If a
+   `primebrick-workspace/scripts/dev-stack.ps1` (delegates to
+   `dev-stack.mjs` — genuinely idempotent: per-service state files in
+   `temp/dev/<name>.json`, serialized lock, process-TREE kill via
+   `taskkill /T`, `status`/`stop`/`restart`/`reap` subcommands;
+   `reap` kills untracked primebrick dev processes — zombies — while a
+   chain that reaches an IDE terminal is classified USER-STARTED and
+   never touched. Logs to `temp/logs/` at the multi-repo checkout root
+   (`D:\git\primebrick\temp\logs\` — NOT under primebrick-workspace). If a
    turn finds a service down, restart it detached — never leave the only
    copy of the stack inside an ephemeral shell.
 5. **Releases and branch churn kill the stack — restart it after**:
@@ -41,6 +47,26 @@
 
 If port 3001 is wedged by a leftover process of THIS repo, the sanctioned
 cleanup is `pnpm run dev:kill` (`scripts/kill-port-3001.mjs`) — then restart.
+
+## Dev consumption mode — libs are loaded from SRC
+
+`pnpm run dev` runs `tsx watch --tsconfig tsconfig.dev.json -C development
+src/index.ts`: the `development` export condition resolves
+`@primebrick/{dal-pg,sdk}` — and transitively core/decimal — into the
+sibling repos' `src/` trees, exactly like `bun --conditions=development`
+does for the US microservices. `tsx watch` watches the whole imported
+module graph, so **an edit in a lib `src/` reboots the backend
+automatically** — no `pnpm build` in the lib, no manual restart.
+
+`tsconfig.dev.json` exists because tsx applies the loaded tsconfig only
+to files inside its `include`: it widens the scope to the sibling src
+trees so they get `experimentalDecorators`/`emitDecoratorMetadata`
+(without it dal's legacy property decorators crash with
+`target.constructor` undefined). Flag order matters:
+`--tsconfig` must precede `-C` or tsx forwards it to node.
+
+Production still consumes `dist` via the default `import` condition —
+the dev mode only changes how sources resolve under the watcher.
 
 ## Dependency-graph changes
 

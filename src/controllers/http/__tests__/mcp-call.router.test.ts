@@ -39,6 +39,7 @@ vi.mock("../../../modules/auth/rbac.middleware.js", () => ({
 import { mcpCallRouter } from "../mcp-call.router.js";
 import { mountRouter, type TestApp } from "./harness.js";
 
+import { extJsonStringify, extJsonParse } from '@primebrick/sdk';
 let app: TestApp;
 beforeAll(async () => {
   app = await mountRouter(mcpCallRouter());
@@ -51,7 +52,7 @@ describe("mcp-call router — tools catalog", () => {
   it("GET /tools returns the generic tool defs", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/tools`);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.tools).toEqual(mocks.toolDefs);
   });
 });
@@ -61,7 +62,7 @@ describe("mcp-call router — POST /call", () => {
     const res = await fetch(`${app.baseUrl}${BASE}/call`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ args: {} }),
+      body: extJsonStringify({ args: {} }),
     });
     expect(res.status).toBe(400);
     expect(mocks.service.call).not.toHaveBeenCalled();
@@ -71,7 +72,7 @@ describe("mcp-call router — POST /call", () => {
     const res = await fetch(`${app.baseUrl}${BASE}/call`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tool: "" }),
+      body: extJsonStringify({ tool: "" }),
     });
     expect(res.status).toBe(400);
     expect(mocks.service.call).not.toHaveBeenCalled();
@@ -82,7 +83,7 @@ describe("mcp-call router — POST /call", () => {
     const res = await fetch(`${app.baseUrl}${BASE}/call`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tool: "list_entities", args: { module: "auth", entity: "user" } }),
+      body: extJsonStringify({ tool: "list_entities", args: { module: "auth", entity: "user" } }),
     });
     expect(res.status).toBe(200);
     expect(mocks.service.call).toHaveBeenCalledWith(
@@ -91,7 +92,7 @@ describe("mcp-call router — POST /call", () => {
       "list_entities",
       { module: "auth", entity: "user" },
     );
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.ok).toBe(true);
     expect(body.result).toEqual({ uuid: "e-1" });
   });
@@ -101,7 +102,7 @@ describe("mcp-call router — POST /call", () => {
     await fetch(`${app.baseUrl}${BASE}/call`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tool: "list_available_entities" }),
+      body: extJsonStringify({ tool: "list_available_entities" }),
     });
     expect(mocks.service.call).toHaveBeenCalledWith(
       expect.anything(),
@@ -116,10 +117,10 @@ describe("mcp-call router — POST /call", () => {
     const res = await fetch(`${app.baseUrl}${BASE}/call`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tool: "delete_entity", args: { module: "auth", entity: "user", uuid: "u" } }),
+      body: extJsonStringify({ tool: "delete_entity", args: { module: "auth", entity: "user", uuid: "u" } }),
     });
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.ok).toBe(false);
     expect(body.error).toBe("Permission denied");
   });
@@ -129,7 +130,7 @@ describe("mcp-call router — POST /call", () => {
     const res = await fetch(`${app.baseUrl}${BASE}/call`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tool: "not_a_tool" }),
+      body: extJsonStringify({ tool: "not_a_tool" }),
     });
     expect(res.status).toBe(404);
   });

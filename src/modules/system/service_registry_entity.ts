@@ -3,8 +3,10 @@ import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
+  PublicEntity,
   Key,
   Unique,
+  UniqueIndex,
   EntityBase,
   Auditable,
   Deletable,
@@ -20,16 +22,29 @@ import {
  * admin purge. `is_enabled`/`status` are operational axes (admin toggle /
  * liveness) and are intentionally NOT conflated with deletion.
  */
-@Entity("service_registry")
+@PublicEntity("service_registry")
+@UniqueIndex({ name: "service_registry_code_uq_scaler", where: "is_behind_scaler = true" })
+@UniqueIndex({ name: "service_registry_code_base_url_uq", where: "is_behind_scaler = false" })
 export class ServiceRegistryEntity
   extends Deletable(Auditable(EntityBase)) {
   @Key()
   @Column({ pgType: "uuid" })
   uuid!: UUID;
 
+  /**
+   * Unique-per-partition: `code` alone is unique among scaler-fronted rows
+   * (`is_behind_scaler = true` — the scaler owns one public code per service),
+   * while the pair (`code`, `base_url`) is unique among direct rows
+   * (`is_behind_scaler = false` — same code may run N direct instances on
+   * distinct base_urls). `aliveOnly` (default on Deletable) scopes both to
+   * live rows — tombstones never block re-registration.
+   */
+  @Unique("service_registry_code_uq_scaler", 0)
+  @Unique("service_registry_code_base_url_uq", 0)
   @Column({ length: 100, nullable: false })
   code: string;
 
+  @Unique("service_registry_code_base_url_uq", 1)
   @Column({ nullable: false })
   base_url: string;
 
@@ -60,7 +75,7 @@ export class ServiceRegistryEntity
   @Column({ nullable: true })
   service_version?: string;
 
-  /** Package name from the service's package.json (e.g. `primebrick-ai`) — with service_version it forms the canonical identity `{pkg_name}/{version}` used in client_shield_registry and logs. */
+  /** Package name from the service's package.json (e.g. `primebrick-ai`) — with service_version it forms the canonical identity `{pkg_name}/{version}` used in service_registry and logs. */
   @Column({ nullable: true })
   pkg_name?: string;
 
@@ -68,7 +83,7 @@ export class ServiceRegistryEntity
   @Column({ pgType: "jsonb", nullable: false, defaultSql: "'[]'" })
   capabilities: string[];
 
-  /** PG schema ownership claim from the service's DATABASE_SCHEMA env contract (first = owned schema). The BE rejects registration when a claimed schema is owned by a different code or is a platform schema. Claim persists while the row exists — released by unregister or admin purge only. */
+  /** PG schema ownership claim from the service's OWNED_SCHEMAS code contract (first = owned schema). The BE rejects registration when a claimed schema is owned by a different code or is a platform schema. Claim persists while the row exists — released by unregister or admin purge only. */
   @Column({ pgType: "text[]", nullable: false, defaultSql: "'{}'" })
   schemas: string[];
 

@@ -45,7 +45,10 @@ import { InvitationService } from "./invitation.service.js";
 import { getUserService } from "./user.service.js";
 import { DomainService } from "../../../db/domain-service.js";
 import { UserPasskeyEntity } from "../user_passkey_entity.js";
-import { field, Filter } from "@primebrick/dal-pg";
+import { field, Filter, 
+  DAL_NOW,
+  type DalNow,
+} from "@primebrick/dal-pg";
 import { sendEmail } from "./email-sender.js";
 import { requireActor, runAsSystem } from "@primebrick/sdk";
 import { parseUserAgent, truncateUserAgent } from "../utils/ua-parser.js";
@@ -105,7 +108,6 @@ function fetchWithHost(
           ok: res.statusCode! >= 200 && res.statusCode! < 300,
           status: res.statusCode!,
           text: async () => body,
-          // standards-exempt: ext-json — external wire payload (IdP response, fetch shim) — must not bigint-ify
           json: async () => JSON.parse(body),
           headers: {
             get(name: string): string | null {
@@ -309,7 +311,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
   private async deletePasskeyByUuid(uuid: string): Promise<void> {
     const existing = await this.svc.get(uuid, { throwIfNotFound: false });
     if (existing) {
-      await this.svc.delete(existing.uuid as string, existing.version as number);
+      await this.svc.delete(existing.uuid as string, existing.version as bigint);
     }
   }
 
@@ -337,13 +339,13 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
    * credential was last used. Best-effort: callers should catch errors
    * and log them without failing the signin.
    */
-  private async updatePasskeyLastUsed(credentialId: string, when: Date): Promise<void> {
+  private async updatePasskeyLastUsed(credentialId: string): Promise<void> {
     const existing = await this.findPasskeyByCredentialId(credentialId);
     if (!existing) return;
     // Match by uuid — the row was just read by credential_id, so the uuid
     // match is strictly equivalent (and the only match svc performs).
     await this.svc.update(existing.uuid, {
-      last_used_at: when,
+      last_used_at: DAL_NOW,
       // Required for optimistic locking — the `version` guard still applies;
       // a concurrent write in between rejects with ERR02 — acceptable for a
       // best-effort last_used_at bump.
@@ -452,7 +454,6 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
         Origin: origin,
         Accept: "application/json",
       },
-      // standards-exempt: ext-json — external wire payload (Casdoor webauthn) — strict plain JSON, bigint must throw loudly
       body: JSON.stringify(credential),
       hostOverride: browserHost,
     });
@@ -613,7 +614,7 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
           const allPks = await this.findPasskeysByUserProfileUuid(profile.uuid);
           debugLog(`all PG passkeys for profile ${profile.uuid}: ${extJsonStringify(allPks.map(p => ({ uuid: p.uuid, cred: p.credential_id, last_used: p.last_used_at })))}`);
         }
-        await runAsSystem(() => this.updatePasskeyLastUsed(credentialId, new Date()));
+        await runAsSystem(() => this.updatePasskeyLastUsed(credentialId));
         debugLog(`updateLastUsed DONE`);
       }
     } catch (lastUsedErr) {
@@ -742,7 +743,6 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
         Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      // standards-exempt: ext-json — external wire payload (Casdoor webauthn) — strict plain JSON, bigint must throw loudly
       body: JSON.stringify(credential),
       hostOverride: browserHost,
     });
@@ -1338,7 +1338,6 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
     const parts = token.split(".");
     const encodedPayload = parts[1];
     const rawPayload = Buffer.from(encodedPayload, "base64").toString("utf-8");
-    // standards-exempt: ext-json — external wire payload (JWT RFC7519) — must not bigint-ify
     return JSON.parse(rawPayload);
   }
 
@@ -1362,7 +1361,6 @@ export class WebauthnService extends DomainService<Record<string, unknown>> {
     let code = "webauthn_ceremony_failed";
 
     try {
-      // standards-exempt: ext-json — external wire payload (IdP error body) — must not bigint-ify
       const json = JSON.parse(errorText);
       detail = json.msg || json.error || json.error_description || detail;
       // Detect "no credentials" case (signin begin for a user with no passkey)

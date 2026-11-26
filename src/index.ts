@@ -1,5 +1,5 @@
 import "dotenv/config"; // must stay first — loads .env before any module reads it
-import { logger, assertDbEnv, detectPackageIdentity } from "@primebrick/sdk";
+import { logger, assertDbEnv, detectPackageIdentity } from '@primebrick/sdk';
 import "./observability/logging-init.js"; // must stay first import — async console bridge
 import cors from "cors";
 import express, { type Response } from "express";
@@ -22,7 +22,7 @@ import { initCache, closeCache, getRedisHealth, getCachePort } from "./cache/cac
 import { initPresenceStore, closePresenceStore } from "./modules/collaboration/presence-store-holder.js";
 import { collaborationBusRegistry } from "./modules/collaboration/collaboration-bus-registry.js";
 import { startKeyspaceListener } from "./modules/collaboration/keyspace-listener.js";
-import { startMarkerPersister } from "./modules/collaboration/marker-persister.js";
+import { startMarkerPersister, stopMarkerPersister } from "./modules/collaboration/marker-persister.js";
 import { initMcpModule } from "./modules/mcp/index.js";
 import { mountMcp } from "./controllers/http/mcp/index.js";
 // Side-effect import: activates `Express.Request.user` type augmentation.
@@ -33,28 +33,29 @@ import { dirname, resolve } from "node:path";
 import { ServiceRegistryService } from "./modules/system/service-registry.service.js";
 import { ServiceLifecycleSubscriber } from "./controllers/nats-sub/service-lifecycle-subscriber.js";
 import { startInternalRequestRoutes } from "./controllers/nats-sub/internal-request-routes.js";
-import { createPublisherVerifier } from "./controllers/nats-sub/publisher-identity.js";
 import { initBackendIdentity } from "./modules/proxy/backend-identity.js";
-import { initSecretEngine } from "./modules/secrets/secret-engine.js";
+import { initSecretVault, provisionSecretVault, wireFabricKeyProvider } from "./modules/secrets/secret-vault.js";
 import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js";
 import { ModuleDiscoveryService } from "./modules/system/module-discovery.service.js";
 import { serviceEventsBus } from "./modules/proxy/service-events-bus.js";
 import { initBackendTelemetry, getTelemetryShared } from "./observability/telemetry.js";
-import { shutdownTelemetry, flushLogsSync, mountPartitionMaintenanceJob, entityEventPayloadSchema } from "@primebrick/sdk";
-import { makePartitionMaintenanceJob, entityApiName, getEntityPersistenceMeta } from "@primebrick/dal-pg";
+import { shutdownTelemetry, flushLogsSync, mountPartitionMaintenanceJob, mountSequenceReviveJob, entityEventPayloadSchema } from "@primebrick/sdk";
+import { makePartitionMaintenanceJob, makeSequenceReviveJob, entityApiName, getEntityPersistenceMeta } from "@primebrick/dal-pg";
 import { ENTITY_REGISTRY } from "./domain/entities/registry.js";
 import { servedEntityDecl } from "./db/entity-name-registry.js";
 
-// Closed-set env contract: DATABASE_URL + DATABASE_SCHEMA are the ONLY
-// env vars this service may consume — any violation crashes before listen.
+// Closed-set env contract: DATABASE_URL is the ONLY env var this
+// service may consume — any violation crashes before listen.
+// (assertDbEnv treats DATABASE_SCHEMA as a reserved violation — schema
+// identity lives in src/db/owned-schemas.ts, never in env.)
 assertDbEnv();
 
 // Keyspace listener cleanup function (set during startup, called during shutdown)
 let stopKeyspaceListener: (() => Promise<void>) | null = null;
 
 const app = express();
-// Closed-set env contract (assertDbEnv above): only DATABASE_URL and
-// DATABASE_SCHEMA may be consumed — the API port is a fixed product constant,
+// Closed-set env contract (assertDbEnv above): only DATABASE_URL may
+// be consumed — the API port is a fixed product constant,
 // not an env override.
 const port = 3001;
 
@@ -132,7 +133,7 @@ async function checkIdp(): Promise<HealthCheckResult> {
       return { ok: false };
     }
 
-    const versionData = await versionResponse.json() as { status?: string; msg?: string; data?: { version?: string; commitId?: string; commitOffset?: number } };
+    const versionData = await versionResponse.text().then((t) => extJsonParse<any>(t)) as { status?: string; msg?: string; data?: { version?: string; commitId?: string; commitOffset?: number } };
     return {
       ok: true,
       type: "Casdoor",
@@ -202,7 +203,7 @@ async function checkLlm(): Promise<HealthCheckResult> {
       return { ok: false, error: `AI microservice health failed: HTTP ${res.status}` };
     }
 
-    const json = (await res.json()) as {
+    const json = (await res.text().then((t) => extJsonParse<any>(t))) as {
       ok: boolean;
       checks?: { llm?: { ok: boolean; model?: string; version?: string; error?: string } };
     };
@@ -459,8 +460,11 @@ async function startServiceLifecycle(): Promise<void> {
   try {
     // nats_url lives in config_entries (seeded by patch
     // 20261022225000_seed_nats_url) — the env contract allows only
-    // DATABASE_URL + DATABASE_SCHEMA. Runs after initDal(); the row is
+    // DATABASE_URL. Runs after initDal(); the row is
     // mandatory — missing config means a misconfigured system, not a default.
+    // Fabric message-key provider BEFORE any governed publish — needs only the PG pool.
+    await provisionSecretVault();
+    await wireFabricKeyProvider();
     const natsEntry = await getConfigEntriesService().findByKey("nats_url");
     if (!natsEntry?.value) {
       throw new Error('config_entries row "nats_url" missing — run pnpm db:migrate');
@@ -482,14 +486,13 @@ async function startServiceLifecycle(): Promise<void> {
     }
     // config.get — governed correlation-reply serving the shared config
     // (redis_url, telemetry) to microservices at boot and on config.changed.
-    const sharedConfigVerifier = createPublisherVerifier();
     await subscribeSharedConfig(NatsClient, () => {
       const cfg = getAuthConfig();
       return { redis_url: cfg.redis_url, telemetry: getTelemetryShared() };
-    }, sharedConfigVerifier.asRouteVerify());
+    });
     // Identity FIRST: the lifecycle subscriber publishes service.gateway_online
     // and internal routes serve shield-verified calls — every NATS publish
-    // must already carry the BE's client-shield identity.
+    // must already carry the BE's User-Agent identity.
     await enrollBackendIdentity();
     // Entity-event emission: governed svc writes publish
     // `events.api.<entity>.<uuid>` onto ENTITY_EVENTS from here on —
@@ -504,7 +507,9 @@ async function startServiceLifecycle(): Promise<void> {
     const subscriber = new ServiceLifecycleSubscriber();
     await subscriber.start();
     await startInternalRequestRoutes();
-    await initSecretEngine();
+    // Fabric message-key material vault (WP-A5): PG-owned rotating parte_B —
+    // boot self-heals missing material, hourly cadence, 7-day physical window.
+    await initSecretVault();
     // Partition/retention maintenance — the same SDK-mounted system job
     // the microservices get via createMicroservice (BE boots manually).
     // `api.partition_maintenance` mounts + materializes only when the
@@ -512,6 +517,11 @@ async function startServiceLifecycle(): Promise<void> {
     // @Retention); currentServiceCode resolves `api` from package name.
     const partitionJob = makePartitionMaintenanceJob(ENTITY_REGISTRY);
     if (partitionJob.needed) await mountPartitionMaintenanceJob(partitionJob);
+    // Sequence-revive twin — the api schema owns the builtin sequences
+    // table; JH coordinates the schedule, the api service hosts the
+    // executor (the algorithm lives once in dal-pg).
+    const reviveJob = makeSequenceReviveJob();
+    if (reviveJob.needed) await mountSequenceReviveJob(reviveJob);
     staleJob.start();
   } catch (err) {
     logger.warn(
@@ -523,12 +533,11 @@ async function startServiceLifecycle(): Promise<void> {
 }
 
 /**
- * Self-enroll the BE into system.client_shield_registry (B11): the BE never sends
- * `service.register`, so it upserts its own `source='registry'` row keyed
- * by `{pkg_name}/{version}` — the UA prefix it sends on proxied calls.
- * The client key comes from the `service_client_shield_key` config entry (module config,
- * not env). Delegates to `initBackendIdentity()` which also primes the
- * cached identity headers used by the proxy hot path.
+ * Prime the BE's outbound identity: the BE never sends `service.register`
+ * and no key material ever rides the wire — the User-Agent stamp
+ * (name+version+runtime) is observability metadata for logs and traces,
+ * trust itself is proof-of-possession. Delegates to `initBackendIdentity()`
+ * which also primes the cached identity headers used by the proxy hot path.
  */
 async function enrollBackendIdentity(): Promise<void> {
   await initBackendIdentity();
@@ -617,6 +626,13 @@ async function gracefulShutdown(): Promise<void> {
     collaborationBusRegistry.closeAll();
   } catch (err) {
     logger.warn("collaborationBusRegistry.closeAll failed:", { tags: ["core"], error: err });
+  }
+  try {
+    // Unsubscribe + disarm the NATS-not-connected retry — without this a
+    // re-armed 5s timer would keep the subscriber alive past close.
+    stopMarkerPersister();
+  } catch (err) {
+    logger.warn("stopMarkerPersister failed:", { tags: ["core"], error: err });
   }
   if (stopKeyspaceListener) {
     try {

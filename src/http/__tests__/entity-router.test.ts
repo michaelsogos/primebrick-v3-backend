@@ -52,7 +52,7 @@ vi.mock("../entity-write.js", async (importOriginal) => {
 
 import { makeEntityRouter } from "../entity-router.js";
 import { mountRouter, type TestApp } from "../../controllers/http/__tests__/harness.js";
-import { Permission } from "@primebrick/sdk";
+import { Permission, extJsonStringify, extJsonParse } from '@primebrick/sdk';
 import { z } from "zod";
 import { Entity, EntityBase, Auditable, Deletable, Clonable, AuditTrail } from "@primebrick/dal-pg";
 
@@ -133,7 +133,7 @@ describe("makeEntityRouter — soft-delete-only entity", () => {
   it("DELETE /:uuid without ?version → 400 VERSION_REQUIRED", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}`, { method: "DELETE" });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.internal_code).toBe("VERSION_REQUIRED");
     expect(service.delete).not.toHaveBeenCalled();
   });
@@ -146,8 +146,8 @@ describe("makeEntityRouter — soft-delete-only entity", () => {
   it("DELETE /:uuid?version=3 → service.delete(uuid, 3), entity returned", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}?version=3`, { method: "DELETE" });
     expect(res.status).toBe(200);
-    expect(service.delete).toHaveBeenCalledWith(UUID, 3);
-    const body = await res.json();
+    expect(service.delete).toHaveBeenCalledWith(UUID, 3n);
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.deleted).toBe(true);
   });
 
@@ -165,12 +165,12 @@ describe("makeEntityRouter — soft-delete-only entity", () => {
   it("POST /:uuid/restore?version=3 → service.restore(uuid, 3)", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}/restore?version=3`, { method: "POST" });
     expect(res.status).toBe(200);
-    expect(service.restore).toHaveBeenCalledWith(UUID, 3);
+    expect(service.restore).toHaveBeenCalledWith(UUID, 3n);
   });
 
   it("meta.actions exposes delete.single enabled, purge.single disabled", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/meta`);
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     const byOp = Object.fromEntries(
       (body.actions as { op: string; enabled: boolean }[]).map((a) => [a.op, a.enabled]),
     );
@@ -201,7 +201,7 @@ describe("makeEntityRouter — hard-delete-only entity", () => {
   it("DELETE /:uuid/purge without ?version → 400 VERSION_REQUIRED", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}/purge`, { method: "DELETE" });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.internal_code).toBe("VERSION_REQUIRED");
     expect(service.purge).not.toHaveBeenCalled();
   });
@@ -209,8 +209,8 @@ describe("makeEntityRouter — hard-delete-only entity", () => {
   it("DELETE /:uuid/purge?version=3 → service.purge(uuid, 3), entity returned", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}/purge?version=3`, { method: "DELETE" });
     expect(res.status).toBe(200);
-    expect(service.purge).toHaveBeenCalledWith(UUID, 3);
-    const body = await res.json();
+    expect(service.purge).toHaveBeenCalledWith(UUID, 3n);
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.purged).toBe(true);
   });
 
@@ -221,7 +221,7 @@ describe("makeEntityRouter — hard-delete-only entity", () => {
 
   it("meta.actions: purge.single enabled, delete.single + restore.single disabled", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/meta`);
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     const byOp = Object.fromEntries(
       (body.actions as { op: string; enabled: boolean }[]).map((a) => [a.op, a.enabled]),
     );
@@ -287,7 +287,7 @@ describe("makeEntityRouter — mandatory chain + overrides", () => {
   it("handler override is invoked for a valid request", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}/purge?version=9`, { method: "DELETE" });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.customPurge).toBe(true);
     expect(service.purge).not.toHaveBeenCalled();
   });
@@ -316,12 +316,12 @@ describe("makeEntityRouter — duplicate gate (Clonable-derived)", () => {
       const res = await fetch(`${app.baseUrl}${BASE}/duplicate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uuids: [UUID] }),
+        body: extJsonStringify({ uuids: [UUID] }),
       });
       expect(res.status).toBe(404);
       expect(service.duplicate).not.toHaveBeenCalled();
 
-      const meta = await (await fetch(`${app.baseUrl}${BASE}/meta`)).json();
+      const meta = await (await fetch(`${app.baseUrl}${BASE}/meta`)).text().then((t) => extJsonParse<any>(t));
       const dup = (meta.actions as { op: string; enabled: boolean }[]).find(
         (a) => a.op === "duplicate.bulk",
       );
@@ -363,12 +363,12 @@ describe("makeEntityRouter — duplicate gate (Clonable-derived)", () => {
       const res = await fetch(`${app.baseUrl}${BASE}/duplicate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uuids: [UUID] }),
+        body: extJsonStringify({ uuids: [UUID] }),
       });
       expect(res.status).toBe(200);
       expect(service.duplicate).toHaveBeenCalledWith([UUID]);
 
-      const meta = await (await fetch(`${app.baseUrl}${BASE}/meta`)).json();
+      const meta = await (await fetch(`${app.baseUrl}${BASE}/meta`)).text().then((t) => extJsonParse<any>(t));
       const dup = (meta.actions as { op: string; enabled: boolean; color?: string; icon?: string }[]).find(
         (a) => a.op === "duplicate.bulk",
       );
@@ -386,7 +386,7 @@ describe("makeEntityRouter — duplicate gate (Clonable-derived)", () => {
       }),
     );
     try {
-      const meta = await (await fetch(`${app.baseUrl}${BASE}/meta`)).json();
+      const meta = await (await fetch(`${app.baseUrl}${BASE}/meta`)).text().then((t) => extJsonParse<any>(t));
       const dup = (meta.actions as { op: string; permissions: string[] }[]).find(
         (a) => a.op === "duplicate.bulk",
       );
@@ -425,10 +425,10 @@ describe("makeEntityRouter — write contract", () => {
     const res = await fetch(`${app.baseUrl}${BASE}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entity: { name: "x" } }),
+      body: extJsonStringify({ entity: { name: "x" } }),
     });
     expect(res.status).toBe(201);
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.uuid).toBe("new-uuid");
     expect(body.success).toBeUndefined(); // no success:true wrapper
     expect(service.create).toHaveBeenCalledWith({ name: "x" }, {});
@@ -439,11 +439,11 @@ describe("makeEntityRouter — write contract", () => {
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entity: { name: "y" } }),
+      body: extJsonStringify({ entity: { name: "y" } }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.version).toBe(4);
+    const body = await res.text().then((t) => extJsonParse<any>(t));
+    expect(body.version).toBe(4n);
     expect(service.update).toHaveBeenCalledWith(UUID, { name: "y" }, {});
   });
 });

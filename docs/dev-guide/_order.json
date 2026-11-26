@@ -9,6 +9,7 @@
     "module-navigation",
     "service-registry",
     "mcp",
+    "oauth-dcr",
     "proxy",
     "secrets-engine",
     "translations",

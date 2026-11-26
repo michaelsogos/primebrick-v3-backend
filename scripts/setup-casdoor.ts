@@ -335,7 +335,7 @@ async function main(): Promise<void> {
   // config_entries writes go through the governed service path — audit rows +
   // in-memory auth-config cache reload — never a raw UPDATE. initDal()
   // bootstraps the dal-gateway exactly like src/index.ts (reads DATABASE_URL +
-  // DATABASE_SCHEMA from .env via assertDbEnv); runAsSystem() provides the ALS
+  // OWNED_SCHEMAS from src/db/owned-schemas.ts); runAsSystem() provides the ALS
   // actor scope the service layer requires outside HTTP requests.
   const { initDal } = await import("../src/db/dal-gateway.js");
   const { runAsSystem } = await import("@primebrick/sdk");

@@ -62,9 +62,9 @@ const jobRow = svc({
       route_prefixes: ["/system/job"],
       access: "access.system.job",
       nav: [
-        { id: "schedules", label_key: "job.jobs.nav", href: "/system/job/job-schedules", icon: "schedule", default: true },
-        { id: "runs", label_key: "job.runs.nav", href: "/system/job/runs", icon: "list-checks" },
-        { id: "triggers", label_key: "job.jobs.nav_triggers", href: "/system/job/triggers", icon: "list-checks" },
+        { id: "schedules", label_key: "system.jobs.nav", href: "/system/job/job-schedules", icon: "schedule", default: true },
+        { id: "runs", label_key: "system.runs.nav", href: "/system/job/runs", icon: "list-checks" },
+        { id: "triggers", label_key: "system.jobs.nav_triggers", href: "/system/job/triggers", icon: "list-checks" },
       ],
       routes: [
         { route: "/system/job/job-schedules", kind: "list", entity: "job_schedule" },
@@ -90,8 +90,8 @@ const crmRow = svc({
       route_prefixes: ["/crm", "/system/crm"],
       access: "access.crm",
       nav: [
-        { id: "customers", label_key: "crm.customers.nav", href: "/crm/customers", default: true },
-        { id: "pipeline", label_key: "crm.pipeline.nav", href: "/system/crm/pipeline" },
+        { id: "customers", label_key: "system.customers.nav", href: "/crm/customers", default: true },
+        { id: "pipeline", label_key: "system.pipeline.nav", href: "/system/crm/pipeline" },
       ],
       routes: [
         { route: "/crm/customers", kind: "list", entity: "customer" },
@@ -207,11 +207,11 @@ describe("ModuleDiscoveryService — derived-leaf access filtering", () => {
           nav: [
             {
               id: "admin",
-              label_key: "job.admin.nav",
+              label_key: "system.admin.nav",
               href: "/system/job/admin/flags",
               children: [
-                { id: "flags", label_key: "job.flags.nav", href: "/system/job/admin/flags", default: true },
-                { id: "quotas", label_key: "job.quotas.nav", href: "/system/job/admin/quotas" },
+                { id: "flags", label_key: "system.flags.nav", href: "/system/job/admin/flags", default: true },
+                { id: "quotas", label_key: "system.quotas.nav", href: "/system/job/admin/quotas" },
               ],
             },
           ],
@@ -242,14 +242,14 @@ describe("ModuleDiscoveryService — derived-leaf access filtering", () => {
           nav: [
             {
               id: "admin",
-              label_key: "job.admin.nav",
+              label_key: "system.admin.nav",
               href: "/system/job/admin/flags",
               children: [
-                { id: "flags", label_key: "job.flags.nav", href: "/system/job/admin/flags", default: true },
-                { id: "quotas", label_key: "job.quotas.nav", href: "/system/job/admin/quotas" },
+                { id: "flags", label_key: "system.flags.nav", href: "/system/job/admin/flags", default: true },
+                { id: "quotas", label_key: "system.quotas.nav", href: "/system/job/admin/quotas" },
               ],
             },
-            { id: "runs", label_key: "job.runs.nav", href: "/system/job/runs" },
+            { id: "runs", label_key: "system.runs.nav", href: "/system/job/runs" },
           ],
           routes: [
             { route: "/system/job/admin/flags", kind: "page" },
@@ -307,47 +307,47 @@ describe("ModuleDiscoveryService — labels seed", () => {
     const row = svc({
       code: "job",
       name: "Process Management",
-      label_key: "job.module.name",
+      label_key: "system.module.name",
       endpoints: {
         nav: {
           route_prefixes: ["/system/job"],
           access: "access.system.job",
           nav: [
-            { id: "schedules", label_key: "job.jobs.nav", href: "/system/job/job-schedules", default: true },
-            { id: "rules", label_key: "job.rules.nav", href: "/system/job/triggers" },
+            { id: "schedules", label_key: "system.jobs.nav", href: "/system/job/job-schedules", default: true },
+            { id: "rules", label_key: "system.rules.nav", href: "/system/job/triggers" },
           ],
           routes: [
-            { route: "/system/job/job-schedules", kind: "list", label_key: "job.jobs.nav" },
-            { route: "/system/job/triggers", kind: "list", label_key: "job.rules.nav" },
-            { route: "/system/job/triggers/create", kind: "create", label_key: "job.rules.new" },
+            { route: "/system/job/job-schedules", kind: "list", label_key: "system.jobs.nav" },
+            { route: "/system/job/triggers", kind: "list", label_key: "system.rules.nav" },
+            { route: "/system/job/triggers/create", kind: "create", label_key: "system.rules.new" },
           ],
           sheets: [
-            { key: "job.runDetail", component_url: "/svc/job/api/v1/module-assets/jobs-page.js", label_key: "job.run.sheet" },
+            { key: "job.runDetail", component_url: "/svc/job/api/v1/module-assets/jobs-page.js", label_key: "system.run.sheet" },
           ],
         },
       },
     });
     setup([row]);
     setupDicts({
-      job: {
-        "job.module.name": "Process Management",
-        "job.jobs.nav": "Schedules",
-        "job.rules.nav": "Rules",
-        "job.rules.new": "New rule",
-        "job.run.sheet": "Run detail",
+      system: {
+        "system.module.name": "Process Management",
+        "system.jobs.nav": "Schedules",
+        "system.rules.nav": "Rules",
+        "system.rules.new": "New rule",
+        "system.run.sheet": "Run detail",
       },
     });
     const { labels } = await list(["access.system.job.triggers"]); // only 'triggers' survives the filter
     expect(labels).toEqual({
-      "job.module.name": "Process Management",
-      "job.jobs.nav": "Schedules",
-      "job.rules.nav": "Rules",
-      "job.rules.new": "New rule",
-      "job.run.sheet": "Run detail",
+      "system.module.name": "Process Management",
+      "system.jobs.nav": "Schedules",
+      "system.rules.nav": "Rules",
+      "system.rules.new": "New rule",
+      "system.run.sheet": "Run detail",
     });
     // One dict fetch per scope regardless of key count.
     expect(mockTranslations.getI18nDict).toHaveBeenCalledTimes(1);
-    expect(mockTranslations.getI18nDict).toHaveBeenCalledWith("job", "en-GB");
+    expect(mockTranslations.getI18nDict).toHaveBeenCalledWith("system", "en-GB");
   });
 
   it("resolves cross-scope references — app.*/system.* cited by service nav", async () => {
@@ -358,7 +358,7 @@ describe("ModuleDiscoveryService — labels seed", () => {
         nav: {
           route_prefixes: ["/crm"],
           access: "access.crm",
-          nav: [{ id: "customers", label_key: "crm.customers.nav", href: "/crm/customers", default: true }],
+          nav: [{ id: "customers", label_key: "system.customers.nav", href: "/crm/customers", default: true }],
           routes: [
             { route: "/crm/customers", kind: "list" },
             { route: "/crm/customers/create", kind: "create", label_key: "app.common.new" },
@@ -368,46 +368,46 @@ describe("ModuleDiscoveryService — labels seed", () => {
     });
     setup([row]);
     setupDicts({
-      crm: { "crm.customers.nav": "Customers" },
+      system: { "system.customers.nav": "Customers" },
       app: { "app.common.new": "New" },
     });
     const { labels } = await list(["access.crm.*"]);
-    expect(labels["crm.customers.nav"]).toBe("Customers");
+    expect(labels["system.customers.nav"]).toBe("Customers");
     expect(labels["app.common.new"]).toBe("New");
-    expect(mockTranslations.getI18nDict).toHaveBeenCalledWith("crm", "en-GB");
+    expect(mockTranslations.getI18nDict).toHaveBeenCalledWith("system", "en-GB");
     expect(mockTranslations.getI18nDict).toHaveBeenCalledWith("app", "en-GB");
   });
 
   it("passes the requested language through to every dict fetch", async () => {
     setup([jobRow]);
-    setupDicts({ job: { "job.jobs.nav": "Pianificazioni" } });
+    setupDicts({ system: { "system.jobs.nav": "Pianificazioni" } });
     const { labels } = await new ModuleDiscoveryService().list(
       { permissions: new Set(["access.system.job.*"]) },
       "it-IT",
     );
-    expect(labels["job.jobs.nav"]).toBe("Pianificazioni");
-    expect(mockTranslations.getI18nDict).toHaveBeenCalledWith("job", "it-IT");
+    expect(labels["system.jobs.nav"]).toBe("Pianificazioni");
+    expect(mockTranslations.getI18nDict).toHaveBeenCalledWith("system", "it-IT");
   });
 
   it("a missing key is omitted — the FE falls back (raw key / module name)", async () => {
     setup([jobRow]);
-    setupDicts({ job: { "job.jobs.nav": "Schedules" } }); // runs/rules keys absent
+    setupDicts({ system: { "system.jobs.nav": "Schedules" } }); // runs/rules keys absent
     const { labels } = await list(["access.system.job.*"]);
-    expect(labels["job.jobs.nav"]).toBe("Schedules");
-    expect(labels).not.toHaveProperty("job.runs.nav");
-    expect(labels).not.toHaveProperty("job.rules.nav");
+    expect(labels["system.jobs.nav"]).toBe("Schedules");
+    expect(labels).not.toHaveProperty("system.runs.nav");
+    expect(labels).not.toHaveProperty("system.rules.nav");
   });
 
   it("a scope that fails to resolve is contained — other scopes still resolve", async () => {
     const row = svc({
       code: "crm",
       part_of: "crm",
-      label_key: "crm.module.name",
+      label_key: "system.module.name",
       endpoints: {
         nav: {
           route_prefixes: ["/crm"],
           access: "access.crm",
-          nav: [{ id: "customers", label_key: "crm.customers.nav", href: "/crm/customers", default: true }],
+          nav: [{ id: "customers", label_key: "system.customers.nav", href: "/crm/customers", default: true }],
           routes: [
             { route: "/crm/customers", kind: "list" },
             { route: "/crm/customers/create", kind: "create", label_key: "app.common.new" },
@@ -430,7 +430,7 @@ describe("ModuleDiscoveryService — labels seed", () => {
 describe("ModuleDiscoveryService — icon materialization", () => {
   /**
    * `icon` is OPTIONAL in the declaration — emission fills nulls from
-   * the kind map: dict→list, list→table-2, create/detail→text-cursor-input,
+   * the kind map: dict→table-dictionary, list→table-2, create/detail→text-cursor-input,
    * everything else→file-box. An authored icon always wins; nav leaves
    * inherit the icon of the route they point at. These assertions fail
    * against an emit that leaves `icon` undefined.
@@ -443,14 +443,14 @@ describe("ModuleDiscoveryService — icon materialization", () => {
         route_prefixes: ["/crm"],
         access: "access.crm",
         nav: [
-          { id: "types", label_key: "crm.types.nav", href: "/crm/settings/customer_types", default: true },
-          { id: "custom", label_key: "crm.custom.nav", href: "/crm/extras", icon: "star" },
-          { id: "orphan", label_key: "crm.orphan.nav", href: "/crm/archives" },
+          { id: "types", label_key: "system.types.nav", href: "/crm/settings/customer_types", default: true },
+          { id: "custom", label_key: "system.custom.nav", href: "/crm/extras", icon: "star" },
+          { id: "orphan", label_key: "system.orphan.nav", href: "/crm/archives" },
           {
             id: "group",
-            label_key: "crm.group.nav",
+            label_key: "system.group.nav",
             href: "/crm/group",
-            children: [{ id: "child", label_key: "crm.child.nav", href: "/crm/settings/customer_types" }],
+            children: [{ id: "child", label_key: "system.child.nav", href: "/crm/settings/customer_types" }],
           },
         ],
         routes: [
@@ -462,14 +462,14 @@ describe("ModuleDiscoveryService — icon materialization", () => {
     },
   });
 
-  it("fills unset icons from kind — dict→list — nav leaves inherit the pointed route's icon", async () => {
+  it("fills unset icons from kind — dict→table-dictionary — nav leaves inherit the pointed route's icon", async () => {
     setup([dictSvc]);
     const { modules } = await list(["access.crm.*"]);
     const m = modules[0];
-    expect(m.routes?.find((r) => r.kind === "dict")?.icon).toBe("list");
-    expect(m.nav?.find((l) => l.id === "types")?.icon).toBe("list");
+    expect(m.routes?.find((r) => r.kind === "dict")?.icon).toBe("table-dictionary");
+    expect(m.nav?.find((l) => l.id === "types")?.icon).toBe("table-dictionary");
     // Child leaves resolve through the same census map.
-    expect(m.nav?.find((l) => l.id === "group")?.children?.[0]?.icon).toBe("list");
+    expect(m.nav?.find((l) => l.id === "group")?.children?.[0]?.icon).toBe("table-dictionary");
     // The group parent keeps its declared (absent) icon — it is not a page.
     expect(m.nav?.find((l) => l.id === "group")?.icon).toBeUndefined();
     // A leaf with no matching route decl falls back to file-box.
@@ -492,7 +492,7 @@ describe("ModuleDiscoveryService — icon materialization", () => {
         nav: {
           route_prefixes: ["/all"],
           access: "access.all",
-          nav: [{ id: "home", label_key: "all.nav", href: "/all/items", default: true }],
+          nav: [{ id: "home", label_key: "system.all_nav", href: "/all/items", default: true }],
           routes: [
             { route: "/all/items", kind: "list" },
             { route: "/all/items/create", kind: "create" },
@@ -519,7 +519,7 @@ describe("ModuleDiscoveryService — icon materialization", () => {
     // but still resolves its declared route's kind icon.
     const { modules } = await list(["access.crm.extras"]);
     const m = modules[0];
-    expect(m.nav_hidden?.find((l) => l.href === "/crm/settings/customer_types")?.icon).toBe("list");
+    expect(m.nav_hidden?.find((l) => l.href === "/crm/settings/customer_types")?.icon).toBe("table-dictionary");
   });
 });
 
@@ -539,6 +539,26 @@ describe("ModuleDiscoveryService — entity ownership (endpoints.entities)", () 
     setup([svc({ code: "bare", name: "Bare" })]);
     const { modules } = await list([]);
     expect(modules[0].entities).toBeUndefined();
+  });
+
+  it("the gateway row delegates its dict to 'system' — api owns no translations schema", async () => {
+    setup([
+      svc({
+        code: "api",
+        name: "API Gateway",
+        is_reserved: true,
+        endpoints: { events: { emits: [{ subject: "events.api.user.>" }] } },
+      }),
+    ]);
+    const { modules } = await list([]);
+    expect(modules[0].id).toBe("api");
+    expect(modules[0].translations_module).toBe("system");
+  });
+
+  it("services without a dict delegate omit translations_module — id IS the schema", async () => {
+    setup([svc({ code: "crm", name: "CRM" })]);
+    const { modules } = await list([]);
+    expect(modules[0].translations_module).toBeUndefined();
   });
 
   it("a headless service still publishes its owned entities — the page-less case the map exists for", async () => {

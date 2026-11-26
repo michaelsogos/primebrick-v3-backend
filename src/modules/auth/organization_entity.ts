@@ -19,6 +19,7 @@ import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
+  PublicEntity,
   Key,
   Unique,
   SynchronizableField,
@@ -31,7 +32,7 @@ import {
 } from "@primebrick/dal-pg";
 import { Cached } from "@primebrick/sdk";
 
-@Entity("organizations")
+@PublicEntity("organizations")
 @AuditTrail()
 @Cached(300_000) // 5 min TTL — mutable (Casdoor sync)
 export class OrganizationEntity

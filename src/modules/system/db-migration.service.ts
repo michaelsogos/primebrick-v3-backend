@@ -17,9 +17,10 @@ import {
 import { getPool } from "../../db/dal-gateway.js";
 import { ENTITY_REGISTRY } from "../../domain/entities/registry.js";
 import { getModuleMigrationState } from "../../db/run-module-migrations.js";
+import { OWNED_SCHEMAS } from "../../db/owned-schemas.js";
 import { NotFoundError } from "../../http/api-errors.js";
 
-const SCHEMA = "public";
+const SCHEMA = OWNED_SCHEMAS[0];
 
 export class DbMigrationService {
   async status() {

@@ -27,6 +27,7 @@ import { getAuthConfig } from "../config.js";
 import { UserService } from "./user.service.js";
 import { CasdoorService } from "./casdoor.service.js";
 import { requireActor } from "@primebrick/sdk";
+import { DAL_NOW } from "@primebrick/dal-pg";
 import {
   ApiError,
   NotFoundError,
@@ -391,7 +392,6 @@ export class AuthSessionService {
     }
 
     // Sync to Casdoor first (non-best-effort: fail if sync fails).
-    const syncTimestamp = new Date();
     const cdClient = await this.casdoor.getClient();
     if (cdClient) {
       let svgDataUri: string | undefined;
@@ -436,7 +436,7 @@ export class AuthSessionService {
       }
     }
 
-    updateBody.last_synced_at = syncTimestamp;
+    updateBody.last_synced_at = DAL_NOW;
     await this.users.updateProfileInternal(userUuid, updateBody as any);
 
     const updated = await this.users.getByUuid(userUuid);
@@ -458,7 +458,6 @@ export class AuthSessionService {
     const parts = token.split(".");
     const encodedPayload = parts[1];
     const rawPayload = Buffer.from(encodedPayload, "base64").toString("utf-8");
-    // standards-exempt: ext-json — external wire payload (JWT RFC7519) — must not bigint-ify
     return JSON.parse(rawPayload);
   }
 
@@ -480,7 +479,6 @@ export class AuthSessionService {
     let errorDetail = "Authentication failed";
     let errorCode = "AUTH_FAILED";
     try {
-      // standards-exempt: ext-json — external wire payload (Casdoor error body) — must not bigint-ify
       const errorJson = JSON.parse(errorText);
       errorDetail = errorJson.error_description || errorJson.error || errorDetail;
       errorCode = errorJson.error || errorCode;

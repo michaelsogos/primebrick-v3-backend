@@ -10,6 +10,9 @@ import {
 // declared in .devin/check-standards.json (pg-import allowPaths).
 import type { Pool } from "pg";
 import { getCachePort } from "../cache/cache-port-holder.js";
+import { OWNED_SCHEMAS } from "./owned-schemas.js";
+
+export { OWNED_SCHEMAS };
 
 /**
  * Dal gateway bootstrap for the BE.
@@ -20,8 +23,8 @@ import { getCachePort } from "../cache/cache-port-holder.js";
  * every microservice's `db/dal.ts`). `getDal()` FAILS FAST if bootstrap
  * hasn't run — there is no lazy get-or-init seam.
  *
- * The env contract (DATABASE_URL + DATABASE_SCHEMA, nothing else) is
- * enforced by assertDbEnv.
+ * The env contract (DATABASE_URL only) is enforced by assertDbEnv.
+ * Schema identity is OWNED_SCHEMAS (./owned-schemas.ts) — code, never env.
  */
 
 /**
@@ -42,10 +45,10 @@ const lazyCachePort: CachePort = {
 };
 
 export function initDal(): void {
-  const { url, schemas } = assertDbEnv();
+  const { url } = assertDbEnv();
   getDal({
     connectionString: url,
-    schemas,
+    schemas: [...OWNED_SCHEMAS],
     // The BE is the i18n gateway — it manages `<module>.translations` in
     // every module schema (static + registry-discovered). `translations`
     // is the governed shared table contract; domain check still applies
@@ -64,9 +67,9 @@ export function initDal(): void {
 
 export { getDal };
 
-// standards-exempt: getPool — governed seam for migration/patch tooling ONLY (run-module-migrations, db-migration.service)
+// standards-exempt: getPool — governed seam for non-entity infrastructure SQL ONLY (migration/patch tooling, SecretVault wiring — never domain repositories)
 export function getPool(): Pool {
-  // standards-exempt: getPool — passthrough to the Dal-owned pool; callers are migration tooling
+  // standards-exempt: getPool — passthrough to the Dal-owned pool; callers are non-entity infrastructure
   return getDal().getPool();
 }
 

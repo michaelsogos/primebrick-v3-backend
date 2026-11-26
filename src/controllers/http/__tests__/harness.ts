@@ -10,6 +10,7 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { errorHandler } from "../../../http/error-handler.js";
 
+import { extJsonBodyParser } from '@primebrick/sdk';
 export interface TestApp {
   baseUrl: string;
   close(): Promise<void>;
@@ -17,7 +18,7 @@ export interface TestApp {
 
 export async function mountRouter(router: IRouter): Promise<TestApp> {
   const app: Express = express();
-  app.use(express.json());
+  app.use(extJsonBodyParser());
   app.use(router);
   app.use(errorHandler);
   const server: Server = await new Promise((resolve) => {

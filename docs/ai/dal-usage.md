@@ -57,6 +57,14 @@ Consumers MUST NOT — NO EXCEPTIONS, EVER:
 
 ## Library authoring (enforced by visibility)
 
+- `src/db/owned-schemas.ts` is a zero-dependency leaf module declaring
+  `OWNED_SCHEMAS` — the SINGLE source of schema identity
+  (`["public","system","custom"]`, `[0]` = primary). The dal config, the
+  db-subscriber ownership gate, `index.ts` boot wiring and the
+  `scripts/database-patch-{check,apply}.ts`/`db:meta:compare` wrappers all
+  read it. Leaf-by-design so scripts import it without pulling the
+  redis-cached gateway chain. `DATABASE_SCHEMA` in env is a reserved
+  violation (`assertDbEnv` throws) — see `env-policy.md`.
 - `src/db/dal-gateway.ts` owns the entry points: `initDal()` (bootstrap-only,
   `index.ts`) and the re-exported `getDal()` singleton accessor. Its
   `repoDecorator` (`withCache` over the lazy `CachePort`) already gives every
@@ -114,6 +122,23 @@ row and fails no check. Module DALs for audited entities (`config_entries`,
 Bulk ops (`updateMany`/`deleteMany`) currently emit no per-row audit rows —
 do not fake them with `audit:` (the option is ignored); if a bulk path needs
 audit, extend the library first.
+
+## Unique constraints (declared, never hand-made)
+
+Every unique index lives in the entity class — a DB-only unique index is
+drift (WARN) and never dropped automatically:
+
+- **bare `@Unique()`** on a column → single-col index `<table>_<col>_uq`.
+- **`@UniqueIndex({name, where?, aliveOnly?, nullsNotDistinct?})`** at
+  class level + `@Unique(name, order)` on each member column — required
+  for composite indexes, partial predicates (`where`), and every opt-out
+  (`aliveOnly: false`). Options live ONLY on the class decl.
+- **`aliveOnly` default is ON for `Deletable` entities** — uniques emit
+  `WHERE deleted_at IS NULL` so tombstones never block re-creation.
+- One column may join N indexes — canonical example
+  `service_registry.code` (solo-unique among scaler rows, pair-unique
+  with `base_url` among direct rows, both `aliveOnly`). Full contract:
+  `primebrick-dal-v3` dev-guide `entities.mdx` (`@Unique`/`@UniqueIndex`).
 
 ## Audit vs events (do NOT conflate)
 

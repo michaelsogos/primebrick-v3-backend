@@ -16,5 +16,11 @@
     "algo": "ed25519",
     "public_key": "MCowBQYDK2VwAyEAjJj1ebA2MA9mpZtCG+L634chg5mcJloooNo0wdQRxNE=",
     "trust": "dev"
+  },
+  {
+    "key_id": "devin-bulk-editor",
+    "algo": "ed25519",
+    "public_key": "MCowBQYDK2VwAyEAcXYvB8HHJMX2QeaLqNs6lrE5BCRsVrlJiuKt/b5y2Ms=",
+    "trust": "dev"
   }
 ]

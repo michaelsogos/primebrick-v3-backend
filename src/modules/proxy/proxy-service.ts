@@ -25,7 +25,9 @@
  *     RFC 7807 502 Bad Gateway.
  */
 
-import { extJsonStringify, extJsonParse, logger } from "@primebrick/sdk";
+import { extJsonStringify, extJsonParse, logger,
+  internalFetch,
+} from "@primebrick/sdk";
 import type { Request, Response } from "express";
 import {
   getAuthConfig,
@@ -202,7 +204,7 @@ export async function proxyRequest(req: Request, res: Response): Promise<void> {
       fetchOptions.body = extJsonStringify(req.body);
     }
 
-    const response = await fetch(targetUrl, fetchOptions);
+    const response = await internalFetch(targetUrl, fetchOptions);
     const body = await response.text();
 
     // Log non-2xx responses from the US to the BE console with full detail.
@@ -387,7 +389,7 @@ export async function proxyRequestSse(req: Request, res: Response): Promise<void
       fetchOptions.body = extJsonStringify(req.body);
     }
 
-    const response = await fetch(targetUrl, fetchOptions);
+    const response = await internalFetch(targetUrl, fetchOptions);
 
     // Log non-2xx responses from the AI microservice.
     if (!response.ok) {

@@ -19,7 +19,10 @@ import { createHash, randomBytes, randomInt, createHmac } from "crypto";
 import { runAsSystem, requireActor } from "@primebrick/sdk";
 
 import { DomainService } from "../../../db/domain-service.js";
-import { field, Filter } from "@primebrick/dal-pg";
+import { field, Filter, 
+  DAL_NOW,
+  type DalNow,
+} from "@primebrick/dal-pg";
 import { UserInvitationEntity, type InvitationStatus } from "../user_invitation_entity.js";
 import { getConfigEntriesService } from "./config-entries.service.js";
 import { CasdoorService } from "./casdoor.service.js";
@@ -215,7 +218,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
     const existing = await this.findInvitationByUuid(uuid);
     if (!existing) return;
     await this.svc.update(uuid, {
-      otp_verified_at: new Date(),
+      otp_verified_at: DAL_NOW,
       version: existing.version,
     });
   }
@@ -228,7 +231,7 @@ export class InvitationService extends DomainService<Record<string, unknown>> {
     if (!existing) return;
     await this.svc.update(uuid, {
       status: "COMPLETED" as InvitationStatus,
-      completed_at: new Date(),
+      completed_at: DAL_NOW,
       version: existing.version,
     });
   }

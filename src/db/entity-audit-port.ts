@@ -1,4 +1,4 @@
-import type { AuditPort, AuditParams, Repository } from "@primebrick/dal-pg";
+import type { AuditPort, AuditParams, AuditWriteResult, Repository } from "@primebrick/dal-pg";
 import { AuditLogEntity, AuditAction, Project, field } from "@primebrick/dal-pg";
 import { NatsClient, publishEntityChanged, getClientSessionId, type EntityChangedMarker } from "@primebrick/sdk";
 import { getPresenceStore } from "../modules/collaboration/presence-store-holder.js";
@@ -29,7 +29,7 @@ type AuditWriter = Pick<Repository, "add">;
 export class EntityAuditPort implements AuditPort {
   constructor(private repo: AuditWriter) {}
 
-  async writeAudit(params: AuditParams): Promise<bigint | string> {
+  async writeAudit(params: AuditParams): Promise<AuditWriteResult> {
     // AuditParams contains: entityClassName, tableName (e.g. "customers"),
     //   entityId, entityUuid, action, changedAt, version, changedBy, delta
     //
@@ -51,8 +51,10 @@ export class EntityAuditPort implements AuditPort {
     }, {
       tableName: auditTableName,
       // RETURNING projects the audit row's own uuid PK (the surrogate
-      // `id` was eradicated — `entity_id` may be absent post-migration).
-      returning: [Project.field(field(AuditLogEntity, "uuid"))],
+      // `id` was eradicated — `entity_id` may be absent post-migration)
+      // plus `changed_at`: callers may stamp it via the DAL_NOW sentinel
+      // (DB-clock), so the emitted value is read back for wire markers.
+      returning: [Project.field(field(AuditLogEntity, "uuid")), Project.field(field(AuditLogEntity, "changed_at"))],
     });
     // No audit port passed → no recursive audit writing.
     // AuditLogEntity has no @AuditableField → no audit stamping.
@@ -82,7 +84,7 @@ export class EntityAuditPort implements AuditPort {
           // FE tell "my own tab saved" (silent realign) from "my OTHER tab
           // saved" (foreign change → merge/conflict).
           changed_by_session: getClientSessionId(),
-          changed_at: params.changedAt.getTime(),
+          changed_at: (inserted.changed_at as Date).getTime(),
         };
 
         // 1. Redis — store the marker with a 5-minute TTL, and stamp `edited_at`
@@ -109,6 +111,6 @@ export class EntityAuditPort implements AuditPort {
         }
       }
     }
-    return inserted.uuid;
+    return { key: inserted.uuid, changed_at: inserted.changed_at as Date };
   }
 }

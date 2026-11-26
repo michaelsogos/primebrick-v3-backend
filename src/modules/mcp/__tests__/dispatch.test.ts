@@ -269,15 +269,15 @@ describe("MCP Dispatch — BE in-process dispatch", () => {
 
   it("dispatchLocalDelete calls deleteOrganization and returns success", async () => {
     mockOrganizationsService.deleteOrganization.mockResolvedValue(undefined);
-    const result = await dispatchLocalDelete("organization", "abc", 3);
-    expect(mockOrganizationsService.deleteOrganization).toHaveBeenCalledWith("abc", 3);
+    const result = await dispatchLocalDelete("organization", "abc", 3n);
+    expect(mockOrganizationsService.deleteOrganization).toHaveBeenCalledWith("abc", 3n);
     expect(result).toEqual({ success: true });
   });
 
   it("dispatchLocalRestore calls restoreOrganization and returns success", async () => {
     mockOrganizationsService.restoreOrganization.mockResolvedValue(undefined);
-    const result = await dispatchLocalRestore("organization", "abc", 3);
-    expect(mockOrganizationsService.restoreOrganization).toHaveBeenCalledWith("abc", 3);
+    const result = await dispatchLocalRestore("organization", "abc", 3n);
+    expect(mockOrganizationsService.restoreOrganization).toHaveBeenCalledWith("abc", 3n);
     expect(result).toEqual({ success: true });
   });
 
@@ -306,7 +306,7 @@ describe("MCP Dispatch — BE bulk dispatch", () => {
 
   it("dispatchLocalBulk delete processes all UUIDs and returns per-UUID results", async () => {
     mockOrganizationsService.deleteOrganization.mockResolvedValue(undefined);
-    const result = await dispatchLocalBulk("organization", "delete", [{ uuid: "uuid-1", version: 1 }, { uuid: "uuid-2", version: 1 }, { uuid: "uuid-3", version: 1 }]);
+    const result = await dispatchLocalBulk("organization", "delete", [{ uuid: "uuid-1", version: 1n }, { uuid: "uuid-2", version: 1n }, { uuid: "uuid-3", version: 1n }]);
     expect(mockOrganizationsService.deleteOrganization).toHaveBeenCalledTimes(3);
     expect(result).toEqual({
       results: [
@@ -319,8 +319,8 @@ describe("MCP Dispatch — BE bulk dispatch", () => {
 
   it("dispatchLocalBulk restore processes all UUIDs", async () => {
     mockOrganizationsService.restoreOrganization.mockResolvedValue(undefined);
-    const result = await dispatchLocalBulk("organization", "restore", [{ uuid: "uuid-1", version: 2 }]);
-    expect(mockOrganizationsService.restoreOrganization).toHaveBeenCalledWith("uuid-1", 2);
+    const result = await dispatchLocalBulk("organization", "restore", [{ uuid: "uuid-1", version: 2n }]);
+    expect(mockOrganizationsService.restoreOrganization).toHaveBeenCalledWith("uuid-1", 2n);
     expect(result).toEqual({ results: [{ uuid: "uuid-1", success: true }] });
   });
 
@@ -329,7 +329,7 @@ describe("MCP Dispatch — BE bulk dispatch", () => {
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("Not found"));
 
-    const result = await dispatchLocalBulk("organization", "delete", [{ uuid: "ok-uuid", version: 1 }, { uuid: "bad-uuid", version: 1 }]);
+    const result = await dispatchLocalBulk("organization", "delete", [{ uuid: "ok-uuid", version: 1n }, { uuid: "bad-uuid", version: 1n }]);
     const results = result as { results: Array<{ uuid: string; success: boolean; error?: string }> };
     expect(results.results).toHaveLength(2);
     expect(results.results[0]).toEqual({ uuid: "ok-uuid", success: true });

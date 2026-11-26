@@ -30,6 +30,7 @@ const RETRY_MS = 5_000;
 
 let started = false;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let subscription: { unsubscribe(): void } | null = null;
 
 export function startMarkerPersister(
   logger: Pick<typeof import("@primebrick/sdk").logger, "warn" | "info" | "done">,
@@ -64,10 +65,18 @@ export function startMarkerPersister(
       // delivery through the bus registry is unaffected.
     }
   }).then(
-    () =>
+    (sub) => {
+      if (!started) {
+        // stopMarkerPersister ran while the subscribe promise was in
+        // flight — drop the handle instead of resurrecting a dead sub.
+        sub.unsubscribe();
+        return;
+      }
+      subscription = sub;
       logger.done(`marker persister subscribed on '${MARKER_SUBJECT}'`, {
         tags: ["collaborativity-feature"],
-      }),
+      });
+    },
     (err) => {
       started = false;
       logger.warn(`marker persister subscribe failed, retrying in 5s: ${err}`, {
@@ -79,4 +88,21 @@ export function startMarkerPersister(
       }, RETRY_MS);
     },
   );
+}
+
+/**
+ * Graceful stop — disarms a pending retry, unsubscribes the NATS
+ * subscription and resets `started`. Wired into the shutdown path so a
+ * re-armed 5s retry cannot fire after close; tests use it to isolate the
+ * module-level state (`vi.resetModules` alone leaves an armed real timer
+ * behind — its callback outlives the module instance it came from).
+ */
+export function stopMarkerPersister(): void {
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
+  subscription?.unsubscribe();
+  subscription = null;
+  started = false;
 }
