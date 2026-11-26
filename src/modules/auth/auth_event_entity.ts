@@ -16,12 +16,18 @@
 import {
   Column,
   Entity,
+  PublicEntity,
+  Index,
   Key,
   Unique,
   type UUID,
 } from "@primebrick/dal-pg";
 
-@Entity("auth_events")
+@PublicEntity("auth_events")
+// "latest auth events of X" — filter key + event_at DESC on each surface.
+@Index({ name: "auth_events_user_profile_uuid_event_at_idx", columns: ["user_profile_uuid", { name: "event_at", sort: "desc" }] })
+@Index({ name: "auth_events_event_type_event_at_idx", columns: ["event_type", { name: "event_at", sort: "desc" }] })
+@Index({ name: "auth_events_attempted_username_event_at_idx", columns: ["attempted_username", { name: "event_at", sort: "desc" }] })
 export class AuthEventEntity {
   @Key()
   @Column({ pgType: "uuid" })
@@ -40,7 +46,7 @@ export class AuthEventEntity {
   event_type: string;
 
   /** When the event occurred. */
-  @Column({ nullable: false, jsType: "instant" })
+  @Column({ nullable: false, jsType: "instant", defaultSql: "clock_timestamp()" })
   event_at: Date;
 
   /** Client IP address. */

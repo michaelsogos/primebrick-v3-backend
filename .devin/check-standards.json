@@ -31,9 +31,33 @@
       "allowPaths": [
         "http/entity-service.ts"
       ]
+    },
+    "ext-json": {
+      "allowPaths": [
+        "modules/auth/casdoor-api-client.ts",
+        "modules/auth/mfa-challenge-token.ts",
+        "modules/auth/services/auth-session.service.ts",
+        "modules/auth/services/mfa.service.ts",
+        "modules/auth/services/webauthn.service.ts",
+        "modules/docs-pack/docs-pack.service.ts",
+        "modules/mcp/token-verifier.ts"
+      ]
+    },
+    "no-fnf-nats-publish": {
+      "allowPaths": [
+        "controllers/http/client-registry.router.ts",
+        "controllers/nats-sub/service-lifecycle-subscriber.ts",
+        "controllers/nats-sub/stale-detection-job.ts",
+        "modules/proxy/backend-identity.ts",
+        "observability/telemetry.ts"
+      ]
     }
   },
-  "i18n_namespaces": ["app", "system", "custom"],
+  "i18n_namespaces": [
+    "app",
+    "system",
+    "custom"
+  ],
   "i18n_sql_exempt": [
     "20261116040000_emailsender_callable_help_keys.sql",
     "00000000000001_seed_translations_en_gb.sql",

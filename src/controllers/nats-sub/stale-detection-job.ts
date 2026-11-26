@@ -117,7 +117,7 @@ export class StaleDetectionJob {
           : new Date().toISOString(),
       };
       try {
-        await NatsClient.publish(SERVICE_SUBJECTS.STALE, stalePayload);
+        await NatsClient.publishEphemeralLossy(SERVICE_SUBJECTS.STALE, stalePayload);
       } catch (err) {
         // NATS publish failure is non-critical — the DB is already updated.
         logger.warn(`Failed to publish service.stale for ${s.code}:`, { tags: ["core"], error: err });

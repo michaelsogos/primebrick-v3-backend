@@ -29,6 +29,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Pool } from "pg";
 import { randomBytes, randomUUID } from "crypto";
 
+import { extJsonStringify, extJsonParse } from '@primebrick/sdk';
 const BASE_URL = "http://localhost:3001";
 const ACTOR_NAME = `e2e_boundary_admin`;
 const ACTOR_EMAIL = `${ACTOR_NAME}@e2e.local`;
@@ -71,7 +72,7 @@ async function casdoorFetch(cfg: IdpConfig, path: string, init?: RequestInit): P
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
-  return res.json().catch(() => null);
+  return res.text().then((t) => extJsonParse<any>(t)).catch(() => null);
 }
 
 async function deleteCasdoorUser(cfg: IdpConfig, name: string): Promise<void> {
@@ -80,7 +81,7 @@ async function deleteCasdoorUser(cfg: IdpConfig, name: string): Promise<void> {
   if (!user?.id) return;
   await casdoorFetch(cfg, `/delete-user?id=${encodeURIComponent(`${cfg.org}/${name}`)}`, {
     method: "POST",
-    body: JSON.stringify({ id: user.id, owner: cfg.org, name }),
+    body: extJsonStringify({ id: user.id, owner: cfg.org, name }),
   });
 }
 
@@ -90,10 +91,10 @@ async function updateRoleUsers(cfg: IdpConfig, users: string[]): Promise<void> {
   if (!role) throw new Error("[E2E] Casdoor get-role failed");
   const res = await casdoorFetch(cfg, `/update-role?id=${encodeURIComponent(`${cfg.org}/${ADMIN_ROLE}`)}`, {
     method: "POST",
-    body: JSON.stringify({ ...role, users }),
+    body: extJsonStringify({ ...role, users }),
   });
   if (res?.status !== "ok" && res?.success !== true) {
-    throw new Error(`[E2E] Casdoor update-role failed: ${JSON.stringify(res)}`);
+    throw new Error(`[E2E] Casdoor update-role failed: ${extJsonStringify(res)}`);
   }
 }
 
@@ -118,7 +119,7 @@ async function mintActor(): Promise<{ username: string; password: string }> {
 
   const addRes = await casdoorFetch(cfg, `/add-user`, {
     method: "POST",
-    body: JSON.stringify({
+    body: extJsonStringify({
       owner: cfg.org,
       name: ACTOR_NAME,
       displayName: "E2E Boundary Admin",
@@ -133,7 +134,7 @@ async function mintActor(): Promise<{ username: string; password: string }> {
     }),
   });
   if (addRes?.status !== "ok" && addRes?.success !== true) {
-    throw new Error(`[E2E] Casdoor add-user failed: ${JSON.stringify(addRes)}`);
+    throw new Error(`[E2E] Casdoor add-user failed: ${extJsonStringify(addRes)}`);
   }
 
   let casdoorUser: any = null;
@@ -155,7 +156,7 @@ async function mintActor(): Promise<{ username: string; password: string }> {
       auth_method_enforcer_dismissed)
      VALUES ($1,$2,$3,$4,$5,$6,'#4f46e5','TA',true,true,true,$7,$8,$9,$9,'e2e-setup',$9,'e2e-setup',1,true)`,
     [randomUUID(), casdoorUser.id, ACTOR_EMAIL, "E2E Boundary Admin", cfg.org, ACTOR_NAME,
-     cfg.endpoint, JSON.stringify([ADMIN_ROLE]), now],
+     cfg.endpoint, extJsonStringify([ADMIN_ROLE]), now],
   );
   return { username: ACTOR_NAME, password };
 }
@@ -200,7 +201,7 @@ async function api(path: string, init?: RequestInit) {
   }
   const text = await res.text();
   let body: any = null;
-  try { body = JSON.parse(text); } catch { body = text; }
+  try { body = extJsonParse<any>(text); } catch { body = text; }
   return { status: res.status, body, headers: res.headers };
 }
 
@@ -221,7 +222,7 @@ beforeAll(async () => {
     const creds = await mintActor();
     const login = await api("/api/v1/auth/login", {
       method: "POST",
-      body: JSON.stringify({ username: creds.username, password: creds.password }),
+      body: extJsonStringify({ username: creds.username, password: creds.password }),
     });
     actorReady = login.status === 200;
   } catch { actorReady = false; }
@@ -291,7 +292,7 @@ describe("DAL boundary — live HTTP surface", () => {
     if (!serverReachable || !actorReady) return;
     const create = await api("/api/v1/entities/config_entry", {
       method: "POST",
-      body: JSON.stringify({ entity: { key: CFG_KEY, value: "e2e", type: "string" } }),
+      body: extJsonStringify({ entity: { key: CFG_KEY, value: "e2e", type: "string" } }),
     });
     expect(create.status).toBe(201);
     cfgUuid = create.body.uuid;

@@ -41,6 +41,12 @@ history preserves them. One-off operational SQL goes to the workspace
 pnpm db:meta:compare      # entity snapshot vs catalog → new unsigned patch
 primebrick-db sign --db-meta db-meta --key @<keyfile> --key-id <id>   # re-sign MANIFEST.json
 ```
+The `check`/`compare`/`apply` wrappers derive `--schema` from
+`src/db/owned-schemas.ts` (`OWNED_SCHEMAS`) — the CLI flag is **required**
+(no env fallback; schema identity is code — see `env-policy.md`). The
+engine also refuses a schema whose `primebrick_database_patches` registry
+is absent/empty unless `firstBoot`/`--first-boot` is passed — the
+anti-bifurcation guard for genuine first installs only.
 Commit the patch + `MANIFEST.json` + `keys.json` + snapshots together —
 they are signed provenance; the engine is fail-closed without them (a
 fresh clone cannot boot). `diff-entities-vs-database.json` is a
@@ -55,6 +61,13 @@ dev key lives in workspace `temp/` — never in the repo.
 ### 5. Mode is runtime config, not env
 `<schema>.config_entries` key `db_migration.mode` = `apply | check | off` —
 re-read after each run (a patch may change it). No env flag, no guessing.
+
+### 6. Never soft-delete in a patch — tombstones are the USER's recycle bin
+Soft-deleted rows (`deleted_at IS NOT NULL`) are a user feature, not a
+migration artifact bin: the dict page renders them in the deleted view
+and offers `restore.single`. A patch that retires rows hard-deletes —
+`DELETE FROM <schema>.<table> WHERE …`, never `UPDATE … SET deleted_at`.
+Service-side maintenance cleanup uses `hardDelete`, never `delete`.
 
 ## Failure handling
 

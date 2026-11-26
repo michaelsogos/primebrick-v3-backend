@@ -43,7 +43,7 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     // Audit metadata: the real session actor when the send was triggered
     // inside a request, else the service code. The authorizing identity on
     // the wire is the synthetic is_system user (service-initiated sends
-    // have no acting user — governed by client shield + gateway secret).
+    // have no acting user — governed by the is_system lane on the sealed fabric).
     initiatedBy: getSession()?.actor ?? "primebrick-api",
   };
 

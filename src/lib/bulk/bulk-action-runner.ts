@@ -51,7 +51,7 @@
 // export interface BulkActionItem {
 //   uuid: string;
 //   /** Observed row version — required on guarded (auditable) actions. */
-//   version?: number;
+//   version?: bigint;
 // }
 
 // export interface BulkActionInput {

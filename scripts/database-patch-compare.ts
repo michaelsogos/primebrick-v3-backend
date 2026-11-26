@@ -14,6 +14,7 @@
 import "dotenv/config";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
+import { OWNED_SCHEMAS } from "../src/db/owned-schemas.js";
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is not set");
@@ -21,6 +22,7 @@ if (!url) throw new Error("DATABASE_URL is not set");
 const cli = join(process.cwd(), "node_modules", "@primebrick", "dal-pg", "dist", "cli", "primebrick-db.js");
 // `--import tsx`: the CLI imports the entity registry module, which pulls in
 // .ts entity classes — the tsx ESM loader resolves them under plain node.
+// The schema domain comes from OWNED_SCHEMAS — the single source, never env.
 const res = spawnSync(
   process.execPath,
   [
@@ -29,6 +31,7 @@ const res = spawnSync(
     "compare",
     "--registry", "src/domain/entities/registry.ts",
     "--url", url,
+    "--schema", OWNED_SCHEMAS.join(","),
     "--out", "db-meta",
   ],
   { stdio: "inherit" },

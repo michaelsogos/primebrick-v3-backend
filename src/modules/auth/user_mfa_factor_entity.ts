@@ -20,6 +20,7 @@ import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
+  PublicEntity,
   Key,
   Unique,
   AuditTrail,
@@ -30,7 +31,7 @@ import {
 /** MFA factor types supported by Primebrick. v1 = TOTP only. */
 export type MfaFactorType = "totp";
 
-@Entity("user_mfa_factors")
+@PublicEntity("user_mfa_factors")
 @AuditTrail()
 export class UserMfaFactorEntity
   extends Auditable(EntityBase) {
@@ -68,7 +69,7 @@ export class UserMfaFactorEntity
   is_enabled: boolean;
 
   /** Whether this is the preferred factor (shown first in challenge UI). */
-  @Column({ pgType: "boolean", nullable: false })
+  @Column({ pgType: "boolean", nullable: false, defaultSql: "false" })
   is_preferred: boolean;
 
   /** When the factor was last used for verification. */

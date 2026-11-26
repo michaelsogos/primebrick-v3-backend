@@ -15,7 +15,7 @@
  */
 
 import { logger } from "@primebrick/sdk";
-import type { Repository } from "@primebrick/dal-pg";
+import { DAL_NOW, type Repository } from "@primebrick/dal-pg";
 
 import { makeEntityService, type EntityService } from "../../../http/entity-service.js";
 import { OrganizationEntity } from "../organization_entity.js";
@@ -41,7 +41,7 @@ export interface UpdateOrganizationInput {
   display_name?: string;
   website_url?: string;
   /** Caller-observed row version — optimistic-concurrency token (ERR02 if absent). */
-  version?: number;
+  version?: bigint;
 }
 
 export class OrganizationsService {
@@ -234,17 +234,17 @@ export class OrganizationsService {
     // substitute for the caller's concurrency token).
     const updateBody: Record<string, unknown> = {
       version: input.version,
-      last_synced_at: new Date(),
+      last_synced_at: DAL_NOW,
     };
     if (display_name !== undefined) updateBody.display_name = display_name;
     if (website_url !== undefined) updateBody.website_url = website_url || undefined;
 
-    return await this.svc.update(uuid, updateBody as Record<string, unknown> & { version: number }, tx);
+    return await this.svc.update(uuid, updateBody as Record<string, unknown> & { version: bigint }, tx);
   }
 
   // --- Delete ---------------------------------------------------------------
 
-  async deleteOrganization(uuid: string, version: number) {
+  async deleteOrganization(uuid: string, version: bigint) {
     const org = await this.getOrganization(uuid);
 
     // Sync to Casdoor first (non-best-effort: fail if sync fails).
@@ -271,7 +271,7 @@ export class OrganizationsService {
 
   // --- Restore --------------------------------------------------------------
 
-  async restoreOrganization(uuid: string, version: number) {
+  async restoreOrganization(uuid: string, version: bigint) {
     const org = await this.getOrganization(uuid);
 
     // Re-create in Casdoor (non-best-effort: fail if sync fails).

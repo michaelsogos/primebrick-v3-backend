@@ -20,6 +20,7 @@ import type { UUID } from "@primebrick/dal-pg";
 import {
   Column,
   Entity,
+  PublicEntity,
   Key,
   Unique,
   AuditTrail,
@@ -27,7 +28,7 @@ import {
   Auditable,
 } from "@primebrick/dal-pg";
 
-@Entity("user_passkeys")
+@PublicEntity("user_passkeys")
 @AuditTrail()
 export class UserPasskeyEntity
   extends Auditable(EntityBase) {

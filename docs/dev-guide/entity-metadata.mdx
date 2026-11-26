@@ -35,13 +35,14 @@ static meta object (`*.meta.ts`) MUST be annotated `EntityMeta`.
 {
   "entity": "user_profile",
   "translation_key": "user_profile",
-  "title_key": "system.entities.user_profile.title",
+  "entities_ns": "system",
   "uid": "uuid",
   "display_field": "display_name",
   "display_name": "${display_name}",
   "actions_overrides": {
     "duplicate.bulk": { "enabled": false }
   },
+  "create": { "surface": "sheet" },
   "columns": [ /* MetaColumn[] — see props sheet */ ],
   "table": {
     "default_view": "table",
@@ -71,15 +72,19 @@ static meta object (`*.meta.ts`) MUST be annotated `EntityMeta`.
 |-------|-------|----------|---------|
 | `entity` | static | yes | Entity key, snake_case singular — route segment |
 | `translation_key` | static | yes | snake_case singular i18n prefix |
-| `title_key` | static | yes | i18n key for the entity title |
+| `entities_ns` | static | no | Namespace owning the entity's label keys — default `system` |
+| `title_key` | static | no | Bespoke title override — custom pages only; CRUD metas MUST NOT declare it |
 | `uid` | static | yes | Column key used as row identity |
-| `display_field` | static | yes | Key of the primary display column |
+| `display_field` | static | yes¹ | Key of the primary display column — required on main entities, forbidden on `relation` metas |
 | `display_name` | response | yes | Display template (`${field}`). Optional in static meta — `assembleMeta` defaults it to `"${display_field}"` |
-| `actions_overrides` | static | no | Per-op `enabled` toggles — may only affect existing ops |
+| `actions_overrides` | static | no | Per-op overrides — `enabled` toggles existing ops; `label_key`/`icon`/`color`/`confirm_key`/`busy_key` restyle CTA chrome |
+| `create` | static | no | `{ surface }` — `"form"` (default) census `kind:"create"` route → form page; `"sheet"` → create CTA opens `entity.record` in `mode:"create"`, no route |
 | `columns` | static | yes | Root-level field dictionary, transversal to all page types |
 | `table` | static | no | `EntityListTable` options — absent on form-only metas |
 | `actions` | response | yes | Derived capability contract |
 | `collaboration` | response | yes | `{ enabled, expose_editing_value }` |
+| `dict` | response | no | `@Dict` facet — `group_field`/`order_field`/`directional{forward_label_field,inverse_label_field}` driving `kind:"dict"` pages |
+| `relation` | response | no | `@Relation` facet — `parent_field`/`child_field`/`type_field?`/`hierarchical?` on directed edge entities |
 
 `display_name` is the generic display representation — edit-page titles,
 comboboxes, related-object labels. It supports `${field}` template syntax
@@ -90,21 +95,39 @@ comboboxes, related-object labels. It supports `${field}` template syntax
 
 | Prop | Required | Purpose |
 |------|----------|---------|
-| `key` | yes | Row field key (snake_case) |
+| `key` | yes | Row field key (snake_case) — must match the entity property |
 | `label_key` | yes | i18n key for header/form label |
-| `type` | yes | `text` \| `badge` \| `date` \| `datetime` \| `color` \| `boolean` \| `number` \| `sparkline` |
+| `type` | yes | `text` \| `badge` \| `boolean` \| `color` \| `date` \| `datetime` \| `number` \| `sparkline` \| `ref` \| `ref_count` \| `avatar` (+ consumer-registered custom types) |
 | `order` | yes | Explicit position within its rendering group — array position in `columns` MUST NOT matter. Convention: `uuid` is `order: -1` (canonical first sticky column, hidden but selectable), the `display_field` column is `order: 0` |
 | `sticky` | | Pinned left — `uuid` and the `display_field` column are the standard sticky pair |
-| `audited` | | System audit column — rendered last |
+| `audited` | | System audit column — rendered last; derived from audit/deletable/sync decorators |
 | `sortable` / `searchable` / `filterable` / `hideable` | | Capability flags (default `true`) |
 | `default_visible` | | `false` = selectable but hidden by default |
+| `hidden` | | `true` = total suppression — dropped from served meta entirely AND blocks auto-derivation of the class column |
+| `color` | | Semantic color token (`"amber"`, `"amber-500"`) for icon/badge accents — never a `text-*`/`bg-*` class (served meta is invisible to the FE safelist) |
+| `null_label` | | `{ label_key, when?{field,equals\|not} }` — red-italic alarm label on null cells; gate it or leave unset (ungated = false alarm on every empty cell) |
+| `kind` | | Materialization — `"calculated"` (SQL projection, sortable/filterable stay on) / `"virtual"` (post-query decoration, sort/filter/search FORCED OFF). Read-only: never in `page_props.form` |
+| `nullable` / `max_length` / `pg_type` | derived | Physical constraints from the entity class — authoring them throws (`withColumnConstraints` rejects restated class facts) |
+| `managed` | derived | DB-filled value (`@Key` identity) — never client-supplied, excluded from forms and write payloads |
+| `default` | derived | Create-form initial value — from `@Column({defaultSql})` constants (typed per `pg_type`), or authored here as the legal column-level override (outranked per-surface by `placement.default_value`; update forms ignore it) |
+| `immutable` | | Set-once / process-derived — editable on create, disabled + excluded from PUT on update |
 | `badge` | | `{ values: Record<string, { label_key?, label_text?, color? }> }` |
 | `datetime_iana_toggle` | | `{ record_iana_field }` |
 | `sparkline` | | `type:"sparkline"` — `{ endpoint, request_field, row_key, response_field?, bucket_field?, bucket_unit_field?, series }`; virtual column, the list engine batch-POSTs row keys after every load |
 | `tooltip`, `tooltip_priority`, `tooltip_title` | | Tooltip keys/priority |
 | `show_form_tooltip`, `show_list_tooltip` | | Tooltip visibility per context |
-| `format` | | Semantic renderer discriminator — `TableCell` switches on it **before** `type` (`schedule_spec`, `nats_subject`, `json`, `identifier`, `display_name`); closed additive union in `MetaColumnFormat` |
-| `uom` | | `type:"number"` unit-of-measure semantics — `MetaColumnUom` union (`@primebrick/core`): `{kind:'percent'}` (canonical fraction), `{kind:'currency', field}` (sibling ISO code column), `{kind:'<category>', unit}` (FIXED Intl-sanctioned identifier — the `UNIT_CATEGORIES` census: `time`, `length`, `mass`, `volume`, `area`, `temperature`, `digital`, `angle`; e.g. `{kind:'time', unit:'millisecond'}` → `"24 ms"`), `{kind:'<category>', field}` (per-row code on a sibling — the category IS the picker vocabulary), `{kind:'custom', field, source}` (per-row code from a custom vocabulary), `{kind:'custom', symbol}` (FIXED arbitrary suffix Intl does not sanction). XORs enforced by `withColumnConstraints` at meta bind; absent → plain decimal. FE renders all `type:"number"` cells right-aligned + locale-formatted |
+| `format` | | Semantic input discriminator — picks control archetype + validation before `type`; closed union in `MetaColumnFormat` (`schedule_spec`, `revive_interval`, `nats_subject`, `service_code`, `json`, `identifier`, `display_name`, `sequence`, `sequence_pattern`, `i18n_key`, …) |
+| `pattern` / `min_length` / `min` / `max` / `unsigned` | | Authored validation facets — zod `.regex()` / length / numeric bounds / negative rejection |
+| `uom` | | `type:"number"` unit-of-measure semantics — `MetaColumnUom` union (`@primebrick/core`): `{kind:'percent'}` (canonical fraction), `{kind:'currency', field}` (sibling ISO code column), `{kind:'<category>', unit}` (FIXED Intl-sanctioned identifier — the `UNIT_CATEGORIES` census: `time`, `length`, `mass`, `volume`, `area`, `temperature`, `digital`, `angle`), `{kind:'<category>', field}` (per-row code on a sibling — the category IS the picker vocabulary), `{kind:'custom', field, source}` (per-row code from a custom vocabulary), `{kind:'custom', symbol}` (FIXED arbitrary suffix Intl does not sanction). XORs enforced by `withColumnConstraints` at meta bind; absent → plain decimal. FE renders all `type:"number"` cells right-aligned + locale-formatted |
+| `avatar` | | `type:"avatar"` — `{ color_field, initials_field? }`: sibling column persists the per-row color; initials recompute live on edit surfaces |
+| `depends_on` | | ONE edge to a sibling pivot column: `filter_field` (ref options scoped by pivot value), `disabled_when` (control gate on pivot condition), `control_prop` (pivot row prop resolves `format` live). `filter_field`/`control_prop` reset the value on pivot change |
+| `json_schema` | | `format:"json"` — editor lint/completion + structural validation |
+| `seq` | | `format:"sequence"` — `@SequenceField` binding: `uuid`/`name` DERIVED (authoring throws), `modes`/`default_mode`/`allow_create` authored surface config. Wire: `{seq:{…}}` directive only, never a literal |
+| `widget` | | Explicit control override — host registry key, bypasses `format`→control derivation on every surface |
+| `options_source` | | Dynamic combo vocabulary — `"census.emits"` / `"census.callables"` / `"audit.actors"` (auto-injected on `*_by`) / `"system.roles"` |
+| `allow_create` | | ComboSelect free-entry — forbidden with `census.*` sources (closed vocabularies) |
+| `ref` | | `type:"ref"` — `{entity\|entity_field, key_field?, route?, filter_field?, value_field?, presentation?}`: static or lazy (per-row) drill target; census-resolved routes; `"link"` two-affordance anatomy by default |
+| `reverse_ref` | | `type:"ref_count"` — `{entity, filter_field, value_template}`: 1:N badge + filtered-list link |
 
 Rendering order derives from flags: `sticky` → normal → `audited`, each
 sorted by `order` (`orderedColumns` on the FE).
@@ -117,7 +140,8 @@ sorted by `order` (`orderedColumns` on the FE).
 | `default_sort` | `{ key, dir }` |
 | `default_page_size` | Initial rows per page |
 | `page_size_options` | Dropdown values |
-| `row_custom_actions` | Custom row CTA display config for non-standard ops |
+| `row_custom_actions` | Custom row CTA display config for non-standard ops — synthesized from `RpcRoute.entity_op`; authored entries are per-`action_name` chrome overrides |
+| `bulk_custom_actions` | Selection-toolbar CTAs — same `entity_op` synthesis; `requires_selection`, `require_step_up`, `confirm_key` |
 | `filter_presets` | Mutually-exclusive preset scope filters in the toolbar — `display: "button_group"` renders **icon-only** buttons (per-option `icon` required, meaning via `title` tooltip + `aria-pressed`; the label is never displayed); `"combobox"` for long lists. Exactly one option active; `where:[]` = "all" escape; conditions AND into every `/list` request |
 
 `table` is absent on form-only metas (e.g. `GET /api/v1/auth/me/meta` —
@@ -129,9 +153,9 @@ sorted by `order` (`orderedColumns` on the FE).
 `deriveEntityActions` always emits every standard op; missing routes produce
 explicit `enabled: false` entries:
 
-`list`, `meta`, `get`, `create.single`, `update.single`, `delete.single`,
-`restore.single`, `read.audit`, `export`, `delete.bulk`, `restore.bulk`,
-`duplicate.single`, `duplicate.bulk`
+`list`, `meta`, `get`, `create.single`, `update.single`, `update.bulk`,
+`delete.single`, `purge.single`, `restore.single`, `read.audit`, `export`,
+`delete.bulk`, `restore.bulk`, `duplicate.bulk`
 
 - `enabled: true` → op exists; per-user gating via `permissions`/`sentinel`
 - `enabled: false` → route absent OR product-disabled via

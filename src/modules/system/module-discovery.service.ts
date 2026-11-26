@@ -148,7 +148,7 @@ function filterNavLinks(
 /**
  * Icon materialization — `icon` is OPTIONAL in the declaration: a dev
  * authors one only to override the convention. Emission fills nulls from
- * the kind map ({@link defaultRouteIcon}): dict→list, list→table-2,
+ * the kind map ({@link defaultRouteIcon}): dict→table-dictionary, list→table-2,
  * forms→text-cursor-input, everything else→file-box. An authored `icon`
  * always wins — this never overrides.
  */
@@ -293,6 +293,12 @@ export class ModuleDiscoveryService {
         is_reserved: s.is_reserved,
         is_default: s.is_default,
         label_key: s.label_key,
+        // The gateway row (`code='api'`) owns no translations schema — its
+        // i18n surface (`system.api.title`, `system.entities.*` emit
+        // labels) lives in the platform `system` dict. Same contract as
+        // siblings: the census declares the dict owner or dict fetches
+        // 404 on a code that owns no schema.
+        ...(s.code === "api" ? { translations_module: "system" } : {}),
         ...(meta && !hasSurface ? { accessible: false as const } : {}),
         nav,
         nav_hidden: navHidden.length > 0 ? navHidden : undefined,

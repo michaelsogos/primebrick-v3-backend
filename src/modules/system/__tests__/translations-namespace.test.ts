@@ -9,6 +9,7 @@ import { Entity, TranslationEntityBase } from "@primebrick/dal-pg";
 
 import {
   MODULE_ENTITIES,
+  TranslationsService,
   assertKeyNamespace,
 } from "../translations.service.js";
 import {
@@ -68,5 +69,37 @@ describe("assertKeyNamespace — schema → key-namespace write boundary", () =>
 
   it("is a no-op when no key is provided (update without key change)", () => {
     expect(() => assertKeyNamespace(AppTranslationEntity as any, undefined)).not.toThrow();
+  });
+});
+
+describe("resolveEntity — sibling modules share the parent's translations", () => {
+  const crmEntity = serviceEntity("crm");
+  const svc = () => {
+    const s = new TranslationsService();
+    // Mirror discoverServiceEntities' output without hitting the registry.
+    (s as any).serviceEntities = new Map([["crm", crmEntity]]);
+    return s;
+  };
+
+  it("resolves `<code>-<sibling>` to the parent schema — crm-settings → crm.translations", async () => {
+    expect(await svc().resolveEntity("crm-settings")).toBe(crmEntity);
+  });
+
+  it("exact service code still wins over the parent probe", async () => {
+    expect(await svc().resolveEntity("crm")).toBe(crmEntity);
+  });
+
+  it("a service literally named `foo-bar` keeps its own dict (exact wins)", async () => {
+    const s = svc();
+    const fb = serviceEntity("foo-bar");
+    (s as any).serviceEntities = new Map([
+      ["foo", serviceEntity("foo")],
+      ["foo-bar", fb],
+    ]);
+    expect(await s.resolveEntity("foo-bar")).toBe(fb);
+  });
+
+  it("unknown module still 404s — no silent namespace", async () => {
+    await expect(svc().resolveEntity("ghost-settings")).rejects.toThrow();
   });
 });

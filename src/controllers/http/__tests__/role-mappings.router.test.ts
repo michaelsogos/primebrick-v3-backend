@@ -68,6 +68,7 @@ vi.mock("../../../http/entity-write.js", async (importOriginal) => {
 import { roleMappingsRouter } from "../auth/role-mappings.router.js";
 import { mountRouter, type TestApp } from "./harness.js";
 
+import { extJsonStringify, extJsonParse } from '@primebrick/sdk';
 let app: TestApp;
 beforeAll(async () => {
   app = await mountRouter(roleMappingsRouter());
@@ -87,7 +88,7 @@ describe("role-mappings router — hard delete (purge)", () => {
   it("DELETE /:uuid/purge without ?version → 400 VERSION_REQUIRED", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}/purge`, { method: "DELETE" });
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.internal_code).toBe("VERSION_REQUIRED");
     expect(mocks.service.deleteRoleByUuid).not.toHaveBeenCalled();
   });
@@ -96,8 +97,8 @@ describe("role-mappings router — hard delete (purge)", () => {
     mocks.service.deleteRoleByUuid.mockResolvedValue({ uuid: UUID, idp_role: "sales" });
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}/purge?version=5`, { method: "DELETE" });
     expect(res.status).toBe(200);
-    expect(mocks.service.deleteRoleByUuid).toHaveBeenCalledWith(UUID, "user-1", 5);
-    const body = await res.json();
+    expect(mocks.service.deleteRoleByUuid).toHaveBeenCalledWith(UUID, "user-1", 5n);
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.idp_role).toBe("sales");
   });
 
@@ -107,7 +108,7 @@ describe("role-mappings router — hard delete (purge)", () => {
 
   it("meta.actions advertises purge.single enabled and delete.single disabled", async () => {
     const res = await fetch(`${app.baseUrl}${BASE}/meta`);
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     const byOp = Object.fromEntries(
       (body.actions as { op: string; enabled: boolean }[]).map((a) => [a.op, a.enabled]),
     );
@@ -122,7 +123,7 @@ describe("role-mappings router — overridden write bodies keep the chain", () =
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entity: { idp_role: "x", version: 1 } }),
+      body: extJsonStringify({ entity: { idp_role: "x", version: 1 } }),
     });
     expect(res.status).toBe(400);
     expect(mocks.service.updateRoleByUuid).not.toHaveBeenCalled();
@@ -132,7 +133,7 @@ describe("role-mappings router — overridden write bodies keep the chain", () =
     const res = await fetch(`${app.baseUrl}${BASE}/nope`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entity: { version: 1 } }),
+      body: extJsonStringify({ entity: { version: 1 } }),
     });
     expect(res.status).toBe(400);
   });
@@ -142,12 +143,12 @@ describe("role-mappings router — overridden write bodies keep the chain", () =
     const res = await fetch(`${app.baseUrl}${BASE}/${UUID}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entity: { label_key: "l", version: 2 } }),
+      body: extJsonStringify({ entity: { label_key: "l", version: 2 } }),
     });
     expect(res.status).toBe(200);
     expect(mocks.service.updateRoleByUuid).toHaveBeenCalledWith(
       UUID,
-      { label_key: "l", version: 2 },
+      { label_key: "l", version: 2n },
       "user-1",
       {},
     );
@@ -159,12 +160,12 @@ describe("role-mappings router — overridden write bodies keep the chain", () =
     const res = await fetch(`${app.baseUrl}${BASE}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      body: extJsonStringify({
         entity: { idp_role: "sales", idp_org: "primebrick", permissions: ["auth.user_read_all"] },
       }),
     });
     expect(res.status).toBe(201);
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.uuid).toBe("new-1");
     expect(body.success).toBeUndefined();
   });

@@ -37,6 +37,21 @@ BE-vs-US asymmetry: translations live in the BE's system schema, so only
 the gateway may piggyback them; a US entity route receives `{entity}`
 only (see sdk `entity-router`).
 
+**`version` at the write boundary.** Domain `version` is `bigint` by
+construction (pg `int8`, ext-json codec). Bodies arrive through
+`extJsonBodyParser`, so a well-formed platform client already sends
+bigint — but write schemas validate the wire, not the domain: zod schemas
+use `zBoundedInt`/union shapes tolerant of plain-JSON number tokens
+(legacy clients, curl), then `.transform(BigInt)` converts **at the
+boundary** so everything downstream of validation is bigint, always.
+Query-string versions (`requireVersionQuery`) convert centrally the same
+way. MCP tool schemas are the mirror case: tool arguments arrive as plain
+JSON-RPC numbers by construction, so `z.number().int()` is the correct
+wire validation there — followed by the same `.transform(BigInt)` before
+the domain sees the value. Never carry `number`-typed version past a
+boundary: the type system treats it as a bug (the bigint cascade exists
+to make drift a compile error).
+
 ## Read path
 
 `GET /list` → `list-query.ts` parses the bracket-notation query into the

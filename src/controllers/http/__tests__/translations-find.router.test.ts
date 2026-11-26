@@ -37,6 +37,7 @@ vi.mock("../../../modules/auth/rbac.middleware.js", () => ({
 import { translationsRouter } from "../translations.router.js";
 import { mountRouter, type TestApp } from "./harness.js";
 
+import { extJsonParse } from '@primebrick/sdk';
 let app: TestApp;
 beforeAll(async () => {
   app = await mountRouter(translationsRouter());
@@ -102,7 +103,7 @@ describe("GET /system/translations/find", () => {
     );
     const res = await fetch(`${app.baseUrl}${BASE}/find?matches=x`);
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.text().then((t) => extJsonParse<any>(t));
     expect(body.internal_code).toBe("TRANSLATIONS_FIND_MATCHER_GRAMMAR");
   });
 });

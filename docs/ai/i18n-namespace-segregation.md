@@ -22,7 +22,8 @@ is NOT permission.
 | `{schema}.*` | `{schema}.translations` | the module (us-v3 service) | the owning module; other surfaces only via the gated cross-read |
 | `custom.*` | `custom.translations` | the customer (runtime editor) | runtime resolution only — never cited by module/service code |
 
-`{schema}` = the microservice's `DATABASE_SCHEMA` (`ai`, `boilerplate`,
+`{schema}` = the microservice's `OWNED_SCHEMAS[0]` (primary schema —
+declared in each `src/db/dal.ts`: `ai`, `boilerplate`,
 `crm`, `emailsender`, `job`, `webhook`). A module's i18n namespace equals
 its schema name — `job.translations` holds `job.*` keys.
 

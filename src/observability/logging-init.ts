@@ -3,9 +3,11 @@
  *
  * Installs the async console bridge from @primebrick/sdk so every
  * `console.*` call gets a UTC ISO timestamp + trace_id/span_id (when a
- * span is active) + non-blocking batched writes. Log level/format/service
- * are refined later once config is loaded from the DB (telemetry.ts).
+ * span is active) + non-blocking batched writes. The same install wires
+ * the core/logger transport, so libraries below the SDK (dal-pg) emit
+ * through the host pipeline too — no bare output anywhere in the process.
+ * Log level/format/service are refined later once config is loaded from
+ * the DB (telemetry.ts).
  */
 import { installConsoleBridge } from "@primebrick/sdk";
-
 installConsoleBridge();

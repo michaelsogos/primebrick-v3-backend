@@ -1,0 +1,99 @@
+---
+title: Dynamic Client Registration (RFC 7591)
+description: OAuth client self-provisioning at POST /mcp/oauth/register — why external MCP clients register themselves, what the endpoint accepts and returns, and how registrations are persisted and audited.
+---
+
+# Dynamic Client Registration (RFC 7591)
+
+## What it is
+
+RFC 7591 defines a standard HTTP endpoint where an OAuth **client
+registers itself** with the authorization server: the client POSTs its
+metadata (redirect URIs, grant types, a display name) and receives back
+a freshly-minted `client_id` and `client_secret` — no admin ticket, no
+config file, no out-of-band provisioning step.
+
+## What it solves
+
+MCP clients are *agents that arrive from the outside*: an IDE plugin, a
+third-party assistant, a CI runner. They can't ship with credentials —
+the platform doesn't know them yet and they don't know the platform's
+key names. The alternatives all fail in practice:
+
+- **Manual provisioning** — an admin creates the client row, hands the
+  secret over Slack. Friction per agent, doesn't scale, secret in a
+  chat log.
+- **Pre-shared public client** — every agent shares one `client_id`.
+  No per-client revocation, no attribution in audit, a leaked secret
+  kills everyone.
+- **Hardcoded bootstrap secret** — the agent carries a factory secret
+  to exchange for a real one. Just moves the problem: the bootstrap
+  secret is still a secret that must be provisioned.
+
+DCR closes the loop: the agent authenticates the **user** (Authorization
+Code flow), and registers the **client** itself. Two orthogonal
+credentials, both provisioned in-band, auditable, revocable
+independently.
+
+## API surface
+
+`POST /mcp/oauth/register` (`src/controllers/http/mcp/oauth-dcr.router.ts`)
+
+Request — RFC 7591 §2 client metadata (all optional except
+`redirect_uris`):
+
+| Field | Default |
+|---|---|
+| `redirect_uris` | **required** — each entry must parse as a URL |
+| `client_name` | `null` |
+| `grant_types` | `["authorization_code", "refresh_token"]` |
+| `response_types` | `["code"]` |
+| `token_endpoint_auth_method` | `"client_secret_post"` |
+| `scope` | `"mcp:tools"` |
+
+Response — RFC 7591 §3.2 (201):
+
+```json
+{
+  "client_id": "mcp_<uuid-no-dashes>",
+  "client_secret": "<64 hex chars — 256 bits>",
+  "client_id_issued_at": 1732400000,
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["https://agent.example.com/cb"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "client_secret_post",
+  "scope": "mcp:tools",
+  "client_name": "my-agent"
+}
+```
+
+- `client_id` — `mcp_` + uuidv4 without dashes.
+- `client_secret` — 256-bit random hex; `null` when
+  `token_endpoint_auth_method` is `"none"` (public clients).
+- `client_id_issued_at` — **unix seconds**, read back from the DB stamp:
+  the column is `DEFAULT clock_timestamp()` and `register()` projects it
+  via `returning` — the response carries the real DB-clock instant, not
+  an app-clock approximation.
+- `client_secret_expires_at` — always `0` (never expires, RFC 7591
+  convention).
+
+`DELETE /mcp/oauth/register/:clientId` — removes the client (RFC 7591
+§3.3); `204` on success, `404` with `invalid_client` when unknown.
+
+## Persistence & audit
+
+Registrations land in `mcp_oauth_clients` (schema `public`) —
+`McpOauthClientEntity` is `Auditable`, so every registration and
+deletion writes the standard audit trail (`created_at`/`updated_at`
+DB-stamped, `created_by`/`updated_by`, `version`). The row is a business
+entity: it lives with the other public-schema entities, not with the
+system builtin tables.
+
+## Endpoint in context
+
+DCR is one leg of the MCP authorization profile — see
+[MCP gateway](/dev-guide/mcp) for the full picture (RFC 9728
+protected-resource metadata, RFC 8414 AS metadata, the Authorization
+Code flow at `/mcp/oauth/authorize`, and per-request token verification
+in `token-verifier`).

@@ -71,14 +71,14 @@ const UpdateBodySchema = z.object({
   type: z.string().min(1).max(50).optional(),
   type_config: z.string().nullable().optional(),
   // Ext-JSON decodes every integer as bigint — accept both.
-  version: z.union([z.number().int().min(1), z.bigint()]),
+  version: z.union([z.number().int().min(1), z.bigint()]).transform(BigInt),
 });
 
 const BulkDeleteBodySchema = z.object({
   items: z.array(z.object({
     uuid: z.string().min(1),
     // Caller-observed version — per-row optimistic-concurrency guard.
-    version: z.union([z.number().int().min(1), z.bigint()]),
+    version: z.union([z.number().int().min(1), z.bigint()]).transform(BigInt),
   })).min(1),
 });
 
@@ -89,7 +89,7 @@ const BulkUpdateBodySchema = z.object({
       value: z.union([z.string(), z.number(), z.bigint()]).optional(),
       type: z.string().min(1).max(50).optional(),
       type_config: z.string().nullable().optional(),
-      version: z.union([z.number().int().min(1), z.bigint()]),
+      version: z.union([z.number().int().min(1), z.bigint()]).transform(BigInt),
     })
   ).min(1),
 });
@@ -182,7 +182,7 @@ export function configEntriesRouter() {
     await runEntityWrite(
       translations,
       (tx) =>
-        service.updateEntry(uuid, { ...patch, version: Number(body.entity.version) }, userUuid, tx),
+        service.updateEntry(uuid, { ...patch, version: BigInt(body.entity.version) }, userUuid, tx),
       () => service.refreshCache(),
     );
     res.json({ success: true });
@@ -205,7 +205,7 @@ export function configEntriesRouter() {
   const softDelete: RequestHandler = asyncHandler(async (req, res) => {
     const uuid = req.params.uuid as string;
     // Caller-observed version (ERR02 if absent — enforced by the DAL).
-    const version = req.query.version !== undefined ? Number(req.query.version) : (undefined as unknown as number);
+    const version = req.query.version !== undefined ? BigInt(req.query.version as string) : (undefined as unknown as bigint);
     const row = await service.softDelete(uuid, version, requireUserUuid(req));
     res.json(service.maskSecretValue(row));
   });
@@ -219,7 +219,7 @@ export function configEntriesRouter() {
   const restore: RequestHandler = asyncHandler(async (req, res) => {
     const uuid = req.params.uuid as string;
     // Caller-observed version (ERR02 if absent — enforced by the DAL).
-    const version = req.query.version !== undefined ? Number(req.query.version) : (undefined as unknown as number);
+    const version = req.query.version !== undefined ? BigInt(req.query.version as string) : (undefined as unknown as bigint);
     const row = await service.restoreEntry(uuid, version, requireUserUuid(req));
     res.json(service.maskSecretValue(row));
   });

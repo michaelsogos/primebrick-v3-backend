@@ -16,9 +16,11 @@ admin API without restarting.
 
 ## The env contract — read this first (CRITICAL)
 
-The `.env` file is a **closed set**: it may contain ONLY the database
-bootstrap pair `DATABASE_URL` + `DATABASE_SCHEMA`. `assertDbEnv()`
-crashes the boot on ANY other key in the file — including a misspelled
+The `.env` file is a **closed set**: it may contain ONLY
+`DATABASE_URL`. `assertDbEnv()`
+crashes the boot on ANY other key in the file — including `DATABASE_SCHEMA`
+(a **reserved violation**: schema identity is code — `OWNED_SCHEMAS` in
+`src/db/owned-schemas.ts` — never an env var) or a misspelled
 `DB_*`/`DATABASE_*` name (fail-loud, never silently ignored).
 
 A closed set of **platform variables** (`NODE_ENV`, E2E/debug knobs) is
@@ -29,12 +31,11 @@ BE connects inside `startServiceLifecycle()`, after `initDal()`).
 
 ## Quick start
 
-Create `.env` with ONLY the DB pair:
+Create `.env` with ONLY `DATABASE_URL`:
 
 ```bash
-# .env — the ONLY two keys allowed in this file
+# .env — the ONLY key allowed in this file
 DATABASE_URL=postgres://primebrick:primebrick_dev@127.0.0.1:5432/primebrick
-DATABASE_SCHEMA=public
 ```
 
 The defaults work out-of-the-box with the dockerized infrastructure from
@@ -45,10 +46,12 @@ The defaults work out-of-the-box with the dockerized infrastructure from
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | **(none — required)** |
-| `DATABASE_SCHEMA` | Declared schema domain — CSV or JSON array (`public,system,custom`). `[0]` is the owned schema | **(none — required)** |
 
-The backend crashes on startup if either is missing or empty, or if the
-`.env` file contains any other key.
+The backend crashes on startup if `DATABASE_URL` is missing or empty, or
+if the `.env` file contains any other key. The schema domain is declared
+in code — `OWNED_SCHEMAS = ["public","system","custom"]` in
+`src/db/owned-schemas.ts`, `[0]` = primary — and `DATABASE_SCHEMA` in env
+is a reserved violation.
 
 ## Platform variables (process env — never `.env`, never config)
 
@@ -135,10 +138,9 @@ curl -X PUT http://localhost:3001/api/v1/entities/config_entry/<uuid> \
 
 ### Steps
 
-1. Create `.env` with ONLY the DB pair (see "The env contract" above):
+1. Create `.env` with ONLY `DATABASE_URL` (see "The env contract" above):
    ```bash
    DATABASE_URL=postgres://primebrick:primebrick_dev@127.0.0.1:5432/primebrick
-   DATABASE_SCHEMA=public
    ```
 
 2. Apply database migrations:
@@ -164,6 +166,6 @@ curl -X PUT http://localhost:3001/api/v1/entities/config_entry/<uuid> \
 ## Production checklist
 
 - [ ] `NODE_ENV=production` via Docker `ENV` (image) or process launch — never `.env`
-- [ ] Set `DATABASE_URL` + `DATABASE_SCHEMA` in `.env` (the only keys allowed there)
+- [ ] Set `DATABASE_URL` in `.env` (the only key allowed there)
 - [ ] Update `config_entries` with production values: `nats_url`, `idp_*`/`oidc_*` (production Casdoor), `frontend_url`, Redis, and gateway settings
 - [ ] Remove or disable all debug toggles

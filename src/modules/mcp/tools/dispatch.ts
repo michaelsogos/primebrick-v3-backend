@@ -13,7 +13,7 @@
  *     enforce their own RBAC)
  */
 
-import { isPermissionGranted, internalFetch, extJsonStringify, type Permission } from "@primebrick/sdk";
+import { isPermissionGranted, internalFetch, extJsonStringify, type Permission, extJsonParse } from '@primebrick/sdk';
 import type { AuthInfo } from "@modelcontextprotocol/server";
 import { authInfoToUser } from "../token-verifier.js";
 import { entityRegistry, type Operation } from "./entity-registry.js";
@@ -185,7 +185,7 @@ export async function dispatchLocalUpdate(
 /**
  * Dispatch a delete operation (soft-delete) to the BE service layer.
  */
-export async function dispatchLocalDelete(entity: string, uuid: string, version: number): Promise<unknown> {
+export async function dispatchLocalDelete(entity: string, uuid: string, version: bigint): Promise<unknown> {
   switch (entity) {
     case "organization":
       await getOrganizationService().deleteOrganization(uuid, version);
@@ -201,7 +201,7 @@ export async function dispatchLocalDelete(entity: string, uuid: string, version:
 /**
  * Dispatch a restore operation to the BE service layer.
  */
-export async function dispatchLocalRestore(entity: string, uuid: string, version: number): Promise<unknown> {
+export async function dispatchLocalRestore(entity: string, uuid: string, version: bigint): Promise<unknown> {
   switch (entity) {
     case "organization":
       await getOrganizationService().restoreOrganization(uuid, version);
@@ -253,7 +253,7 @@ export async function dispatchLocalMeta(entity: string): Promise<unknown> {
 export async function dispatchLocalBulk(
   entity: string,
   action: "delete" | "restore",
-  items: Array<{ uuid: string; version: number }>,
+  items: Array<{ uuid: string; version: bigint }>,
 ): Promise<unknown> {
   const results: Array<{ uuid: string; success: boolean; error?: string }> = [];
   for (const { uuid, version } of items) {
@@ -343,7 +343,7 @@ export async function proxyToMicroservice(
 
   const contentType = response.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
-    return response.json();
+    return response.text().then((t) => extJsonParse<any>(t));
   }
   return response.text();
 }
@@ -430,7 +430,7 @@ export async function dispatchProxyDelete(
   module: string,
   entity: string,
   uuid: string,
-  version: number,
+  version: bigint,
 ): Promise<unknown> {
   const path = `${buildProxyPath(module, entity, "delete", uuid)}?version=${version}`;
   return proxyToMicroservice(authInfo, "DELETE", path);
@@ -444,7 +444,7 @@ export async function dispatchProxyRestore(
   module: string,
   entity: string,
   uuid: string,
-  version: number,
+  version: bigint,
 ): Promise<unknown> {
   const path = `${buildProxyPath(module, entity, "restore", uuid)}?version=${version}`;
   return proxyToMicroservice(authInfo, "POST", path);

@@ -32,7 +32,6 @@ export class DocsPackService {
     }
     // parseDocsPackPayload strict-checks schema/bytes as numbers —
     // extJsonParse bigint-ifies them and would reject a valid pack.
-    // standards-exempt: ext-json — pack manifest is a schema-validated wire payload, must stay plain JSON
     const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
     const files = listFilesRecursive(docsDir).map((full) => ({
       path: relative(docsDir, full).split(sep).join("/"),

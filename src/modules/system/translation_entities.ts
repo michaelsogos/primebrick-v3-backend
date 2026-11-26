@@ -11,14 +11,14 @@
  * via getQualifiedTableName(entity) — no raw SQL, no string interpolation.
  */
 
-import { Entity, TranslationEntityBase } from "@primebrick/dal-pg";
+import { TranslationEntity, TranslationEntityBase } from "@primebrick/dal-pg";
 
 /** Public/application UI translations (schema: public). */
-@Entity("translations", "public")
+@TranslationEntity("public")
 export class AppTranslationEntity extends TranslationEntityBase {}
 
 /** Authenticated system/settings/entity translations (schema: system). */
-@Entity("translations", "system")
+@TranslationEntity("system")
 export class SystemTranslationEntity extends TranslationEntityBase {}
 
 /**
@@ -26,5 +26,5 @@ export class SystemTranslationEntity extends TranslationEntityBase {}
  * Global, shared, cross-system/cross-org — keys MUST start with `custom.`
  * (enforced in TranslationsService). Never seed data, never module-owned.
  */
-@Entity("translations", "custom")
+@TranslationEntity("custom")
 export class CustomTranslationEntity extends TranslationEntityBase {}

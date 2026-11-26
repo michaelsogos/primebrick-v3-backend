@@ -258,6 +258,12 @@ export class TranslationsService {
     const map = new Map<string, TranslationEntityCtor>();
     for (const s of await new ServiceRegistryService().findAll()) {
       const code = s.code.toLowerCase();
+      // Reserved platform rows (`api` gateway self-enrollment, `settings`
+      // shell) and schema-less services own no `translations` table —
+      // their identity labels ride the `system` dict (`system.api.title`).
+      // Synthesizing an entity for them turned a benign dict fetch into a
+      // 503 on a nonexistent schema table.
+      if (s.is_reserved || (s.schemas?.length ?? 0) === 0) continue;
       if (MODULE_ENTITIES[code] || map.has(code)) continue;
       const cls = class extends TranslationEntityBase {} as unknown as TranslationEntityCtor;
       Entity("translations", code)(cls as unknown as Function);
@@ -273,12 +279,22 @@ export class TranslationsService {
    */
   async resolveEntity(moduleCode: string): Promise<TranslationEntityCtor> {
     const code = moduleCode.toLowerCase();
-    const entity = MODULE_ENTITIES[code] ?? (this.serviceEntities ?? await this.discoverServiceEntities()).get(code)
-      ?? (await this.discoverServiceEntities()).get(code);
-    if (!entity) {
-      throw new NotFoundError(`Unknown translation module: '${moduleCode}'`);
+    // Sibling modules (`<code>-<id>` — emitted by discovery from
+    // `endpoints.nav.siblings`) own no service_registry row: their keys
+    // live in the PARENT's translations schema (`crm.settings.*` lives in
+    // `crm.translations`). Exact match wins first — a service literally
+    // named `foo-bar` keeps its own dict; only unresolved codes strip
+    // the last `-segment` and retry against the parent.
+    for (let probe = code; ; ) {
+      const entity =
+        MODULE_ENTITIES[probe] ??
+        (this.serviceEntities ?? (await this.discoverServiceEntities())).get(probe);
+      if (entity) return entity;
+      const cut = probe.lastIndexOf("-");
+      if (cut <= 0) break;
+      probe = probe.slice(0, cut);
     }
-    return entity;
+    throw new NotFoundError(`Unknown translation module: '${moduleCode}'`);
   }
 
   /**

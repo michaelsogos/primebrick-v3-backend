@@ -10,6 +10,7 @@ import { Pool } from "pg";
 import { join } from "node:path";
 import { runMigrations } from "@primebrick/dal-pg";
 import { logger } from "@primebrick/sdk";
+import { OWNED_SCHEMAS } from "../src/db/owned-schemas.js";
 
 const PATCHES_DIR = join(process.cwd(), "db-meta", "patches");
 
@@ -21,10 +22,11 @@ async function main() {
   try {
     const result = await runMigrations({
       pool,
-      schema: "public",
+      schema: OWNED_SCHEMAS[0],
       patchesDir: PATCHES_DIR,
       allowedTrust:
         process.env.NODE_ENV === "production" ? ["release"] : ["dev", "release"],
+      firstBoot: process.argv.includes("--first-boot"),
       actor: `cli:${process.pid}`,
       logger,
     });

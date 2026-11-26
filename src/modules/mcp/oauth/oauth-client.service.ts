@@ -22,7 +22,7 @@ export interface OAuthClient {
   response_types: string[];
   token_endpoint_auth_method: string;
   scope: string;
-  client_id_issued_at: Date;
+  client_id_issued_at?: Date;
   client_secret_expires_at: Date | null;
 }
 
@@ -63,7 +63,7 @@ export class OAuthClientService {
 
   /** Create a new client registration. */
   async register(client: OAuthClient): Promise<OAuthClient> {
-    await getDal().add(McpOauthClientEntity, {
+    const inserted = await getDal().add(McpOauthClientEntity, {
       client_id: client.client_id,
       client_secret: client.client_secret,
       client_name: client.client_name,
@@ -72,9 +72,13 @@ export class OAuthClientService {
       response_types: client.response_types,
       token_endpoint_auth_method: client.token_endpoint_auth_method,
       scope: client.scope,
-      client_id_issued_at: client.client_id_issued_at,
       client_secret_expires_at: client.client_secret_expires_at,
-    }, {});
+    }, {
+      // `client_id_issued_at` is column-defaulted (clock_timestamp()) — read
+      // the DB stamp back so the registration response carries the real value.
+      returning: [Project.field(field(McpOauthClientEntity, "client_id_issued_at"))],
+    });
+    client.client_id_issued_at = inserted.client_id_issued_at as Date;
     return client;
   }
 

@@ -35,7 +35,10 @@ import { DomainService } from "../../../db/domain-service.js";
 import { UserMfaFactorEntity, MfaFactorType } from "../user_mfa_factor_entity.js";
 import { MfaActionAuthorizationEntity } from "../mfa_action_authorization_entity.js";
 import { requireActor } from "@primebrick/sdk";
-import { field, Filter } from "@primebrick/dal-pg";
+import { field, Filter, 
+  DAL_NOW,
+  type DalNow,
+} from "@primebrick/dal-pg";
 import {
   signMfaChallengeToken,
   verifyMfaChallengeToken,
@@ -346,12 +349,12 @@ export class MfaService extends DomainService<Record<string, unknown>> {
    * Update a factor (e.g. set last_used_at, is_preferred, is_enabled).
    * `version` is required for optimistic concurrency (auditable entity).
    */
-  private async updateFactor(uuid: string, data: Partial<Pick<UserMfaFactorEntity, "label" | "is_enabled" | "is_preferred" | "last_used_at" | "version">>): Promise<void> {
+  private async updateFactor(uuid: string, data: Partial<Pick<UserMfaFactorEntity, "label" | "is_enabled" | "is_preferred" | "version">> & { last_used_at?: Date | DalNow }): Promise<void> {
     // Strict version contract: callers always carry the observed version
     // (the factor is loaded earlier in the flow). A missing version lets
     // the update's version guard throw MissingVersionError (ERR02) — we never
     // manufacture one by re-reading the row.
-    await this.svc.update(uuid, { ...data } as Record<string, unknown> & { version: number });
+    await this.svc.update(uuid, { ...data } as Record<string, unknown> & { version: bigint });
   }
 
   /**
@@ -433,7 +436,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
     if (!existing) return;
     // Match by uuid — the row was just read by jti, equivalent and strict.
     await this.svc.update(existing.uuid, {
-      used_at: new Date(),
+      used_at: DAL_NOW,
       version: existing.version,
     });
   }
@@ -1009,7 +1012,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
     // context — wrap in runAsSystem to provide the system actor for audit fields.
     // Pass the current version for optimistic concurrency (auditable entity).
     await runAsSystem(() => this.updateFactor(factor.uuid, {
-      last_used_at: new Date(),
+      last_used_at: DAL_NOW,
       version: factor.version,
     }));
 
@@ -1176,7 +1179,7 @@ export class MfaService extends DomainService<Record<string, unknown>> {
 
     // Update last_used_at (pass version for optimistic concurrency — auditable entity)
     await runAsSystem(() => this.updateFactor(factor.uuid, {
-      last_used_at: new Date(),
+      last_used_at: DAL_NOW,
       version: factor.version,
     }));
 
@@ -1293,6 +1296,5 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
   const parts = token.split(".");
   const encodedPayload = parts[1];
   const rawPayload = Buffer.from(encodedPayload, "base64").toString("utf-8");
-  // standards-exempt: ext-json — external wire payload (JWT RFC7519) — must not bigint-ify
   return JSON.parse(rawPayload);
 }

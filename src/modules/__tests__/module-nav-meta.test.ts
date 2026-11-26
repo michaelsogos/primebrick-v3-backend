@@ -91,7 +91,7 @@ describe("validateNavDeclaration — module route namespace", () => {
       validateNavDeclaration("job", {
         route_prefixes: ["/system/job"],
         access: "access.system.job",
-        nav: [{ id: "x", label_key: "other.ns.key", href: "/system/job" }],
+        nav: [{ id: "x", label_key: "custom.ns.key", href: "/system/job" }],
       }, "system"),
     ).toMatch(/outside the module namespace/);
   });

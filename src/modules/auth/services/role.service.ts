@@ -32,7 +32,9 @@ import {
   field,
   Filter,
   Sort,
+  DAL_NOW,
   type FilterExpr,
+  type DalNow,
 } from "@primebrick/dal-pg";
 import { DomainService } from "../../../db/domain-service.js";
 import { EntityAuditPort } from "../../../db/entity-audit-port.js";
@@ -64,8 +66,8 @@ export interface RoleMappingDetailed {
   label_key?: string;
   permissions: string[];
   is_admin: boolean;
-  last_synced_at?: Date;
-  version: number;
+  last_synced_at?: Date | DalNow;
+  version: bigint;
   created_at: Date;
   created_by: string;
   updated_at: Date;
@@ -113,7 +115,7 @@ export interface UpdateRoleInput {
   is_admin?: boolean;
   permissions?: string[];
   /** Caller's observed row version — required for the optimistic-concurrency guard. */
-  version?: number;
+  version?: bigint;
 }
 
 const ROLE_MAPPING_PROJECTED_FIELDS = [
@@ -241,7 +243,7 @@ export class RoleService extends DomainService<RoleMappingDto> {
     permissions: string[],
     isAdmin: boolean,
     labelKey?: string,
-    extras?: { idp_org?: string; last_synced_at?: Date; actor?: string; tx?: Repository }
+    extras?: { idp_org?: string; last_synced_at?: Date | DalNow; actor?: string; tx?: Repository }
   ): Promise<void> {
     await this.runAs(extras?.actor ?? "system", () =>
       this.svc.create(
@@ -268,8 +270,8 @@ export class RoleService extends DomainService<RoleMappingDto> {
     permissions: string[],
     isAdmin: boolean,
     labelKey: string | undefined,
-    version: number,
-    extras?: { last_synced_at?: Date; actor?: string; tx?: Repository }
+    version: bigint,
+    extras?: { last_synced_at?: Date | DalNow; actor?: string; tx?: Repository }
   ): Promise<void> {
     await this.runAs(extras?.actor ?? "system", () =>
       this.svc.update(
@@ -298,9 +300,9 @@ export class RoleService extends DomainService<RoleMappingDto> {
   /**
    * Delete a role mapping.
    */
-  async deleteMapping(uuid: string, actor?: string, version?: number): Promise<void> {
+  async deleteMapping(uuid: string, actor?: string, version?: bigint): Promise<void> {
     await this.runAs(actor ?? "system", () =>
-      this.svc.purge(uuid, version as number),
+      this.svc.purge(uuid, version),
     );
     await this.invalidateRoleMappingsCache();
   }
@@ -430,10 +432,9 @@ export class RoleService extends DomainService<RoleMappingDto> {
     }
 
     // 5. Create in local DB.
-    const now = new Date();
     await this.createMapping(idp_role, permissions, is_admin, label_key, {
       idp_org,
-      last_synced_at: now,
+      last_synced_at: DAL_NOW,
       actor,
       tx,
     });
@@ -517,7 +518,6 @@ export class RoleService extends DomainService<RoleMappingDto> {
 
     // 5. Update local DB — matched by uuid; guarded by the caller's observed
     // version (client).
-    const now = new Date();
     await this.updateMapping(
       existing.uuid,
       permissions ?? existing.permissions,
@@ -525,7 +525,7 @@ export class RoleService extends DomainService<RoleMappingDto> {
       label_key ?? existing.label_key,
       input.version!,
       {
-        last_synced_at: now,
+        last_synced_at: DAL_NOW,
         actor,
         tx,
       },
@@ -548,7 +548,7 @@ export class RoleService extends DomainService<RoleMappingDto> {
    * `idp_role`/`idp_org` drive the Casdoor delete; the local hard-delete
    * matches by `uuid`.
    */
-  async deleteRole(existing: RoleMappingDto, actor: string, version: number): Promise<void> {
+  async deleteRole(existing: RoleMappingDto, actor: string, version: bigint): Promise<void> {
     const idpRole = existing.idp_role;
 
     // 2. Casdoor must be configured.
@@ -631,7 +631,7 @@ export class RoleService extends DomainService<RoleMappingDto> {
     return this.updateRole(existing, input, actor, tx);
   }
 
-  async deleteRoleByUuid(uuid: string, actor: string, version: number): Promise<RoleMappingDto> {
+  async deleteRoleByUuid(uuid: string, actor: string, version: bigint): Promise<RoleMappingDto> {
     const existing = await this.getRoleByUuid(uuid);
     await this.deleteRole(existing, actor, version);
     return existing;

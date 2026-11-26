@@ -49,16 +49,19 @@ export function validateBody<T>(schema: z.ZodType<T>): RequestHandler {
  *
  * `extJsonBodyParser` decodes EVERY JSON integer as native `bigint`, so a
  * plain `z.number().int()` in a body schema always fails on the wire.
- * `zBoundedInt` accepts both `number` and `bigint`, normalizes to `number`,
- * then applies the int + min/max checks. Use it instead of
+ * `zBoundedInt` accepts both `number` and `bigint` on the wire (legacy/plain-JSON
+ * clients may send either), validates bounds per input type, and normalizes UP
+ * to `bigint` — the domain type. Use it instead of
  * `z.number().int().min().max()` in any schema that parses a request body.
  * (Query params stay `z.coerce.number()` — they arrive as strings.)
  */
 export function zBoundedInt(min: number, max: number) {
   return z
-    .union([z.number(), z.bigint()])
-    .transform((v) => (typeof v === "bigint" ? Number(v) : v))
-    .pipe(z.number().int().min(min).max(max));
+    .union([
+      z.number().int().min(min).max(max),
+      z.bigint().min(BigInt(min)).max(BigInt(max)),
+    ])
+    .transform((v) => BigInt(v));
 }
 
 /**
