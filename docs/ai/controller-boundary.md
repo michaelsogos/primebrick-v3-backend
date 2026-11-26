@@ -74,9 +74,13 @@ Services are pure `(validatedInput, ctx) → result | throw`:
 
 One operation must be invocable over HTTP and NATS pub/sub without
 duplicating auth/validation/dispatch — only the controller file changes,
-the service is untouched. (NATS req/res was considered and rejected:
-empirically ~1.5× slower than the HTTP proxy, no durability/ordering,
-and identical auth code-flow when done correctly.)
+the service is untouched. (NATS correlation-reply for synchronous
+request/reply was measured and rejected — benchmark 2026-11-26,
+`primebrick-workspace/temp/bench-nats-vs-http.mts`: mean 1.23ms vs 0.091ms
+HTTP floor on loopback, ~13× — the cost is structural: broker mediation
+means 4 TCP traversals per roundtrip vs 2 direct, no client optimization
+removes the broker hop. The earlier ~1.5× figure was never measured. NATS
+keeps events/jobs/durability, where its strengths are real.)
 
 ## Good / bad (canonical)
 
