@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-24T19:03:02.970Z",
+  "generatedAt": "2026-11-26T16:36:07.457Z",
   "source": "database",
   "capturesDefaults": true,
   "tables": {
@@ -59,7 +59,8 @@
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": false,
-          "isPrimaryKey": false
+          "isPrimaryKey": false,
+          "defaultSql": "clock_timestamp()"
         },
         "ip_address": {
           "name": "ip_address",
@@ -242,7 +243,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -270,7 +271,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
@@ -514,7 +515,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -542,7 +543,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
@@ -713,7 +714,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -741,7 +742,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
@@ -907,7 +908,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -935,7 +936,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
@@ -1101,7 +1102,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -1155,7 +1156,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
@@ -1392,7 +1393,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -1420,7 +1421,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
@@ -1561,7 +1562,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -1589,7 +1590,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
@@ -1789,7 +1790,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -1817,7 +1818,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
@@ -2010,7 +2011,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -2038,7 +2039,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
@@ -2354,7 +2355,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -2382,7 +2383,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
@@ -2560,7 +2561,7 @@
           "numericScale": null,
           "isNullable": true,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "client_secret_expires_at": {
           "name": "client_secret_expires_at",
@@ -2587,7 +2588,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_at": {
           "name": "updated_at",
@@ -2601,7 +2602,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "version": {
           "name": "version",
@@ -2728,7 +2729,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -2756,7 +2757,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
@@ -3079,256 +3080,6 @@
         }
       ]
     },
-    "system.client_shield_registry": {
-      "kind": "table",
-      "schema": "system",
-      "name": "client_shield_registry",
-      "columns": {
-        "uuid": {
-          "name": "uuid",
-          "ordinalPosition": 2,
-          "dataType": "uuid",
-          "typname": "uuid",
-          "typeOid": 2950,
-          "typcategory": "U",
-          "formatType": "uuid",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": true,
-          "defaultSql": "uuidv7()"
-        },
-        "ua_prefix": {
-          "name": "ua_prefix",
-          "ordinalPosition": 3,
-          "dataType": "varchar",
-          "typname": "varchar",
-          "typeOid": 1043,
-          "typcategory": "S",
-          "formatType": "character varying(255)",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false
-        },
-        "client_key_hash": {
-          "name": "client_key_hash",
-          "ordinalPosition": 4,
-          "dataType": "varchar",
-          "typname": "varchar",
-          "typeOid": 1043,
-          "typcategory": "S",
-          "formatType": "character varying(255)",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false
-        },
-        "source": {
-          "name": "source",
-          "ordinalPosition": 5,
-          "dataType": "varchar",
-          "typname": "varchar",
-          "typeOid": 1043,
-          "typcategory": "S",
-          "formatType": "character varying(20)",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false,
-          "defaultSql": "'manual'::character varying"
-        },
-        "is_enabled": {
-          "name": "is_enabled",
-          "ordinalPosition": 6,
-          "dataType": "bool",
-          "typname": "bool",
-          "typeOid": 16,
-          "typcategory": "B",
-          "formatType": "boolean",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false,
-          "defaultSql": "true"
-        },
-        "created_at": {
-          "name": "created_at",
-          "ordinalPosition": 7,
-          "dataType": "timestamptz",
-          "typname": "timestamptz",
-          "typeOid": 1184,
-          "typcategory": "D",
-          "formatType": "timestamp with time zone",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false,
-          "defaultSql": "now()"
-        },
-        "created_by": {
-          "name": "created_by",
-          "ordinalPosition": 8,
-          "dataType": "text",
-          "typname": "text",
-          "typeOid": 25,
-          "typcategory": "S",
-          "formatType": "text",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false,
-          "defaultSql": "'system'::text"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "ordinalPosition": 9,
-          "dataType": "timestamptz",
-          "typname": "timestamptz",
-          "typeOid": 1184,
-          "typcategory": "D",
-          "formatType": "timestamp with time zone",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false,
-          "defaultSql": "now()"
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "ordinalPosition": 10,
-          "dataType": "text",
-          "typname": "text",
-          "typeOid": 25,
-          "typcategory": "S",
-          "formatType": "text",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false,
-          "defaultSql": "'system'::text"
-        },
-        "version": {
-          "name": "version",
-          "ordinalPosition": 11,
-          "dataType": "int4",
-          "typname": "int4",
-          "typeOid": 23,
-          "typcategory": "N",
-          "formatType": "integer",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false,
-          "defaultSql": "1"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "ordinalPosition": 12,
-          "dataType": "timestamptz",
-          "typname": "timestamptz",
-          "typeOid": 1184,
-          "typcategory": "D",
-          "formatType": "timestamp with time zone",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": true,
-          "isPrimaryKey": false
-        },
-        "deleted_by": {
-          "name": "deleted_by",
-          "ordinalPosition": 13,
-          "dataType": "text",
-          "typname": "text",
-          "typeOid": 25,
-          "typcategory": "S",
-          "formatType": "text",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": true,
-          "isPrimaryKey": false
-        },
-        "key_mode": {
-          "name": "key_mode",
-          "ordinalPosition": 14,
-          "dataType": "varchar",
-          "typname": "varchar",
-          "typeOid": 1043,
-          "typcategory": "S",
-          "formatType": "character varying(10)",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false,
-          "defaultSql": "'static'::character varying"
-        },
-        "key_generation": {
-          "name": "key_generation",
-          "ordinalPosition": 15,
-          "dataType": "int4",
-          "typname": "int4",
-          "typeOid": 23,
-          "typcategory": "N",
-          "formatType": "integer",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": false,
-          "isPrimaryKey": false,
-          "defaultSql": "0"
-        },
-        "previous_key_hash": {
-          "name": "previous_key_hash",
-          "ordinalPosition": 16,
-          "dataType": "varchar",
-          "typname": "varchar",
-          "typeOid": 1043,
-          "typcategory": "S",
-          "formatType": "character varying(255)",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": true,
-          "isPrimaryKey": false
-        },
-        "previous_valid_until": {
-          "name": "previous_valid_until",
-          "ordinalPosition": 17,
-          "dataType": "timestamptz",
-          "typname": "timestamptz",
-          "typeOid": 1184,
-          "typcategory": "D",
-          "formatType": "timestamp with time zone",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": true,
-          "isPrimaryKey": false
-        },
-        "key_rotated_at": {
-          "name": "key_rotated_at",
-          "ordinalPosition": 18,
-          "dataType": "timestamptz",
-          "typname": "timestamptz",
-          "typeOid": 1184,
-          "typcategory": "D",
-          "formatType": "timestamp with time zone",
-          "numericPrecision": null,
-          "numericScale": null,
-          "isNullable": true,
-          "isPrimaryKey": false
-        }
-      },
-      "indexes": [
-        {
-          "name": "client_shield_registry_ua_prefix_uidx",
-          "using": "btree",
-          "isUnique": true,
-          "columns": [
-            "ua_prefix"
-          ],
-          "where": "(deleted_at IS NULL)",
-          "definition": "CREATE UNIQUE INDEX client_shield_registry_ua_prefix_uidx ON system.client_shield_registry USING btree (ua_prefix) WHERE (deleted_at IS NULL)"
-        }
-      ]
-    },
     "system.sequences": {
       "kind": "table",
       "schema": "system",
@@ -3346,7 +3097,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -3374,7 +3125,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
@@ -3584,7 +3335,7 @@
           "typname": "varchar",
           "typeOid": 1043,
           "typcategory": "S",
-          "formatType": "character varying(30)",
+          "formatType": "character varying(40)",
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": true,
@@ -3597,7 +3348,7 @@
           "typname": "varchar",
           "typeOid": 1043,
           "typcategory": "S",
-          "formatType": "character varying(30)",
+          "formatType": "character varying(40)",
           "numericPrecision": null,
           "numericScale": null,
           "isNullable": true,
@@ -3734,7 +3485,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "created_by": {
           "name": "created_by",
@@ -3762,7 +3513,7 @@
           "numericScale": null,
           "isNullable": false,
           "isPrimaryKey": false,
-          "defaultSql": "now()"
+          "defaultSql": "clock_timestamp()"
         },
         "updated_by": {
           "name": "updated_by",
