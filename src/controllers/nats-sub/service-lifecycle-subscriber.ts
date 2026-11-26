@@ -14,12 +14,10 @@
 import { logger } from "@primebrick/sdk";
 import { DAL_NOW } from "@primebrick/dal-pg";
 import { OWNED_SCHEMAS } from "../../db/owned-schemas.js";
-import { NatsClient, SERVICE_SUBJECTS, CLIENT_SHIELD_REGISTRY_SUBJECTS, makeNatsRequestRoute, setNatsShieldRegistry, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
-import { createPublisherVerifier } from "./publisher-identity.js";
+import { NatsClient, SERVICE_SUBJECTS, makeNatsRequestRoute, type ServiceRegisterPayload, type ServiceHeartbeatPayload, type ServiceUnregisterPayload, type ServiceStalePayload } from "@primebrick/sdk";
 import { ServiceRegistryService } from "../../modules/system/service-registry.service.js";
 import { validateNavDeclaration } from "../../modules/module-nav-meta.js";
 import { validateEventsDeclaration, validateCallablesDeclaration, validateEntitiesDeclaration } from "@primebrick/sdk";
-import { ClientShieldRegistryService } from "../../modules/system/client-shield-registry.service.js";
 import { entityRegistry } from "../../modules/mcp/tools/entity-registry.js";
 import { discoverEntitiesFromService } from "../../modules/mcp/tools/openapi-discovery.js";
 import { serviceEventsBus } from "../../modules/proxy/service-events-bus.js";
@@ -35,13 +33,9 @@ export class ServiceLifecycleSubscriber {
   private repo: ServiceRegistryService;
   /** Tracks which services have already had their entities registered (avoids re-fetching on every heartbeat). */
   private registeredServices: Set<string> = new Set();
-  /** Shield-identity verifier for service publishers (60s row cache + `changed` invalidation). */
-  private readonly verifier = createPublisherVerifier();
 
   constructor() {
     this.repo = new ServiceRegistryService();
-    // Layer-1 shield for governed NATS routes in this process (same as US).
-    setNatsShieldRegistry(this.verifier.shieldRegistry);
   }
 
   async start(): Promise<void> {
@@ -55,14 +49,6 @@ export class ServiceLifecycleSubscriber {
           subject: SERVICE_SUBJECTS.REGISTER,
           queue: "primebrick-api",
           permissions: [],
-          // service.register IS the enrollment channel — a first-time
-          // registration can't prove a key the registry doesn't know yet.
-          // `enrollment` skips the global L1 (snapshot) check so the
-          // route's own verify — which does the equivalent check with
-          // allowNewPrefix — decides. Enrolled prefixes must present the
-          // matching key (no squatting).
-          enrollment: true,
-          verify: this.verifier.asRouteVerify(undefined, { allowNewPrefix: true }),
           handler: async ({ request: payload }) => {
             if (!payload?.code || !payload?.base_url || !payload?.part_of) {
               logger.warn(`service.register rejected for the brick '${payload?.code ?? "unknown"}' — missing required field(s): ${[!payload?.code && "code", !payload?.base_url && "base_url", !payload?.part_of && "part_of"].filter(Boolean).join(", ")}`, {
@@ -142,7 +128,6 @@ export class ServiceLifecycleSubscriber {
     await NatsClient.subscribe<ServiceHeartbeatPayload>(
       SERVICE_SUBJECTS.HEARTBEAT,
       async (payload, msg) => {
-        if (!(await this.verifier.verify(msg, payload))) return;
         return this.handleHeartbeat(payload);
       },
       { queue: "primebrick-api" },
@@ -150,7 +135,6 @@ export class ServiceLifecycleSubscriber {
     await NatsClient.subscribe<ServiceUnregisterPayload>(
       SERVICE_SUBJECTS.UNREGISTER,
       async (payload, msg) => {
-        if (!(await this.verifier.verify(msg, payload))) return;
         return this.handleUnregister(payload);
       },
       { queue: "primebrick-api" },
@@ -158,18 +142,10 @@ export class ServiceLifecycleSubscriber {
     await NatsClient.subscribe<ServiceStalePayload>(
       SERVICE_SUBJECTS.STALE,
       async (payload, msg) => {
-        if (!(await this.verifier.verify(msg, payload))) return;
         return this.handleStale(payload);
       },
       { queue: "primebrick-api" },
     );
-    // Keep the publisher-identity cache fresh when clients enroll/rotate.
-    // Shield-verified too: a rogue publisher must not be able to force
-    // allowlist refetches.
-    await NatsClient.subscribe(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, async (_payload, msg) => {
-      if (!(await this.verifier.verify(msg))) return;
-      this.verifier.invalidate();
-    });
     logger.done("Subscribed to service.register, service.heartbeat, service.unregister, service.stale", { tags: ["nats"] });
 
     // Announce the gateway is (back) online: every service already up
@@ -329,41 +305,6 @@ export class ServiceLifecycleSubscriber {
     const ref = this.serviceRef(payload, code);
     logger.info(`The service ${ref} is registering`, { tags: ["nats", base_url] });
 
-    // Auto-enroll the caller identity: a service that registers with a
-    // client_key_hash gets a `source='registry'` row keyed by
-    // `{pkg_name}/{service_version}` — the UA prefix it will send.
-    // Raw keys never travel; only the sha256 hash is stored.
-    if (payload.pkg_name && payload.client_key_hash) {
-      const uaPrefix = `${payload.pkg_name}/${payload.service_version ?? ""}`;
-      // Derived-mode claims are cryptographically verified against the
-      // service's HMAC chain (master → service secret → generation key):
-      // the BE can check the material without ever seeing the secret.
-      if (payload.key_mode === "derived" && payload.key_generation !== undefined) {
-        const svc = new ClientShieldRegistryService();
-        const valid = await svc.verifyDerivedClaim(uaPrefix, payload.key_generation, payload.client_key_hash);
-        if (!valid) {
-          logger.warn(`service.register rejected for the brick '${code}' — derived key material does not verify for ${uaPrefix} (generation ${payload.key_generation})`, {
-            tags: ["nats", `brick:${code}`],
-          });
-          return { registered: false, error: "derived key material does not verify" };
-        }
-      }
-      const outcome = await this.upsertClientShieldRegistry(
-        uaPrefix,
-        payload.client_key_hash,
-        { keyMode: payload.key_mode, keyGeneration: payload.key_generation },
-      );
-      // Stale-generation (B14): the service derived for an older generation
-      // — send back the issued one; its registrar self-heals and retries.
-      if (outcome.outcome === "stale_generation") {
-        return {
-          registered: false,
-          error: "stale key generation",
-          key_generation: outcome.key_generation,
-        };
-      }
-    }
-
     // `is_default` is a CLAIM, not a snapshot: `is_default: true` upgrades
     // the row, `false`/absent never downgrades — an admin-set default must
     // survive a service reboot. A claim colliding with a DIFFERENT holder
@@ -486,27 +427,6 @@ export class ServiceLifecycleSubscriber {
       void this.registerMcpEntities(code, base_url);
     }
     return { registered: true };
-  }
-
-  /**
-   * Enroll/refresh a `source='registry'` row in system.client_shield_registry.
-   * Registry rows are system-owned — find→add|update keeps them fresh on
-   * re-registration; admins can only touch `source='manual'` rows.
-   */
-  private async upsertClientShieldRegistry(
-    uaPrefix: string,
-    clientKeyHash: string,
-    opts: { keyMode?: "static" | "derived"; keyGeneration?: number } = {},
-  ): Promise<{ outcome: "enrolled" | "stale_generation"; key_generation?: number }> {
-    const outcome = await new ClientShieldRegistryService().enrollRegistryRow(uaPrefix, clientKeyHash, "service-registry", opts);
-    if (outcome.outcome === "enrolled") {
-      logger.done(`The service ${uaPrefix} has been enrolled and its protection shield key registered`, { tags: ["nats"] });
-      // Invalidate consumer-side allowlist caches.
-      await NatsClient.publishEphemeralLossy(CLIENT_SHIELD_REGISTRY_SUBJECTS.CHANGED, { ua_prefix: uaPrefix });
-    } else {
-      logger.warn(`The service ${uaPrefix} registered with a stale key generation — issued generation ${outcome.key_generation} returned`, { tags: ["nats"] });
-    }
-    return outcome;
   }
 
   private async handleHeartbeat(payload: ServiceHeartbeatPayload): Promise<void> {

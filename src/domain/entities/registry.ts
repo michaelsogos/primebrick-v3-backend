@@ -18,7 +18,6 @@ import { UserProfileEntity } from "../../modules/auth/user_profile_entity.js";
 import { ApiKeyEntity } from "../../modules/auth/api_key_entity.js";
 import { McpOauthClientEntity } from "../../modules/mcp/oauth/mcp_oauth_client_entity.js";
 import { ServiceRegistryEntity } from "../../modules/system/service_registry_entity.js";
-import { ClientShieldRegistryEntity } from "../../modules/system/client_shield_registry_entity.js";
 
 export const ENTITY_REGISTRY = [
   AuthEventEntity,
@@ -34,5 +33,4 @@ export const ENTITY_REGISTRY = [
   ApiKeyEntity,
   McpOauthClientEntity,
   ServiceRegistryEntity,
-  ClientShieldRegistryEntity,
 ] as const;

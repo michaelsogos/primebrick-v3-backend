@@ -33,9 +33,7 @@ import { dirname, resolve } from "node:path";
 import { ServiceRegistryService } from "./modules/system/service-registry.service.js";
 import { ServiceLifecycleSubscriber } from "./controllers/nats-sub/service-lifecycle-subscriber.js";
 import { startInternalRequestRoutes } from "./controllers/nats-sub/internal-request-routes.js";
-import { createPublisherVerifier } from "./controllers/nats-sub/publisher-identity.js";
 import { initBackendIdentity } from "./modules/proxy/backend-identity.js";
-import { initSecretEngine } from "./modules/secrets/secret-engine.js";
 import { initSecretVault, provisionSecretVault, wireFabricKeyProvider } from "./modules/secrets/secret-vault.js";
 import { StaleDetectionJob } from "./controllers/nats-sub/stale-detection-job.js";
 import { ModuleDiscoveryService } from "./modules/system/module-discovery.service.js";
@@ -488,11 +486,10 @@ async function startServiceLifecycle(): Promise<void> {
     }
     // config.get — governed correlation-reply serving the shared config
     // (redis_url, telemetry) to microservices at boot and on config.changed.
-    const sharedConfigVerifier = createPublisherVerifier();
     await subscribeSharedConfig(NatsClient, () => {
       const cfg = getAuthConfig();
       return { redis_url: cfg.redis_url, telemetry: getTelemetryShared() };
-    }, sharedConfigVerifier.asRouteVerify());
+    });
     // Identity FIRST: the lifecycle subscriber publishes service.gateway_online
     // and internal routes serve shield-verified calls — every NATS publish
     // must already carry the BE's client-shield identity.
@@ -510,7 +507,6 @@ async function startServiceLifecycle(): Promise<void> {
     const subscriber = new ServiceLifecycleSubscriber();
     await subscriber.start();
     await startInternalRequestRoutes();
-    await initSecretEngine();
     // Fabric message-key material vault (WP-A5): PG-owned rotating parte_B —
     // boot self-heals missing material, hourly cadence, 7-day physical window.
     await initSecretVault();

@@ -20,19 +20,10 @@ vi.mock("@primebrick/sdk", async (importOriginal) => {
     makeNatsRequestRoute: vi.fn(async (routes: { handler: (arg: { request: unknown }) => Promise<unknown> }[]) => {
       captured.handler = routes[0].handler;
     }),
-    NatsClient: { subscribe: vi.fn(async () => undefined), publish: vi.fn(async () => undefined) },
-    setNatsShieldRegistry: vi.fn(),
+    NatsClient: { subscribe: vi.fn(async () => undefined), publish: vi.fn(async () => undefined), publishEphemeralLossy: vi.fn(async () => undefined) },
   };
 });
 
-vi.mock("../publisher-identity.js", () => ({
-  createPublisherVerifier: () => ({
-    asRouteVerify: () => async () => true,
-    verify: async () => true,
-    invalidate: () => undefined,
-    shieldRegistry: {},
-  }),
-}));
 
 const mockRepo = {
   findByCode: vi.fn(),
