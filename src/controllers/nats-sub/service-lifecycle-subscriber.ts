@@ -41,9 +41,9 @@ export class ServiceLifecycleSubscriber {
   async start(): Promise<void> {
     // Registration is a governed correlation-reply handshake (B16): the
     // service publishes with a private reply inbox and retries every 5s
-    // until this ack lands — no ack, no heartbeats. Callers authenticate
-    // via client-shield identity (`verify`), not AuthUser headers.
-    await makeNatsRequestRoute<ServiceRegisterPayload, { registered: boolean; error?: string; key_generation?: number }>(
+    // until this ack lands — no ack, no heartbeats. Service-lane traffic:
+    // the sealed envelope is the proof, no user context exists.
+    await makeNatsRequestRoute<ServiceRegisterPayload, { registered: boolean; error?: string }>(
       [
         {
           subject: SERVICE_SUBJECTS.REGISTER,

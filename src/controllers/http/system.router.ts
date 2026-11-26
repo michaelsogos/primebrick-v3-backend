@@ -70,7 +70,7 @@ export function systemRouter() {
   // Mount the MCP tool invocation shim (REST → shared tool handlers)
   router.use(mcpCallRouter());
 
-  // Docs pack — service-to-service only (rotating client-shield secret,
+  // Docs pack — service-to-service only (HMAC provenance signature,
   // no user context). Pulled by the AI service for KB ingestion.
   router.get(
     "/api/v1/system/docs/pack",

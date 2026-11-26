@@ -2,11 +2,10 @@
  * Governed service-to-BE query endpoints (NATS pub/sub correlation-reply —
  * `makeNatsRequestRoute`, never req/res).
  *
- * Callers are *services*, not users: identity is proven by client-shield
- * headers (UA prefix + key hash vs system.client_shield_registry) via
- * `createPublisherVerifier` — the same contract as internal HTTP calls and
- * the lifecycle subjects. Transport only — rows/records are returned
- * verbatim, no business rules.
+ * Callers are *services*, not users: `serviceLaneVerify` declares the lane
+ * explicitly — the sealed A7 envelope (validated at the transport layer) IS
+ * the provenance proof, no user context exists to resolve. Transport only —
+ * rows/records are returned verbatim, no business rules.
  */
 
 import { logger, makeNatsRequestRoute, serviceLaneVerify, AUTH_MFA_CONSUME_SUBJECT, CachingApiKeyPort, buildAuthUser, expandPermissions, type MfaConsumeResult } from "@primebrick/sdk";
