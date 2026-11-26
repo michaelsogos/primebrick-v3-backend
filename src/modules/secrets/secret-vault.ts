@@ -24,7 +24,7 @@ import {
   MessageKeyProvider,
   setMessageKeyProvider,
   getMessageKeyProvider,
-  subscribeShielded,
+  NatsClient,
   logger,
   type SqlPoolPort,
 } from "@primebrick/sdk";
@@ -103,7 +103,7 @@ export async function wireFabricKeyProvider(): Promise<void> {
 }
 
 async function subscribeVaultHints(): Promise<void> {
-  await subscribeShielded(VAULT_SUBJECTS.ROTATED, async (payload) => {
+  await NatsClient.subscribe(VAULT_SUBJECTS.ROTATED, async (payload) => {
     const hint = payload as { scope?: string; name?: string };
     if (hint.scope === MESSAGE_KEY_MATERIAL_REF.scope && hint.name === MESSAGE_KEY_MATERIAL_REF.name) {
       await getMessageKeyProvider()?.refresh();
