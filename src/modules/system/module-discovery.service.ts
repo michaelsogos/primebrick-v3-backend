@@ -164,17 +164,26 @@ function materializeRouteIcons(
 /**
  * Nav leaves resolve to the icon of the route they point at (the SAME
  * declaration's route census) — a leaf whose href owns no decl falls back
- * to `file-box`. Parents (children) are groups, not pages: untouched.
+ * to `file-box`. A leaf with children can STILL be a page: the auto-wired
+ * create leaf nests under its list leaf, so the list leaf is both parent
+ * and href-bound page — skipping parents here stripped every list icon
+ * the moment create leaves appeared (regression surfaced 2026-11-27).
+ * Only genuinely href-less containers keep whatever icon they declared.
  */
 function materializeNavIcons(
   links: ModuleNavLink[],
   iconByHref: ReadonlyMap<string, string>,
 ): ModuleNavLink[] {
-  return links.map((l) =>
-    l.children?.length
+  return links.map((l) => {
+    const withChildren = l.children?.length
       ? { ...l, children: materializeNavIcons(l.children, iconByHref) }
-      : { ...l, icon: l.icon ?? iconByHref.get(l.href) ?? DEFAULT_PAGE_ICON },
-  );
+      : { ...l };
+    if (!l.href) return withChildren;
+    return {
+      ...withChildren,
+      icon: l.icon ?? iconByHref.get(l.href) ?? DEFAULT_PAGE_ICON,
+    };
+  });
 }
 
 /**
